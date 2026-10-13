@@ -10,8 +10,8 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
 
 | # | Parte | Estado |
 | --- | --- | --- |
-| 1 | Correo del núcleo, `conStaff()`, `rutasAdmin`, `urlFirmada()` | ✅ hecha (a revisar) |
-| 2 | Catálogo base y proveedores, desde el back office | pendiente |
+| 1 | Correo del núcleo, `conStaff()`, `rutasAdmin`, `urlFirmada()` | ✅ hecha |
+| 2 | Catálogo base y proveedores, desde el back office | ✅ hecha (a revisar) |
 | 3 | Panel de la banda: diseños, productos, precios y margen | pendiente |
 | 4 | Tienda pública: catálogo, carrito, checkout | pendiente |
 | 5 | Pago con Mercado Pago, aviso y deuda con el proveedor | pendiente |
@@ -20,6 +20,20 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
 - Correo: tabla `correo` (RLS), estados PENDIENTE → ENVIANDO → ENVIADO/FALLIDO, `claveUnica`.
   Sin transporte en producción quedan pendientes (aviso en el log de arranque). Por ahora solo
   correos de banda (los de plataforma, cuando haga falta).
+- Parte 2: tablas globales `tienda_proveedor` y `tienda_producto_base`; de banda (ya creadas
+  para las reglas de costos) `tienda_producto`, `tienda_pedido`, `tienda_pedido_item`.
+  - Dinero en centavos (Int), solo pesos. Variantes como opciones del producto base
+    (`Talle: S, M, L`); el renglón guarda la selección.
+  - Proveedor efectivo: el asignado o el de la plataforma. El primero cargado es el por
+    defecto; el por defecto no se desactiva, y uno con productos base asignados tampoco.
+    Los formatos del producto tienen que estar entre los que acepta su proveedor.
+  - "En uso" lo garantiza la base: las tablas de banda referencian el producto base con
+    clave foránea RESTRICT (Postgres la verifica aunque el staff no vea esas filas).
+  - Copia de costos al pagarse: `fijarCostosDelPedido(tx, pedidoId)` (la usa la parte 5).
+  - Núcleo: archivos de plataforma (`archivo_plataforma`, global) para las fotos del catálogo,
+    servidos en cualquier host en `/archivos/plataforma/<id>/<nombre>`.
+  - Ojo para la parte 4: una clave foránea no mira RLS; al crear un renglón hay que verificar
+    bajo `conTenant` que el producto sea de la banda.
 - `conStaff`: la auditoría se inserta sin RETURNING (la política deja insertar, no leer).
 - Pendiente anotado: barrido de correos y eventos pendientes al arrancar (hoy salen con el
   siguiente de la misma banda o al reintentar).

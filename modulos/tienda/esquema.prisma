@@ -1,0 +1,124 @@
+// Módulo tienda. Dos clases de tablas:
+//  - Globales (/// @global, sin tenantId): proveedores y catálogo base, iguales para todas
+//    las bandas. Las escribe el staff desde el back office (conStaff).
+//  - De banda (con tenantId, RLS): sus productos y sus pedidos.
+// Dinero: en centavos (Int). Solo pesos argentinos.
+
+/// @global
+/// Proveedor que produce y envía. Le llegan las órdenes por mail.
+model TiendaProveedor {
+  id         String   @id @default(uuid()) @db.Uuid
+  nombre     String
+  /// Al que llegan las órdenes de producción.
+  email      String
+  /// Persona de contacto.
+  contacto   String   @default("")
+  /// Formatos de impresión que acepta: "png" (alta resolución) y/o "pdf". SVG no.
+  formatos   String[]
+  activo     Boolean  @default(true)
+  /// El de la plataforma: lo usa todo producto base sin proveedor propio. Uno solo (índice parcial).
+  porDefecto Boolean  @default(false)
+  creadoEn   DateTime @default(now())
+
+  productosBase TiendaProductoBase[]
+
+  @@map("tienda_proveedor")
+}
+
+/// @global
+/// Producto del catálogo base (remera, buzo, vinilo, poster). La banda arma los suyos a partir de estos.
+model TiendaProductoBase {
+  id                  String   @id @default(uuid()) @db.Uuid
+  nombre              String
+  descripcion         String   @default("")
+  /// Foto (archivo de plataforma).
+  fotoArchivoId       String?  @db.Uuid
+  fotoNombre          String?
+  /// Variantes: [{ "nombre": "Talle", "valores": ["S", "M"] }, { "nombre": "Color", "valores": [...] }]
+  opciones            Json     @default("[]")
+  /// Lo que cobra el proveedor por producir uno. Vale el vigente al pagarse cada pedido.
+  costoProduccion     Int
+  /// Envío, fijo por producto. Vale el vigente al pagarse cada pedido.
+  costoEnvio          Int
+  /// Preparado para envío por zonas (sin uso todavía): { "<zona>": centavos }.
+  costoEnvioPorZona   Json?
+  /// Si es null, el proveedor por defecto de la plataforma.
+  proveedorId         String?  @db.Uuid
+  proveedor           TiendaProveedor? @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  /// Archivo de impresión que tiene que subir la banda.
+  impresionAnchoPx    Int
+  impresionAltoPx     Int
+  impresionDpi        Int
+  impresionFormatos   String[]
+  /// Desactivado: no se usa en productos nuevos; los que ya existen siguen.
+  activo              Boolean  @default(true)
+  creadoEn            DateTime @default(now())
+  actualizadoEn       DateTime @default(now()) @updatedAt
+
+  productos TiendaProducto[]
+  items     TiendaPedidoItem[]
+
+  @@map("tienda_producto_base")
+}
+
+/// Producto de una banda, hecho a partir de un producto base.
+model TiendaProducto {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  productoBaseId String   @db.Uuid
+  productoBase   TiendaProductoBase @relation(fields: [productoBaseId], references: [id], onDelete: Restrict)
+  nombre         String
+  /// Precio al fan, envío incluido.
+  precio         Int
+  activo         Boolean  @default(true)
+  creadoEn       DateTime @default(now())
+
+  items TiendaPedidoItem[]
+
+  @@index([tenantId])
+  @@map("tienda_producto")
+}
+
+enum TiendaEstadoPedido {
+  PENDIENTE
+  PAGADO
+  CANCELADO
+}
+
+model TiendaPedido {
+  id       String             @id @default(uuid()) @db.Uuid
+  tenantId String             @db.Uuid
+  estado   TiendaEstadoPedido @default(PENDIENTE)
+  creadoEn DateTime           @default(now())
+  pagadoEn DateTime?
+
+  items TiendaPedidoItem[]
+
+  @@index([tenantId, estado])
+  @@map("tienda_pedido")
+}
+
+/// Un renglón del pedido. Al pagarse guarda SU copia de costo de producción, envío y proveedor:
+/// cambiar el catálogo después no cambia lo que ya se vendió.
+model TiendaPedidoItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  pedidoId        String   @db.Uuid
+  pedido          TiendaPedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  productoId      String   @db.Uuid
+  producto        TiendaProducto @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  productoBaseId  String   @db.Uuid
+  productoBase    TiendaProductoBase @relation(fields: [productoBaseId], references: [id], onDelete: Restrict)
+  /// Selección: { "Talle": "M", "Color": "Negro" }
+  variante        Json
+  cantidad        Int
+  /// Precio al fan por unidad (envío incluido), al momento de la compra.
+  precioUnitario  Int
+  /// Copias fijadas al pagarse (null mientras el pedido no está pagado).
+  costoProduccion Int?
+  costoEnvio      Int?
+  proveedorId     String?  @db.Uuid
+
+  @@index([tenantId, pedidoId])
+  @@map("tienda_pedido_item")
+}

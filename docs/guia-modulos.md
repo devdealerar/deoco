@@ -140,6 +140,9 @@ const { id } = await guardarArchivo(tenantId, { nombre: f.name, datos }, {
   (`panelSlug`), todos los de la banda, con sesión.
 - Un SVG se sirve siempre como descarga (nunca se renderiza). Para mostrar, PNG/JPG/WebP.
 - Borrar: `borrarArchivos(tx, tenantId, ids)` (los bytes se borran al confirmar la transacción).
+- **Archivos de la plataforma** (no son de una banda, p. ej. la foto de un producto del
+  catálogo base): `guardarArchivoPlataforma(tx, archivo, opciones)` dentro de `conStaff()`;
+  siempre públicos, `urlArchivoPlataforma(ref, { variante })` (`@/nucleo/archivos/plataforma`).
 - **Link firmado** para un tercero sin sesión (el archivo de impresión al proveedor):
   `await urlFirmada(suContrato, tenantId, archivoId, { validoPorSegundos })` (`@/nucleo/archivos/firmados`).
   Por defecto 7 días, máximo 30. Es de la plataforma (`app.deoco.com/descargas/...`), siempre

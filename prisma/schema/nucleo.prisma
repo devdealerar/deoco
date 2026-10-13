@@ -241,3 +241,19 @@ model Correo {
   @@index([tenantId, estado])
   @@map("correo")
 }
+
+/// Archivo de la plataforma, no de una banda (la foto de un producto del catálogo base).
+/// Siempre público: se sirve en cualquier host en /archivos/plataforma/<id>/<nombre>.
+/// Todos lo leen; solo se escribe dentro de conStaff() (deoco_tabla_global).
+model ArchivoPlataforma {
+  id        String   @id @db.Uuid
+  /// Módulo dueño del archivo.
+  moduloId  String
+  nombre    String
+  tipo      String
+  bytes     BigInt
+  variantes String[] @default([])
+  creadoEn  DateTime @default(now())
+
+  @@map("archivo_plataforma")
+}

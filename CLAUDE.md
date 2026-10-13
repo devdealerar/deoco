@@ -115,6 +115,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   (`tablasGlobales`, `/// @global`, `deoco_tabla_global`).
 - `rutasAdmin` → `/admin/m/<id><ruta>` (solo staff, 404 si no); `navegacion` con `admin: true`.
 - `urlFirmada(contrato, tenantId, archivoId)` → `app.<raiz>/descargas/...` (vence: 410; alterado: 404).
+- Archivos de plataforma (`src/nucleo/archivos/plataforma.ts`, tabla global `archivo_plataforma`):
+  `guardarArchivoPlataforma(tx de conStaff, ...)`, públicos en `/archivos/plataforma/<id>/<nombre>`.
 
 ## Sitio público: título, vista previa y cabecera
 

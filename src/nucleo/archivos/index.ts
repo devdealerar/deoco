@@ -44,15 +44,11 @@ export async function usoAlmacenamiento(tenantId: string) {
   });
 }
 
-/**
- * Guarda un archivo de la banda. Valida tamaño, tipo real (por contenido) y cuota;
- * genera las versiones livianas pedidas (solo imágenes). Devuelve su id.
- */
-export async function guardarArchivo(
-  tenantId: string,
+/** Valida tamaño y tipo real, y genera las versiones livianas. No toca base ni almacén. */
+export async function prepararArchivo(
   archivo: { nombre: string; datos: Buffer },
-  opciones: { moduloId: string; tipos: TipoArchivo[]; maxBytes?: number; variantes?: Variante[] },
-): Promise<ArchivoGuardado> {
+  opciones: { tipos: TipoArchivo[]; maxBytes?: number; variantes?: Variante[] },
+) {
   const { datos } = archivo;
   const nombre = archivo.nombre.replace(/[/\\\0]/g, "_").slice(0, 200) || "archivo";
   const max = Math.min(opciones.maxBytes ?? MAX_BYTES_ARCHIVO, MAX_BYTES_ARCHIVO);
@@ -82,6 +78,19 @@ export async function guardarArchivo(
       }
     }
   }
+  return { nombre, tipo, datos, variantes };
+}
+
+/**
+ * Guarda un archivo de la banda. Valida tamaño, tipo real (por contenido) y cuota;
+ * genera las versiones livianas pedidas (solo imágenes). Devuelve su id.
+ */
+export async function guardarArchivo(
+  tenantId: string,
+  archivo: { nombre: string; datos: Buffer },
+  opciones: { moduloId: string; tipos: TipoArchivo[]; maxBytes?: number; variantes?: Variante[] },
+): Promise<ArchivoGuardado> {
+  const { nombre, tipo, datos, variantes } = await prepararArchivo(archivo, opciones);
   const total = BigInt(datos.length + variantes.reduce((s, v) => s + v.datos.length, 0));
 
   const id = randomUUID();
@@ -177,12 +186,22 @@ export async function servirArchivo(
   const cuerpo = await almacen().leer(clave(tenantId, archivo.id, variante));
   if (!cuerpo) return noEncontrado();
 
+  return respuestaArchivo(archivo, cuerpo, { variante, descargar: opciones.descargar, publico: opciones.soloPublicos });
+}
+
+/** Cabeceras comunes de un archivo servido (tipo, caché, SVG siempre como descarga sandbox). */
+export function respuestaArchivo(
+  archivo: { nombre: string; tipo: string },
+  cuerpo: BodyInit,
+  opciones: { variante?: string; descargar?: boolean; publico: boolean },
+): Response {
+  const { variante } = opciones;
   const tipo = archivo.tipo as TipoArchivo;
   const cabeceras = new Headers({
     "Content-Type": variante ? "image/webp" : MIME[tipo],
     "X-Content-Type-Options": "nosniff",
     // Un archivo nunca se sobreescribe (cada subida tiene id nuevo): caché permanente.
-    "Cache-Control": opciones.soloPublicos ? "public, max-age=31536000, immutable" : "private, max-age=300",
+    "Cache-Control": opciones.publico ? "public, max-age=31536000, immutable" : "private, max-age=300",
   });
   if (tipo === "svg" && !variante) {
     cabeceras.set("Content-Security-Policy", "sandbox; default-src 'none'");

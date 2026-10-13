@@ -95,9 +95,9 @@ export function Selector({
   );
 }
 
-/** Casilla que se envía como "on" en el formulario cuando está marcada. */
-export function Casilla({ etiqueta, name }: { etiqueta: string; name: string }) {
-  return <Checkbox label={etiqueta} name={name} value="on" isDisabled={useDeshabilitado()} />;
+/** Casilla que se envía como "on" en el formulario cuando está marcada. `marcada`: estado inicial. */
+export function Casilla({ etiqueta, name, marcada }: { etiqueta: string; name: string; marcada?: boolean }) {
+  return <Checkbox label={etiqueta} name={name} value="on" defaultSelected={marcada} isDisabled={useDeshabilitado()} />;
 }
 
 /**
