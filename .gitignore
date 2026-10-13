@@ -44,3 +44,6 @@ next-env.d.ts
 /src/generated
 !.env.example
 !.env.test.example
+
+# esquemas de módulos copiados por scripts/descubrir-modulos.mjs
+/prisma/schema/modulos

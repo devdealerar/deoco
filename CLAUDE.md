@@ -26,7 +26,8 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 
 - `app.<DEOCO_DOMINIO_RAIZ>/b/<slug>/...` → panel de esa banda, tenant por slug.
 - `app.<DEOCO_DOMINIO_RAIZ>` sin `/b/<slug>` → plataforma (selector de bandas, login), sin tenant.
-- Cualquier otro host (`labanda.deoco.com`, dominio propio) → sitio público, tenant por host. Anónimo.
+- Cualquier otro host (`labanda.deoco.com`, dominio propio) → sitio público (superficie
+  `"publico"`), tenant por host. Anónimo.
 - `/b/<slug>/pago` lo define el núcleo: abierto con la banda suspendida, solo para el titular.
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.
 
@@ -64,8 +65,12 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   (`next build`, lo invoque quien lo invoque).
 - Navegación: menú del panel = entradas de módulos prendidos filtradas por permiso; pestañas
   públicas = entradas `publica: true` de módulos prendidos. Ordena `orden` (menor primero).
-- Un módulo nunca importa código de otro. Sus tablas nacen con `tenantId` + RLS
-  (`tests/aislamiento.test.ts` falla si una tabla no tiene RLS y política).
+- Un módulo nunca importa código de otro.
+- Tablas de módulo: `modulos/<id>/esquema.prisma` (se copia a `prisma/schema/modulos/`; el núcleo
+  está en `prisma/schema/nucleo.prisma`). Prefijo `<Id>`/`<id>_`, `tenantId` sin relación Prisma,
+  validado por el script. Migración en `prisma/migrations` terminada en
+  `SELECT deoco_aislar_tabla('<tabla>')`. `tests/aislamiento.test.ts` exige RLS, política,
+  `tenantId` y prefijo en toda tabla que no sea del núcleo.
 
 ## Bus de eventos
 
@@ -85,7 +90,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - `npm run test:e2e` — punta a punta: levanta `next dev` en :3200 sobre la base de pruebas
   y navega con Chromium (`/opt/pw-browsers/chromium`, o la ruta en `CHROMIUM`)
 - `npm run typecheck` · `npm run lint`
-- `npx prisma migrate dev` — migraciones (rol dueño)
+- `npm run db:migrar` — migraciones de desarrollo (descubre módulos + `prisma migrate dev`, rol dueño)
 
 ## Base local
 
@@ -93,7 +98,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 psql -c "CREATE ROLE deoco_owner LOGIN PASSWORD 'owner' CREATEDB"
 psql -c "CREATE DATABASE deoco OWNER deoco_owner"
 psql -d deoco -v clave="'app'" -f prisma/sql/crear-rol-app.sql
-npx prisma migrate dev
+npm run db:migrar
 npm run db:semilla            # banda-a.lvh.me y banda-b.lvh.me
 
 # base de pruebas

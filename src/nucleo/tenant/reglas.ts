@@ -27,7 +27,7 @@ export function rutaPanelBanda(pathname: string): RutaPanel | null {
   return { slug, esPago };
 }
 
-export type Superficie = "panel" | "sitio";
+export type Superficie = "panel" | "publico";
 
 export type Decision =
   | { tipo: "seguir"; soloTitular: boolean }
@@ -45,7 +45,7 @@ export function decidirPorEstado(
     case "MOROSO": // funciona igual; el aviso al titular lo muestra el panel
       return { tipo: "seguir", soloTitular: false };
     case "SUSPENDIDO":
-      if (superficie === "sitio") return { tipo: "seguir", soloTitular: false };
+      if (superficie === "publico") return { tipo: "seguir", soloTitular: false };
       return esPago ? { tipo: "seguir", soloTitular: true } : { tipo: "prohibido" };
     case "ARCHIVADO":
       return { tipo: "no-encontrado" };

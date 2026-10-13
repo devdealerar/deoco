@@ -1,10 +1,11 @@
-// Esquema del núcleo de Deoco.
+// Esquema del núcleo de Deoco. Los módulos traen el suyo en modulos/<id>/esquema.prisma
+// (se copia a prisma/schema/modulos/ al descubrir módulos; ver docs/guia-modulos.md).
 // Regla: toda tabla con datos de banda lleva `tenantId` y su política RLS
 // (ver prisma/migrations/*_rls). Sin eso, no se mergea.
 
 generator client {
   provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  output   = "../../src/generated/prisma"
 }
 
 datasource db {

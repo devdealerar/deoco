@@ -40,7 +40,7 @@ export async function proxy(request: NextRequest) {
     esPago = ruta.esPago;
   } else {
     tenant = await resolverTenantPorHost(host);
-    superficie = "sitio";
+    superficie = "publico";
   }
   if (!tenant) return noEncontrado();
 

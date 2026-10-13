@@ -42,7 +42,7 @@ describe("camino 1: sitio público, por host", () => {
     const res = await proxy(pedido("Banda-A.deoco.com:3000"));
     expect(res.status).toBe(200);
     expect(cabeceraReenviada(res, CABECERA.tenantId)).toBe(a.id);
-    expect(cabeceraReenviada(res, CABECERA.superficie)).toBe("sitio");
+    expect(cabeceraReenviada(res, CABECERA.superficie)).toBe("publico");
   });
 
   it("host inexistente → 404", async () => {
@@ -53,7 +53,7 @@ describe("camino 1: sitio público, por host", () => {
   it("en el host de la banda, /b/<slug> es sitio público, no panel", async () => {
     const res = await proxy(pedido("banda-a.deoco.com", "/b/banda-b"));
     expect(cabeceraReenviada(res, CABECERA.tenantId)).toBe(a.id);
-    expect(cabeceraReenviada(res, CABECERA.superficie)).toBe("sitio");
+    expect(cabeceraReenviada(res, CABECERA.superficie)).toBe("publico");
   });
 });
 

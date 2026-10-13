@@ -7,10 +7,11 @@ export const dueno = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL_MIGRACIONES! }),
 });
 
+/** Vacía todas las tablas (núcleo y módulos), menos la de migraciones. */
 export async function limpiar() {
-  await dueno.$executeRawUnsafe(
-    `TRUNCATE "evento", "moduloTenant", "dominio", "membresia", "tenant", "usuario" CASCADE`,
-  );
+  const tablas = await dueno.$queryRaw<{ t: string }[]>`
+    SELECT tablename AS t FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+  await dueno.$executeRawUnsafe(`TRUNCATE ${tablas.map(({ t }) => `"${t}"`).join(", ")} CASCADE`);
 }
 
 /** Dos bandas, cada una con su dominio, un usuario titular y un evento. */

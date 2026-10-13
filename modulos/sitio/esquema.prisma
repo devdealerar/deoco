@@ -1,0 +1,93 @@
+// Tablas del módulo sitio: home y press kit de la banda.
+// Reglas (docs/guia-modulos.md): prefijo Sitio / sitio_, tenantId en todo, RLS en la migración.
+// Los archivos (logo, fotos, rider) se guardan con el almacenamiento del núcleo; acá
+// solo queda su id (`...ArchivoId`). Sin relación Prisma con tablas del núcleo.
+
+enum SitioTipografia {
+  SANS   // moderna, de palo seco
+  SERIF  // clásica
+  MONO   // de máquina de escribir
+}
+
+enum SitioTipoLink {
+  RED      // Instagram, TikTok, YouTube...
+  ESCUCHA  // Spotify, Bandcamp, Apple Music...
+}
+
+/// Una fila por banda: identidad visual y textos.
+model SitioPerfil {
+  id               String          @id @default(uuid()) @db.Uuid
+  tenantId         String          @unique @db.Uuid
+  // Identidad (home)
+  logoArchivoId    String?         @db.Uuid
+  fondoArchivoId   String?         @db.Uuid
+  colorFondo       String?         // #rrggbb, si no hay imagen de fondo
+  colorAcento      String          @default("#6941c6")
+  tipografia       SitioTipografia @default(SANS)
+  bioCorta         String          @default("")
+  // Press kit
+  bioLarga         String          @default("")
+  riderArchivoId   String?         @db.Uuid
+  prensaNombre     String          @default("")
+  prensaEmail      String          @default("")
+  prensaTelefono   String          @default("")
+  actualizadoEn    DateTime        @updatedAt
+
+  @@map("sitio_perfil")
+}
+
+/// Slider de imágenes de la home.
+model SitioSlide {
+  id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String  @db.Uuid
+  archivoId String  @db.Uuid
+  textoAlt  String  @default("")
+  orden     Int
+
+  @@index([tenantId, orden])
+  @@map("sitio_slide")
+}
+
+/// Próximas fechas cargadas a mano (hasta que la ticketera las provea).
+model SitioFecha {
+  id       String   @id @default(uuid()) @db.Uuid
+  tenantId String   @db.Uuid
+  fecha    DateTime
+  lugar    String
+  ciudad   String
+  link     String?
+
+  @@index([tenantId, fecha])
+  @@map("sitio_fecha")
+}
+
+/// Redes y plataformas de escucha.
+model SitioLink {
+  id         String        @id @default(uuid()) @db.Uuid
+  tenantId   String        @db.Uuid
+  tipo       SitioTipoLink
+  plataforma String        // "Instagram", "Spotify"...
+  url        String
+  orden      Int
+
+  @@index([tenantId, orden])
+  @@map("sitio_link")
+}
+
+/// Press kit: fotos en alta y logos descargables.
+model SitioDescargable {
+  id          String               @id @default(uuid()) @db.Uuid
+  tenantId    String               @db.Uuid
+  tipo        SitioTipoDescargable
+  archivoId   String               @db.Uuid
+  descripcion String               @default("") // crédito de la foto, variante del logo
+  orden       Int
+
+  @@index([tenantId, tipo, orden])
+  @@map("sitio_descargable")
+}
+
+enum SitioTipoDescargable {
+  FOTO
+  LOGO
+}

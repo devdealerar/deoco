@@ -4,7 +4,7 @@ import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 
 // Auth.js solo responde en app.<raiz>. En los hosts de banda (sitio público, anónimo) → 404.
 async function soloPlataforma(handler: (req: NextRequest) => Promise<Response>, req: NextRequest) {
-  if ((await tenantDelPedido())?.superficie === "sitio") {
+  if ((await tenantDelPedido())?.superficie === "publico") {
     return new Response("No encontrado", { status: 404 });
   }
   return handler(req);

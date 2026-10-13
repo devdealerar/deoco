@@ -20,7 +20,7 @@ export const usuarioDeSesion = cache(async (): Promise<string | null> => {
 
 /** Rutas de la plataforma (selector, login, auth): 404 en los hosts de banda. */
 export async function exigirPlataforma() {
-  if ((await tenantDelPedido())?.superficie === "sitio") notFound();
+  if ((await tenantDelPedido())?.superficie === "publico") notFound();
 }
 
 /**

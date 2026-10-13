@@ -1,12 +1,30 @@
 # Tareas
 
+## Paso 2 · Módulo de sitio
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| 1 | Tablas de módulos (infraestructura) + guía | ✅ hecha |
+| 2 | Esquema de `modulos/sitio` + migración con RLS | ✅ hecha, en revisión |
+| 3 | Almacenamiento de archivos | 📝 propuesta, esperando aprobación |
+| 4 | Untitled UI + pantallas del panel | ⏳ |
+| 5 | Sitio público: home y press kit | ⏳ |
+
+Decisiones:
+- La superficie pública del núcleo pasó de `"sitio"` a `"publico"`: chocaba con el id del
+  módulo `sitio` (lo detectó la prueba de la regla de oro).
+- Archivos en el esquema del sitio: solo ids (`...ArchivoId`), independientes del almacenamiento.
+
+Preguntas:
+- ¿"Publicar" es un paso aparte (borrador → publicado) o lo guardado ya está publicado?
+
 ## Paso 2 · Parte 0 · Cierres antes del módulo de sitio
 
 | # | Cierre | Estado |
 | --- | --- | --- |
-| 1 | Tablas de módulos (esquema por módulo, prefijo, RLS) | 📝 propuesta, esperando aprobación |
-| 2 | `emitir(..., { tx })`: evento atómico con la operación | ✅ hecha, en revisión |
-| 3 | Módulo de prueba fuera del build con `next build` directo | ✅ hecha, en revisión |
+| 1 | Tablas de módulos (esquema por módulo, prefijo, RLS) | ✅ aprobada y aplicada |
+| 2 | `emitir(..., { tx })`: evento atómico con la operación | ✅ aprobada |
+| 3 | Módulo de prueba fuera del build con `next build` directo | ✅ aprobada |
 
 - 2: `conTenant` registra tareas `alConfirmar(tx, fn)` que corren solo tras el commit; el bus
   programa la entrega ahí. Prueba: una operación que falla después de emitir no deja ni el

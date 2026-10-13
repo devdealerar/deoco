@@ -111,3 +111,52 @@ describe("toda tabla con datos de banda nace con RLS", () => {
     }
   });
 });
+
+describe("tablas de módulos", () => {
+  const NUCLEO = ["usuario", "tenant", "membresia", "dominio", "moduloTenant", "evento", "_prisma_migrations"];
+
+  it("toda tabla que no es del núcleo lleva el prefijo de un módulo registrado y tiene tenantId", async () => {
+    const { registro } = await import("@/nucleo/modulos");
+    const prefijos = registro().modulos.map((m) => `${m.id.replace(/-/g, "_")}_`);
+    const tablas = await dueno.$queryRaw<{ tabla: string; tiene_tenant: boolean }[]>`
+      SELECT t.tablename AS tabla,
+             EXISTS (SELECT 1 FROM information_schema.columns c
+                     WHERE c.table_name = t.tablename AND c.column_name = 'tenantId') AS tiene_tenant
+      FROM pg_tables t WHERE t.schemaname = 'public'`;
+    const deModulos = tablas.filter((t) => !NUCLEO.includes(t.tabla));
+    expect(deModulos.length).toBeGreaterThan(0);
+    for (const t of deModulos) {
+      expect(prefijos.some((p) => t.tabla.startsWith(p)), `"${t.tabla}" sin prefijo de módulo`).toBe(true);
+      expect(t.tiene_tenant, `"${t.tabla}" sin tenantId`).toBe(true);
+    }
+  });
+
+  it("las tablas del módulo sitio aíslan por banda", async () => {
+    await conTenant(a.id, (tx) =>
+      tx.sitioFecha.create({ data: { tenantId: a.id, fecha: new Date(), lugar: "Club A", ciudad: "Rosario" } }),
+    );
+    expect(await conTenant(a.id, (tx) => tx.sitioFecha.count())).toBe(1);
+    expect(await conTenant(b.id, (tx) => tx.sitioFecha.count())).toBe(0);
+    expect(await prisma.sitioFecha.count()).toBe(0); // sin tenant, nada
+    await expect(
+      conTenant(b.id, (tx) =>
+        tx.sitioFecha.create({ data: { tenantId: a.id, fecha: new Date(), lugar: "x", ciudad: "x" } }),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("deoco_aislar_tabla rechaza una tabla sin tenantId", async () => {
+    await dueno.$executeRawUnsafe(`CREATE TABLE "prueba_sin_tenant" (id int)`);
+    try {
+      await expect(dueno.$executeRawUnsafe(`SELECT deoco_aislar_tabla('prueba_sin_tenant')`)).rejects.toThrow(
+        /no tiene columna "tenantId"/,
+      );
+    } finally {
+      await dueno.$executeRawUnsafe(`DROP TABLE "prueba_sin_tenant"`);
+    }
+  });
+
+  it("la app no puede llamar a deoco_aislar_tabla", async () => {
+    await expect(prisma.$executeRawUnsafe(`SELECT deoco_aislar_tabla('sitio_fecha')`)).rejects.toThrow(/permission denied/);
+  });
+});

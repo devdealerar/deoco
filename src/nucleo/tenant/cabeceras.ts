@@ -3,7 +3,7 @@
 export const CABECERA = {
   tenantId: "x-deoco-tenant-id",
   estado: "x-deoco-tenant-estado",
-  /** "panel" (app.<raiz>/b/<slug>) o "sitio" (host de la banda). */
+  /** "panel" (app.<raiz>/b/<slug>) o "publico" (host de la banda: sitio público). */
   superficie: "x-deoco-superficie",
   soloTitular: "x-deoco-solo-titular",
 } as const;

@@ -10,7 +10,7 @@ import { pestanasSitio } from "@/nucleo/modulos/navegacion";
  * de los módulos prendidos. Ruta no declarada o módulo apagado → 404.
  * La home ("/") la aportará un módulo; mientras ninguno la declare, se muestra el nombre.
  */
-export async function SitioPublico({ tenantId, path }: { tenantId: string; path: string }) {
+export async function SuperficiePublica({ tenantId, path }: { tenantId: string; path: string }) {
   const reg = registro();
   const prendidos = await modulosPrendidos(tenantId, reg);
   const encontrada = reg.rutaPublica(path);
