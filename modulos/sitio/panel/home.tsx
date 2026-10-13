@@ -75,7 +75,7 @@ export async function HomePanel({ tenantId, slug }: PropsRutaPanel) {
             })}
           </ul>
         )}
-        <Formulario accion={agregarSlide.bind(null, slug)} puedeEditar={puedeEditar} etiqueta="Agregar imagen">
+        <Formulario accion={agregarSlide.bind(null, slug)} puedeEditar={puedeEditar} limpiarAlGuardar etiqueta="Agregar imagen">
           <CampoArchivo name="imagen" etiqueta="Imagen" accept="image/jpeg,image/png,image/webp" required />
           <Campo name="textoAlt" etiqueta="Descripción (para lectores de pantalla)" maxLength={200} />
         </Formulario>
@@ -95,7 +95,7 @@ export async function HomePanel({ tenantId, slug }: PropsRutaPanel) {
             ))}
           </ul>
         )}
-        <Formulario accion={agregarFecha.bind(null, slug)} puedeEditar={puedeEditar} etiqueta="Agregar fecha">
+        <Formulario accion={agregarFecha.bind(null, slug)} puedeEditar={puedeEditar} limpiarAlGuardar etiqueta="Agregar fecha">
           <div className="grid gap-4 sm:grid-cols-3">
             <Campo name="fecha" type="date" etiqueta="Fecha" required />
             <Campo name="lugar" etiqueta="Lugar" required maxLength={200} />
@@ -125,7 +125,7 @@ export async function HomePanel({ tenantId, slug }: PropsRutaPanel) {
             ))}
           </ul>
         )}
-        <Formulario accion={agregarLink.bind(null, slug)} puedeEditar={puedeEditar} etiqueta="Agregar link">
+        <Formulario accion={agregarLink.bind(null, slug)} puedeEditar={puedeEditar} limpiarAlGuardar etiqueta="Agregar link">
           <div className="grid gap-4 sm:grid-cols-3">
             <Selector
               name="tipo"

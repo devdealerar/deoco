@@ -64,7 +64,7 @@ export async function PrensaPanel({ tenantId, slug }: PropsRutaPanel) {
 
       <Tarjeta titulo="Fotos en alta" descripcion="Se descargan en su tamaño original. En la página se muestran livianas.">
         {lista("FOTO")}
-        <Formulario accion={agregarDescargable.bind(null, slug, "FOTO")} puedeEditar={puedeEditar} etiqueta="Agregar foto">
+        <Formulario accion={agregarDescargable.bind(null, slug, "FOTO")} puedeEditar={puedeEditar} limpiarAlGuardar etiqueta="Agregar foto">
           <CampoArchivo name="archivo" etiqueta="Foto" accept="image/jpeg,image/png,image/webp" required ayuda="JPG, PNG o WebP, hasta 25 MB." />
           <Campo name="descripcion" etiqueta="Crédito o descripción" maxLength={200} />
         </Formulario>
@@ -72,7 +72,7 @@ export async function PrensaPanel({ tenantId, slug }: PropsRutaPanel) {
 
       <Tarjeta titulo="Logos" descripcion="PNG, WebP, JPG, SVG o PDF. Los SVG y PDF se ofrecen solo como descarga.">
         {lista("LOGO")}
-        <Formulario accion={agregarDescargable.bind(null, slug, "LOGO")} puedeEditar={puedeEditar} etiqueta="Agregar logo">
+        <Formulario accion={agregarDescargable.bind(null, slug, "LOGO")} puedeEditar={puedeEditar} limpiarAlGuardar etiqueta="Agregar logo">
           <CampoArchivo name="archivo" etiqueta="Logo" accept="image/png,image/webp,image/jpeg,image/svg+xml,application/pdf" required />
           <Campo name="descripcion" etiqueta="Variante" placeholder="Blanco sobre transparente" maxLength={200} />
         </Formulario>

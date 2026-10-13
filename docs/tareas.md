@@ -1,5 +1,17 @@
 # Tareas
 
+## Paso 3 · Formularios y back office
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| 1 | Formularios que conservan lo escrito ante un error (`@/ui` + guía) | ✅ hecha, en revisión |
+| 2a | Back office: conexión admin, auditoría, listado de bandas, alta | ⏳ |
+| 2b | Back office: estados, módulos, dominios, usuarios, eventos fallidos | ⏳ |
+
+- 1: `Formulario` despacha la acción desde `onSubmit` (con `action` de respaldo antes de
+  hidratar); `limpiarAlGuardar` solo en formularios de "agregar". Encontrado de paso: los
+  `<textarea>` llegaban con `\r\n` y se guardaban así; `@/ui/servidor` normaliza.
+
 ## Paso 2 · Cierre · Untitled UI oficial y despliegue
 
 | # | Parte | Estado |
@@ -16,8 +28,7 @@
   producción (necesita HTTPS). Se ven en el primer despliegue.
 
 Pendientes anotados:
-- Cuando el servidor rechaza un formulario por un error de validación, React 19 vacía los
-  campos (reset del form tras la acción) y se pierde lo escrito.
+- ~~Formularios que se vacían ante un error~~ → resuelto en Paso 3.
 - Back office: alta de bandas, usuarios y dominios propios (hoy por SQL).
 - Consultas entre módulos (llega con la ticketera).
 

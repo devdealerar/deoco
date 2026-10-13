@@ -133,15 +133,60 @@ const { id } = await guardarArchivo(tenantId, { nombre: f.name, datos }, {
 - Segmentos dinámicos: `/tienda/[producto]` → `params.producto`. Las rutas fijas ganan.
 - Rutas del núcleo, prohibidas: `/` y `/pago` en el panel; `/ingresar`, `/api` y `/b` en el sitio.
 - Las páginas públicas no leen sesión: es la superficie `"publico"`.
-- Pantallas del panel: usá el kit `@/ui` (sobre el tema de Untitled UI): `Tarjeta`, `Campo`,
-  `AreaTexto`, `Selector`, `CampoArchivo`, `Boton`, `Insignia` y `Formulario` (server action
-  `(estado, datos) => { ok | error }`, que se deshabilita sin permiso de edición).
+- Pantallas del panel: usá el kit `@/ui` (componentes oficiales de Untitled UI): `Tarjeta`,
+  `Campo`, `AreaTexto`, `Selector`, `Casilla`, `CampoArchivo`, `Boton`, `Insignia` y
+  `Formulario`. Ver "Formularios del panel".
 - `marcoPublico`: el componente que envuelve TODAS las páginas públicas (cabecera,
   pestañas, identidad de la banda). Lo aporta un solo módulo (hoy `sitio`); si está
   apagado, el núcleo usa un marco neutro. Recibe `{ tenantId, pestanas, path, children }`.
 - `navegacion`: `publica: true` es una pestaña del sitio; si no, una entrada del menú del
   panel, que se oculta si el usuario no tiene `permiso`. `orden`: menor va primero.
   `href` tiene que ser una ruta declarada por el mismo módulo.
+
+### Formularios del panel
+
+Todo formulario de un módulo usa `<Formulario>` de `@/ui` y una server action que
+**devuelve** el resultado en vez de tirar:
+
+```tsx
+// acciones.ts ("use server")
+import type { EstadoFormulario } from "@/ui";
+import { ErrorFormulario, email, texto } from "@/ui/servidor";
+
+export async function guardarContacto(slug: string, _: EstadoFormulario, fd: FormData): Promise<EstadoFormulario> {
+  // 1. permiso (exigirPermiso / puedeEnPedido) → si no, return { error: "..." }
+  try {
+    const nombre = texto(fd, "nombre", 120);
+    const correo = email(fd, "email");          // tira ErrorFormulario si es inválido
+    // 2. guardar con conTenant(...)
+    revalidatePath(`/b/${slug}/<modulo>`, "layout");
+    return { ok: "Guardado." };
+  } catch (e) {
+    if (e instanceof ErrorFormulario) return { error: e.message };
+    throw e;
+  }
+}
+
+// pantalla
+<Formulario accion={guardarContacto.bind(null, slug)} puedeEditar={puedeEditar}>
+  <Campo name="nombre" etiqueta="Nombre" defaultValue={actual.nombre} />
+</Formulario>
+```
+
+Lo que garantiza `<Formulario>`:
+
+- **Si el servidor devuelve `{ error }`, nada de lo escrito se pierde** (React 19 vacía un
+  `<form action>` al terminar cualquier acción; `Formulario` lo evita). El error se muestra
+  debajo, en `role="alert"`.
+- `limpiarAlGuardar`: para formularios de "agregar" (una fecha, un link): vacía los campos
+  solo cuando guardar salió bien. Los de edición no lo llevan.
+- `puedeEditar={false}`: todos los campos y el botón se ven deshabilitados. **El servidor
+  igual tiene que verificar el permiso**: lo de la pantalla es solo la cara visible.
+- Un envío antes de que React hidrate (o sin JavaScript) igual llega al servidor.
+- `data-hidratado` en el `<form>`: en las pruebas de punta a punta, esperalo antes de escribir.
+
+`@/ui/servidor` trae `texto` (normaliza los `\r\n` que manda un `<textarea>`), `obligatorio`,
+`url`, `email`, `color` y `archivo`, todos con mensajes listos para mostrar.
 
 ## 6. Eventos
 

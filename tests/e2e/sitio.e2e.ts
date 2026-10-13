@@ -36,6 +36,7 @@ const panel = (slug: string, ruta = "") => `${APP}/b/${slug}/sitio${ruta}`;
 async function enviar(page: Page, titulo: string, llenar: (f: ReturnType<Page["locator"]>) => Promise<void>, boton: string) {
   const tarjeta = page.locator("section", { has: page.getByRole("heading", { name: titulo }) });
   const form = tarjeta.locator("form").last();
+  await form.and(page.locator("form[data-hidratado]")).waitFor(); // React listo: si no, se escribe antes de hidratar
   await llenar(form);
   await form.getByRole("button", { name: boton }).click();
   await form.locator('[role="status"], [role="alert"]').first().waitFor();
@@ -270,9 +271,73 @@ describe("casilla oficial (Checkbox) en un formulario de server action", () => {
     const { page } = await logueado("multi@x.com");
     await page.goto(panel("banda-a", "/prensa"));
     const tarjeta = page.locator("section", { has: page.getByRole("heading", { name: "Textos, rider y contacto" }) });
+    await tarjeta.locator("form[data-hidratado]").waitFor();
     await tarjeta.getByText("Quitar el rider").click();
     await tarjeta.getByRole("button", { name: "Guardar" }).click();
     await tarjeta.getByRole("status").waitFor();
     expect((await dueno.sitioPerfil.findUniqueOrThrow({ where: { tenantId: e.a.id } })).riderArchivoId).toBeNull();
+  });
+});
+
+describe("un formulario rechazado conserva lo escrito", () => {
+  const BIO_LARGA = Array.from({ length: 40 }, (_, i) => `Párrafo ${i + 1}: la banda tocó en todos lados y grabó en cinta.`).join("\n\n");
+
+  it("press kit: email inválido → error, y la bio larga y el resto siguen ahí", async () => {
+    const { page } = await logueado("multi@x.com");
+    await page.goto(panel("banda-a", "/prensa"));
+    const form = await enviar(
+      page,
+      "Textos, rider y contacto",
+      async (f) => {
+        const bio = f.locator('textarea[name="bioLarga"]');
+        await bio.fill("");
+        await bio.fill(BIO_LARGA);
+        expect(await bio.inputValue()).toBe(BIO_LARGA); // lo que hay escrito antes de enviar
+        await f.locator('input[name="prensaNombre"]').fill("Laura Méndez");
+        // Pasa la validación del navegador, no la del servidor (falta el dominio con punto).
+        await f.locator('input[name="prensaEmail"]').fill("prensa@sin-punto");
+        await f.locator('input[name="prensaTelefono"]').fill("+54 341 555-0101");
+      },
+      "Guardar",
+    );
+    expect(await form.getByRole("alert").textContent()).toBe('"prensa@sin-punto" no es un email válido.');
+    expect(await form.locator('textarea[name="bioLarga"]').inputValue()).toBe(BIO_LARGA);
+    expect(await form.locator('input[name="prensaNombre"]').inputValue()).toBe("Laura Méndez");
+    expect(await form.locator('input[name="prensaEmail"]').inputValue()).toBe("prensa@sin-punto");
+    expect(await form.locator('input[name="prensaTelefono"]').inputValue()).toBe("+54 341 555-0101");
+    // Y no se guardó nada a medias.
+    expect((await dueno.sitioPerfil.findUnique({ where: { tenantId: e.a.id } }))?.bioLarga).not.toBe(BIO_LARGA);
+
+    // Corregido el email, guarda; y lo escrito sigue a la vista.
+    await form.locator('input[name="prensaEmail"]').fill("prensa@banda-a.com");
+    await form.getByRole("button", { name: "Guardar" }).click();
+    await form.getByRole("status").waitFor();
+    expect(await form.locator('textarea[name="bioLarga"]').inputValue()).toBe(BIO_LARGA);
+    expect((await dueno.sitioPerfil.findUniqueOrThrow({ where: { tenantId: e.a.id } })).bioLarga).toBe(BIO_LARGA);
+  });
+
+  it("agregar link: rechazado conserva los campos; guardado bien, los limpia", async () => {
+    const { page } = await logueado("multi@x.com");
+    await page.goto(panel("banda-a", "/home"));
+    const form = await enviar(
+      page,
+      "Links",
+      async (f) => {
+        await f.locator('select[name="tipo"]').selectOption("RED");
+        await f.locator('input[name="plataforma"]').fill("Bandcamp");
+        await f.locator('input[name="url"]').fill("ftp://bandcamp.com/x");
+      },
+      "Agregar link",
+    );
+    expect(await form.getByRole("alert").textContent()).toMatch(/no es un link válido/);
+    expect(await form.locator('select[name="tipo"]').inputValue()).toBe("RED");
+    expect(await form.locator('input[name="plataforma"]').inputValue()).toBe("Bandcamp");
+    expect(await form.locator('input[name="url"]').inputValue()).toBe("ftp://bandcamp.com/x");
+
+    await form.locator('input[name="url"]').fill("https://bandcamp.com/x");
+    await form.getByRole("button", { name: "Agregar link" }).click();
+    await form.getByRole("status").waitFor();
+    expect(await form.locator('input[name="plataforma"]').inputValue()).toBe("");
+    expect(await form.locator('input[name="url"]').inputValue()).toBe("");
   });
 });
