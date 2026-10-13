@@ -21,10 +21,13 @@ SaaS multi-tenant para bandas. Monolito modular: núcleo + módulos.
 
 ## Hosts y tenant
 
-- `src/proxy.ts` (Next 16 renombró `middleware` → `proxy`; corre en Node) resuelve el
-  tenant por host y aplica las reglas de estado (`src/nucleo/tenant/reglas.ts`).
-- `app.<DEOCO_DOMINIO_RAIZ>` es la plataforma: sin tenant. Cualquier otro host se busca en `dominio`.
-- En el host de una banda, `/panel/...` es su panel; el resto es el sitio público.
+`src/proxy.ts` (Next 16 renombró `middleware` → `proxy`; corre en Node) resuelve el
+tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/reglas.ts`):
+
+- `app.<DEOCO_DOMINIO_RAIZ>/b/<slug>/...` → panel de esa banda, tenant por slug.
+- `app.<DEOCO_DOMINIO_RAIZ>` sin `/b/<slug>` → plataforma (selector de bandas, login), sin tenant.
+- Cualquier otro host (`labanda.deoco.com`, dominio propio) → sitio público, tenant por host. Anónimo.
+- `/b/<slug>/pago` lo define el núcleo: abierto con la banda suspendida, solo para el titular.
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.
 
 ## Comandos
@@ -50,9 +53,8 @@ npm run db:migrate:test
 ## Desarrollo con subdominios (sin tocar /etc/hosts)
 
 `DEOCO_DOMINIO_RAIZ="lvh.me"`: todo `*.lvh.me` resuelve a 127.0.0.1 por DNS público.
-Se eligió sobre `*.localhost` porque permite una cookie de sesión compartida
-(`.lvh.me`) entre la plataforma y las bandas, igual que `.deoco.com` en producción.
+Mismo esquema de hosts que producción (`app.` + subdominios de banda).
 
-- Plataforma: http://app.lvh.me:3000
-- Bandas: http://banda-a.lvh.me:3000 · http://banda-b.lvh.me:3000 (panel en `/panel`)
+- Panel: http://app.lvh.me:3000 · http://app.lvh.me:3000/b/banda-a
+- Sitios públicos: http://banda-a.lvh.me:3000 · http://banda-b.lvh.me:3000
 - Sin internet (lvh.me necesita DNS): `curl -H "Host: banda-a.lvh.me" http://127.0.0.1:3000/`

@@ -6,7 +6,8 @@ revisa y aprueba antes de pasar a la siguiente.
 | # | Parte | Estado |
 | --- | --- | --- |
 | 1 | Esquema Prisma + migraciones con RLS + `conTenant()` | ✅ aprobada |
-| 2a | Estados del tenant + proxy de resolución por dominio | ✅ hecha, en revisión |
+| 2a | Estados del tenant + proxy de resolución por dominio | ✅ aprobada |
+| 2a′ | Corrección: panel en `app.<raiz>/b/<slug>`, proxy con dos caminos | ✅ hecha, en revisión |
 | 2b | Auth.js (sesión solo con el usuario) + rol por pedido + `puede()` + staff | ⏳ |
 | 4 | Registro de módulos (contrato, descubrimiento, navegación, 404 si está apagado) | ⏳ |
 | 5 | Bus de eventos: `emitir()` + suscriptos | ⏳ |
@@ -22,18 +23,20 @@ revisa y aprueba antes de pasar a la siguiente.
 ### Pruebas de la parte 2
 
 - [x] 1. Host de la banda A → tenant A; host inexistente → 404 — `tests/proxy.test.ts`
-- [ ] 2. Usuario logueado sin membresía en el tenant del host → 403
-- [ ] 3. Mismo usuario, dos bandas, dos roles: `puede()` distinto en cada host
-- [ ] 4. La sesión no contiene el tenant: cambiar de host cambia el contexto sin re-login
-- [x] 5. `SUSPENDIDO`: panel 403, sitio 200. `ARCHIVADO`: ambos 404 — `tests/proxy.test.ts`
+- [ ] 2. Usuario sin membresía en esa banda (`/b/<slug>`) → 403
+- [ ] 3. Mismo usuario, dos bandas, dos roles: `puede()` distinto en cada una
+- [ ] 4. Cambiar de `/b/banda-a` a `/b/banda-b` no pide re-login y cambia el contexto
+- [x] 5. `SUSPENDIDO`: panel 403, sitio 200. `ARCHIVADO`: ambos 404, por host y por slug — `tests/proxy.test.ts`
 - [ ] 6. Staff entra a cualquier tenant pero no pasa el permiso de pasarela
 
-## Decisiones tomadas en la parte 2a
+## Decisiones tomadas en la parte 2a / 2a′
 
-- El panel de una banda vive en su propio host bajo `/panel`; `app.<raiz>` no tiene tenant.
+- Panel en `app.<raiz>`: `/b/<slug>/...` es una banda; sin slug, selector de bandas.
+  Los hosts de banda (subdominio o dominio propio) son solo sitio público, anónimo.
+- Slug → tenant con `resolver_tenant_por_slug` (SECURITY DEFINER, devuelve solo el id).
 - El tenant viaja en cabeceras `x-deoco-*`; el proxy borra las que vengan de afuera.
-- Rutas de pago con tenant suspendido: `/panel/pago/...`, marcadas `soloTitular`
-  (el chequeo del rol titular se hace en 2b, con la sesión).
+- `/b/<slug>/pago` lo define el núcleo; con tenant suspendido pasa marcada `soloTitular`
+  (el chequeo del titular y de la membresía se hace en 2b, con la sesión).
 - Pruebas en una base separada (`deoco_test`, `.env.test`).
 
 ## Decisiones tomadas en la parte 1
@@ -51,6 +54,4 @@ revisa y aprueba antes de pasar a la siguiente.
 
 ## Preguntas abiertas
 
-- ¿Las rutas de pago las fija el núcleo (`/panel/pago`) o las declara un módulo?
-- Dominio propio (`labanda.com`): la cookie de sesión de `.deoco.com` no viaja ahí.
-  ¿Login aparte en ese dominio, o el panel solo se usa por el subdominio?
+- (ninguna por ahora)
