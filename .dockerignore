@@ -1,0 +1,12 @@
+.git
+.next
+node_modules
+.env
+.env.*
+!.env.example
+!.env.test.example
+.archivos*
+src/generated
+prisma/schema/modulos
+coverage
+tests

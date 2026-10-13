@@ -11,6 +11,20 @@ function crearCliente() {
 
 const global_ = globalThis as unknown as { deocoPrisma?: PrismaClient };
 
-// Una sola instancia por proceso (evita abrir pools de más con el hot reload de Next).
-export const prisma = global_.deocoPrisma ?? crearCliente();
-if (process.env.NODE_ENV !== "production") global_.deocoPrisma = prisma;
+function cliente(): PrismaClient {
+  // Una sola instancia por proceso (evita abrir pools de más con el hot reload de Next).
+  global_.deocoPrisma ??= crearCliente();
+  return global_.deocoPrisma;
+}
+
+/**
+ * Cliente perezoso: se conecta en el primer uso, no al importar. Así `next build`
+ * (que carga los módulos para analizar rutas) no necesita la base ni DATABASE_URL.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_, prop) {
+    const c = cliente();
+    const valor = Reflect.get(c, prop, c);
+    return typeof valor === "function" ? valor.bind(c) : valor;
+  },
+});

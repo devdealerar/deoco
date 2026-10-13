@@ -1,5 +1,26 @@
 # Tareas
 
+## Paso 2 · Cierre · Untitled UI oficial y despliegue
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| 1 | `@/ui` sobre los componentes oficiales de Untitled UI | ✅ hecha, en revisión |
+| 2 | Despliegue en Easypanel (`Dockerfile`, `scripts/arrancar.sh`, `docs/despliegue.md`) | ✅ hecha, en revisión |
+
+- Oficiales: Button, Input, TextArea, NativeSelect, Badge, Checkbox. Propios: `CampoArchivo`
+  (FileTrigger/InputFile no ponen `name` y el archivo no viaja en el FormData) y `Tarjeta`
+  (no hay oficial gratuito).
+- Encontrado al simular el contenedor: `next build` exigía `DATABASE_URL` (cliente Prisma
+  creado al importar → ahora perezoso) y `prisma generate` exigía `DATABASE_URL_MIGRACIONES`.
+- No verificado: build de la imagen Docker (imagen base bloqueada desde el entorno) y login en
+  producción (necesita HTTPS). Se ven en el primer despliegue.
+
+Pendientes anotados:
+- Cuando el servidor rechaza un formulario por un error de validación, React 19 vacía los
+  campos (reset del form tras la acción) y se pierde lo escrito.
+- Back office: alta de bandas, usuarios y dominios propios (hoy por SQL).
+- Consultas entre módulos (llega con la ticketera).
+
 ## Paso 2 · Módulo de sitio
 
 | # | Parte | Estado |

@@ -83,8 +83,9 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 
 ## Panel y sitio público
 
-- Panel: tema oficial de Untitled UI (`src/styles/`) + kit propio `src/ui/` (los componentes
-  oficiales se bajan de untitledui.com, hoy bloqueado por la red del entorno; ver `src/ui/README.md`).
+- Panel: componentes oficiales de Untitled UI (`src/components/`, `untitledui add`) detrás de
+  `@/ui` (`src/ui/`, ver su README). Las pantallas importan solo de `@/ui`. Propios: `CampoArchivo`
+  y `Tarjeta`. En este entorno la CLI necesita `NODE_USE_ENV_PROXY=1`.
 - Sitio público: estilo propio de cada banda (marco del módulo sitio, `marcoPublico`).
 - Demo: `npm run db:demo` (Los Satélites y Niebla Norte, usuarios `titular@demo.com`,
   `lectura@demo.com`, `staff@deoco.com`, clave `demo1234`).
@@ -100,6 +101,13 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - Una cola por banda, por `secuencia`: orden de emisión. Módulo apagado no recibe.
 - Un suscripto que falla queda en `evento.fallos`; el evento termina FALLIDO.
   `reprocesarEvento()` reentrega solo a los que fallaron. Manejadores idempotentes.
+
+## Despliegue
+
+Guía completa: `docs/despliegue.md` (Easypanel: Postgres + app por `Dockerfile` + volumen
+`/data/archivos`). Al arrancar, `scripts/arrancar.sh` aplica migraciones y levanta el server.
+`next build` no necesita base (el cliente Prisma es perezoso; `prisma.config.ts` tolera la
+falta de `DATABASE_URL_MIGRACIONES`). Alta de staff y bandas por SQL: `prisma/sql/alta-*.sql`.
 
 ## Comandos
 
