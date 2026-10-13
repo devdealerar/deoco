@@ -1,0 +1,106 @@
+// Esquema del núcleo de Deoco.
+// Regla: toda tabla con datos de banda lleva `tenantId` y su política RLS
+// (ver prisma/migrations/*_rls). Sin eso, no se mergea.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Rol {
+  TITULAR
+  EDITOR
+  COMERCIAL
+  PUERTA
+  LECTURA
+}
+
+// PENDIENTE: valores de estado a confirmar con producto.
+enum EstadoTenant {
+  ACTIVO
+  SUSPENDIDO
+}
+
+/// Identidad global: una persona, un usuario, en toda la plataforma. Sin RLS.
+model Usuario {
+  id             String      @id @default(uuid()) @db.Uuid
+  email          String      @unique
+  nombre         String
+  hashContrasena String
+  esStaff        Boolean     @default(false)
+  creadoEn       DateTime    @default(now())
+  membresias     Membresia[]
+  eventos        Evento[]
+
+  @@map("usuario")
+}
+
+/// La banda. RLS por `id` (es su propio tenant).
+model Tenant {
+  id         String         @id @default(uuid()) @db.Uuid
+  nombre     String
+  slug       String         @unique
+  estado     EstadoTenant   @default(ACTIVO)
+  creadoEn   DateTime       @default(now())
+  membresias Membresia[]
+  dominios   Dominio[]
+  modulos    ModuloTenant[]
+  eventos    Evento[]
+
+  @@map("tenant")
+}
+
+model Membresia {
+  id        String  @id @default(uuid()) @db.Uuid
+  usuarioId String  @db.Uuid
+  tenantId  String  @db.Uuid
+  rol       Rol
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, tenantId])
+  @@index([tenantId])
+  @@map("membresia")
+}
+
+model Dominio {
+  id          String  @id @default(uuid()) @db.Uuid
+  dominio     String  @unique
+  tenantId    String  @db.Uuid
+  esPrincipal Boolean @default(false)
+  verificado  Boolean @default(false)
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("dominio")
+}
+
+/// Presencia de la fila = módulo prendido para esa banda.
+model ModuloTenant {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  moduloId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, moduloId])
+  @@map("moduloTenant")
+}
+
+/// Bitácora del bus de eventos.
+model Evento {
+  id        String   @id @default(uuid()) @db.Uuid
+  nombre    String
+  tenantId  String   @db.Uuid
+  usuarioId String?  @db.Uuid
+  fecha     DateTime @default(now())
+  payload   Json
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, nombre])
+  @@map("evento")
+}

@@ -1,0 +1,97 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { prisma } from "@/nucleo/db/cliente";
+import { conTenant } from "@/nucleo/db/con-tenant";
+import { dosBandas, dueno } from "./apoyo";
+
+let a: { id: string };
+let b: { id: string };
+
+beforeAll(async () => {
+  ({ a, b } = await dosBandas());
+});
+afterAll(async () => {
+  await prisma.$disconnect();
+  await dueno.$disconnect();
+});
+
+describe("rol de la aplicación", () => {
+  it("no es superusuario ni puede saltear RLS", async () => {
+    const [r] = await prisma.$queryRaw<{ rolsuper: boolean; rolbypassrls: boolean }[]>`
+      SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user`;
+    expect(r).toEqual({ rolsuper: false, rolbypassrls: false });
+  });
+});
+
+describe("prueba 1: el tenant A jamás ve filas del B", () => {
+  it("cada tabla devuelve solo lo del tenant activo", async () => {
+    await conTenant(a.id, async (tx) => {
+      for (const filas of [
+        await tx.tenant.findMany(),
+        await tx.membresia.findMany(),
+        await tx.dominio.findMany(),
+        await tx.evento.findMany(),
+      ]) {
+        expect(filas.length).toBeGreaterThan(0);
+        for (const f of filas) expect("tenantId" in f ? f.tenantId : f.id).toBe(a.id);
+      }
+    });
+  });
+
+  it("pedir explícitamente datos del B desde A devuelve vacío", async () => {
+    const filas = await conTenant(a.id, (tx) => tx.dominio.findMany({ where: { tenantId: b.id } }));
+    expect(filas).toEqual([]);
+  });
+
+  it("no se puede escribir en el B desde A", async () => {
+    await expect(
+      conTenant(a.id, (tx) =>
+        tx.evento.create({ data: { tenantId: b.id, nombre: "intruso.creado", payload: {} } }),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it("no se puede modificar ni borrar filas del B desde A", async () => {
+    const r = await conTenant(a.id, (tx) =>
+      tx.dominio.updateMany({ where: { tenantId: b.id }, data: { verificado: false } }),
+    );
+    expect(r.count).toBe(0);
+    const borrados = await conTenant(a.id, (tx) => tx.evento.deleteMany({ where: { tenantId: b.id } }));
+    expect(borrados.count).toBe(0);
+  });
+});
+
+describe("prueba 2: una consulta sin filtro de tenant no filtra datos", () => {
+  it("sin conTenant, la app no ve ninguna fila de banda", async () => {
+    expect(await prisma.tenant.findMany()).toEqual([]);
+    expect(await prisma.membresia.findMany()).toEqual([]);
+    expect(await prisma.dominio.findMany()).toEqual([]);
+    expect(await prisma.evento.findMany()).toEqual([]);
+  });
+
+  it("SQL crudo sin WHERE tampoco", async () => {
+    const filas = await prisma.$queryRawUnsafe<unknown[]>(`SELECT * FROM "evento"`);
+    expect(filas).toEqual([]);
+  });
+
+  it("la variable no sobrevive a la transacción (no se filtra por el pool)", async () => {
+    await conTenant(a.id, (tx) => tx.evento.findMany());
+    expect(await prisma.evento.findMany()).toEqual([]);
+  });
+
+  it("sin tenant no se puede insertar", async () => {
+    await expect(
+      prisma.evento.create({ data: { tenantId: a.id, nombre: "huerfano.creado", payload: {} } }),
+    ).rejects.toThrow(/row-level security/);
+  });
+});
+
+describe("resolución de dominio sin tenant fijado", () => {
+  it("resolver_tenant_por_host devuelve solo el id del tenant", async () => {
+    const [r] = await prisma.$queryRaw<{ id: string | null }[]>`
+      SELECT resolver_tenant_por_host('BANDA-B.deoco.com') AS id`;
+    expect(r.id).toBe(b.id);
+    const [n] = await prisma.$queryRaw<{ id: string | null }[]>`
+      SELECT resolver_tenant_por_host('no-existe.com') AS id`;
+    expect(n.id).toBeNull();
+  });
+});
