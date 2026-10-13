@@ -113,7 +113,7 @@ describe("toda tabla con datos de banda nace con RLS", () => {
 });
 
 describe("tablas de módulos", () => {
-  const NUCLEO = ["usuario", "tenant", "membresia", "dominio", "moduloTenant", "evento", "archivo", "auditoria", "secreto", "_prisma_migrations"];
+  const NUCLEO = ["usuario", "tenant", "membresia", "dominio", "moduloTenant", "evento", "archivo", "auditoria", "secreto", "correo", "_prisma_migrations"];
 
   it("toda tabla que no es del núcleo lleva el prefijo de un módulo registrado y tiene tenantId", async () => {
     const { registro } = await import("@/nucleo/modulos");
@@ -125,9 +125,26 @@ describe("tablas de módulos", () => {
       FROM pg_tables t WHERE t.schemaname = 'public'`;
     const deModulos = tablas.filter((t) => !NUCLEO.includes(t.tabla));
     expect(deModulos.length).toBeGreaterThan(0);
+    const globales = registro().tablasGlobales.map((g) => g.tabla);
     for (const t of deModulos) {
       expect(prefijos.some((p) => t.tabla.startsWith(p)), `"${t.tabla}" sin prefijo de módulo`).toBe(true);
-      expect(t.tiene_tenant, `"${t.tabla}" sin tenantId`).toBe(true);
+      if (globales.includes(t.tabla)) continue; // ver la prueba de tablas globales
+      expect(t.tiene_tenant, `"${t.tabla}" sin tenantId (ni declarada en tablasGlobales)`).toBe(true);
+    }
+  });
+
+  it("toda tabla global declarada: sin tenantId, se lee libre y solo se escribe como staff", async () => {
+    const { registro } = await import("@/nucleo/modulos");
+    for (const { tabla } of registro().tablasGlobales) {
+      const politicas = await dueno.$queryRaw<{ policyname: string; cmd: string; qual: string | null }[]>`
+        SELECT policyname, cmd, qual FROM pg_policies WHERE tablename = ${tabla} ORDER BY policyname`;
+      expect(politicas.map((p) => p.policyname), `"${tabla}" sin las políticas de deoco_tabla_global`).toEqual([
+        "escritura_staff",
+        "lectura_global",
+      ]);
+      const [col] = await dueno.$queryRaw<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM information_schema.columns WHERE table_name = ${tabla} AND column_name = 'tenantId'`;
+      expect(col.n, `"${tabla}" es global y tiene tenantId`).toBe(0);
     }
   });
 

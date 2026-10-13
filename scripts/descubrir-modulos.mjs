@@ -32,6 +32,8 @@ export function pascal(id) {
 export function problemasEsquema(id, esquema) {
   const problemas = [];
   const prefijo = pascal(id);
+  // `/// @global` justo antes del modelo: tabla de módulo sin banda (deoco_tabla_global).
+  const globales = new Set([...esquema.matchAll(/\/\/\/\s*@global\s*\n(?:\s*\/\/\/.*\n)*\s*model\s+(\w+)/g)].map((m) => m[1]));
   const sinComentarios = esquema.replace(/\/\/.*$/gm, "");
   if (/^\s*(generator|datasource)\s/m.test(sinComentarios)) {
     problemas.push("no puede declarar generator ni datasource (son del núcleo)");
@@ -48,8 +50,11 @@ export function problemasEsquema(id, esquema) {
     else if (!map.startsWith(`${id.replace(/-/g, "_")}_`)) {
       problemas.push(`model ${nombre}: la tabla "${map}" tiene que empezar con "${id.replace(/-/g, "_")}_"`);
     }
-    if (!/^\s*tenantId\s+String\s[^\n]*@db\.Uuid\b/m.test(cuerpo)) {
-      problemas.push(`model ${nombre}: falta "tenantId String @db.Uuid"`);
+    const conTenant = /^\s*tenantId\s/m.test(cuerpo);
+    if (globales.has(nombre)) {
+      if (conTenant) problemas.push(`model ${nombre}: es @global y no puede tener tenantId`);
+    } else if (!/^\s*tenantId\s+String\s[^\n]*@db\.Uuid\b/m.test(cuerpo)) {
+      problemas.push(`model ${nombre}: falta "tenantId String @db.Uuid" (o marcalo /// @global si no es de una banda)`);
     }
   }
   return problemas;

@@ -28,6 +28,17 @@ export type PropsRutaPanel = {
   consulta: URLSearchParams;
 };
 
+/**
+ * Ruta del módulo en el back office: `app.<raiz>/admin/m/<id><ruta>`. Solo staff (si no,
+ * 404). Lo que escriba va por `conStaff()` (`@/nucleo/acceso/staff`), que lo audita.
+ */
+export type PropsRutaAdmin = {
+  /** El staff que está mirando. */
+  usuarioId: string;
+  params: Record<string, string>;
+  consulta: URLSearchParams;
+};
+
 export type PropsRutaPublica = {
   tenantId: string;
   params: Record<string, string>;
@@ -66,6 +77,8 @@ export type EntradaNavegacion = {
   permiso?: string;
   /** true: pestaña del sitio público. false/ausente: menú del panel. */
   publica?: boolean;
+  /** true: entrada del menú del back office (apunta a una de sus `rutasAdmin`). */
+  admin?: boolean;
   /** El núcleo ordena de menor a mayor. */
   orden: number;
 };
@@ -160,6 +173,14 @@ export type Modulo = {
   permisos: DefinicionPermiso[];
   rutasPanel?: RutaModulo<PropsRutaPanel>[];
   rutasPublicas?: RutaModulo<PropsRutaPublica>[];
+  /** Pantallas del back office (solo staff), en /admin/m/<id><ruta>. */
+  rutasAdmin?: RutaModulo<PropsRutaAdmin>[];
+  /**
+   * Tablas del módulo que no son de ninguna banda (p. ej. el catálogo base). Sin "tenantId";
+   * su migración termina en `SELECT deoco_tabla_global('<tabla>')`: todos leen, solo se
+   * escriben dentro de conStaff(). En esquema.prisma, el modelo lleva `/// @global`.
+   */
+  tablasGlobales?: string[];
   navegacion?: EntradaNavegacion[];
   /** Nombres en pasado: `pedido.pagado`. Solo se puede emitir lo que algún módulo declara acá. */
   eventosEmite?: string[];

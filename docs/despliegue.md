@@ -158,7 +158,20 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
 | `DEOCO_ALMACEN` | no | `disco` (único implementado) |
 | `DEOCO_LIMITE_ALMACENAMIENTO` | no | espacio por banda en bytes; por defecto 1 GiB |
 | `DEOCO_CLAVE_SECRETOS` | si algún módulo guarda credenciales | `openssl rand -base64 32` — **fija**: si cambia, las credenciales de las bandas no se pueden leer y hay que volver a cargarlas |
+| `DEOCO_CORREO` | para que salgan correos | `smtp` (producción) o `memoria` (desarrollo). Sin ella, en producción los correos quedan pendientes |
+| `DEOCO_SMTP_URL` | con `DEOCO_CORREO=smtp` | `smtps://resend:<API key>@smtp.resend.com:465` |
+| `DEOCO_CORREO_REMITENTE` | con `DEOCO_CORREO=smtp` | `tiendas@deoco.com` (dominio verificado en Resend) |
 | `DEOCO_IP_PUBLICA` | no | IP a la que apuntan los dominios propios; por defecto, la de `app.<raíz>` |
+
+## Correo (Resend por SMTP)
+
+1. Cuenta en Resend → **Domains → Add domain** `deoco.com` (o un subdominio de envío). Resend
+   muestra registros DNS (SPF/DKIM, y DMARC recomendado): crealos en Cloudflare, **solo DNS**.
+2. **API Keys → Create** con permiso de envío.
+3. En la app: `DEOCO_CORREO=smtp`, `DEOCO_SMTP_URL=smtps://resend:<API key>@smtp.resend.com:465`,
+   `DEOCO_CORREO_REMITENTE=tiendas@deoco.com`. Si falta algo, la app no arranca y dice qué.
+
+Para cambiar de proveedor (Postmark, SES) solo cambia `DEOCO_SMTP_URL`.
 
 ## Respaldos
 

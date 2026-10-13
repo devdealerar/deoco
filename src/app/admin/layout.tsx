@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { registro } from "@/nucleo/modulos";
+import { menuAdmin } from "@/nucleo/modulos/navegacion";
 import { BotonSalir } from "../salir";
 import { exigirStaff } from "./_servidor/acceso";
 
@@ -7,6 +9,7 @@ import { exigirStaff } from "./_servidor/acceso";
 // verificar con exigirStaff() (el layout no garantiza correr antes que la página).
 export default async function LayoutAdmin({ children }: { children: ReactNode }) {
   await exigirStaff();
+  const deModulos = menuAdmin(registro()).map((m) => [m.href, m.etiqueta]);
   return (
     <div className="min-h-dvh bg-secondary">
       <header className="border-b border-secondary bg-primary">
@@ -20,6 +23,7 @@ export default async function LayoutAdmin({ children }: { children: ReactNode })
                 ["/admin", "Bandas"],
                 ["/admin/usuarios", "Usuarios"],
                 ["/admin/eventos", "Eventos fallidos"],
+                ...deModulos,
               ].map(([href, etiqueta]) => (
                 <li key={href}>
                   <Link href={href} className="rounded-md px-3 py-2 hover:bg-primary_hover">

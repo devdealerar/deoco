@@ -34,6 +34,15 @@ describe("reglas del esquema de un módulo", () => {
     expect(problemasEsquema("sitio", esquema).join("\n")).toMatch(problema);
   });
 
+  it("/// @global: tabla sin banda (sin tenantId); con tenantId, se rechaza", () => {
+    const global = `/// @global\n/// Catálogo base.\nmodel TiendaProductoBase {\n id String @id\n @@map("tienda_producto_base")\n}`;
+    expect(problemasEsquema("tienda", global)).toEqual([]);
+    expect(problemasEsquema("tienda", global.replace("/// @global\n", "")).join()).toMatch(/falta "tenantId/);
+    expect(problemasEsquema("tienda", global.replace(" id String @id", " id String @id\n tenantId String @db.Uuid")).join()).toMatch(
+      /es @global y no puede tener tenantId/,
+    );
+  });
+
   it("ids con guion: prefijo PressKit y tablas press_kit_", () => {
     const e = `model PressKitFoto {\n tenantId String @db.Uuid\n @@map("press_kit_foto")\n}`;
     expect(problemasEsquema("press-kit", e)).toEqual([]);

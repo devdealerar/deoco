@@ -8,6 +8,7 @@ import { generadoPara } from "@/generated/modulos";
 import { prisma } from "@/nucleo/db/cliente";
 import { registro } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
+import { problemasDeCorreo } from "@/nucleo/correo/transporte";
 import { claveMaestra } from "@/nucleo/secretos/cifrado";
 
 type Entorno = Record<string, string | undefined>;
@@ -102,10 +103,14 @@ export async function verificarArranque(env: Entorno = process.env) {
   } catch (e) {
     problemas.push(`Registro de módulos inválido: ${e instanceof Error ? e.message : e}`);
   }
+  problemas.push(...problemasDeCorreo(env));
   problemas.push(...(await problemasDeArchivos(env)));
   if (env.DATABASE_URL) problemas.push(...(await problemasDeBase(env)));
   if (problemas.length > 0) {
     throw new Error(`Deoco no puede arrancar:\n  - ${problemas.join("\n  - ")}`);
+  }
+  if (!env.DEOCO_CORREO) {
+    console.warn("[deoco] correo sin configurar (DEOCO_CORREO): los correos quedan pendientes y no salen.");
   }
   console.log(`[deoco] arranque verificado · módulos: ${registro().modulos.map((m) => m.id).join(", ") || "ninguno"}`);
 }

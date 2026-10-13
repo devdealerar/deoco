@@ -7,6 +7,7 @@ import type {
   EntradaNavegacion,
   MarcoPublico,
   Modulo,
+  PropsRutaAdmin,
   PropsRutaPanel,
   PropsRutaPublica,
   RutaModulo,
@@ -19,7 +20,7 @@ const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 // Rutas que son del núcleo y ningún módulo puede ocupar.
 const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, secretos
 const CLAVE_SECRETO = /^[a-z][a-z0-9_]{0,62}$/;
-const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave"]; // plataforma, archivos y avisos
+const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas"]; // plataforma, archivos y avisos
 
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };
 export type RutaEncontrada<P> = { moduloId: string; ruta: RutaModulo<P>; params: Record<string, string> };
@@ -34,6 +35,10 @@ export type Registro = {
   permiso(clave: string): PermisoRegistrado | undefined;
   rutaPanel(path: string): RutaEncontrada<PropsRutaPanel> | undefined;
   rutaPublica(path: string): RutaEncontrada<PropsRutaPublica> | undefined;
+  /** Ruta del back office de ese módulo. */
+  rutaAdmin(moduloId: string, path: string): RutaEncontrada<PropsRutaAdmin> | undefined;
+  /** Tablas globales declaradas, con su módulo. */
+  tablasGlobales: readonly { moduloId: string; tabla: string }[];
   /** Aviso externo declarado por ese módulo para esa ruta. */
   aviso(moduloId: string, path: string): AvisoEncontrado | undefined;
   navegacion: readonly EntradaRegistrada[];
@@ -119,6 +124,8 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   let metadatosPublicos: Registro["metadatosPublicos"];
   let cabeceraPublica: Registro["cabeceraPublica"];
   const avisos = new Map<string, (path: string) => RutaEncontrada<unknown> | undefined>();
+  const admin = new Map<string, (path: string) => RutaEncontrada<PropsRutaAdmin> | undefined>();
+  const tablasGlobales: { moduloId: string; tabla: string }[] = [];
   const definiciones = new Map<RutaModulo<unknown>, DefinicionAviso>();
 
   for (const m of modulos) {
@@ -164,9 +171,34 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       publicas.push({ moduloId: m.id, ruta: r });
     }
 
+    const ocupadasAdmin = new Set<string>();
+    const deAdmin: { moduloId: string; ruta: RutaModulo<PropsRutaAdmin> }[] = [];
+    for (const r of m.rutasAdmin ?? []) {
+      validarRuta(m, r.ruta, []);
+      if (r.permiso) throw new ErrorRegistro(m.id, `ruta de admin "${r.ruta}": no lleva permiso (es solo del staff)`);
+      if (r.metadatos) throw new ErrorRegistro(m.id, `ruta de admin "${r.ruta}": los metadatos son solo del sitio público`);
+      if (ocupadasAdmin.has(canonica(r.ruta))) throw new ErrorRegistro(m.id, `ruta de admin "${r.ruta}" repetida`);
+      ocupadasAdmin.add(canonica(r.ruta));
+      deAdmin.push({ moduloId: m.id, ruta: r });
+    }
+    if (deAdmin.length) admin.set(m.id, indiceRutas(deAdmin));
+
+    for (const t of m.tablasGlobales ?? []) {
+      if (!t.startsWith(`${m.id.replace(/-/g, "_")}_`)) {
+        throw new ErrorRegistro(m.id, `tabla global "${t}": tiene que empezar con "${m.id.replace(/-/g, "_")}_"`);
+      }
+      if (tablasGlobales.some((g) => g.tabla === t)) throw new ErrorRegistro(m.id, `tabla global "${t}" repetida`);
+      tablasGlobales.push({ moduloId: m.id, tabla: t });
+    }
+
     for (const n of m.navegacion ?? []) {
       if (!Number.isFinite(n.orden)) throw new ErrorRegistro(m.id, `navegación "${n.etiqueta}": falta orden`);
-      if (n.publica) {
+      if (n.admin) {
+        if (n.publica || n.permiso) throw new ErrorRegistro(m.id, `admin "${n.etiqueta}": no es pública ni lleva permiso`);
+        if (!(m.rutasAdmin ?? []).some((r) => r.ruta === n.href)) {
+          throw new ErrorRegistro(m.id, `admin "${n.etiqueta}": "${n.href}" no es una ruta de admin del módulo`);
+        }
+      } else if (n.publica) {
         if (n.permiso) throw new ErrorRegistro(m.id, `pestaña "${n.etiqueta}": las públicas no llevan permiso`);
         if (!(m.rutasPublicas ?? []).some((r) => r.ruta === n.href)) {
           throw new ErrorRegistro(m.id, `pestaña "${n.etiqueta}": "${n.href}" no es una ruta pública del módulo`);
@@ -248,6 +280,8 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     permiso: (clave) => permisos.get(clave),
     rutaPanel: indiceRutas(panel),
     rutaPublica: indiceRutas(publicas),
+    rutaAdmin: (moduloId, path) => admin.get(moduloId)?.(path),
+    tablasGlobales,
     aviso: (moduloId, path) => {
       const e = avisos.get(moduloId)?.(path);
       return e && { definicion: definiciones.get(e.ruta)!, params: e.params };

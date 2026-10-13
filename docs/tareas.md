@@ -1,5 +1,29 @@
 # Tareas
 
+## Paso 4 · Módulo de tienda
+
+Decisiones: pasarela detrás de una interfaz (`modulos/tienda/pasarelas/`), Mercado Pago
+Checkout Pro con las credenciales de la banda; la fuente de verdad del pago es la consulta a la
+API de la pasarela, no el aviso. Correo del núcleo por SMTP (Resend). Deuda con el proveedor:
+se registra por orden, no se cobra. Envío fijo por producto base (campo preparado para zonas).
+Proveedor por producto base, con uno por defecto. Foto propia o la del producto base.
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| 1 | Correo del núcleo, `conStaff()`, `rutasAdmin`, `urlFirmada()` | ✅ hecha (a revisar) |
+| 2 | Catálogo base y proveedores, desde el back office | pendiente |
+| 3 | Panel de la banda: diseños, productos, precios y margen | pendiente |
+| 4 | Tienda pública: catálogo, carrito, checkout | pendiente |
+| 5 | Pago con Mercado Pago, aviso y deuda con el proveedor | pendiente |
+| 6 | Mails: confirmación al fan y orden al proveedor | pendiente |
+
+- Correo: tabla `correo` (RLS), estados PENDIENTE → ENVIANDO → ENVIADO/FALLIDO, `claveUnica`.
+  Sin transporte en producción quedan pendientes (aviso en el log de arranque). Por ahora solo
+  correos de banda (los de plataforma, cuando haga falta).
+- `conStaff`: la auditoría se inserta sin RETURNING (la política deja insertar, no leer).
+- Pendiente anotado: barrido de correos y eventos pendientes al arrancar (hoy salen con el
+  siguiente de la misma banda o al reintentar).
+
 ## Dominios y preparación para la tienda
 
 | # | Parte | Estado |

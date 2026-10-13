@@ -7,7 +7,7 @@ import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { AvisoEntrante, Modulo } from "@/nucleo/modulos/contrato";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import type { Registro } from "@/nucleo/modulos/registro";
-import { dominioRaiz } from "@/nucleo/tenant/hosts";
+import { origenPlataforma } from "@/nucleo/tenant/hosts";
 
 /** Un aviso no es una subida de archivos: con 1 MB alcanza y sobra. */
 export const LIMITE_CUERPO = 1024 * 1024;
@@ -19,11 +19,7 @@ const texto = (estado: number, cuerpo: string, extra: HeadersInit = {}) =>
 
 /** URL absoluta que el módulo le da a la pasarela (p. ej. `notification_url`). */
 export function urlAviso(tenantId: string, modulo: Pick<Modulo, "id">, ruta: string): string {
-  const origen =
-    process.env.NODE_ENV === "production"
-      ? `https://app.${dominioRaiz()}`
-      : `http://app.${dominioRaiz()}:${process.env.PORT ?? 3000}`;
-  return `${origen}/avisos/${tenantId}/${modulo.id}${ruta}`;
+  return `${origenPlataforma()}/avisos/${tenantId}/${modulo.id}${ruta}`;
 }
 
 async function leerCuerpo(request: Request): Promise<Uint8Array | null> {

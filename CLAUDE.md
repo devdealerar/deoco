@@ -58,7 +58,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
 - El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
   `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios`, `/credenciales` en el panel;
-  `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos`, `/clave` en el sitio), navegación que apunta a rutas propias.
+  `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos`, `/clave`, `/descargas` en el sitio), navegación que apunta a rutas propias.
 - Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
 - Encendido: fila en `moduloTenant`. `prenderModulo()` / `apagarModulo()` son del staff;
@@ -104,6 +104,17 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   `src/nucleo/avisos`). En hosts de banda, 404. El núcleo resuelve banda/módulo prendido; la
   firma la verifica el módulo con el cuerpo crudo. Rápidos e idempotentes.
 - `emitir(..., { unica })`: idempotencia por (banda, nombre, clave) — `evento.claveUnica`.
+
+## Correo, staff en módulos y links firmados
+
+- Correo (`src/nucleo/correo`): `enviarCorreo(contrato, tenantId, correo, { tx?, unica? })` guarda
+  en `correo` (RLS) y sale después de responder. Transporte por `DEOCO_CORREO` (`smtp` con
+  `DEOCO_SMTP_URL`/`DEOCO_CORREO_REMITENTE`, `memoria` en desarrollo y pruebas).
+- `conStaff(accion, fn)` (`src/nucleo/acceso/staff.ts`): transacción de la app marcada como staff
+  (`app_es_staff()`), auditada. Única forma de escribir tablas globales de módulos
+  (`tablasGlobales`, `/// @global`, `deoco_tabla_global`).
+- `rutasAdmin` → `/admin/m/<id><ruta>` (solo staff, 404 si no); `navegacion` con `admin: true`.
+- `urlFirmada(contrato, tenantId, archivoId)` → `app.<raiz>/descargas/...` (vence: 410; alterado: 404).
 
 ## Sitio público: título, vista previa y cabecera
 

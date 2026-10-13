@@ -62,6 +62,7 @@ model Tenant {
   eventos              Evento[]
   archivos             Archivo[]
   secretos             Secreto[]
+  correos              Correo[]
 
   @@map("tenant")
 }
@@ -204,4 +205,39 @@ model Secreto {
 
   @@unique([tenantId, moduloId, clave])
   @@map("secreto")
+}
+
+enum EstadoCorreo {
+  PENDIENTE
+  ENVIANDO
+  ENVIADO
+  FALLIDO
+}
+
+/// Correo saliente de una banda (confirmación al fan, orden al proveedor). Se guarda en la
+/// transacción de quien lo pide y sale después de responder. `claveUnica`: el mismo correo
+/// no sale dos veces aunque se pida de nuevo (p. ej. un aviso de pago repetido).
+model Correo {
+  id              String       @id @default(uuid()) @db.Uuid
+  tenantId        String       @db.Uuid
+  /// Módulo que lo pidió.
+  moduloId        String
+  para            String
+  responderA      String?
+  /// Nombre que ve el destinatario como remitente (la banda). La dirección es la de Deoco.
+  nombreRemitente String
+  asunto          String
+  html            String
+  texto           String
+  estado          EstadoCorreo @default(PENDIENTE)
+  intentos        Int          @default(0)
+  error           String?
+  claveUnica      String?
+  creadoEn        DateTime     @default(now())
+  enviadoEn       DateTime?
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, claveUnica])
+  @@index([tenantId, estado])
+  @@map("correo")
 }

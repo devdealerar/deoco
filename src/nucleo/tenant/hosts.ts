@@ -14,3 +14,10 @@ export function normalizarHost(host: string | null | undefined): string {
 export function esHostPlataforma(host: string): boolean {
   return host === `app.${dominioRaiz()}`;
 }
+
+/** `https://app.<raiz>` en producción; `http://app.<raiz>:<puerto>` en desarrollo. Para links absolutos. */
+export function origenPlataforma(): string {
+  return process.env.NODE_ENV === "production"
+    ? `https://app.${dominioRaiz()}`
+    : `http://app.${dominioRaiz()}:${process.env.PORT ?? 3000}`;
+}

@@ -67,7 +67,7 @@ Reglas (las valida `scripts/descubrir-modulos.mjs`; si no se cumplen, no arranca
   (id `press-kit` → `PressKit...`).
 - Cada modelo mapea a una tabla con el prefijo del módulo: `@@map("sitio_perfil")`
   (id `press-kit` → `press_kit_...`).
-- Cada modelo tiene `tenantId String @db.Uuid`.
+- Cada modelo tiene `tenantId String @db.Uuid`, salvo las **tablas globales** (ver abajo).
 - Sin `generator` ni `datasource` (son del núcleo). Solo `model` y `enum`.
 - Un módulo `SOLO_DESARROLLO` no puede tener tablas.
 - **Sin relaciones Prisma con tablas del núcleo ni de otros módulos.** Prisma exige
@@ -94,6 +94,31 @@ SELECT deoco_aislar_tabla('sitio_perfil');
 da los permisos a la app. Después: `npm run db:migrar`. `tests/aislamiento.test.ts` falla si
 una tabla queda sin RLS, sin política, sin `tenantId` o sin el prefijo de un módulo.
 
+### Tablas globales (sin banda)
+
+Lo que es igual para todas las bandas (el catálogo base de la tienda) va en una tabla global:
+
+- En `esquema.prisma`, el modelo lleva `/// @global` en la línea de arriba y **no** tiene `tenantId`.
+- El módulo la declara en el contrato: `tablasGlobales: ["tienda_producto_base"]`.
+- La migración termina en `SELECT deoco_tabla_global('tienda_producto_base');` (no `deoco_aislar_tabla`).
+- Todos la leen. **Solo se escribe dentro de `conStaff()`** (`@/nucleo/acceso/staff`): verifica
+  que el usuario de la sesión sea staff (si no, 404), marca la transacción y deja la fila en la
+  auditoría. Fuera de eso, la base rechaza la escritura (RLS).
+
+  ```ts
+  await conStaff("tienda.producto_base_creado", async (tx, ctx) => {
+    const p = await tx.tiendaProductoBase.create({ data });
+    ctx.detalle({ id: p.id, nombre: p.nombre });
+  });
+  ```
+
+### Pantallas del back office (`rutasAdmin`)
+
+`rutasAdmin: [{ ruta: "/", componente }]` se monta en `app.deoco.com/admin/m/<id><ruta>`, solo
+para staff (cualquier otro: 404). El componente recibe `{ usuarioId, params, consulta }`. Para
+el menú del back office: `navegacion: [{ etiqueta, href: "/", admin: true, orden }]`. Lo que
+escribe, por `conStaff()`. Ejemplo: `modulos/prueba/admin.tsx`.
+
 ### Archivos
 
 Los bytes nunca los maneja el módulo: usa `src/nucleo/archivos`.
@@ -115,6 +140,21 @@ const { id } = await guardarArchivo(tenantId, { nombre: f.name, datos }, {
   (`panelSlug`), todos los de la banda, con sesión.
 - Un SVG se sirve siempre como descarga (nunca se renderiza). Para mostrar, PNG/JPG/WebP.
 - Borrar: `borrarArchivos(tx, tenantId, ids)` (los bytes se borran al confirmar la transacción).
+- **Link firmado** para un tercero sin sesión (el archivo de impresión al proveedor):
+  `await urlFirmada(suContrato, tenantId, archivoId, { validoPorSegundos })` (`@/nucleo/archivos/firmados`).
+  Por defecto 7 días, máximo 30. Es de la plataforma (`app.deoco.com/descargas/...`), siempre
+  como descarga; vencido responde 410, alterado 404. Solo firma archivos del propio módulo.
+
+### Correo
+
+`enviarCorreo(suContrato, tenantId, { para, asunto, html, texto, responderA? }, { tx?, unica? })`
+(`@/nucleo/correo`). Sale a nombre de la banda desde la dirección de Deoco; `responderA`, el
+contacto de la banda. Vuelve enseguida y se envía después de responder.
+
+- Con `tx` (de `conTenant`), el correo se confirma o se pierde con el dato.
+- Con `unica`, el mismo correo sale una sola vez aunque se pida de nuevo (un aviso repetido).
+- Escapá lo que venga del usuario con `escaparHtml()`.
+- Si falla, queda FALLIDO con el motivo; `reintentarCorreo(tenantId, id)`.
 
 ## 4. Permisos
 
@@ -160,7 +200,7 @@ secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ay
 - Parámetros de consulta: las dos superficies reciben `consulta` (`URLSearchParams`):
   `?estado=aprobado` → `consulta.get("estado")`; repetidos con `consulta.getAll(...)`.
 - Rutas del núcleo, prohibidas: `/`, `/pago`, `/archivos`, `/dominios` y `/credenciales` en el panel;
-  `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos` y `/clave` en el sitio.
+  `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos`, `/clave` y `/descargas` en el sitio.
 - Las páginas públicas no leen sesión: es la superficie `"publico"`.
 - Pantallas del panel: usá el kit `@/ui` (componentes oficiales de Untitled UI): `Tarjeta`,
   `Campo`, `AreaTexto`, `Selector`, `Casilla`, `CampoArchivo`, `Boton`, `Insignia` y
