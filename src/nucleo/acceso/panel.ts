@@ -4,6 +4,7 @@ import { forbidden, notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import type { EstadoTenant } from "@/generated/prisma/client";
 import { auth } from "@/nucleo/auth";
+import { prisma } from "@/nucleo/db/cliente";
 import { registro } from "@/nucleo/modulos";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import { accesoTienePermiso } from "@/nucleo/permisos/puede";
@@ -16,6 +17,19 @@ export type AccesoPanel = Acceso & { estado: EstadoTenant; viaStaff: boolean };
 /** Id del usuario logueado, o null. La sesión no tiene nada más. */
 export const usuarioDeSesion = cache(async (): Promise<string | null> => {
   return (await auth())?.user?.id ?? null;
+});
+
+/**
+ * Usuario logueado y habilitado: si todavía tiene la clave temporal que le dio el staff,
+ * lo manda a /clave (no usa nada hasta cambiarla). null si no hay sesión.
+ */
+export const usuarioActivo = cache(async (): Promise<string | null> => {
+  const usuarioId = await usuarioDeSesion();
+  if (!usuarioId) return null;
+  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { claveTemporal: true } });
+  if (!usuario) return null;
+  if (usuario.claveTemporal) redirect("/clave");
+  return usuarioId;
 });
 
 /** Rutas de la plataforma (selector, login, auth): 404 en los hosts de banda. */
@@ -32,7 +46,7 @@ export const accesoPanel = cache(async (volver: string): Promise<AccesoPanel> =>
   const ctx = await tenantDelPedido();
   if (!ctx || ctx.superficie !== "panel") notFound();
 
-  const usuarioId = await usuarioDeSesion();
+  const usuarioId = await usuarioActivo();
   if (!usuarioId) redirect(`/ingresar?volver=${encodeURIComponent(volver)}`);
 
   const acceso = await resolverAcceso(usuarioId, ctx.tenantId);

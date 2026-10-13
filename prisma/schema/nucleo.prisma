@@ -37,6 +37,8 @@ model Usuario {
   email          String      @unique
   nombre         String
   hashContrasena String
+  /// Clave dada por el staff (alta o invitación): hay que cambiarla antes de usar el panel.
+  claveTemporal  Boolean     @default(false)
   esStaff        Boolean     @default(false)
   creadoEn       DateTime    @default(now())
   membresias     Membresia[]

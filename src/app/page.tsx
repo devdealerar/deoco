@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { bandasVisibles } from "@/nucleo/acceso/bandas";
-import { usuarioDeSesion } from "@/nucleo/acceso/panel";
+import { usuarioActivo } from "@/nucleo/acceso/panel";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { BotonSalir } from "./salir";
 import { SuperficiePublica } from "./publico";
@@ -13,7 +13,7 @@ export default async function Inicio() {
   const ctx = await tenantDelPedido();
   if (ctx?.superficie === "publico") return <SuperficiePublica tenantId={ctx.tenantId} path="/" />;
 
-  const usuarioId = await usuarioDeSesion();
+  const usuarioId = await usuarioActivo();
   if (!usuarioId) redirect("/ingresar");
   const bandas = await bandasVisibles(usuarioId);
 
@@ -29,7 +29,10 @@ export default async function Inicio() {
           </li>
         ))}
       </ul>
-      <BotonSalir />
+      <div className="flex gap-4">
+        <Link href="/clave">Cambiar clave</Link>
+        <BotonSalir />
+      </div>
     </main>
   );
 }

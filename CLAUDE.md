@@ -110,14 +110,20 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   `src/app/admin/_servidor/db.ts`. **Solo** se importa desde `src/app/admin`
   (`tests/admin.test.ts` falla si no).
 - Auditoría: tabla `auditoria` (núcleo). Toda acción del back office escribe su fila en la
-  misma transacción (`auditar()`); los accesos del staff a un panel, `registrarAccesoStaff()`.
+  misma transacción (`auditar()`); para lo que corre en el núcleo (módulos, reproceso) se pasa
+  `registrar` y va en la transacción del núcleo. Accesos del staff a un panel: `registrarAccesoStaff()`.
+- Pantallas: bandas (listado, alta, detalle: estado, módulos, dominios, miembros), usuarios,
+  eventos fallidos. ARCHIVADO pide confirmación. Una banda nunca queda sin titular.
+- Claves temporales (alta, invitación): `usuario.claveTemporal`; `usuarioActivo()` manda a
+  `/clave` hasta cambiarla. `/clave` también es el cambio normal de clave.
 
 ## Despliegue
 
 Guía completa: `docs/despliegue.md` (Easypanel: Postgres + app por `Dockerfile` + volumen
 `/data/archivos`). Al arrancar, `scripts/arrancar.sh` aplica migraciones y levanta el server.
 `next build` no necesita base (el cliente Prisma es perezoso; `prisma.config.ts` tolera la
-falta de `DATABASE_URL_MIGRACIONES`). Alta de staff y bandas por SQL: `prisma/sql/alta-*.sql`.
+falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va por SQL
+(`prisma/sql/alta-staff.sql`); el resto, desde `/admin`.
 
 ## Comandos
 

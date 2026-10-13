@@ -86,9 +86,11 @@ original (lo hace por defecto).
 
 ### 4. Primer acceso
 
-La primera persona de staff se da de alta por SQL, con el rol dueño
-(`DATABASE_URL_MIGRACIONES`). Después, las bandas y sus titulares se crean desde el back
-office en `https://app.deoco.com/admin`. Primero, el hash de la clave (en la consola del
+Solo la **primera persona de staff** se da de alta por SQL, con el rol dueño
+(`DATABASE_URL_MIGRACIONES`). Todo lo demás se hace desde el back office en
+`https://app.deoco.com/admin`: bandas y titulares, estados, módulos, dominios propios,
+miembros e invitaciones, y eventos fallidos. Quien recibe una clave temporal (titular de un
+alta o invitado) la tiene que cambiar en su primer ingreso. Primero, el hash de la clave (en la consola del
 contenedor de la app; la clave nunca se guarda en claro):
 
 ```sh

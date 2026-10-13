@@ -1,5 +1,5 @@
 import { prisma } from "@/nucleo/db/cliente";
-import { conTenant } from "@/nucleo/db/con-tenant";
+import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "./index";
 import type { Registro } from "./registro";
 
@@ -28,12 +28,19 @@ async function exigirStaff(staffId: string) {
   if (!usuario?.esStaff) throw new ErrorModulo("Solo el staff de Deoco puede prender o apagar módulos.");
 }
 
+/**
+ * Lo que quien llama quiera dejar escrito en la MISMA transacción del cambio (p. ej. el
+ * back office, su fila de auditoría). Si el cambio no se hace, no corre.
+ */
+export type OpcionesCambio = { registrar?: (tx: TxTenant) => Promise<void> };
+
 /** Prende un módulo para una banda. Falla si le falta alguna dependencia prendida. */
 export async function prenderModulo(
   staffId: string,
   tenantId: string,
   moduloId: string,
   reg: Registro = registroGlobal(),
+  opciones: OpcionesCambio = {},
 ) {
   await exigirStaff(staffId);
   const modulo = reg.modulo(moduloId);
@@ -48,6 +55,7 @@ export async function prenderModulo(
       );
     }
     await tx.moduloTenant.createMany({ data: [{ tenantId, moduloId }], skipDuplicates: true });
+    await opciones.registrar?.(tx);
   });
 }
 
@@ -60,6 +68,7 @@ export async function apagarModulo(
   tenantId: string,
   moduloId: string,
   reg: Registro = registroGlobal(),
+  opciones: OpcionesCambio = {},
 ) {
   await exigirStaff(staffId);
   await conTenant(tenantId, async (tx) => {
@@ -72,5 +81,6 @@ export async function apagarModulo(
       );
     }
     await tx.moduloTenant.deleteMany({ where: { moduloId } });
+    await opciones.registrar?.(tx);
   });
 }

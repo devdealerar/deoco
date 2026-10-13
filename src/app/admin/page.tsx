@@ -35,7 +35,9 @@ export default async function Bandas() {
         id: b.id,
         celdas: [
           <div key="banda" data-slug={b.slug}>
-            <div className="font-medium text-primary">{b.nombre}</div>
+            <Link href={`/admin/bandas/${b.slug}`} className="font-medium text-primary hover:text-brand-secondary">
+              {b.nombre}
+            </Link>
             <Link href={`/b/${b.slug}`} className="text-sm text-tertiary hover:text-brand-secondary">
               /b/{b.slug}
             </Link>

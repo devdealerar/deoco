@@ -5,8 +5,19 @@
 | # | Parte | Estado |
 | --- | --- | --- |
 | 1 | Formularios que conservan lo escrito ante un error (`@/ui` + guía) | ✅ hecha, en revisión |
-| 2a | Back office: conexión admin, auditoría, listado de bandas, alta | ✅ hecha, en revisión |
-| 2b | Back office: estados, módulos, dominios, usuarios, eventos fallidos | ⏳ |
+| 2a | Back office: conexión admin, auditoría, listado de bandas, alta | ✅ aprobada |
+| 2b | Clave temporal con cambio obligatorio + cambio de clave normal | ✅ hecha, en revisión |
+| 2c | Back office: estados, módulos, dominios, usuarios, eventos fallidos | ✅ hecha, en revisión |
+
+Pruebas del back office: 1 (404), 2 (alta → titular entra), 3 (dependencia, mismo mensaje),
+4 (conexión admin solo en /admin), 5 (auditoría), 6 (archivar/reactivar), 7 (clave temporal),
+8 (último titular), 9 (reprocesar) — `tests/admin.test.ts`, `tests/backoffice.test.ts`,
+`tests/e2e/admin.e2e.ts`.
+
+- 2b: la clave temporal no se guarda en ningún lado (ni en la auditoría); cambiar la clave no
+  cierra otras sesiones abiertas (JWT sin estado) — anotado.
+- 2c: dominios propios se registran sin verificar y no pueden ser subdominios de la raíz;
+  quitar/degradar titular bloquea la fila de la banda (dos cambios a la vez no la dejan sin titular).
 
 - 2a: rol `deoco_admin` (BYPASSRLS, no dueño, sin acceso a `_prisma_migrations`), cliente solo
   en `src/app/admin/_servidor`; tabla `auditoria` con RLS (la app ve solo la de su banda);

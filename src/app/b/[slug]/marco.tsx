@@ -36,6 +36,9 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
             <Link href="/" className="font-semibold text-tertiary hover:text-secondary">
               Mis bandas
             </Link>
+            <Link href="/clave" className="font-semibold text-tertiary hover:text-secondary">
+              Cambiar clave
+            </Link>
             <BotonSalir />
           </div>
         </div>

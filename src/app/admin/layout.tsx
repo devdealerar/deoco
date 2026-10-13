@@ -16,11 +16,17 @@ export default async function LayoutAdmin({ children }: { children: ReactNode })
           </Link>
           <nav aria-label="Back office" className="flex-1">
             <ul className="flex gap-1 text-md font-semibold text-secondary">
-              <li>
-                <Link href="/admin" className="rounded-md px-3 py-2 hover:bg-primary_hover">
-                  Bandas
-                </Link>
-              </li>
+              {[
+                ["/admin", "Bandas"],
+                ["/admin/usuarios", "Usuarios"],
+                ["/admin/eventos", "Eventos fallidos"],
+              ].map(([href, etiqueta]) => (
+                <li key={href}>
+                  <Link href={href} className="rounded-md px-3 py-2 hover:bg-primary_hover">
+                    {etiqueta}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </nav>
           <BotonSalir />

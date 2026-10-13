@@ -174,7 +174,7 @@ export function crearBus(obtenerRegistro: () => Registro = registroGlobal) {
      * último intento. Para el back office (sin pantalla todavía). Resuelve cuando
      * terminó de procesarse.
      */
-    async reprocesar(tenantId: string, eventoId: string) {
+    async reprocesar(tenantId: string, eventoId: string, opciones: { registrar?: (tx: TxTenant) => Promise<void> } = {}) {
       const evento = await conTenant(tenantId, (tx) => tx.evento.findUnique({ where: { id: eventoId } }));
       if (!evento) throw new ErrorEvento(`No existe el evento ${eventoId} en esta banda.`);
       if (evento.estado !== "FALLIDO") {
@@ -185,9 +185,10 @@ export function crearBus(obtenerRegistro: () => Registro = registroGlobal) {
           (evento.fallos as FalloEvento[]).filter((f) => f.intento === evento.intentos).map((f) => f.moduloId),
         ),
       ];
-      await conTenant(tenantId, (tx) =>
-        tx.evento.update({ where: { id: eventoId }, data: { estado: "PENDIENTE", soloPara: fallaron } }),
-      );
+      await conTenant(tenantId, async (tx) => {
+        await tx.evento.update({ where: { id: eventoId }, data: { estado: "PENDIENTE", soloPara: fallaron } });
+        await opciones.registrar?.(tx); // p. ej. la auditoría del back office, en la misma transacción
+      });
       await encolar(tenantId);
     },
 
