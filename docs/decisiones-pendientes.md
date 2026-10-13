@@ -58,3 +58,30 @@ y por qué. Si alguna no va, se cambia.
 4. **Solo lectura.** No hay "comandos" entre módulos: para avisar algo están los eventos.
 5. Quien pregunta **no declara** que usa una consulta (no hacía falta para nada concreto; se
    puede sumar si se quiere validar al arrancar).
+
+## C · Panel del proveedor
+
+1. **Toqué el núcleo, de forma genérica.** Un módulo no puede tener pantallas en `app.<raiz>`
+   para alguien que no es staff ni de una banda, ni leer entre bandas: eso es del núcleo. Lo
+   resolví como capacidad genérica ("cuentas externas", el núcleo no sabe qué es un
+   proveedor), igual que antes con `rutasAdmin`. Revisalo contra la regla "no toques el núcleo
+   para resolver algo de un módulo".
+2. **Lectura entre bandas por RLS**, no con funciones SECURITY DEFINER: la base garantiza que
+   el proveedor solo ve sus filas (políticas SELECT `proveedor_lee`). Escrituras en la banda de
+   la orden con el proveedor en el WHERE (atómicas con el evento).
+3. **Una orden por (pedido, proveedor)** (tabla `tienda_orden`), aparte de la deuda: estado
+   de producción y plata son cosas distintas. Las ya pagadas se migraron desde la deuda.
+4. **Pedido con dos proveedores**: pasa a DESPACHADO cuando despachan **todos**; el fan recibe
+   un mail por cada paquete ("Una parte de tu pedido ya salió" / "El resto…").
+5. **No hay ENTREGADO**: el proveedor no tiene cómo saberlo (lo sabe el correo). No lo inventé.
+6. **Link de impresión**: en vez de un botón "pedir link nuevo", el detalle de la orden arma
+   uno nuevo cada vez que se abre (vale 3 días). El mail al proveedor ahora dice eso y trae el
+   link al panel (antes decía "pedile uno nuevo a la banda").
+7. **Saldar**: solo el proveedor, desde su cuenta corriente (marca una o varias, con nota). La
+   función que existía para que lo marcara la banda (sin pantalla) se quitó. La banda lo ve.
+8. **Contacto de la banda** en la orden: el de la tienda o, si no cargó uno, el mail de un
+   titular (lo mismo que ya llegaba por mail al proveedor).
+9. **Una persona del staff no puede ser cuenta externa**; un usuario existente sin staff sí
+   (se vincula sin clave nueva). Varias personas por proveedor, sí.
+10. **Nombre de la banda copiado en la orden** (`bandaNombre`): el proveedor no lee la tabla de
+    bandas. Si la banda cambia de nombre, las órdenes viejas muestran el anterior.

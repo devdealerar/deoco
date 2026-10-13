@@ -388,6 +388,38 @@ const fechas = await consultar(tenantId, "ticketera.proximas-fechas", { limite: 
   módulo: RLS sigue aislando. Solo lectura y rápida: para avisar que algo pasó, eventos.
 - Nombres: minúsculas, números y guiones. El registro rechaza nombres inválidos o repetidos.
 
+## 6 quater. Cuentas externas (portal)
+
+Para gente que no es de una banda pero trabaja con el módulo (el proveedor de la tienda), el
+módulo declara un **portal** en `app.<raiz>/portal/<id>`:
+
+```ts
+cuentasExternas: { etiqueta: "Panel de proveedor" },
+rutasExternas: [{ ruta: "/", componente: PortalOrdenes }, { ruta: "/ordenes/[id]", componente: PortalOrden }],
+navegacion: [{ etiqueta: "Órdenes", href: "/", externa: true, orden: 10 }],
+```
+
+- La cuenta la da el **staff** desde una pantalla del módulo en el back office:
+  `crearCuentaExterna(tx de conStaff, modulo, { referencia, email, nombre, creadoPor })`
+  (`@/nucleo/acceso/externas`). Usuario nuevo → clave temporal (se cambia al entrar).
+  `referencia` es lo que el módulo vincula (el id del proveedor); el núcleo no sabe qué es.
+- La persona entra por `app.<raiz>/ingresar`; si no tiene bandas, cae en su portal. No tiene
+  membresía: nunca ve un panel de banda. Sin cuenta en ese módulo (o en un host de banda), 404.
+- La página recibe `{ usuarioId, referencia, params, consulta }`. Para **leer** datos de
+  varias bandas: `conCuentaExterna(usuarioId, modulo, (tx, referencia) => …)`. La transacción
+  no tiene banda: solo se ven las filas que el módulo habilita con políticas de **solo lectura**
+  en su migración:
+
+  ```sql
+  CREATE POLICY proveedor_lee ON "tienda_orden" FOR SELECT
+    USING ("proveedorId"::text = app_referencia_externa('tienda'));
+  ```
+
+- Para **escribir** (despachar, saldar): `conTenant` de la banda de esa fila, con la
+  referencia en el `WHERE` (así va atómico con `emitir({ tx })` y la auditoría de la banda).
+- Elegí las columnas a mano: RLS filtra filas, no columnas (el proveedor no ve montos de venta).
+- Ejemplo completo: `modulos/tienda/proveedor.ts` y `modulos/tienda/portal/`.
+
 ## 7. Encendido
 
 - Un módulo nace apagado. Lo prende o apaga el staff (`prenderModulo`, `apagarModulo`

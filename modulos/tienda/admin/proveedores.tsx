@@ -45,6 +45,9 @@ export async function AdminProveedores(_: PropsRutaAdmin) {
               {!p.porDefecto && (
                 <Formulario {...enLinea} accion={activoProveedorAccion.bind(null, p.id, !p.activo)} etiqueta={p.activo ? "Desactivar" : "Activar"} />
               )}
+              <Link href={`/admin/m/tienda/proveedores/${p.id}`} className="self-center text-sm font-semibold underline">
+                Accesos al panel
+              </Link>
             </div>,
           ],
         }))}

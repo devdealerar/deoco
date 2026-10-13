@@ -19,6 +19,8 @@ import {
   marcarProveedorPorDefecto,
 } from "../catalogo";
 import { leerPesos } from "../dinero";
+import { darAccesoProveedor, ErrorProveedor, quitarAccesoProveedor } from "../proveedor";
+import { origenPlataforma } from "@/nucleo/tenant/hosts";
 
 /** Toda acción del back office de la tienda: staff (conStaff, si no 404) y errores como mensaje. */
 async function accion(fn: () => Promise<string>): Promise<EstadoFormulario> {
@@ -114,4 +116,30 @@ export async function activoProveedorAccion(id: string, activo: boolean, _: Esta
     await actualizarProveedor(conStaff, id, { nombre: p.nombre, email: p.email, contacto: p.contacto, formatos: p.formatos, activo });
     return activo ? "Activado." : "Desactivado.";
   });
+}
+
+export async function darAccesoProveedorAccion(proveedorId: string, _: EstadoFormulario, fd: FormData) {
+  try {
+    const r = await darAccesoProveedor(conStaff, proveedorId, { email: obligatorio(fd, "email", "el email", 254), nombre: texto(fd, "nombre", 120) });
+    revalidatePath("/admin", "layout");
+    return {
+      ok: r.claveTemporal
+        ? `Listo. ${r.email} entra en ${origenPlataforma()}/portal/tienda con la clave temporal ${r.claveTemporal} (se muestra una sola vez; la cambia al entrar).`
+        : `Listo. ${r.email} ya tenía usuario: entra con su clave en ${origenPlataforma()}/portal/tienda.`,
+    };
+  } catch (e) {
+    if (e instanceof ErrorProveedor || e instanceof ErrorFormulario) return { error: e.message };
+    throw e;
+  }
+}
+
+export async function quitarAccesoProveedorAccion(cuentaId: string, _: EstadoFormulario) {
+  try {
+    await quitarAccesoProveedor(conStaff, cuentaId);
+    revalidatePath("/admin", "layout");
+    return { ok: "Acceso quitado." };
+  } catch (e) {
+    if (e instanceof ErrorProveedor) return { error: e.message };
+    throw e;
+  }
 }

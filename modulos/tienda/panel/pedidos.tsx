@@ -14,7 +14,7 @@ const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: 
 export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
   const [pedidos, puedeEditar] = [
     await conTenant(tenantId, (tx) =>
-      tx.tiendaPedido.findMany({ orderBy: { creadoEn: "desc" }, take: 200, include: { items: true, pagosExtra: true } }),
+      tx.tiendaPedido.findMany({ orderBy: { creadoEn: "desc" }, take: 200, include: { items: true, pagosExtra: true, ordenes: { include: { proveedor: { select: { nombre: true } } } } } }),
     ),
     await puedeEditarEn(slug),
   ];
@@ -62,6 +62,18 @@ export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
             <div key="e" className="flex flex-col gap-1" data-estado={p.estado}>
               <Insignia color={ESTADO_PANEL[p.estado].color}>{ESTADO_PANEL[p.estado].texto}</Insignia>
               {p.observacion && <span className="text-xs text-error-primary">{p.observacion}</span>}
+              {p.ordenes.length > 1 &&
+                p.ordenes.map((o) => (
+                  <span key={o.id} className="text-xs text-tertiary" data-orden={o.estado}>
+                    {o.proveedor.nombre}: {o.estado === "DESPACHADO" ? "despachado" : "en producción"}
+                    {o.seguimiento && ` · seguimiento ${o.seguimiento}`}
+                  </span>
+                ))}
+              {p.ordenes.length === 1 && p.ordenes[0].seguimiento && (
+                <span className="text-xs text-tertiary" data-seguimiento>
+                  Seguimiento: {p.ordenes[0].seguimiento}
+                </span>
+              )}
               {p.pagosExtra.map((x) => (
                 <span key={x.id} className="text-xs font-semibold text-error-primary" data-pago-duplicado={x.cobroId}>
                   Pago duplicado: {x.moneda === "ARS" ? formatearPesos(x.monto) : `${x.moneda} ${(x.monto / 100).toFixed(2)}`}{" "}
@@ -85,7 +97,7 @@ export async function DeudaTienda({ tenantId, slug }: PropsRutaPanel) {
       <Encabezado slug={slug} actual="/deuda" puedeEditar={puedeEditar} />
       <Tarjeta
         titulo="Deuda con proveedores"
-        descripcion="Por cada pedido pagado: la producción y el envío que hace el proveedor. Se la pagás vos al proveedor; Deoco solo lleva la cuenta, no cobra ni mueve esa plata."
+        descripcion="Por cada pedido pagado: la producción y el envío que hace el proveedor. Se la pagás vos al proveedor; Deoco solo lleva la cuenta, no cobra ni mueve esa plata. La marca saldada el proveedor, desde su panel, cuando recibe el pago."
       >
         {deudas.length === 0 ? (
           <p className="text-tertiary">Todavía no hay pedidos pagados.</p>

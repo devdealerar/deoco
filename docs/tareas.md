@@ -11,7 +11,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | A2 | Revisión periódica de dominios propios + aviso en el panel | ✅ hecha |
 | A3 | Rotación de `DEOCO_CLAVE_SECRETOS` | ✅ hecha |
 | B | Consultas entre módulos | ✅ hecha |
-| C | Panel del proveedor | pendiente |
+| C | Panel del proveedor | ✅ hecha |
 | D | Módulo ticketera | pendiente |
 | E | Revisión final | pendiente |
 
@@ -28,6 +28,14 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   (todo o nada, repetible). Procedimiento en `docs/despliegue.md`.
 - B: contrato `consultas`, `consultar()` en `src/nucleo/consultas` (vacío si el módulo está
   apagado, no existe, falla o tarda >3 s; quien pregunta valida con `interpretar`). Guía §6 ter.
+- C: núcleo genérico de **cuentas externas** (`cuenta_externa`, `conCuentaExterna`,
+  `app_referencia_externa`, `rutasExternas` en `/portal/<id>`; el selector manda al portal a
+  quien no tiene bandas). Tienda: `tienda_orden` por (pedido, proveedor), creada con la deuda;
+  pedido `DESPACHADO` cuando salen todas sus órdenes; evento `orden.despachada` → mail al fan
+  con el seguimiento. Portal: órdenes (filtro), detalle (sin montos; link de impresión nuevo en
+  cada apertura, 3 días), despachar, cuenta corriente y "marcar saldadas" (solo el proveedor).
+  Back office: Proveedores → Accesos al panel. Pruebas: `tests/tienda-proveedor.test.ts`,
+  `tests/e2e/tienda-proveedor.e2e.ts`.
 
 ## Paso 4 · Módulo de tienda
 

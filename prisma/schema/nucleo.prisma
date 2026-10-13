@@ -43,6 +43,7 @@ model Usuario {
   creadoEn       DateTime    @default(now())
   membresias     Membresia[]
   eventos        Evento[]
+  cuentasExternas CuentaExterna[]
 
   @@map("usuario")
 }
@@ -268,4 +269,21 @@ model ArchivoPlataforma {
   creadoEn  DateTime @default(now())
 
   @@map("archivo_plataforma")
+}
+
+/// Cuenta externa: un usuario vinculado a algo de un módulo (el proveedor de la tienda), no a
+/// una banda. Entra por app.<raiz>/portal/<modulo>. La crea el staff (conStaff); todos la leen.
+model CuentaExterna {
+  id         String   @id @default(uuid()) @db.Uuid
+  usuarioId  String   @db.Uuid
+  moduloId   String
+  /// Lo que el módulo vincula (el id del proveedor). El núcleo no sabe qué es.
+  referencia String
+  creadoEn   DateTime @default(now())
+  creadoPor  String   @db.Uuid
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, moduloId])
+  @@index([moduloId, referencia])
+  @@map("cuenta_externa")
 }

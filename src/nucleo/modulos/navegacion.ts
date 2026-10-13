@@ -7,7 +7,7 @@ export type ItemNavegacion = { etiqueta: string; href: string; moduloId: string 
 /** Menú del panel: entradas de módulos prendidos, filtradas por permiso, por orden. */
 export function menuPanel(reg: Registro, prendidos: Set<string>, acceso: Acceso, slug: string): ItemNavegacion[] {
   return reg.navegacion
-    .filter((n) => !n.publica && !n.admin && prendidos.has(n.moduloId))
+    .filter((n) => !n.publica && !n.admin && !n.externa && prendidos.has(n.moduloId))
     .filter((n) => !n.permiso || accesoTienePermiso(acceso, reg.permiso(n.permiso)))
     .map((n) => ({ etiqueta: n.etiqueta, href: `/b/${slug}${n.href}`, moduloId: n.moduloId }));
 }
@@ -24,4 +24,11 @@ export function menuAdmin(reg: Registro): ItemNavegacion[] {
   return reg.navegacion
     .filter((n) => n.admin)
     .map((n) => ({ etiqueta: n.etiqueta, href: `/admin/m/${n.moduloId}${n.href === "/" ? "" : n.href}`, moduloId: n.moduloId }));
+}
+
+/** Menú del portal de cuentas externas de un módulo, por orden. */
+export function menuExterno(reg: Registro, moduloId: string): ItemNavegacion[] {
+  return reg.navegacion
+    .filter((n) => n.externa && n.moduloId === moduloId)
+    .map((n) => ({ etiqueta: n.etiqueta, href: `/portal/${moduloId}${n.href === "/" ? "" : n.href}`, moduloId }));
 }

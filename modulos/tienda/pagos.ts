@@ -95,7 +95,8 @@ export async function registrarPago(tenantId: string, pasarelaId: string, cobro:
 
 /**
  * Deuda con cada proveedor del pedido: producción de sus renglones (copia al pagarse) más un
- * envío, el mayor de sus renglones (despacha un paquete). Una sola vez por (pedido, proveedor).
+ * envío, el mayor de sus renglones (despacha un paquete). Una sola vez por (pedido, proveedor),
+ * junto con su orden de producción.
  */
 export async function registrarDeudas(tx: TxTenant, tenantId: string, pedidoId: string) {
   const items = await tx.tiendaPedidoItem.findMany({ where: { pedidoId } });
@@ -111,6 +112,12 @@ export async function registrarDeudas(tx: TxTenant, tenantId: string, pedidoId: 
   }
   await tx.tiendaDeuda.createMany({
     data: [...porProveedor].map(([proveedorId, d]) => ({ tenantId, pedidoId, proveedorId, ...d, total: d.produccion + d.envio })),
+    skipDuplicates: true,
+  });
+  // Y la orden de producción de cada proveedor, que ve y despacha en su panel.
+  const { nombre: bandaNombre } = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { nombre: true } });
+  await tx.tiendaOrden.createMany({
+    data: [...porProveedor.keys()].map((proveedorId) => ({ tenantId, pedidoId, proveedorId, bandaNombre })),
     skipDuplicates: true,
   });
 }
@@ -154,19 +161,4 @@ export async function deudaDeTodas(tx: TxTenant) {
   return bandas
     .map((b) => ({ banda: b, proveedores: agrupar(filas.filter((f) => f.tenantId === b.id)) }))
     .sort((a, b) => a.banda.nombre.localeCompare(b.banda.nombre));
-}
-
-/**
- * Marca deudas como saldadas: cuándo, quién y una nota. Solo las que estaban pendientes (si ya
- * estaba saldada, no se pisa quién ni cuándo). Sin pantalla todavía: ver docs/tareas.md.
- */
-export async function saldarDeudas(tenantId: string, deudaIds: string[], usuarioId: string, nota: string) {
-  return conTenant(tenantId, async (tx) => {
-    const { count } = await tx.tiendaDeuda.updateMany({
-      where: { id: { in: deudaIds }, saldadaEn: null },
-      data: { saldadaEn: new Date(), saldadaPor: usuarioId, notaSaldo: nota.trim().slice(0, 300) || null },
-    });
-    if (count) await tx.auditoria.create({ data: { usuarioId, tenantId, accion: "tienda.deuda_saldada", detalle: { deudas: deudaIds, nota } } });
-    return count;
-  });
 }

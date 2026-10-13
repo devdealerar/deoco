@@ -58,7 +58,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
 - El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
   `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios`, `/credenciales` en el panel;
-  `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos`, `/clave`, `/descargas` en el sitio), navegación que apunta a rutas propias.
+  `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos`, `/clave`, `/descargas`, `/portal` en el sitio), navegación que apunta a rutas propias.
 - Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
 - Encendido: fila en `moduloTenant`. `prenderModulo()` / `apagarModulo()` son del staff;
@@ -93,6 +93,13 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - Rotación de la clave: `DEOCO_CLAVE_SECRETOS_ANTERIOR` + `scripts/rotar-clave-secretos.mjs` (docs/despliegue.md).
 - Un módulo no importa el registro ni la carga (`tests/modulos.test.ts`). Nunca se loguea ni
   se muestra un valor completo. El arranque exige la clave si algún módulo declara secretos.
+
+## Cuentas externas (portal)
+
+- `cuentasExternas` + `rutasExternas` → `app.<raiz>/portal/<id><ruta>` (`src/app/portal`). Tabla
+  `cuenta_externa` (usuario, módulo, referencia; global, la escribe el staff). Lectura entre
+  bandas con `conCuentaExterna()` + políticas SELECT del módulo con `app_referencia_externa('<id>')`.
+  Lo usa la tienda: panel del proveedor (órdenes, despacho, cuenta corriente).
 
 ## Consultas entre módulos
 

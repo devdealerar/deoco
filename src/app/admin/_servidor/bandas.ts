@@ -1,5 +1,5 @@
-import { randomInt } from "node:crypto";
 import { Prisma, type EstadoTenant } from "@/generated/prisma/client";
+import { claveTemporal } from "@/nucleo/auth/clave-temporal";
 import { hashearContrasena } from "@/nucleo/auth/contrasena";
 import {
   type ComprobadorHttps,
@@ -54,12 +54,6 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Subdominios que son de la plataforma, no de una banda. */
 const RESERVADOS = ["app", "www", "admin", "api", "mail", "static", "assets", "deoco", "nueva"];
 
-/** Clave temporal legible (sin 0/O/1/l): se muestra una sola vez al staff. */
-function claveTemporal() {
-  const letras = "abcdefghjkmnpqrstuvwxyz23456789";
-  const bloque = () => Array.from({ length: 4 }, () => letras[randomInt(letras.length)]).join("");
-  return `${bloque()}-${bloque()}-${bloque()}`;
-}
 
 export type DatosAlta = {
   nombre: string;

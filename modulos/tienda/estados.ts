@@ -10,6 +10,8 @@ export function estadoParaFan(p: Pedido, resultado?: string | null): { titulo: s
       return { titulo: "¡Pago recibido!", detalle: "Tu pedido pasó a producción. El proveedor lo fabrica y te lo envía." };
     case "EN_REVISION":
       return { titulo: "Estamos revisando tu pago", detalle: "Recibimos un pago que no coincide con el pedido. La banda lo revisa y te contacta." };
+    case "DESPACHADO":
+      return { titulo: "¡Tu pedido salió!", detalle: "El proveedor lo despachó. Te mandamos el número de seguimiento por mail." };
     case "CANCELADO":
       return { titulo: "Pedido cancelado", detalle: "Este pedido no sigue." };
   }
@@ -31,4 +33,5 @@ export const ESTADO_PANEL: Record<string, { texto: string; color: "gris" | "exit
   PAGADO: { texto: "Pagado · en producción", color: "exito" },
   EN_REVISION: { texto: "Pago a revisar", color: "error" },
   CANCELADO: { texto: "Cancelado", color: "gris" },
+  DESPACHADO: { texto: "Despachado", color: "exito" },
 };

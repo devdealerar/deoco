@@ -22,6 +22,7 @@ model TiendaProveedor {
 
   productosBase TiendaProductoBase[]
   deudas        TiendaDeuda[]
+  ordenes       TiendaOrden[]
 
   @@map("tienda_proveedor")
 }
@@ -123,12 +124,14 @@ model TiendaProducto {
 
 /// PENDIENTE: esperando el pago. PAGADO: pago aprobado y verificado contra la pasarela.
 /// EN_REVISION: la pasarela aprobó un pago que no coincide (monto o moneda): hay que revisarlo.
-/// CANCELADO: reservado. Despachado y entregado llegan con el panel del proveedor.
+/// CANCELADO: reservado. DESPACHADO: todos sus proveedores lo despacharon (panel del proveedor).
+/// No hay ENTREGADO: el proveedor no tiene cómo saberlo de verdad (lo sabe el correo).
 enum TiendaEstadoPedido {
   PENDIENTE
   PAGADO
   EN_REVISION
   CANCELADO
+  DESPACHADO
 }
 
 /// Pedido de un fan. Se crea PENDIENTE al confirmar el checkout, con su copia de precios.
@@ -169,6 +172,7 @@ model TiendaPedido {
 
   items       TiendaPedidoItem[]
   deudas      TiendaDeuda[]
+  ordenes     TiendaOrden[]
   pagosExtra  TiendaPagoExtra[]
 
   @@unique([tenantId, id])
@@ -203,6 +207,7 @@ model TiendaPedidoItem {
   proveedorId     String?  @db.Uuid
 
   @@index([tenantId, pedidoId])
+  @@index([proveedorId])
   @@map("tienda_pedido_item")
 }
 
@@ -227,7 +232,37 @@ model TiendaDeuda {
 
   @@unique([tenantId, pedidoId, proveedorId])
   @@index([tenantId, proveedorId, saldadaEn])
+  @@index([proveedorId])
   @@map("tienda_deuda")
+}
+
+enum TiendaEstadoOrden {
+  EN_PRODUCCION
+  DESPACHADO
+}
+
+/// Orden de producción: la parte de un pedido pagado que hace un proveedor (una por pedido y
+/// proveedor, junto con su deuda). La ve y la despacha el proveedor en su panel
+/// (app.<raiz>/portal/tienda); lee entre bandas solo lo suyo (política proveedor_lee).
+model TiendaOrden {
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @db.Uuid
+  pedidoId      String            @db.Uuid
+  pedido        TiendaPedido      @relation(fields: [tenantId, pedidoId], references: [tenantId, id], onDelete: Cascade)
+  proveedorId   String            @db.Uuid
+  proveedor     TiendaProveedor   @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  /// Nombre de la banda al pagarse (el proveedor no lee la tabla de bandas).
+  bandaNombre   String
+  estado        TiendaEstadoOrden @default(EN_PRODUCCION)
+  /// Número de seguimiento del envío (opcional), lo carga el proveedor al despachar.
+  seguimiento   String?
+  despachadoEn  DateTime?
+  despachadoPor String?           @db.Uuid
+  creadoEn      DateTime          @default(now())
+
+  @@unique([tenantId, pedidoId, proveedorId])
+  @@index([proveedorId, estado])
+  @@map("tienda_orden")
 }
 
 /// Un pago aprobado de más para un pedido que ya estaba pagado (el fan pagó dos veces). El

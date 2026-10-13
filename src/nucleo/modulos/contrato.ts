@@ -39,6 +39,18 @@ export type PropsRutaAdmin = {
   consulta: URLSearchParams;
 };
 
+/**
+ * Ruta del portal de cuentas externas del módulo: `app.<raiz>/portal/<id><ruta>`. Solo un
+ * usuario con cuenta externa en este módulo (la crea el staff); si no, 404. `referencia` es
+ * lo que la cuenta vincula (el id del proveedor). Lecturas: `conCuentaExterna()`.
+ */
+export type PropsRutaExterna = {
+  usuarioId: string;
+  referencia: string;
+  params: Record<string, string>;
+  consulta: URLSearchParams;
+};
+
 export type PropsRutaPublica = {
   tenantId: string;
   params: Record<string, string>;
@@ -79,6 +91,8 @@ export type EntradaNavegacion = {
   publica?: boolean;
   /** true: entrada del menú del back office (apunta a una de sus `rutasAdmin`). */
   admin?: boolean;
+  /** true: entrada del menú del portal de cuentas externas (apunta a una de sus `rutasExternas`). */
+  externa?: boolean;
   /** El núcleo ordena de menor a mayor. */
   orden: number;
 };
@@ -221,6 +235,13 @@ export type Modulo = {
   avisos?: DefinicionAviso[];
   /** Credenciales por banda que necesita (cifradas; solo las carga el titular). */
   secretos?: DefinicionSecreto[];
+  /**
+   * Cuentas externas: usuarios que no son de una banda sino de algo del módulo (el proveedor
+   * de la tienda). `etiqueta`: nombre del portal ("Panel de proveedor"). Exige rutasExternas.
+   */
+  cuentasExternas?: { etiqueta: string };
+  /** Pantallas del portal de cuentas externas, en app.<raiz>/portal/<id><ruta>. */
+  rutasExternas?: RutaModulo<PropsRutaExterna>[];
   /** Consultas que ofrece a otros módulos (ver DefinicionConsulta). */
   consultas?: DefinicionConsulta[];
   /** Ids de módulos que tienen que estar prendidos para prender este. */

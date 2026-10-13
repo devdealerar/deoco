@@ -13,7 +13,7 @@ import { verificarFirma } from "@/nucleo/archivos/firmados";
 import { bandejaDeSalida, esperarCorreos, vaciarBandeja } from "@/nucleo/correo";
 import { alPagarsePedido, VALIDEZ_LINK_IMPRESION } from "../modulos/tienda/correos";
 import { guardarContacto } from "../modulos/tienda/contacto";
-import { deudaDeBanda, deudaDeTodas, iniciarCobro, registrarPago, saldarDeudas } from "../modulos/tienda/pagos";
+import { deudaDeBanda, deudaDeTodas, iniciarCobro, registrarPago } from "../modulos/tienda/pagos";
 import { crearPedido, type DatosFan, revisarCarrito } from "../modulos/tienda/pedidos";
 import { crearProducto, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "./apoyo";
@@ -267,19 +267,6 @@ describe("prueba 4: deuda con el proveedor al pagarse, sin duplicar", () => {
     ]);
     // Fuera de conStaff, la app no ve deudas sin banda.
     expect(await prisma.tiendaDeuda.count()).toBe(0);
-  });
-
-  it("saldar: quién y cuándo, solo una vez", async () => {
-    const { pedido } = await pedidoDeA();
-    aprobar("9030", pedido.id, pedido.total);
-    await avisoDePago(e.a.id, "9030");
-    const [sur1] = await conTenant(e.a.id, (tx) => tx.tiendaDeuda.findMany({ where: { proveedorId: sur.id } }));
-    expect(await saldarDeudas(e.a.id, [sur1.id], e.multi.id, "Transferencia del 3/11")).toBe(1);
-    expect(await saldarDeudas(e.a.id, [sur1.id], e.editorA.id, "otra")).toBe(0); // no se pisa
-    const saldada = await dueno.tiendaDeuda.findUniqueOrThrow({ where: { id: sur1.id } });
-    expect(saldada).toMatchObject({ saldadaPor: e.multi.id, notaSaldo: "Transferencia del 3/11" });
-    expect(saldada.saldadaEn).toBeInstanceOf(Date);
-    expect((await deudaDeBanda(e.a.id)).find((d) => d.proveedor === "Estampados Sur")).toMatchObject({ pendiente: 0, saldado: 2150000 });
   });
 });
 

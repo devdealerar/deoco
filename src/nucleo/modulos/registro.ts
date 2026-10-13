@@ -9,6 +9,7 @@ import type {
   MarcoPublico,
   Modulo,
   PropsRutaAdmin,
+  PropsRutaExterna,
   PropsRutaPanel,
   PropsRutaPublica,
   RutaModulo,
@@ -22,7 +23,7 @@ const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, secretos
 const NOMBRE_CONSULTA = /^[a-z][a-z0-9-]{0,62}$/;
 const CLAVE_SECRETO = /^[a-z][a-z0-9_]{0,62}$/;
-const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas"]; // plataforma, archivos y avisos
+const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal"]; // plataforma, archivos y avisos
 
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };
 export type RutaEncontrada<P> = { moduloId: string; ruta: RutaModulo<P>; params: Record<string, string> };
@@ -39,6 +40,8 @@ export type Registro = {
   rutaPublica(path: string): RutaEncontrada<PropsRutaPublica> | undefined;
   /** Ruta del back office de ese módulo. */
   rutaAdmin(moduloId: string, path: string): RutaEncontrada<PropsRutaAdmin> | undefined;
+  /** Ruta del portal de cuentas externas de ese módulo. */
+  rutaExterna(moduloId: string, path: string): RutaEncontrada<PropsRutaExterna> | undefined;
   /** Tablas globales declaradas, con su módulo. */
   tablasGlobales: readonly { moduloId: string; tabla: string }[];
   /** Aviso externo declarado por ese módulo para esa ruta. */
@@ -129,6 +132,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   let cabeceraPublica: Registro["cabeceraPublica"];
   const avisos = new Map<string, (path: string) => RutaEncontrada<unknown> | undefined>();
   const admin = new Map<string, (path: string) => RutaEncontrada<PropsRutaAdmin> | undefined>();
+  const externas = new Map<string, (path: string) => RutaEncontrada<PropsRutaExterna> | undefined>();
   const tablasGlobales: { moduloId: string; tabla: string }[] = [];
   const definiciones = new Map<RutaModulo<unknown>, DefinicionAviso>();
   const consultas = new Map<string, { moduloId: string; definicion: DefinicionConsulta }>();
@@ -188,6 +192,24 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     }
     if (deAdmin.length) admin.set(m.id, indiceRutas(deAdmin));
 
+    const ocupadasExternas = new Set<string>();
+    const deExternas: { moduloId: string; ruta: RutaModulo<PropsRutaExterna> }[] = [];
+    for (const r of m.rutasExternas ?? []) {
+      validarRuta(m, r.ruta, []);
+      if (r.permiso) throw new ErrorRegistro(m.id, `ruta externa "${r.ruta}": no lleva permiso (es de la cuenta externa)`);
+      if (r.metadatos) throw new ErrorRegistro(m.id, `ruta externa "${r.ruta}": los metadatos son solo del sitio público`);
+      if (ocupadasExternas.has(canonica(r.ruta))) throw new ErrorRegistro(m.id, `ruta externa "${r.ruta}" repetida`);
+      ocupadasExternas.add(canonica(r.ruta));
+      deExternas.push({ moduloId: m.id, ruta: r });
+    }
+    if (deExternas.length) externas.set(m.id, indiceRutas(deExternas));
+    if (deExternas.length > 0 !== Boolean(m.cuentasExternas)) {
+      throw new ErrorRegistro(m.id, "cuentasExternas y rutasExternas van juntas");
+    }
+    if (m.cuentasExternas && !m.cuentasExternas.etiqueta?.trim()) {
+      throw new ErrorRegistro(m.id, "cuentasExternas: falta la etiqueta del portal");
+    }
+
     for (const t of m.tablasGlobales ?? []) {
       if (!t.startsWith(`${m.id.replace(/-/g, "_")}_`)) {
         throw new ErrorRegistro(m.id, `tabla global "${t}": tiene que empezar con "${m.id.replace(/-/g, "_")}_"`);
@@ -198,7 +220,14 @@ export function crearRegistro(modulos: Modulo[]): Registro {
 
     for (const n of m.navegacion ?? []) {
       if (!Number.isFinite(n.orden)) throw new ErrorRegistro(m.id, `navegación "${n.etiqueta}": falta orden`);
-      if (n.admin) {
+      if (n.externa) {
+        if (n.publica || n.permiso || n.admin) {
+          throw new ErrorRegistro(m.id, `externa "${n.etiqueta}": no es pública ni de admin ni lleva permiso`);
+        }
+        if (!(m.rutasExternas ?? []).some((r) => r.ruta === n.href)) {
+          throw new ErrorRegistro(m.id, `externa "${n.etiqueta}": "${n.href}" no es una ruta externa del módulo`);
+        }
+      } else if (n.admin) {
         if (n.publica || n.permiso) throw new ErrorRegistro(m.id, `admin "${n.etiqueta}": no es pública ni lleva permiso`);
         if (!(m.rutasAdmin ?? []).some((r) => r.ruta === n.href)) {
           throw new ErrorRegistro(m.id, `admin "${n.etiqueta}": "${n.href}" no es una ruta de admin del módulo`);
@@ -295,6 +324,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     rutaPanel: indiceRutas(panel),
     rutaPublica: indiceRutas(publicas),
     rutaAdmin: (moduloId, path) => admin.get(moduloId)?.(path),
+    rutaExterna: (moduloId, path) => externas.get(moduloId)?.(path),
     tablasGlobales,
     aviso: (moduloId, path) => {
       const e = avisos.get(moduloId)?.(path);
