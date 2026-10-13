@@ -4,45 +4,21 @@ import { resolverAcceso } from "@/nucleo/acceso/resolver";
 import { verificarCredenciales } from "@/nucleo/auth/credenciales";
 import { prisma } from "@/nucleo/db/cliente";
 import { puede } from "@/nucleo/permisos/puede";
-import { registrarPermisos, vaciarRegistroPermisos } from "@/nucleo/permisos/registro";
+import { prenderModulo } from "@/nucleo/modulos/encendido";
 import { CONTRASENA, dueno, escenarioAcceso } from "./apoyo";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
 
 beforeAll(async () => {
   e = await escenarioAcceso();
-  vaciarRegistroPermisos();
-  // Lo que declararía un módulo "prueba" al registrarse.
-  registrarPermisos("prueba", [
-    { clave: "prueba.contenido.editar", rolesPorDefecto: ["TITULAR", "EDITOR"] },
-    { clave: "prueba.config.editar", rolesPorDefecto: ["TITULAR"] },
-    { clave: "prueba.pasarela.conectar", rolesPorDefecto: ["TITULAR"], exclusivoTitular: true },
-  ]);
+  // Permisos del módulo modulos/prueba: contenido.ver (TITULAR, EDITOR) y
+  // pasarela.conectar (exclusivo del titular). Prendido en las dos bandas.
+  await prenderModulo(e.a.id, "prueba");
+  await prenderModulo(e.b.id, "prueba");
 });
 afterAll(async () => {
   await prisma.$disconnect();
   await dueno.$disconnect();
-});
-
-describe("registro de permisos", () => {
-  it("exige formato modulo.recurso.accion y prefijo del propio módulo", () => {
-    expect(() => registrarPermisos("x", [{ clave: "x.editar", rolesPorDefecto: [] }])).toThrow(/formato/);
-    expect(() => registrarPermisos("x", [{ clave: "otro.a.b", rolesPorDefecto: [] }])).toThrow(/propios/);
-  });
-
-  it("no deja declarar dos veces el mismo permiso", () => {
-    expect(() =>
-      registrarPermisos("prueba", [{ clave: "prueba.config.editar", rolesPorDefecto: [] }]),
-    ).toThrow(/dos veces/);
-  });
-
-  it("un permiso exclusivo del titular no puede darse a otros roles", () => {
-    expect(() =>
-      registrarPermisos("y", [
-        { clave: "y.pasarela.conectar", rolesPorDefecto: ["TITULAR", "COMERCIAL"], exclusivoTitular: true },
-      ]),
-    ).toThrow(/exclusivoTitular/);
-  });
 });
 
 describe("prueba 3: mismo usuario, dos bandas, dos roles", () => {
@@ -52,11 +28,11 @@ describe("prueba 3: mismo usuario, dos bandas, dos roles", () => {
   });
 
   it("puede() responde distinto en cada banda", async () => {
-    expect(await puede(e.multi.id, e.a.id, "prueba.config.editar")).toBe(true);
-    expect(await puede(e.multi.id, e.b.id, "prueba.config.editar")).toBe(false);
+    expect(await puede(e.multi.id, e.a.id, "prueba.pasarela.conectar")).toBe(true);
+    expect(await puede(e.multi.id, e.b.id, "prueba.pasarela.conectar")).toBe(false);
     // lo que ambos roles tienen, lo tiene en las dos
-    expect(await puede(e.multi.id, e.a.id, "prueba.contenido.editar")).toBe(true);
-    expect(await puede(e.multi.id, e.b.id, "prueba.contenido.editar")).toBe(true);
+    expect(await puede(e.multi.id, e.a.id, "prueba.contenido.ver")).toBe(true);
+    expect(await puede(e.multi.id, e.b.id, "prueba.contenido.ver")).toBe(true);
   });
 
   it("el titular tiene el permiso de pasarela; el editor no", async () => {
@@ -68,7 +44,7 @@ describe("prueba 3: mismo usuario, dos bandas, dos roles", () => {
 describe("prueba 2 (núcleo): sin membresía no hay acceso", () => {
   it("resolverAcceso devuelve null y puede() da false en todo", async () => {
     expect(await resolverAcceso(e.ajeno.id, e.a.id)).toBeNull();
-    expect(await puede(e.ajeno.id, e.a.id, "prueba.contenido.editar")).toBe(false);
+    expect(await puede(e.ajeno.id, e.a.id, "prueba.contenido.ver")).toBe(false);
   });
 
   it("un permiso no declarado nunca se concede", async () => {
@@ -84,8 +60,7 @@ describe("prueba 6: staff de Deoco", () => {
 
   it("pasa todos los permisos menos los de pasarela de cobro", async () => {
     for (const t of [e.a.id, e.b.id]) {
-      expect(await puede(e.staff.id, t, "prueba.contenido.editar")).toBe(true);
-      expect(await puede(e.staff.id, t, "prueba.config.editar")).toBe(true);
+      expect(await puede(e.staff.id, t, "prueba.contenido.ver")).toBe(true);
       expect(await puede(e.staff.id, t, "prueba.pasarela.conectar")).toBe(false);
     }
   });

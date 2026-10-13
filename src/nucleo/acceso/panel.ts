@@ -4,8 +4,9 @@ import { forbidden, notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import type { EstadoTenant } from "@/generated/prisma/client";
 import { auth } from "@/nucleo/auth";
+import { registro } from "@/nucleo/modulos";
+import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import { accesoTienePermiso } from "@/nucleo/permisos/puede";
-import { definicionPermiso } from "@/nucleo/permisos/registro";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { registrarAccesoStaff } from "./registro-staff";
 import { type Acceso, esAccesoStaff, resolverAcceso } from "./resolver";
@@ -48,16 +49,26 @@ export const accesoPanel = cache(async (volver: string): Promise<AccesoPanel> =>
   return { ...acceso, estado: ctx.estado, viaStaff };
 });
 
-/** 403 si el usuario no tiene `permiso` en la banda del pedido. */
+/** Módulos prendidos para la banda, una sola consulta por pedido. */
+export const prendidosDelPedido = cache(modulosPrendidos);
+
+/** Igual que puede(), pero con el acceso y los módulos ya resueltos en este pedido. */
+async function tienePermiso(acceso: AccesoPanel, permiso: string): Promise<boolean> {
+  const def = registro().permiso(permiso);
+  if (!def || !(await prendidosDelPedido(acceso.tenantId)).has(def.moduloId)) return false;
+  return accesoTienePermiso(acceso, def);
+}
+
+/** 403 si el usuario no tiene `permiso` en la banda del pedido (o su módulo está apagado). */
 export async function exigirPermiso(permiso: string, volver: string): Promise<AccesoPanel> {
   const acceso = await accesoPanel(volver);
-  if (!accesoTienePermiso(acceso, definicionPermiso(permiso))) forbidden();
+  if (!(await tienePermiso(acceso, permiso))) forbidden();
   return acceso;
 }
 
 /** Para mostrar u ocultar cosas según permiso, sin cortar el render. */
 export async function puedeEnPedido(permiso: string, volver: string): Promise<boolean> {
-  return accesoTienePermiso(await accesoPanel(volver), definicionPermiso(permiso));
+  return tienePermiso(await accesoPanel(volver), permiso);
 }
 
 /** 403 salvo rol TITULAR. El staff no pasa. */

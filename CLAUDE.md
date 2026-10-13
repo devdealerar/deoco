@@ -38,9 +38,28 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - Rol por pedido: sesión + tenant del proxy → `membresia` (`src/nucleo/acceso/resolver.ts`).
 - En páginas y rutas del panel: `accesoPanel()`, `exigirPermiso()`, `exigirTitular()`,
   `puedeEnPedido()` (`src/nucleo/acceso/panel.ts`). Fuera del pedido: `puede(usuarioId, tenantId, permiso)`.
-- Permisos: los declara cada módulo (`registrarPermisos`). `exclusivoTitular` = ni otro rol
+- Permisos: los declara cada módulo en su contrato. `exclusivoTitular` = ni otro rol
   ni el staff (pasarela de cobro). La excepción del staff está en `src/nucleo/permisos/puede.ts`.
+  Un permiso de un módulo apagado para la banda es siempre false.
 - Staff sin membresía: pasa por `registrarAccesoStaff()` (hoy no persiste).
+
+## Módulos
+
+- Cada módulo es `modulos/<id>/index.ts` con `export default` un objeto `Modulo`
+  (`src/nucleo/modulos/contrato.ts`). Ejemplo completo: `modulos/prueba/`.
+- Descubrimiento: `scripts/descubrir-modulos.mjs` genera `src/generated/modulos.ts`
+  (imports estáticos, no versionado). Corre solo antes de dev/build/test/typecheck.
+  El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
+- El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
+  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago` en el panel;
+  `/ingresar`, `/api`, `/b` en el sitio), navegación que apunta a rutas propias.
+- Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
+  la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
+- Encendido: fila en `moduloTenant`. `prenderModulo()` valida dependencias; `apagarModulo()`.
+- Navegación: menú del panel = entradas de módulos prendidos filtradas por permiso; pestañas
+  públicas = entradas `publica: true` de módulos prendidos. Ordena `orden` (menor primero).
+- Un módulo nunca importa código de otro. Sus tablas nacen con `tenantId` + RLS
+  (`tests/aislamiento.test.ts` falla si una tabla no tiene RLS y política).
 
 ## Comandos
 

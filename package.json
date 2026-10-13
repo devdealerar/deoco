@@ -11,10 +11,16 @@
     "test": "vitest run",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && node scripts/descubrir-modulos.mjs",
     "db:semilla": "tsx prisma/semilla.ts",
     "db:migrate:test": "dotenv -e .env.test -o -- prisma migrate deploy",
-    "test:e2e": "vitest run --config vitest.e2e.config.mts"
+    "test:e2e": "vitest run --config vitest.e2e.config.mts",
+    "modulos:descubrir": "node scripts/descubrir-modulos.mjs",
+    "predev": "node scripts/descubrir-modulos.mjs",
+    "prebuild": "node scripts/descubrir-modulos.mjs",
+    "pretest": "node scripts/descubrir-modulos.mjs",
+    "pretest:e2e": "node scripts/descubrir-modulos.mjs",
+    "pretypecheck": "node scripts/descubrir-modulos.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

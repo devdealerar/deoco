@@ -95,3 +95,19 @@ describe("resolución de dominio sin tenant fijado", () => {
     expect(n.id).toBeNull();
   });
 });
+
+describe("toda tabla con datos de banda nace con RLS", () => {
+  it("cada tabla de public (salvo usuario y la de Prisma) tiene RLS y una política", async () => {
+    const filas = await dueno.$queryRaw<{ tabla: string; rls: boolean; politicas: number }[]>`
+      SELECT c.relname AS tabla, c.relrowsecurity AS rls,
+             (SELECT count(*)::int FROM pg_policies p WHERE p.tablename = c.relname) AS politicas
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind = 'r'
+        AND c.relname NOT IN ('usuario', '_prisma_migrations')`;
+    expect(filas.length).toBeGreaterThan(0);
+    for (const f of filas) {
+      expect(f, `tabla "${f.tabla}" sin RLS o sin política`).toMatchObject({ rls: true });
+      expect(f.politicas, `tabla "${f.tabla}" sin política`).toBeGreaterThan(0);
+    }
+  });
+});

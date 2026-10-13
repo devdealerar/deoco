@@ -1,51 +1,33 @@
 import { decode } from "next-auth/jwt";
-import { type Browser, type BrowserContext, chromium } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { CONTRASENA, dueno, escenarioAcceso } from "../apoyo";
-import { PUERTO } from "./servidor";
+import {
+  APP,
+  abrirNavegador,
+  anonimo,
+  cerrarContextos,
+  cerrarNavegador,
+  dominiosDeDesarrollo,
+  logueado,
+  sitio,
+} from "./navegador";
 
-const APP = `http://app.lvh.me:${PUERTO}`;
-const SITIO_A = `http://banda-a.lvh.me:${PUERTO}`;
-
-let navegador: Browser;
+const SITIO_A = sitio("banda-a");
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
-const contextos: BrowserContext[] = [];
 
 beforeAll(async () => {
   e = await escenarioAcceso();
-  // dosBandas() crea banda-x.deoco.com; acá se necesitan los hosts de desarrollo.
-  await dueno.dominio.createMany({
-    data: [
-      { tenantId: e.a.id, dominio: `banda-a.lvh.me` },
-      { tenantId: e.b.id, dominio: `banda-b.lvh.me` },
-    ],
-  });
-  navegador = await chromium.launch({
-    executablePath: process.env.CHROMIUM ?? "/opt/pw-browsers/chromium",
-    // *.lvh.me → 127.0.0.1 sin depender del DNS público.
-    args: ["--host-resolver-rules=MAP *.lvh.me 127.0.0.1", "--no-proxy-server"],
-  });
+  await dominiosDeDesarrollo(e.a, e.b);
+  await abrirNavegador();
 });
 afterEach(async () => {
   await dueno.tenant.updateMany({ data: { estado: "ACTIVO" } });
-  while (contextos.length) await contextos.pop()!.close();
+  await cerrarContextos();
 });
 afterAll(async () => {
-  await navegador?.close();
+  await cerrarNavegador();
   await dueno.$disconnect();
 });
-
-/** Navegador nuevo (sin cookies) con el usuario logueado. */
-async function logueado(email: string) {
-  const ctx = await navegador.newContext();
-  contextos.push(ctx);
-  const page = await ctx.newPage();
-  await page.goto(`${APP}/ingresar`);
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="contrasena"]', CONTRASENA);
-  await Promise.all([page.waitForURL(`${APP}/`), page.click('button[type="submit"]')]);
-  return { ctx, page };
-}
 
 async function suspender(id: string) {
   await dueno.tenant.update({ where: { id }, data: { estado: "SUSPENDIDO" } });
@@ -53,9 +35,7 @@ async function suspender(id: string) {
 
 describe("login y sesión", () => {
   it("sin sesión, el panel manda a ingresar y vuelve a donde iba", async () => {
-    const ctx = await navegador.newContext();
-    contextos.push(ctx);
-    const page = await ctx.newPage();
+    const { page } = await anonimo();
     await page.goto(`${APP}/b/banda-a`);
     expect(page.url()).toBe(`${APP}/ingresar?volver=%2Fb%2Fbanda-a`);
     await page.fill('input[name="email"]', "multi@x.com");
@@ -65,9 +45,7 @@ describe("login y sesión", () => {
   });
 
   it("contraseña incorrecta no entra", async () => {
-    const ctx = await navegador.newContext();
-    contextos.push(ctx);
-    const page = await ctx.newPage();
+    const { page } = await anonimo();
     await page.goto(`${APP}/ingresar`);
     await page.fill('input[name="email"]', "multi@x.com");
     await page.fill('input[name="contrasena"]', "mal");
