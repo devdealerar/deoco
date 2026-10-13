@@ -10,6 +10,7 @@ import {
   cambiarRol,
   invitar,
   marcarPrincipal,
+  quitarDominio,
   quitarMiembro,
   verificarDominio,
 } from "../../_servidor/bandas";
@@ -48,6 +49,13 @@ export async function verificarAccion(tenantId: string, dominioId: string, _: Es
     const m = mensajeVerificacion(await verificarDominio(staffId, tenantId, dominioId));
     if ("error" in m) throw new ErrorFormulario(m.error);
     return m.ok;
+  });
+}
+
+export async function quitarDominioAccion(tenantId: string, dominioId: string, _: EstadoFormulario, fd: FormData) {
+  return accionAdmin(async (staffId) => {
+    await quitarDominio(staffId, tenantId, dominioId, fd.get("confirmar") === "on");
+    return "Dominio quitado.";
   });
 }
 

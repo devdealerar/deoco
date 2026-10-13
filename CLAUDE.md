@@ -57,7 +57,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   (con cualquier comando) y npm antes de test/typecheck.
   El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
 - El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
-  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios` en el panel;
+  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios`, `/credenciales` en el panel;
   `/ingresar`, `/api`, `/b` en el sitio), navegación que apunta a rutas propias.
 - Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
@@ -77,10 +77,25 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 ## Dominios propios
 
 - `src/nucleo/dominios` (bajo RLS): `agregarDominio`, `verificarDominio` (DNS: `A` a la IP del
-  servidor + `TXT _deoco.<dominio>` con el token de la banda), `marcarPrincipal` (solo verificado).
+  servidor + `TXT _deoco.<dominio>` con el token de la banda), `marcarPrincipal` (verificado y
+  abriendo por HTTPS con certificado válido), `quitarDominio` (confirmado; nunca el principal ni
+  el subdominio).
 - Pantalla `/b/<slug>/dominios` (núcleo, solo titular) y la misma lista en `/admin`
   (`src/app/_dominios`). El certificado lo emite Easypanel: la app nunca lo intenta.
 - Sin verificar, un dominio puede estar en varias bandas; verificado, en una sola.
+
+## Secretos por banda
+
+- Contrato: `secretos: [{ clave, etiqueta, ayuda? }]`. Tabla `secreto` (RLS), valor cifrado
+  AES-256-GCM con `DEOCO_CLAVE_SECRETOS`, atado a banda/módulo/clave.
+- Lectura (módulos): `leerSecreto(suPropioContrato, tenantId, clave)` (`src/nucleo/secretos`).
+  Carga (núcleo, solo titular): `src/nucleo/secretos/carga.ts`, pantalla `/b/<slug>/credenciales`.
+- Un módulo no importa el registro ni la carga (`tests/modulos.test.ts`). Nunca se loguea ni
+  se muestra un valor completo. El arranque exige la clave si algún módulo declara secretos.
+
+## Parámetros de consulta
+
+- Las rutas de módulos (panel y públicas) reciben `consulta: URLSearchParams`.
 
 ## Archivos
 

@@ -7,6 +7,8 @@ import path from "node:path";
 import { generadoPara } from "@/generated/modulos";
 import { prisma } from "@/nucleo/db/cliente";
 import { registro } from "@/nucleo/modulos";
+import type { Modulo } from "@/nucleo/modulos/contrato";
+import { claveMaestra } from "@/nucleo/secretos/cifrado";
 
 type Entorno = Record<string, string | undefined>;
 
@@ -46,6 +48,15 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
 }
 
 /** Problemas que solo se ven conectando a la base (con la conexión de la app). */
+/** La clave de cifrado de secretos hace falta solo si algún módulo declara secretos. */
+export function problemasDeSecretos(modulos: readonly Modulo[], env: Entorno): string[] {
+  const usan = modulos.filter((m) => m.secretos?.length).map((m) => m.id);
+  if (usan.length === 0 || claveMaestra(env)) return [];
+  return [
+    `Los módulos ${usan.join(", ")} guardan credenciales por banda y DEOCO_CLAVE_SECRETOS falta o no es de 32 bytes en base64 (\`openssl rand -base64 32\`).`,
+  ];
+}
+
 export async function problemasDeBase(env: Entorno): Promise<string[]> {
   const p: string[] = [];
   let app: { usuario: string; rolsuper: boolean; rolbypassrls: boolean; tablas: number };
@@ -87,7 +98,7 @@ async function problemasDeArchivos(env: Entorno): Promise<string[]> {
 export async function verificarArranque(env: Entorno = process.env) {
   const problemas = problemasDeEntorno(env, { generadoPara });
   try {
-    registro(); // valida el contrato de todos los módulos
+    problemas.push(...problemasDeSecretos(registro().modulos, env)); // registro() valida el contrato
   } catch (e) {
     problemas.push(`Registro de módulos inválido: ${e instanceof Error ? e.message : e}`);
   }

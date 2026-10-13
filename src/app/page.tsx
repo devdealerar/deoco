@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { bandasVisibles } from "@/nucleo/acceso/bandas";
 import { usuarioActivo } from "@/nucleo/acceso/panel";
+import { consultaDe, type SearchParamsNext } from "@/nucleo/modulos/consulta";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { BotonSalir } from "./salir";
 import { SuperficiePublica } from "./publico";
@@ -9,9 +10,11 @@ import { SuperficiePublica } from "./publico";
 // "/" es dos cosas según el host:
 //  - app.<raiz>: selector de bandas del usuario (con sesión).
 //  - host de banda: home del sitio público (anónimo; no lee sesión).
-export default async function Inicio() {
+export default async function Inicio({ searchParams }: { searchParams: Promise<SearchParamsNext> }) {
   const ctx = await tenantDelPedido();
-  if (ctx?.superficie === "publico") return <SuperficiePublica tenantId={ctx.tenantId} path="/" />;
+  if (ctx?.superficie === "publico") {
+    return <SuperficiePublica tenantId={ctx.tenantId} path="/" consulta={consultaDe(await searchParams)} />;
+  }
 
   const usuarioId = await usuarioActivo();
   if (!usuarioId) redirect("/ingresar");

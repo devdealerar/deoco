@@ -57,6 +57,19 @@ describe("prueba 1: prendido, aparece y sus rutas responden", () => {
   });
 });
 
+describe("parámetros de consulta: llegan a las páginas de los módulos", () => {
+  it("sitio público y panel, con valores repetidos y caracteres especiales", async () => {
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
+    const { page: publico } = await anonimo();
+    await publico.goto(`${sitio("banda-a")}/prueba?eco=aprobado&eco=${encodeURIComponent("pedido 42 & ñ")}&otro=x`);
+    expect(await publico.getByTestId("eco").textContent()).toBe("aprobado,pedido 42 & ñ");
+
+    const { page: panel } = await logueado("multi@x.com");
+    await panel.goto(`${APP}/b/banda-a/prueba?eco=filtro`);
+    expect(await panel.getByTestId("eco").textContent()).toBe("filtro");
+  });
+});
+
 describe("prueba 2: apagado", () => {
   it("rutas 404 y sin entrada de menú ni pestaña", async () => {
     const { page } = await logueado("multi@x.com");

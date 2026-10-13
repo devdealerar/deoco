@@ -24,11 +24,15 @@ export type PropsRutaPanel = {
   acceso: AccesoPanel;
   /** Segmentos dinámicos de la ruta: "/x/[id]" → { id } */
   params: Record<string, string>;
+  /** Parámetros de consulta: "?estado=aprobado" → consulta.get("estado"). Repetidos: getAll. */
+  consulta: URLSearchParams;
 };
 
 export type PropsRutaPublica = {
   tenantId: string;
   params: Record<string, string>;
+  /** Parámetros de consulta (p. ej. la vuelta de una pasarela de pago). */
+  consulta: URLSearchParams;
 };
 
 /**
@@ -82,6 +86,20 @@ export type Evento = {
   payload: unknown;
 };
 
+/**
+ * Credencial que la banda le da al módulo (p. ej. el token de una pasarela). La carga el
+ * titular en el panel (pantalla del núcleo); el módulo la lee con `leerSecreto(modulo, …)`
+ * pasando SU PROPIO objeto de contrato. Nunca se muestra completa.
+ */
+export type DefinicionSecreto = {
+  /** Minúsculas, números y "_": `access_token`. */
+  clave: string;
+  /** Lo que ve el titular: "Access token de Mercado Pago". */
+  etiqueta: string;
+  /** Dónde se consigue, en una línea. */
+  ayuda?: string;
+};
+
 export type Modulo = {
   id: string;
   nombre: string;
@@ -99,6 +117,8 @@ export type Modulo = {
   eventosEscucha?: { evento: string; manejador: (e: Evento) => Promise<void> }[];
   /** Marco del sitio público (a lo sumo un módulo lo aporta). */
   marcoPublico?: MarcoPublico;
+  /** Credenciales por banda que necesita (cifradas; solo las carga el titular). */
+  secretos?: DefinicionSecreto[];
   /** Ids de módulos que tienen que estar prendidos para prender este. */
   dependencias?: string[];
 };

@@ -7,7 +7,11 @@ import { BotonSalir } from "../../salir";
 
 /** Marco del panel de una banda: menú armado con los módulos prendidos y los permisos. */
 export async function MarcoPanel({ slug, acceso, children }: { slug: string; acceso: AccesoPanel; children: ReactNode }) {
-  const menu = menuPanel(registro(), await prendidosDelPedido(acceso.tenantId), acceso, slug);
+  const reg = registro();
+  const prendidos = await prendidosDelPedido(acceso.tenantId);
+  const menu = menuPanel(reg, prendidos, acceso, slug);
+  const esTitular = acceso.rol === "TITULAR";
+  const conCredenciales = esTitular && reg.modulos.some((m) => prendidos.has(m.id) && m.secretos?.length);
   const item = "block rounded-md px-3 py-2 text-md font-semibold text-secondary hover:bg-primary_hover hover:text-secondary_hover";
   return (
     <div className="min-h-dvh bg-secondary lg:flex">
@@ -23,10 +27,17 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                   Inicio
                 </Link>
               </li>
-              {acceso.rol === "TITULAR" && (
+              {esTitular && (
                 <li>
                   <Link href={`/b/${slug}/dominios`} className={item}>
                     Dominios
+                  </Link>
+                </li>
+              )}
+              {conCredenciales && (
+                <li>
+                  <Link href={`/b/${slug}/credenciales`} className={item}>
+                    Credenciales
                   </Link>
                 </li>
               )}

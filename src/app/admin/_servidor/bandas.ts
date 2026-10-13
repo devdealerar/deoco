@@ -2,9 +2,11 @@ import { randomInt } from "node:crypto";
 import { Prisma, type EstadoTenant } from "@/generated/prisma/client";
 import { hashearContrasena } from "@/nucleo/auth/contrasena";
 import {
+  type ComprobadorHttps,
   ErrorDominio,
   agregarDominio as agregarDominioNucleo,
   marcarPrincipal as marcarPrincipalNucleo,
+  quitarDominio as quitarDominioNucleo,
   verificarDominio as verificarDominioNucleo,
 } from "@/nucleo/dominios";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
@@ -181,9 +183,14 @@ export async function verificarDominio(staffId: string, tenantId: string, domini
   return dominios(() => verificarDominioNucleo(staffId, tenantId, dominioId));
 }
 
-/** Marca el dominio principal de la banda (hay uno solo, verificado). */
-export async function marcarPrincipal(staffId: string, tenantId: string, dominioId: string) {
-  return dominios(() => marcarPrincipalNucleo(staffId, tenantId, dominioId));
+/** Quita un dominio propio (confirmado; nunca el principal ni el subdominio). */
+export async function quitarDominio(staffId: string, tenantId: string, dominioId: string, confirmado: boolean) {
+  return dominios(() => quitarDominioNucleo(staffId, tenantId, dominioId, confirmado));
+}
+
+/** Marca el dominio principal de la banda (hay uno solo, verificado y con HTTPS). */
+export async function marcarPrincipal(staffId: string, tenantId: string, dominioId: string, https?: ComprobadorHttps) {
+  return dominios(() => marcarPrincipalNucleo(staffId, tenantId, dominioId, https));
 }
 
 // ── miembros ───────────────────────────────────────────────────────────────

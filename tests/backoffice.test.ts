@@ -83,7 +83,7 @@ describe("dominios", () => {
     expect(d).toMatchObject({ tenantId: e.a.id, esPrincipal: false, verificado: false });
     await expect(marcarPrincipal(e.staff.id, e.a.id, d.id)).rejects.toThrow(/todavía no está verificado/);
     await dueno.dominio.update({ where: { id: d.id }, data: { verificado: true } });
-    await marcarPrincipal(e.staff.id, e.a.id, d.id);
+    await marcarPrincipal(e.staff.id, e.a.id, d.id, async () => ({ abre: true }));
     const principales = await dueno.dominio.findMany({ where: { tenantId: e.a.id, esPrincipal: true } });
     expect(principales.map((p) => p.dominio)).toEqual(["lossatelites.com.ar"]);
     expect(await acciones(e.a.id)).toEqual(["dominio.agregado", "dominio.principal_marcado"]);

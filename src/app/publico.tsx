@@ -11,7 +11,15 @@ import { pestanasSitio } from "@/nucleo/modulos/navegacion";
  * públicas de los módulos prendidos. Ruta no declarada o módulo apagado → 404.
  * El marco lo aporta un módulo (`marcoPublico`) si está prendido; si no, uno neutro.
  */
-export async function SuperficiePublica({ tenantId, path }: { tenantId: string; path: string }) {
+export async function SuperficiePublica({
+  tenantId,
+  path,
+  consulta,
+}: {
+  tenantId: string;
+  path: string;
+  consulta: URLSearchParams;
+}) {
   const reg = registro();
   const prendidos = await modulosPrendidos(tenantId, reg);
   const encontrada = reg.rutaPublica(path);
@@ -21,7 +29,7 @@ export async function SuperficiePublica({ tenantId, path }: { tenantId: string; 
   const items = pestanasSitio(reg, prendidos);
   const pestanas = items.map(({ etiqueta, href }) => ({ etiqueta, href }));
   const Componente = visible?.ruta.componente;
-  const contenido = Componente ? <Componente tenantId={tenantId} params={visible.params} /> : null;
+  const contenido = Componente ? <Componente tenantId={tenantId} params={visible.params} consulta={consulta} /> : null;
 
   const marco = reg.marcoPublico && prendidos.has(reg.marcoPublico.moduloId) ? reg.marcoPublico.componente : null;
   if (marco) {

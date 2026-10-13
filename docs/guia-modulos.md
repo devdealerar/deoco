@@ -45,6 +45,8 @@ solo antes de `dev`, `build`, `test` y `typecheck`.
 ## 2. Reglas que no se rompen
 
 - **Nunca importes código de otro módulo.** Se hablan por eventos o por el contrato.
+  Del núcleo tampoco: el registro (`@/nucleo/modulos`, salvo `contrato`), la lista generada
+  ni la carga de secretos (`@/nucleo/secretos/*`). Lo verifica `tests/modulos.test.ts`.
 - **Toda tabla nace con `tenantId` y su política RLS** (`deoco_aislar_tabla`, ver "Tablas").
   `tests/aislamiento.test.ts` falla si una tabla no la tiene.
 - **Toda consulta de datos de banda pasa por `conTenant(tenantId, fn)`.**
@@ -123,15 +125,41 @@ const { id } = await guardarArchivo(tenantId, { nombre: f.name, datos }, {
 - En páginas y acciones: `exigirPermiso(permiso, volver)`, `puedeEnPedido(permiso, volver)`
   (`src/nucleo/acceso/panel.ts`). Fuera de un pedido: `puede(usuarioId, tenantId, permiso)`.
 
+### Credenciales de la banda (secretos)
+
+Para lo que la banda le da al módulo y nadie más tiene que ver (el token de la pasarela):
+
+```ts
+// index.ts
+secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ayuda: "Mercado Pago → Tus integraciones → Credenciales" }],
+```
+
+- La carga **solo el titular**, en la pantalla del núcleo `Panel → Credenciales`
+  (aparece cuando un módulo prendido declara secretos). Ni otro rol ni el staff.
+- Se guarda cifrada (AES-256-GCM, `DEOCO_CLAVE_SECRETOS`), atada a banda + módulo + clave.
+  En pantalla solo se ve si está cargada y, si es larga, los últimos 4 caracteres.
+- El módulo la lee pasando **su propio contrato** (el núcleo exige que sea el objeto
+  registrado; el de otro módulo no se puede importar):
+
+  ```ts
+  import { leerSecreto } from "@/nucleo/secretos";
+  import tienda from "./index";
+  const token = await leerSecreto(tienda, tenantId, "access_token"); // null si no está cargada
+  ```
+
+- Nunca la loguees, la pongas en un mensaje de error ni la mandes al navegador.
+
 ## 5. Rutas y navegación
 
 - `rutasPanel` se montan en `app.deoco.com/b/<slug><ruta>`. El componente recibe
-  `{ tenantId, slug, acceso, params }`. El núcleo ya verificó sesión, membresía,
+  `{ tenantId, slug, acceso, params, consulta }`. El núcleo ya verificó sesión, membresía,
   módulo prendido y el `permiso` de la ruta.
 - `rutasPublicas` se montan en la raíz del sitio de la banda (`labanda.deoco.com<ruta>`).
-  El componente recibe `{ tenantId, params }`. Es anónimo: no hay sesión.
+  El componente recibe `{ tenantId, params, consulta }`. Es anónimo: no hay sesión.
 - Segmentos dinámicos: `/tienda/[producto]` → `params.producto`. Las rutas fijas ganan.
-- Rutas del núcleo, prohibidas: `/`, `/pago`, `/archivos` y `/dominios` en el panel; `/ingresar`, `/api`, `/b`, `/archivos` y `/admin` en el sitio.
+- Parámetros de consulta: las dos superficies reciben `consulta` (`URLSearchParams`):
+  `?estado=aprobado` → `consulta.get("estado")`; repetidos con `consulta.getAll(...)`.
+- Rutas del núcleo, prohibidas: `/`, `/pago`, `/archivos`, `/dominios` y `/credenciales` en el panel; `/ingresar`, `/api`, `/b`, `/archivos` y `/admin` en el sitio.
 - Las páginas públicas no leen sesión: es la superficie `"publico"`.
 - Pantallas del panel: usá el kit `@/ui` (componentes oficiales de Untitled UI): `Tarjeta`,
   `Campo`, `AreaTexto`, `Selector`, `Casilla`, `CampoArchivo`, `Boton`, `Insignia` y

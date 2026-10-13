@@ -194,6 +194,18 @@ describe("pestañas públicas de módulos nuevos (tienda, ticketera) junto a las
   });
 });
 
+describe("parámetros de consulta para los módulos", () => {
+  it("de los searchParams de Next a URLSearchParams, con repetidos en orden", async () => {
+    const { consultaDe } = await import("@/nucleo/modulos/consulta");
+    const c = consultaDe({ estado: "aprobado", talle: ["m", "l"], vacio: "", nada: undefined });
+    expect(c.get("estado")).toBe("aprobado");
+    expect(c.getAll("talle")).toEqual(["m", "l"]);
+    expect(c.get("vacio")).toBe("");
+    expect(c.has("nada")).toBe(false);
+    expect([...consultaDe(undefined)]).toEqual([]);
+  });
+});
+
 describe("rutas de módulos", () => {
   it("segmentos dinámicos, y las fijas ganan sobre las dinámicas", () => {
     const reg = crearRegistro([
@@ -276,5 +288,36 @@ describe("regla de oro: el núcleo no nombra módulos", () => {
       const culpables = fuentes.filter((f) => nombrado.test(readFileSync(f, "utf8")));
       expect(culpables, `"${m.id}" aparece en el núcleo`).toEqual([]);
     }
+  });
+});
+
+describe("un módulo nunca importa código de otro (ni lo que es solo del núcleo)", () => {
+  const PROHIBIDOS = [
+    /^@\/generated\/modulos/, // la lista de todos los módulos
+    /^@\/nucleo\/modulos(?!\/contrato$)/, // el registro: daría acceso al contrato de otros módulos
+    /^@\/nucleo\/secretos\//, // carga y cifrado: un módulo solo lee lo suyo con leerSecreto
+    /^@\/app\//,
+    /^@\/\.\./,
+  ];
+  function archivos(dir: string): string[] {
+    return readdirSync(dir).flatMap((f) => {
+      const p = path.join(dir, f);
+      return statSync(p).isDirectory() ? archivos(p) : [p];
+    });
+  }
+  const IMPORT = /(?:\bfrom|\bimport)\s*\(?\s*["']([^"']+)["']/g;
+
+  it("solo rutas relativas dentro de su carpeta y, del núcleo, lo permitido", () => {
+    const problemas: string[] = [];
+    for (const id of readdirSync("modulos").filter((d) => statSync(path.join("modulos", d)).isDirectory())) {
+      const raiz = path.resolve("modulos", id);
+      for (const f of archivos(raiz).filter((x) => /\.(ts|tsx|mjs|js)$/.test(x))) {
+        for (const [, spec] of readFileSync(f, "utf8").matchAll(IMPORT)) {
+          const fuera = spec.startsWith(".") && !path.resolve(path.dirname(f), spec).startsWith(raiz + path.sep);
+          if (fuera || PROHIBIDOS.some((r) => r.test(spec))) problemas.push(`${path.relative(".", f)}: "${spec}"`);
+        }
+      }
+    }
+    expect(problemas).toEqual([]);
   });
 });

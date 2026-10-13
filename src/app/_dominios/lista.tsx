@@ -1,5 +1,5 @@
 import type { DominioBanda } from "@/nucleo/dominios";
-import { Campo, Copiable, type EstadoFormulario, Formulario, Insignia, Tarjeta } from "@/ui";
+import { Campo, Casilla, Copiable, type EstadoFormulario, Formulario, Insignia, Tarjeta } from "@/ui";
 
 type Accion = (estado: EstadoFormulario, datos: FormData) => Promise<EstadoFormulario>;
 
@@ -11,11 +11,13 @@ export function ListaDominios({
   dominios,
   verificar,
   principal,
+  quitar,
   agregar,
 }: {
   dominios: DominioBanda[];
   verificar: (dominioId: string) => Accion;
   principal: (dominioId: string) => Accion;
+  quitar: (dominioId: string) => Accion;
   agregar: Accion;
 }) {
   const enLinea = { puedeEditar: true, enLinea: true, variante: "secundario" as const };
@@ -50,7 +52,9 @@ export function ListaDominios({
             </p>
           )}
           {d.esPrincipal && !d.dePlataforma && (
-            <p className="text-sm text-tertiary">El subdominio de Deoco sigue andando y redirige acá.</p>
+            <p className="text-sm text-tertiary">
+              El subdominio de Deoco sigue andando y redirige acá. Para quitar este dominio, primero elegí otro como principal.
+            </p>
           )}
 
           {d.registros && (
@@ -88,6 +92,14 @@ export function ListaDominios({
                 <Formulario puedeEditar accion={verificar(d.id)} etiqueta="Verificar" />
               </div>
             </>
+          )}
+
+          {!d.dePlataforma && !d.esPrincipal && (
+            <div className="border-t border-secondary pt-4" data-quitar>
+              <Formulario {...enLinea} variante="peligro" accion={quitar(d.id)} etiqueta="Quitar dominio">
+                <Casilla name="confirmar" etiqueta={`Confirmo quitar ${d.dominio}`} />
+              </Formulario>
+            </div>
           )}
         </section>
       ))}

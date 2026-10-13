@@ -3,9 +3,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/nucleo/db/cliente";
 import {
   agregarDominio,
+  type ComprobadorHttps,
   type ConsultaDns,
   dominiosDeBanda,
   marcarPrincipal,
+  quitarDominio,
   registrosDns,
   verificarDominio,
 } from "@/nucleo/dominios";
@@ -50,6 +52,8 @@ async function dnsCorrecto(tenantId: string, dominio: string) {
     [`_deoco.${dominio}`]: { txt: [`deoco-verificacion=${d.token}`] },
   });
 }
+
+const httpsOk: ComprobadorHttps = async () => ({ abre: true });
 
 const pedido = (host: string, path = "/", extra: Record<string, string> = {}) =>
   new NextRequest(`http://${host}${path}`, { headers: { host, ...extra } });
@@ -180,7 +184,7 @@ describe("principal", () => {
   it("verificado y principal: el subdominio queda de respaldo y redirige con la misma ruta", async () => {
     const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
     await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
-    await marcarPrincipal(ua.id, a.id, id);
+    await marcarPrincipal(ua.id, a.id, id, httpsOk);
 
     const principales = await dueno.dominio.findMany({ where: { tenantId: a.id, esPrincipal: true } });
     expect(principales.map((p) => p.dominio)).toEqual(["lossatelites.com.ar"]);
@@ -201,7 +205,7 @@ describe("principal", () => {
   it("el panel y los estados no cambian: app.<raiz>/b/<slug> no redirige; archivada, 404 sin redirigir", async () => {
     const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
     await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
-    await marcarPrincipal(ua.id, a.id, id);
+    await marcarPrincipal(ua.id, a.id, id, httpsOk);
     expect((await proxy(pedido("app.deoco.com", "/b/banda-a"))).status).toBe(200);
     await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
     try {
@@ -212,10 +216,94 @@ describe("principal", () => {
     }
   });
 
+  it("sin HTTPS no se marca principal: explica que falta el certificado", async () => {
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
+    await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
+    const pedidos: string[] = [];
+    const sinCertificado: ComprobadorHttps = async (d) => (pedidos.push(d), { abre: false, motivo: "certificado" });
+    await expect(marcarPrincipal(ua.id, a.id, id, sinCertificado)).rejects.toThrow(/todavía no tiene certificado/);
+    await expect(marcarPrincipal(ua.id, a.id, id, async () => ({ abre: false, motivo: "sin-respuesta" }))).rejects.toThrow(
+      /no responde/,
+    );
+    expect(pedidos).toEqual(["lossatelites.com.ar"]);
+    expect((await dueno.dominio.findUniqueOrThrow({ where: { id } })).esPrincipal).toBe(false);
+  });
+
+  it("volver al subdominio no consulta HTTPS (lo cubre el comodín)", async () => {
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
+    await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
+    await marcarPrincipal(ua.id, a.id, id, httpsOk);
+    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deoco.com" } });
+    await marcarPrincipal(ua.id, a.id, sub.id, async () => {
+      throw new Error("no debería consultar");
+    });
+    expect((await dueno.dominio.findUniqueOrThrow({ where: { id: sub.id } })).esPrincipal).toBe(true);
+  });
+
   it("la otra banda no se entera", async () => {
     const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
     await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
-    await marcarPrincipal(ua.id, a.id, id);
+    await marcarPrincipal(ua.id, a.id, id, httpsOk);
     expect((await proxy(pedido("banda-b.deoco.com"))).status).toBe(200);
+  });
+});
+
+describe("quitar", () => {
+  it("con confirmación; deja de resolver y queda en la auditoría", async () => {
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
+    await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
+    await expect(quitarDominio(ua.id, a.id, id, false)).rejects.toThrow(/confirmalo: deja de mostrar el sitio/);
+    await quitarDominio(ua.id, a.id, id, true);
+    expect(await dueno.dominio.findUnique({ where: { id } })).toBeNull();
+    expect((await proxy(pedido("lossatelites.com.ar"))).status).toBe(404);
+    const audit = await dueno.auditoria.findMany({ where: { tenantId: a.id }, orderBy: { fecha: "asc" } });
+    expect(audit.map((x) => x.accion)).toEqual(["dominio.agregado", "dominio.verificado", "dominio.quitado"]);
+  });
+
+  it("el principal no se quita sin elegir otro antes", async () => {
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
+    await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
+    await marcarPrincipal(ua.id, a.id, id, httpsOk);
+    await expect(quitarDominio(ua.id, a.id, id, true)).rejects.toThrow(/elegí otro como principal antes/);
+    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deoco.com" } });
+    await marcarPrincipal(ua.id, a.id, sub.id);
+    await quitarDominio(ua.id, a.id, id, true);
+    expect(await dueno.dominio.count({ where: { tenantId: a.id } })).toBe(1);
+  });
+
+  it("el subdominio de Deoco nunca se quita", async () => {
+    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deoco.com" } });
+    await dueno.dominio.update({ where: { id: sub.id }, data: { esPrincipal: false } });
+    await expect(quitarDominio(ua.id, a.id, sub.id, true)).rejects.toThrow(/no se puede quitar/);
+  });
+
+  it("no quita dominios de otra banda", async () => {
+    const deB = await agregarDominio(ub.id, b.id, "deb.com");
+    await expect(quitarDominio(ua.id, a.id, deB, true)).rejects.toThrow(/no es de esta banda/);
+  });
+});
+
+describe("comprobación HTTPS real (sin red: servidores locales)", () => {
+  it("certificado autofirmado → falta el certificado; puerto cerrado → no responde", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const { mkdtempSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { createServer } = await import("node:https");
+    const { httpsDelSistema } = await import("@/nucleo/dominios");
+    const dir = mkdtempSync(join(tmpdir(), "deoco-tls-"));
+    execFileSync("openssl", [
+      "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=localhost",
+      "-keyout", join(dir, "k.pem"), "-out", join(dir, "c.pem"),
+    ], { stdio: "ignore" });
+    const servidor = createServer({ key: readFileSync(join(dir, "k.pem")), cert: readFileSync(join(dir, "c.pem")) }, (_, r) => r.end("ok"));
+    await new Promise<void>((ok) => servidor.listen(0, "127.0.0.1", ok));
+    const { port } = servidor.address() as { port: number };
+    try {
+      expect(await httpsDelSistema(`127.0.0.1:${port}`)).toEqual({ abre: false, motivo: "certificado" });
+    } finally {
+      servidor.close();
+    }
+    expect(await httpsDelSistema(`127.0.0.1:${port}`)).toEqual({ abre: false, motivo: "sin-respuesta" });
   });
 });

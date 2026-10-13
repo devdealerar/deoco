@@ -24,6 +24,8 @@ const prueba: Modulo = {
     { etiqueta: "Prueba", href: "/prueba", permiso: "prueba.contenido.ver", orden: 900 },
     { etiqueta: "Prueba", href: "/prueba", publica: true, orden: 900 },
   ],
+  // Credencial de ejemplo, como el token de una pasarela: la carga el titular.
+  secretos: [{ clave: "token", etiqueta: "Token de prueba", ayuda: "Cualquier texto: sirve para verificar el núcleo." }],
   eventosEmite: ["prueba.verificada"],
   eventosEscucha: [{ evento: "prueba.verificada", manejador: alVerificarse }],
 };

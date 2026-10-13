@@ -15,7 +15,8 @@ const CLAVE_PERMISO = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;
 const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 
 // Rutas que son del núcleo y ningún módulo puede ocupar.
-const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios"]; // home del panel, pago de la cuota, archivos, dominios
+const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, secretos
+const CLAVE_SECRETO = /^[a-z][a-z0-9_]{0,62}$/;
 const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin"]; // plataforma y archivos
 
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };
@@ -162,6 +163,16 @@ export function crearRegistro(modulos: Modulo[]): Registro {
         }
       }
       navegacion.push({ ...n, moduloId: m.id });
+    }
+
+    const clavesSecretos = new Set<string>();
+    for (const sec of m.secretos ?? []) {
+      if (!CLAVE_SECRETO.test(sec.clave)) {
+        throw new ErrorRegistro(m.id, `secreto "${sec.clave}": clave inválida (minúsculas, números y _)`);
+      }
+      if (clavesSecretos.has(sec.clave)) throw new ErrorRegistro(m.id, `secreto "${sec.clave}" repetido`);
+      if (!sec.etiqueta?.trim()) throw new ErrorRegistro(m.id, `secreto "${sec.clave}": falta la etiqueta`);
+      clavesSecretos.add(sec.clave);
     }
 
     if (m.marcoPublico) {

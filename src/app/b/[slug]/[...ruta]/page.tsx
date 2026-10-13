@@ -1,14 +1,17 @@
 import { notFound } from "next/navigation";
 import { accesoPanel, exigirPermiso, prendidosDelPedido } from "@/nucleo/acceso/panel";
 import { registro } from "@/nucleo/modulos";
+import { consultaDe, type SearchParamsNext } from "@/nucleo/modulos/consulta";
 import { MarcoPanel } from "../marco";
 
 // Rutas de panel que aportan los módulos: /b/<slug>/<ruta del módulo>.
 // Ruta no declarada o módulo apagado para la banda → 404.
 export default async function RutaPanelModulo({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; ruta: string[] }>;
+  searchParams: Promise<SearchParamsNext>;
 }) {
   const { slug, ruta } = await params;
   const path = "/" + ruta.map(decodeURIComponent).join("/");
@@ -23,7 +26,10 @@ export default async function RutaPanelModulo({
   const Componente = encontrada.ruta.componente;
   return (
     <MarcoPanel slug={slug} acceso={acceso}>
-      <Componente tenantId={acceso.tenantId} slug={slug} acceso={acceso} params={encontrada.params} />
+      <Componente
+        tenantId={acceso.tenantId} slug={slug} acceso={acceso} params={encontrada.params}
+        consulta={consultaDe(await searchParams)}
+      />
     </MarcoPanel>
   );
 }

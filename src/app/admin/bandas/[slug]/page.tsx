@@ -14,6 +14,7 @@ import {
   prenderAccion,
   principalAccion,
   quitarAccion,
+  quitarDominioAccion,
   rolAccion,
   verificarAccion,
 } from "./acciones";
@@ -99,6 +100,7 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
           dominios={await dominiosDeBanda(id)}
           verificar={(d) => verificarAccion.bind(null, id, d)}
           principal={(d) => principalAccion.bind(null, id, d)}
+          quitar={(d) => quitarDominioAccion.bind(null, id, d)}
           agregar={dominioAccion.bind(null, id)}
         />
       </section>

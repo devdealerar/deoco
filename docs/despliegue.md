@@ -99,6 +99,7 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
    | `AUTH_SECRET` | `openssl rand -base64 32` — **fijo**: si cambia, se cierran todas las sesiones |
    | `DEOCO_DOMINIO_RAIZ` | `deoco.com` |
    | `DEOCO_LIMITE_ALMACENAMIENTO` | opcional: bytes por banda (por defecto 1 GiB) |
+   | `DEOCO_CLAVE_SECRETOS` | `openssl rand -base64 32` — cifra las credenciales de las bandas. Hoy opcional; obligatoria cuando se prenda un módulo con credenciales (la tienda). **Fija**: guardala aparte |
 
    `NODE_ENV`, el puerto y `DEOCO_ARCHIVOS_DIR=/data/archivos` ya los fija la imagen. Si una
    clave tiene caracteres como `@`, `:` o `/`, va codificada en la URL (o generala sin ellos).
@@ -156,6 +157,7 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
 | `DEOCO_ARCHIVOS_DIR` | no | `/data/archivos` (valor de la imagen) |
 | `DEOCO_ALMACEN` | no | `disco` (único implementado) |
 | `DEOCO_LIMITE_ALMACENAMIENTO` | no | espacio por banda en bytes; por defecto 1 GiB |
+| `DEOCO_CLAVE_SECRETOS` | si algún módulo guarda credenciales | `openssl rand -base64 32` — **fija**: si cambia, las credenciales de las bandas no se pueden leer y hay que volver a cargarlas |
 | `DEOCO_IP_PUBLICA` | no | IP a la que apuntan los dominios propios; por defecto, la de `app.<raíz>` |
 
 ## Respaldos
@@ -179,8 +181,11 @@ levanta y el motivo queda en los logs.
 3. **Vos** agregás ese dominio en Easypanel (servicio de la app → Domains → `<dominio>`, puerto
    3000, HTTPS con el resolver HTTP por defecto, **no** el de Cloudflare: el dominio no es
    tuyo). El certificado lo emite Easypanel; la app no lo toca.
-4. Cuando `https://<dominio>` abre con candado, la banda puede tocar **Usar como principal**:
-   desde ahí el subdominio `<slug>.deoco.com` redirige al dominio propio.
+4. Cuando `https://<dominio>` abre con candado, la banda puede tocar **Usar como principal**
+   (la app lo comprueba: sin certificado válido no lo deja). Desde ahí el subdominio
+   `<slug>.deoco.com` redirige al dominio propio.
+5. Si la banda **quita** un dominio (con confirmación; nunca el principal ni el subdominio),
+   sacalo también de Easypanel.
 
 La IP que se muestra es `DEOCO_IP_PUBLICA` si está definida; si no, la que resuelve
 `app.deoco.com` (con el comodín en "solo DNS" es la del VPS). Si alguna vez ponés la nube

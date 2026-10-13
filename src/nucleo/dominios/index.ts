@@ -169,18 +169,79 @@ export async function verificarDominio(
   return { verificado: true };
 }
 
+/** ¿El dominio abre por HTTPS con un certificado válido? Las pruebas pasan uno falso. */
+export type ComprobadorHttps = (dominio: string) => Promise<{ abre: true } | { abre: false; motivo: "certificado" | "sin-respuesta" }>;
+
+// Errores de TLS de Node (undici los deja en `cause.code`).
+const ERRORES_CERTIFICADO = /CERT|SELF_SIGNED|ALTNAME|UNABLE_TO_VERIFY|TLS|SSL|EPROTO/;
+
 /**
- * Marca el dominio principal (uno por banda; tiene que estar verificado). Los demás
- * dominios de la banda, el subdominio incluido, redirigen a él.
+ * Pide `https://<dominio>/` sin seguir redirecciones. Cualquier respuesta HTTP sirve: lo
+ * que importa es que el certificado sea válido. Con el certificado por defecto de Traefik
+ * (dominio todavía no agregado en Easypanel) falla la validación.
  */
-export async function marcarPrincipal(usuarioId: string, tenantId: string, dominioId: string): Promise<void> {
+export const httpsDelSistema: ComprobadorHttps = async (dominio) => {
+  try {
+    await fetch(`https://${dominio}/`, { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(8000) });
+    return { abre: true };
+  } catch (e) {
+    const code = String((e as { cause?: { code?: unknown } }).cause?.code ?? "");
+    return { abre: false, motivo: ERRORES_CERTIFICADO.test(code) ? "certificado" : "sin-respuesta" };
+  }
+};
+
+/**
+ * Marca el dominio principal (uno por banda). Un dominio propio tiene que estar verificado
+ * y abrir por HTTPS (si no, el subdominio redirigiría a un sitio sin certificado). Los
+ * demás dominios de la banda, el subdominio incluido, redirigen a él.
+ */
+export async function marcarPrincipal(
+  usuarioId: string,
+  tenantId: string,
+  dominioId: string,
+  https: ComprobadorHttps = httpsDelSistema,
+): Promise<void> {
+  const d = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { id: dominioId } }));
+  if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
+  if (!d.verificado) throw new ErrorDominio(`${d.dominio} todavía no está verificado.`);
+  if (d.esPrincipal) return;
+  if (!esDePlataforma(d.dominio)) {
+    const r = await https(d.dominio);
+    if (!r.abre) {
+      throw new ErrorDominio(
+        r.motivo === "certificado"
+          ? `https://${d.dominio} todavía no tiene certificado: falta que Deoco lo active en el servidor. Probá de nuevo cuando abra con candado.`
+          : `https://${d.dominio} no responde. Si recién lo verificaste, falta que Deoco lo active en el servidor (certificado); probá de nuevo en un rato.`,
+      );
+    }
+  }
   await conTenant(tenantId, async (tx) => {
-    const d = await tx.dominio.findFirst({ where: { id: dominioId } });
-    if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
-    if (!d.verificado) throw new ErrorDominio(`${d.dominio} todavía no está verificado.`);
-    if (d.esPrincipal) return;
+    const actual = await tx.dominio.findFirst({ where: { id: d.id, verificado: true } });
+    if (!actual || actual.esPrincipal) return;
     await tx.dominio.updateMany({ where: { esPrincipal: true }, data: { esPrincipal: false } });
     await tx.dominio.update({ where: { id: d.id }, data: { esPrincipal: true } });
     await auditar(tx, usuarioId, tenantId, "dominio.principal_marcado", { dominio: d.dominio });
+  });
+}
+
+/**
+ * Quita un dominio propio. Pide confirmación. El principal no se quita (primero se elige
+ * otro); el subdominio de la plataforma, nunca.
+ */
+export async function quitarDominio(usuarioId: string, tenantId: string, dominioId: string, confirmado: boolean): Promise<void> {
+  await conTenant(tenantId, async (tx) => {
+    const d = await tx.dominio.findFirst({ where: { id: dominioId } });
+    if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
+    if (esDePlataforma(d.dominio)) throw new ErrorDominio("El subdominio de Deoco no se puede quitar.");
+    if (d.esPrincipal) throw new ErrorDominio(`${d.dominio} es el principal: elegí otro como principal antes de quitarlo.`);
+    if (!confirmado) {
+      throw new ErrorDominio(
+        d.verificado
+          ? `Para quitar ${d.dominio}, confirmalo: deja de mostrar el sitio.`
+          : `Para quitar ${d.dominio}, confirmalo.`,
+      );
+    }
+    await tx.dominio.delete({ where: { id: d.id } });
+    await auditar(tx, usuarioId, tenantId, "dominio.quitado", { dominio: d.dominio, verificado: d.verificado });
   });
 }

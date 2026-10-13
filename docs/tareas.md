@@ -1,5 +1,30 @@
 # Tareas
 
+## Dominios y preparación para la tienda
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| 1 | Cierre de dominios: HTTPS antes de principal, quitar con confirmación | ✅ hecha |
+| 2a | Parámetros de URL para las rutas de módulos | ✅ hecha (a revisar) |
+| 2b | Secretos por banda | ✅ hecha (a revisar) |
+| 2c | Puntos de entrada para avisos externos (en `app.<raiz>`) | pendiente |
+| 2d | Título y vista previa por página (y el sitio: nombre de la banda) | pendiente |
+| 2e | Elemento del módulo en la cabecera del marco (carrito) + pestaña activa por segmento | pendiente |
+
+- Principal: antes de marcarlo, `https://<dominio>/` tiene que responder con certificado válido
+  (sin seguir redirecciones; cualquier estado HTTP sirve). Si no, explica que falta el certificado.
+- Quitar: confirmado; el principal no (primero otro principal); el subdominio, nunca.
+- Parámetros: `consulta: URLSearchParams` en `PropsRutaPanel` y `PropsRutaPublica`.
+- Secretos: ver CLAUDE.md "Secretos por banda". Garantía de "solo el módulo dueño": el núcleo
+  exige el objeto de contrato registrado, y una prueba impide que un módulo importe el de otro,
+  el registro o la carga.
+
+### Anotado, no ahora
+
+- Reverificación periódica de dominios (si el DNS deja de apuntar, hoy sigue verificado).
+- Correo: con la tienda. Consultas entre módulos: con la ticketera.
+- Rotación de `DEOCO_CLAVE_SECRETOS` (el formato lleva versión; falta el proceso).
+
 ## Mientras despliego
 
 | # | Parte | Estado |

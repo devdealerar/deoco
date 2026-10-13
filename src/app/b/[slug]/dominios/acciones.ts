@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { exigirTitular } from "@/nucleo/acceso/panel";
-import { agregarDominio, ErrorDominio, marcarPrincipal, verificarDominio } from "@/nucleo/dominios";
+import { agregarDominio, ErrorDominio, marcarPrincipal, quitarDominio, verificarDominio } from "@/nucleo/dominios";
 import type { EstadoFormulario } from "@/ui";
 import { texto } from "@/ui/servidor";
 import { mensajeVerificacion } from "../../../_dominios/mensajes";
@@ -38,5 +38,12 @@ export async function principalAccion(slug: string, dominioId: string, _: Estado
   return comoTitular(slug, async (c) => {
     await marcarPrincipal(c.usuarioId, c.tenantId, dominioId);
     return { ok: "Listo: es el dominio principal. Los demás redirigen a él." };
+  });
+}
+
+export async function quitarAccion(slug: string, dominioId: string, _: EstadoFormulario, fd: FormData) {
+  return comoTitular(slug, async (c) => {
+    await quitarDominio(c.usuarioId, c.tenantId, dominioId, fd.get("confirmar") === "on");
+    return { ok: "Dominio quitado." };
   });
 }

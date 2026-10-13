@@ -10,7 +10,7 @@ beforeAll(async () => {
   await abrirNavegador();
 });
 afterEach(async () => {
-  await dueno.dominio.deleteMany({ where: { dominio: "lossatelites.com.ar" } });
+  await dueno.dominio.deleteMany({ where: { dominio: { in: ["lossatelites.com.ar", "sincert.invalid"] } } });
   await dueno.dominio.updateMany({ where: { dominio: { endsWith: ".lvh.me" } }, data: { esPrincipal: true } });
   await cerrarContextos();
 });
@@ -56,17 +56,33 @@ describe("dominio propio desde el panel de la banda", () => {
     expect(await tarjeta.getByRole("button", { name: "Usar como principal" }).count()).toBe(0);
   });
 
-  it("verificado, lo marca principal", async () => {
-    await dueno.dominio.create({ data: { tenantId: e.a.id, dominio: "lossatelites.com.ar", verificado: true } });
+  it("verificado pero sin HTTPS: el botón explica que falta el certificado y no lo marca", async () => {
+    // .invalid nunca resuelve: el servidor no puede abrir https://sincert.invalid
+    await dueno.dominio.create({ data: { tenantId: e.a.id, dominio: "sincert.invalid", verificado: true } });
     const { page } = await logueado("multi@x.com");
     await page.goto(DOMINIOS);
-    const tarjeta = page.locator('[data-dominio="lossatelites.com.ar"]');
+    const tarjeta = page.locator('[data-dominio="sincert.invalid"]');
     expect(await tarjeta.textContent()).toContain("Verificado");
-    await tarjeta.locator("form[data-hidratado]").getByRole("button", { name: "Usar como principal" }).click();
-    await tarjeta.getByText("Principal", { exact: true }).waitFor();
-    expect(await page.locator("[data-dominio]").first().getAttribute("data-dominio")).toBe("lossatelites.com.ar");
+    const form = tarjeta.locator("form[data-hidratado]", { has: page.getByRole("button", { name: "Usar como principal" }) });
+    await form.getByRole("button", { name: "Usar como principal" }).click();
+    expect(await form.getByRole("alert").textContent()).toMatch(/falta que Deoco lo active en el servidor \(certificado\)/);
     const principal = await dueno.dominio.findFirstOrThrow({ where: { tenantId: e.a.id, esPrincipal: true } });
-    expect(principal.dominio).toBe("lossatelites.com.ar");
+    expect(principal.dominio).toBe("banda-a.lvh.me");
+  });
+
+  it("quitar pide confirmación; el principal y el subdominio no ofrecen quitar", async () => {
+    await dueno.dominio.create({ data: { tenantId: e.a.id, dominio: "lossatelites.com.ar" } });
+    const { page } = await logueado("multi@x.com");
+    await page.goto(DOMINIOS);
+    expect(await page.locator('[data-dominio="banda-a.lvh.me"] [data-quitar]').count()).toBe(0);
+    const tarjeta = page.locator('[data-dominio="lossatelites.com.ar"]');
+    const form = tarjeta.locator("[data-quitar] form[data-hidratado]");
+    await form.getByRole("button", { name: "Quitar dominio" }).click();
+    expect(await form.getByRole("alert").textContent()).toBe("Para quitar lossatelites.com.ar, confirmalo.");
+    await form.getByText("Confirmo quitar lossatelites.com.ar").click();
+    await form.getByRole("button", { name: "Quitar dominio" }).click();
+    await tarjeta.waitFor({ state: "detached" });
+    expect(await dueno.dominio.count({ where: { dominio: "lossatelites.com.ar" } })).toBe(0);
   });
 
   it("solo el titular: otro rol y el staff reciben 403 y no ven la entrada", async () => {

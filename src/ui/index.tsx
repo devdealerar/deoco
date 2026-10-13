@@ -51,6 +51,8 @@ type PropsCampo = {
   placeholder?: string;
   required?: boolean;
   maxLength?: number;
+  /** "off" / "new-password": que el navegador no guarde ni sugiera (credenciales). */
+  autoComplete?: string;
 };
 
 export function Campo({ etiqueta, ayuda, required, ...props }: PropsCampo) {
