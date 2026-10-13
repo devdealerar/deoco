@@ -12,6 +12,7 @@ componente oficial de Untitled UI (`src/components/`, instalados con
 | `Selector`    | `base/select/select-native` (`NativeSelect`) |
 | `Casilla`     | `base/checkbox/checkbox` (`Checkbox`)      |
 | `Insignia`    | `base/badges/badges` (`Badge`)             |
+| `Tabla`       | `application/table/table` (`Table`, `TableCard`) |
 | `Formulario`  | usa `Boton`; da el estado "deshabilitado" por contexto a los campos |
 
 Propios (sin equivalente oficial que sirva):
@@ -19,6 +20,8 @@ Propios (sin equivalente oficial que sirva):
 - `CampoArchivo`: `FileTrigger` e `InputFile` oficiales no ponen `name` en su
   `<input type="file">`, y el archivo no viajaría en el FormData de la server action.
 - `Tarjeta`: la versión gratuita no trae un componente de tarjeta.
+
+`@/ui/servidor` (solo servidor): lectura y validación de formularios para server actions.
 
 Para sumar uno: `NODE_USE_ENV_PROXY=1 npx untitledui@latest add <componente> -y`
 (en este entorno la CLI necesita `NODE_USE_ENV_PROXY=1` para salir por el proxy).

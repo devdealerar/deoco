@@ -153,3 +153,20 @@ model Archivo {
   @@index([tenantId, moduloId])
   @@map("archivo")
 }
+
+/// Auditoría: accesos del staff a una banda y toda acción del back office.
+/// Qué (accion), quién (usuarioId), cuándo (fecha), sobre qué banda (tenantId; null =
+/// de plataforma, p. ej. crear un usuario). Solo se agregan filas, nunca se editan.
+model Auditoria {
+  id        String   @id @default(uuid()) @db.Uuid
+  fecha     DateTime @default(now())
+  usuarioId String   @db.Uuid
+  tenantId  String?  @db.Uuid
+  /// "banda.creada", "banda.estado_cambiado", "acceso.panel"...
+  accion    String
+  detalle   Json     @default("{}")
+
+  @@index([tenantId, fecha])
+  @@index([usuarioId, fecha])
+  @@map("auditoria")
+}

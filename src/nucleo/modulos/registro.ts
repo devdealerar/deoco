@@ -16,7 +16,7 @@ const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 
 // Rutas que son del núcleo y ningún módulo puede ocupar.
 const RESERVADAS_PANEL = ["/", "/pago", "/archivos"]; // home del panel, pago de la cuota, archivos
-const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos"]; // plataforma y archivos
+const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin"]; // plataforma y archivos
 
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };
 export type RutaEncontrada<P> = { moduloId: string; ruta: RutaModulo<P>; params: Record<string, string> };

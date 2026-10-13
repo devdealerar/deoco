@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { Checkbox } from "@/components/base/checkbox/checkbox";
+import { Table, TableCard } from "@/components/application/table/table";
 import { Input } from "@/components/base/input/input";
 import { NativeSelect } from "@/components/base/select/select-native";
 import { TextArea } from "@/components/base/textarea/textarea";
@@ -148,6 +149,43 @@ export function Insignia({ color = "gris", children }: { color?: ColorInsignia; 
     <Badge type="pill-color" size="md" color={COLOR_INSIGNIA[color]}>
       {children}
     </Badge>
+  );
+}
+
+/** Tabla de datos (oficial: Table + TableCard). Cada fila: un id y una celda por columna. */
+export function Tabla({
+  titulo,
+  descripcion,
+  acciones,
+  columnas,
+  filas,
+}: {
+  titulo: string;
+  descripcion?: string;
+  acciones?: ReactNode;
+  columnas: { id: string; etiqueta: string }[];
+  filas: { id: string; celdas: ReactNode[] }[];
+}) {
+  return (
+    <TableCard.Root>
+      <TableCard.Header title={titulo} description={descripcion} contentTrailing={acciones} badge={<Badge size="sm" color="gray">{filas.length}</Badge>} />
+      <Table aria-label={titulo}>
+        <Table.Header>
+          {columnas.map((c, i) => (
+            <Table.Head key={c.id} id={c.id} label={c.etiqueta} isRowHeader={i === 0} />
+          ))}
+        </Table.Header>
+        <Table.Body items={filas}>
+          {(fila) => (
+            <Table.Row id={fila.id}>
+              {fila.celdas.map((celda, i) => (
+                <Table.Cell key={columnas[i].id}>{celda}</Table.Cell>
+              ))}
+            </Table.Row>
+          )}
+        </Table.Body>
+      </Table>
+    </TableCard.Root>
   );
 }
 

@@ -3,7 +3,7 @@
 # Las migraciones usan DATABASE_URL_MIGRACIONES (rol dueño); la app, DATABASE_URL (deoco_app).
 set -e
 
-for v in DATABASE_URL DATABASE_URL_MIGRACIONES AUTH_SECRET DEOCO_DOMINIO_RAIZ; do
+for v in DATABASE_URL DATABASE_URL_MIGRACIONES DATABASE_URL_ADMIN AUTH_SECRET DEOCO_DOMINIO_RAIZ; do
   eval "valor=\${$v:-}"
   if [ -z "$valor" ]; then
     echo "Falta la variable de entorno $v (ver docs/despliegue.md)." >&2

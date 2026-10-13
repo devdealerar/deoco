@@ -5,9 +5,13 @@
 | # | Parte | Estado |
 | --- | --- | --- |
 | 1 | Formularios que conservan lo escrito ante un error (`@/ui` + guía) | ✅ hecha, en revisión |
-| 2a | Back office: conexión admin, auditoría, listado de bandas, alta | ⏳ |
+| 2a | Back office: conexión admin, auditoría, listado de bandas, alta | ✅ hecha, en revisión |
 | 2b | Back office: estados, módulos, dominios, usuarios, eventos fallidos | ⏳ |
 
+- 2a: rol `deoco_admin` (BYPASSRLS, no dueño, sin acceso a `_prisma_migrations`), cliente solo
+  en `src/app/admin/_servidor`; tabla `auditoria` con RLS (la app ve solo la de su banda);
+  alta con titular existente o nuevo (clave temporal mostrada una vez, nunca guardada en claro);
+  subdominios reservados: app, www, admin, api, mail, static, assets, deoco.
 - 1: `Formulario` despacha la acción desde `onSubmit` (con `action` de respaldo antes de
   hidratar); `limpiarAlGuardar` solo en formularios de "agregar". Encontrado de paso: los
   `<textarea>` llegaban con `\r\n` y se guardaban así; `@/ui/servidor` normaliza.

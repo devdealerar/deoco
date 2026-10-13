@@ -36,12 +36,15 @@ en el VPS de Hostinger con Easypanel.
 
    ```sh
    psql "postgresql://<admin>:<clave-admin>@<host-postgres>:5432/postgres" \
-     -v clave_duena="'<clave larga 1>'" -v clave_app="'<clave larga 2>'" \
+     -v clave_duena="'<clave larga 1>'" -v clave_app="'<clave larga 2>'" -v clave_admin="'<clave larga 3>'" \
      -f prisma/sql/preparar-base.sql
    ```
 
-   Crea la base `deoco`, el rol `deoco_owner` (dueño: **solo** migraciones) y `deoco_app`
-   (la aplicación: sin `BYPASSRLS`, no es dueño de nada). Si el archivo no está a mano en el
+   Crea la base `deoco`, el rol `deoco_owner` (dueño: **solo** migraciones), `deoco_app`
+   (la aplicación: sin `BYPASSRLS`, no es dueño de nada) y `deoco_admin` (el back office
+   `/admin`: ve todas las bandas; la app lo usa solo desde esas rutas).
+   Si la base ya estaba creada de antes del back office, falta solo ese rol:
+   `prisma/sql/crear-rol-admin.sql` (antes de desplegar la versión con `/admin`). Si el archivo no está a mano en el
    servidor, se pueden pegar las tres sentencias en la consola reemplazando `:clave_duena` y
    `:clave_app` por las claves entre comillas simples.
 
@@ -83,8 +86,9 @@ original (lo hace por defecto).
 
 ### 4. Primer acceso
 
-Todavía no existe el back office, así que el staff y las bandas se dan de alta por SQL, con el
-rol dueño (`DATABASE_URL_MIGRACIONES`). Primero, el hash de la clave (en la consola del
+La primera persona de staff se da de alta por SQL, con el rol dueño
+(`DATABASE_URL_MIGRACIONES`). Después, las bandas y sus titulares se crean desde el back
+office en `https://app.deoco.com/admin`. Primero, el hash de la clave (en la consola del
 contenedor de la app; la clave nunca se guarda en claro):
 
 ```sh
@@ -92,7 +96,7 @@ node -e "require('@node-rs/argon2').hash(process.argv[1]).then(console.log)" 'la
 ```
 
 - Staff de Deoco: `prisma/sql/alta-staff.sql`
-- Banda + titular (el módulo sitio nace prendido): `prisma/sql/alta-banda.sql`
+- Banda + titular (alternativa por SQL al back office): `prisma/sql/alta-banda.sql`
 
 Las instrucciones exactas están en el encabezado de cada archivo. Después: entrar a
 `https://app.deoco.com`, cargar el sitio en el panel, publicar, y verlo en
@@ -104,6 +108,7 @@ Las instrucciones exactas están en el encabezado de cada archivo. Después: ent
 | --- | --- | --- |
 | `DATABASE_URL` | sí | `postgresql://deoco_app:<clave 2>@<host-postgres>:5432/deoco` |
 | `DATABASE_URL_MIGRACIONES` | sí | `postgresql://deoco_owner:<clave 1>@<host-postgres>:5432/deoco` |
+| `DATABASE_URL_ADMIN` | sí | `postgresql://deoco_admin:<clave 3>@<host-postgres>:5432/deoco` |
 | `AUTH_SECRET` | sí | 32+ bytes aleatorios: `openssl rand -base64 32` |
 | `DEOCO_DOMINIO_RAIZ` | sí | `deoco.com` |
 | `DEOCO_ARCHIVOS_DIR` | no | `/data/archivos` (ya es el valor de la imagen) |

@@ -42,7 +42,7 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - Permisos: los declara cada módulo en su contrato. `exclusivoTitular` = ni otro rol
   ni el staff (pasarela de cobro). La excepción del staff está en `src/nucleo/permisos/puede.ts`.
   Un permiso de un módulo apagado para la banda es siempre false.
-- Staff sin membresía: pasa por `registrarAccesoStaff()` (hoy no persiste).
+- Staff sin membresía: `registrarAccesoStaff()` lo deja en `auditoria` (una fila cada 10 min).
 
 ## Módulos
 
@@ -102,6 +102,16 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - Un suscripto que falla queda en `evento.fallos`; el evento termina FALLIDO.
   `reprocesarEvento()` reentrega solo a los que fallaron. Manejadores idempotentes.
 
+## Back office (`app.<raiz>/admin`)
+
+- Solo `esStaff`; cualquier otro caso (sin sesión, no staff, host de banda) es **404**
+  (`src/app/admin/_servidor/acceso.ts`, en cada página y acción).
+- Conexión aparte: rol `deoco_admin` (BYPASSRLS), `DATABASE_URL_ADMIN`, cliente en
+  `src/app/admin/_servidor/db.ts`. **Solo** se importa desde `src/app/admin`
+  (`tests/admin.test.ts` falla si no).
+- Auditoría: tabla `auditoria` (núcleo). Toda acción del back office escribe su fila en la
+  misma transacción (`auditar()`); los accesos del staff a un panel, `registrarAccesoStaff()`.
+
 ## Despliegue
 
 Guía completa: `docs/despliegue.md` (Easypanel: Postgres + app por `Dockerfile` + volumen
@@ -123,6 +133,7 @@ falta de `DATABASE_URL_MIGRACIONES`). Alta de staff y bandas por SQL: `prisma/sq
 psql -c "CREATE ROLE deoco_owner LOGIN PASSWORD 'owner' CREATEDB"
 psql -c "CREATE DATABASE deoco OWNER deoco_owner"
 psql -d deoco -v clave="'app'" -f prisma/sql/crear-rol-app.sql
+psql -d deoco -v clave="'admin'" -f prisma/sql/crear-rol-admin.sql
 npm run db:migrar
 npm run db:semilla            # banda-a.lvh.me y banda-b.lvh.me (vacías)
 npm run db:demo               # dos bandas con el sitio cargado y publicado
