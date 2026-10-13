@@ -36,7 +36,7 @@ export function MarcoBanda({
     >
       {aviso}
       <header className="sticky top-0 z-10 border-b border-[var(--linea)] bg-[var(--fondo)]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-3">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3">
           <Link href={rutas.home} className="flex min-w-0 items-center gap-3">
             {logo ? (
               <img src={rutas.archivo(logo, { web: true })} alt={contenido.nombre} className="h-9 w-auto max-w-40 object-contain" />
@@ -44,10 +44,10 @@ export function MarcoBanda({
               <span className="truncate text-lg font-black tracking-tight uppercase">{contenido.nombre}</span>
             )}
           </Link>
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex w-full min-w-0 items-center justify-between gap-3 sm:w-auto">
             {pestanas.length > 1 && (
-              <nav aria-label="Sitio">
-                <ul className="flex gap-1 text-sm font-bold">
+              <nav aria-label="Sitio" className="min-w-0 overflow-x-auto">
+                <ul className="flex gap-1 text-sm font-bold whitespace-nowrap">
                   {pestanas.map((p) => {
                     const activa = pestanaActiva(p.href, path);
                     return (

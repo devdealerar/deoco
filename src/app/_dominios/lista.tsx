@@ -66,8 +66,8 @@ export function ListaDominios({
                 este dominio no apunta al servidor de Deoco: quien entra por acá no llega al sitio. El sitio sigue
                 publicado. Corregí el registro A; cuando apunte de nuevo, este aviso se va solo (se revisa cada pocas horas).
               </p>
-              <div className="grid items-center gap-1 sm:grid-cols-[6rem_1fr]">
-                <span className="text-xs text-tertiary">A · {d.noApunta.registroA.nombre}</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-tertiary">Registro A de {d.noApunta.registroA.nombre}: tiene que apuntar a</span>
                 <Copiable valor={d.noApunta.registroA.valor} etiqueta="valor del registro A" />
               </div>
             </div>

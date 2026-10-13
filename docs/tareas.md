@@ -13,7 +13,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | B | Consultas entre módulos | ✅ hecha |
 | C | Panel del proveedor | ✅ hecha |
 | D | Módulo ticketera | ✅ hecha |
-| E | Revisión final | pendiente |
+| E | Revisión final | ✅ hecha (`docs/resumen-trabajo-largo.md`) |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
