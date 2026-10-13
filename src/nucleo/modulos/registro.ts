@@ -1,5 +1,7 @@
+import { problemaNombreEvento } from "@/nucleo/eventos/nombre";
 import type {
   DefinicionPermiso,
+  Evento,
   EntradaNavegacion,
   Modulo,
   PropsRutaPanel,
@@ -18,6 +20,7 @@ const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b"]; // rutas de la platafor
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };
 export type RutaEncontrada<P> = { moduloId: string; ruta: RutaModulo<P>; params: Record<string, string> };
 export type EntradaRegistrada = EntradaNavegacion & { moduloId: string };
+export type Suscripto = { moduloId: string; manejador: (e: Evento) => Promise<void> };
 
 export type Registro = {
   modulos: readonly Modulo[];
@@ -26,6 +29,10 @@ export type Registro = {
   rutaPanel(path: string): RutaEncontrada<PropsRutaPanel> | undefined;
   rutaPublica(path: string): RutaEncontrada<PropsRutaPublica> | undefined;
   navegacion: readonly EntradaRegistrada[];
+  /** Módulos que declaran emitir este evento. */
+  emisores(nombre: string): readonly string[];
+  /** Manejadores suscriptos a este evento, uno por módulo. */
+  suscriptos(nombre: string): readonly Suscripto[];
 };
 
 export class ErrorRegistro extends Error {
@@ -92,6 +99,8 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   const ocupadasPanel = new Map<string, string>();
   const ocupadasPublicas = new Map<string, string>();
   const navegacion: EntradaRegistrada[] = [];
+  const emisores = new Map<string, string[]>();
+  const suscriptos = new Map<string, Suscripto[]>();
 
   for (const m of modulos) {
     if (!ID.test(m.id)) throw new ErrorRegistro(m.id, "id inválido (minúsculas, números y guiones)");
@@ -150,6 +159,21 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       }
       navegacion.push({ ...n, moduloId: m.id });
     }
+
+    for (const nombre of m.eventosEmite ?? []) {
+      const problema = problemaNombreEvento(nombre);
+      if (problema) throw new ErrorRegistro(m.id, `eventosEmite: ${problema}`);
+      emisores.set(nombre, [...(emisores.get(nombre) ?? []), m.id]);
+    }
+    for (const { evento, manejador } of m.eventosEscucha ?? []) {
+      const problema = problemaNombreEvento(evento);
+      if (problema) throw new ErrorRegistro(m.id, `eventosEscucha: ${problema}`);
+      const lista = suscriptos.get(evento) ?? [];
+      if (lista.some((s) => s.moduloId === m.id)) {
+        throw new ErrorRegistro(m.id, `eventosEscucha: se suscribe dos veces a "${evento}"`);
+      }
+      suscriptos.set(evento, [...lista, { moduloId: m.id, manejador }]);
+    }
   }
 
   return {
@@ -159,5 +183,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     rutaPanel: indiceRutas(panel),
     rutaPublica: indiceRutas(publicas),
     navegacion: navegacion.sort((a, b) => a.orden - b.orden),
+    emisores: (nombre) => emisores.get(nombre) ?? [],
+    suscriptos: (nombre) => suscriptos.get(nombre) ?? [],
   };
 }

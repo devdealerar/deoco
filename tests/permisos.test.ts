@@ -13,8 +13,8 @@ beforeAll(async () => {
   e = await escenarioAcceso();
   // Permisos del módulo modulos/prueba: contenido.ver (TITULAR, EDITOR) y
   // pasarela.conectar (exclusivo del titular). Prendido en las dos bandas.
-  await prenderModulo(e.a.id, "prueba");
-  await prenderModulo(e.b.id, "prueba");
+  await prenderModulo(e.staff.id, e.a.id, "prueba");
+  await prenderModulo(e.staff.id, e.b.id, "prueba");
 });
 afterAll(async () => {
   await prisma.$disconnect();

@@ -41,7 +41,7 @@ describe("prueba 1: el módulo de prueba se registra", () => {
   });
 
   it("prendido, aparece en el menú del panel y en las pestañas públicas", async () => {
-    await prenderModulo(e.a.id, "prueba");
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
     const prendidos = await modulosPrendidos(e.a.id);
     const acceso = (await resolverAcceso(e.multi.id, e.a.id))!;
     expect(menuPanel(registro(), prendidos, acceso, "banda-a")).toEqual([
@@ -69,16 +69,16 @@ describe("prueba 2: apagado", () => {
   });
 
   it("apagarlo después de prenderlo vuelve a cerrar todo", async () => {
-    await prenderModulo(e.a.id, "prueba");
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
     expect(await puede(e.multi.id, e.a.id, "prueba.contenido.ver")).toBe(true);
-    await apagarModulo(e.a.id, "prueba");
+    await apagarModulo(e.staff.id, e.a.id, "prueba");
     expect(await puede(e.multi.id, e.a.id, "prueba.contenido.ver")).toBe(false);
   });
 });
 
 describe("prueba 3: prendido en A, apagado en B", () => {
   it("cada banda ve lo suyo", async () => {
-    await prenderModulo(e.a.id, "prueba");
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
     expect(await modulosPrendidos(e.a.id)).toEqual(new Set(["prueba"]));
     expect(await modulosPrendidos(e.b.id)).toEqual(new Set());
     // mismo usuario, mismo rol que alcanza en las dos: solo en A
@@ -92,25 +92,45 @@ describe("prueba 4: dependencias, validadas al prender", () => {
   const reg = crearRegistro([mod("base"), mod("dependiente", { dependencias: ["base"] })]);
 
   it("prender sin la dependencia falla con un error claro y no prende nada", async () => {
-    await expect(prenderModulo(e.a.id, "dependiente", reg)).rejects.toThrow(
+    await expect(prenderModulo(e.staff.id, e.a.id, "dependiente", reg)).rejects.toThrow(
       'No se puede prender "dependiente": necesita "base", que no está prendido para esta banda.',
     );
     expect(await dueno.moduloTenant.count()).toBe(0);
   });
 
   it("con la dependencia prendida, prende", async () => {
-    await prenderModulo(e.a.id, "base", reg);
-    await prenderModulo(e.a.id, "dependiente", reg);
+    await prenderModulo(e.staff.id, e.a.id, "base", reg);
+    await prenderModulo(e.staff.id, e.a.id, "dependiente", reg);
     expect(await modulosPrendidos(e.a.id, reg)).toEqual(new Set(["base", "dependiente"]));
   });
 
   it("la dependencia prendida en otra banda no cuenta", async () => {
-    await prenderModulo(e.b.id, "base", reg);
-    await expect(prenderModulo(e.a.id, "dependiente", reg)).rejects.toThrow(/necesita "base"/);
+    await prenderModulo(e.staff.id, e.b.id, "base", reg);
+    await expect(prenderModulo(e.staff.id, e.a.id, "dependiente", reg)).rejects.toThrow(/necesita "base"/);
+  });
+
+  it("apagar un módulo que otro prendido usa falla, nombrando quién lo usa", async () => {
+    await prenderModulo(e.staff.id, e.a.id, "base", reg);
+    await prenderModulo(e.staff.id, e.a.id, "dependiente", reg);
+    await expect(apagarModulo(e.staff.id, e.a.id, "base", reg)).rejects.toThrow(
+      'No se puede apagar "base": lo usa "dependiente", que está prendido para esta banda.',
+    );
+    expect(await modulosPrendidos(e.a.id, reg)).toEqual(new Set(["base", "dependiente"]));
+    // en orden, sí se puede
+    await apagarModulo(e.staff.id, e.a.id, "dependiente", reg);
+    await apagarModulo(e.staff.id, e.a.id, "base", reg);
+    expect(await modulosPrendidos(e.a.id, reg)).toEqual(new Set());
+  });
+
+  it("prender y apagar es solo del staff", async () => {
+    await expect(prenderModulo(e.multi.id, e.a.id, "prueba")).rejects.toThrow(/Solo el staff/);
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
+    await expect(apagarModulo(e.multi.id, e.a.id, "prueba")).rejects.toThrow(/Solo el staff/);
+    expect(await modulosPrendidos(e.a.id)).toEqual(new Set(["prueba"]));
   });
 
   it("un módulo inexistente no se puede prender", async () => {
-    await expect(prenderModulo(e.a.id, "fantasma")).rejects.toThrow('No existe el módulo "fantasma".');
+    await expect(prenderModulo(e.staff.id, e.a.id, "fantasma")).rejects.toThrow('No existe el módulo "fantasma".');
   });
 
   it("una dependencia faltante en el código no rompe el arranque", () => {
@@ -120,7 +140,7 @@ describe("prueba 4: dependencias, validadas al prender", () => {
 
 describe("prueba 5: sin el permiso no ve la entrada de menú", () => {
   it("LECTURA en B, con el módulo prendido en B", async () => {
-    await prenderModulo(e.b.id, "prueba");
+    await prenderModulo(e.staff.id, e.b.id, "prueba");
     const prendidos = await modulosPrendidos(e.b.id);
     const lectura = (await resolverAcceso(e.ajeno.id, e.b.id))!;
     const editor = (await resolverAcceso(e.multi.id, e.b.id))!;

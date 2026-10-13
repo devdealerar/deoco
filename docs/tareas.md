@@ -9,8 +9,8 @@ revisa y aprueba antes de pasar a la siguiente.
 | 2a | Estados del tenant + proxy de resolución por dominio | ✅ aprobada |
 | 2a′ | Corrección: panel en `app.<raiz>/b/<slug>`, proxy con dos caminos | ✅ aprobada |
 | 2c | Auth.js + membresía y rol por pedido + `puede()` + staff + solo titular | ✅ aprobada |
-| 3 | Registro de módulos (contrato, descubrimiento, encendido, navegación, módulo de prueba) | ✅ hecha, en revisión |
-| 5 | Bus de eventos: `emitir()` + suscriptos | ⏳ |
+| 3 | Registro de módulos (contrato, descubrimiento, encendido, navegación, módulo de prueba) | ✅ aprobada |
+| 4 | Ajustes de módulos + bus de eventos | ✅ hecha, en revisión |
 
 ## Pruebas de aceptación del paso
 
@@ -18,7 +18,7 @@ revisa y aprueba antes de pasar a la siguiente.
 - [x] 2. Una consulta SIN filtro de tenant no filtra datos (RLS) — `tests/aislamiento.test.ts`
 - [ ] 3. Usuario en dos bandas con rol distinto; `puede()` lo refleja
 - [x] 4. Módulo de prueba aparece en la navegación; apagado devuelve 404 — parte 3
-- [ ] 5. Evento emitido queda en la tabla y dispara a su suscripto
+- [x] 5. Evento emitido queda en la tabla y dispara a su suscripto — parte 4
 
 ### Pruebas de la parte 2
 
@@ -40,6 +40,34 @@ revisa y aprueba antes de pasar a la siguiente.
 - [x] 5. Sin el permiso no se ve la entrada de menú aunque el módulo esté prendido
 
 En `tests/modulos.test.ts` (unitarias) y `tests/e2e/modulos.e2e.ts` (navegador).
+
+### Pruebas de la parte 4
+
+- [x] 1. Emitir guarda la fila en `evento` con tenant, nombre, fecha y payload
+- [x] 2. El suscripto recibe el evento y corre
+- [x] 3. Un suscripto que falla no impide que corra el otro; el fallo queda anotado
+- [x] 4. Módulo apagado en A no recibe los de A, sí los de B donde está prendido
+- [x] 5. Reprocesar un evento fallido lo vuelve a entregar
+- [x] 6. Un nombre mal formado se rechaza
+
+En `tests/eventos.test.ts`. Además: orden de emisión, emitir no espera al suscripto, y
+en `tests/e2e/modulos.e2e.ts` un pedido real responde en ~300 ms con un suscripto de 1,5 s.
+
+## Decisiones tomadas en la parte 4
+
+- Apagar un módulo que otro prendido usa falla y nombra quién lo usa. Prender/apagar exige staff.
+- `SOLO_DESARROLLO.md` en la carpeta del módulo lo excluye del build de producción.
+- No bloquear: `emitir` inserta la fila (una sola escritura, para no perder el evento) y la
+  entrega va en `after()`, que Next corre después de mandar la respuesta. Fuera de un
+  pedido, la entrega queda en segundo plano sin esperarla.
+- Orden: una cola en memoria por banda; cada vuelta toma el PENDIENTE de menor `secuencia`.
+  Un evento FALLIDO no frena los siguientes.
+- Reproceso: vuelve a PENDIENTE y se entrega solo a los suscriptos que fallaron en el
+  último intento. El historial de fallos se conserva.
+- Solo se puede emitir lo que algún módulo declara en `eventosEmite`.
+- Pasado: se valida por la terminación del participio (-ado/-ido y las irregulares -to/-cho/-so).
+- `PropsRutaPanel` suma `slug` (los módulos lo necesitan para armar links).
+- `modulos/prueba` emite y escucha `prueba.verificada`, como ejemplo.
 
 ## Decisiones tomadas en la parte 3
 
@@ -89,8 +117,34 @@ En `tests/modulos.test.ts` (unitarias) y `tests/e2e/modulos.e2e.ts` (navegador).
 - El rol `deoco_app` se crea fuera de las migraciones (`prisma/sql/crear-rol-app.sql`),
   porque crear roles requiere un administrador del servidor.
 
+## Repaso final del paso 1
+
+Las cinco pruebas originales pasan:
+
+| # | Prueba | Dónde |
+| --- | --- | --- |
+| 1 | Dos tenants: el A jamás ve filas del B | `tests/aislamiento.test.ts` |
+| 2 | Consulta sin filtro de tenant no filtra (RLS) | `tests/aislamiento.test.ts` |
+| 3 | Usuario en dos bandas, rol distinto, `puede()` lo refleja | `tests/permisos.test.ts`, `tests/e2e/panel.e2e.ts` |
+| 4 | Módulo de prueba en la navegación; apagado 404 | `tests/modulos.test.ts`, `tests/e2e/modulos.e2e.ts` |
+| 5 | Evento emitido queda en la tabla y dispara al suscripto | `tests/eventos.test.ts`, `tests/e2e/modulos.e2e.ts` |
+
+## Queda abierto (fuera del paso 1 o sin definir)
+
+- **Tablas de módulos**: Prisma usa un solo esquema. Hay que definir dónde declara un
+  módulo sus modelos y migraciones (spec: "migraciones — sus propias tablas"). Necesario
+  antes del primer módulo con tablas.
+- **Back office**: la conexión aparte con un rol que ve todo (spec) no existe todavía.
+  Sin ella no hay listado global de eventos fallidos ni barrido de pendientes al arrancar.
+- **Eventos pendientes tras un reinicio**: no se pierden (quedan PENDIENTE en la tabla), pero
+  se entregan recién cuando esa banda emite otro evento, o al reprocesar.
+- **Emitir dentro de la transacción de quien emite** (outbox): hoy `emitir` usa su propia
+  transacción; si el proceso cae entre "guardé el pedido" y "emití", el evento se pierde.
+- **Accesos del staff**: `registrarAccesoStaff()` no persiste. Tampoco hay registro de
+  quién cambia la pasarela (spec); llega con el módulo que tenga la pasarela.
+- **Una sola instancia**: el bus y el orden por banda viven en memoria del proceso.
+- **Dominio propio**: verificación DNS y certificados (infra Easypanel) no están en el paso 1.
+
 ## Preguntas abiertas
 
-- ¿Apagar un módulo del que depende otro prendido debería fallar, o apagar en cascada?
-- ¿Quién prende y apaga módulos? (back office del staff, el titular, ambos). Hoy solo hay funciones.
-- `modulos/prueba` viaja también a producción (apagado). ¿Se excluye del build de producción?
+- (ninguna)

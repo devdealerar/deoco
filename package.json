@@ -17,7 +17,7 @@
     "test:e2e": "vitest run --config vitest.e2e.config.mts",
     "modulos:descubrir": "node scripts/descubrir-modulos.mjs",
     "predev": "node scripts/descubrir-modulos.mjs",
-    "prebuild": "node scripts/descubrir-modulos.mjs",
+    "prebuild": "node scripts/descubrir-modulos.mjs --produccion",
     "pretest": "node scripts/descubrir-modulos.mjs",
     "pretest:e2e": "node scripts/descubrir-modulos.mjs",
     "pretypecheck": "node scripts/descubrir-modulos.mjs"

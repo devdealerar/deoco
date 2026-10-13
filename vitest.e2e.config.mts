@@ -9,6 +9,8 @@ config({ path: ".env.test", override: true });
 export default defineConfig({
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
   test: {
+    // next-auth importa "next/server" sin extensión; que lo resuelva Vite.
+    server: { deps: { inline: ["next-auth"] } },
     include: ["tests/e2e/**/*.e2e.ts"],
     globalSetup: ["tests/e2e/servidor.ts"],
     fileParallelism: false,

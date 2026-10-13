@@ -95,17 +95,33 @@ model ModuloTenant {
   @@map("moduloTenant")
 }
 
-/// Bitácora del bus de eventos.
+enum EstadoEvento {
+  PENDIENTE
+  PROCESADO
+  FALLIDO
+}
+
+/// Bitácora del bus de eventos (src/nucleo/eventos).
 model Evento {
-  id        String   @id @default(uuid()) @db.Uuid
-  nombre    String
-  tenantId  String   @db.Uuid
-  usuarioId String?  @db.Uuid
-  fecha     DateTime @default(now())
-  payload   Json
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  usuario   Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  id          String       @id @default(uuid()) @db.Uuid
+  /// Orden de emisión: los eventos de una banda se procesan por este número.
+  secuencia   BigInt       @unique @default(autoincrement())
+  nombre      String
+  tenantId    String       @db.Uuid
+  usuarioId   String?      @db.Uuid
+  fecha       DateTime     @default(now())
+  payload     Json
+  estado      EstadoEvento @default(PENDIENTE)
+  intentos    Int          @default(0)
+  /// Un registro por cada suscripto que falló: { intento, moduloId, error, fecha }.
+  fallos      Json         @default("[]")
+  /// Al reprocesar: solo estos suscriptos (los que fallaron). Vacío = todos.
+  soloPara    String[]     @default([])
+  procesadoEn DateTime?
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario     Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, nombre])
+  @@index([tenantId, estado, secuencia])
   @@map("evento")
 }

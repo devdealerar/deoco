@@ -45,6 +45,8 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 
 ## Módulos
 
+Guía para escribir uno: `docs/guia-modulos.md`.
+
 - Cada módulo es `modulos/<id>/index.ts` con `export default` un objeto `Modulo`
   (`src/nucleo/modulos/contrato.ts`). Ejemplo completo: `modulos/prueba/`.
 - Descubrimiento: `scripts/descubrir-modulos.mjs` genera `src/generated/modulos.ts`
@@ -55,11 +57,23 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
   `/ingresar`, `/api`, `/b` en el sitio), navegación que apunta a rutas propias.
 - Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
-- Encendido: fila en `moduloTenant`. `prenderModulo()` valida dependencias; `apagarModulo()`.
+- Encendido: fila en `moduloTenant`. `prenderModulo()` / `apagarModulo()` son del staff;
+  validan dependencias (no se prende sin ellas, no se apaga una que otro prendido usa).
+- `SOLO_DESARROLLO.md` en la carpeta de un módulo lo excluye de `npm run build` (producción).
 - Navegación: menú del panel = entradas de módulos prendidos filtradas por permiso; pestañas
   públicas = entradas `publica: true` de módulos prendidos. Ordena `orden` (menor primero).
 - Un módulo nunca importa código de otro. Sus tablas nacen con `tenantId` + RLS
   (`tests/aislamiento.test.ts` falla si una tabla no tiene RLS y política).
+
+## Bus de eventos
+
+- `emitir(nombre, tenantId, payload, usuarioId?)` (`src/nucleo/eventos/bus.ts`): guarda la fila
+  en `evento` (PENDIENTE) y vuelve. La entrega se programa con `after()` de Next (después de
+  responder); fuera de un pedido, en segundo plano.
+- Nombres `entidad.accion` en participio, declarados en `eventosEmite` de algún módulo.
+- Una cola por banda, por `secuencia`: orden de emisión. Módulo apagado no recibe.
+- Un suscripto que falla queda en `evento.fallos`; el evento termina FALLIDO.
+  `reprocesarEvento()` reentrega solo a los que fallaron. Manejadores idempotentes.
 
 ## Comandos
 

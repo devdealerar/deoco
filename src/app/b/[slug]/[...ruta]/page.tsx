@@ -23,7 +23,7 @@ export default async function RutaPanelModulo({
   const Componente = encontrada.ruta.componente;
   return (
     <MarcoPanel slug={slug} acceso={acceso}>
-      <Componente tenantId={acceso.tenantId} acceso={acceso} params={encontrada.params} />
+      <Componente tenantId={acceso.tenantId} slug={slug} acceso={acceso} params={encontrada.params} />
     </MarcoPanel>
   );
 }

@@ -4,6 +4,12 @@ import type { Modulo } from "@/nucleo/modulos/contrato";
 import { PaginaPanel } from "./panel";
 import { PaginaPublica } from "./publica";
 
+// Suscripto de ejemplo, lento a propósito: demuestra que quien emite no lo espera.
+// Idempotente: no hace nada que no pueda repetirse.
+async function alVerificarse() {
+  await new Promise((r) => setTimeout(r, 1500));
+}
+
 const prueba: Modulo = {
   id: "prueba",
   nombre: "Módulo de prueba",
@@ -18,6 +24,8 @@ const prueba: Modulo = {
     { etiqueta: "Prueba", href: "/prueba", permiso: "prueba.contenido.ver", orden: 900 },
     { etiqueta: "Prueba", href: "/prueba", publica: true, orden: 900 },
   ],
+  eventosEmite: ["prueba.verificada"],
+  eventosEscucha: [{ evento: "prueba.verificada", manejador: alVerificarse }],
 };
 
 export default prueba;

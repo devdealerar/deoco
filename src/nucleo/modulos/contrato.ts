@@ -1,7 +1,7 @@
 // Contrato de módulos. Es lo único que un módulo importa del núcleo (además de
 // conTenant y los helpers de acceso). Un módulo nunca importa código de otro.
 import type { ReactNode } from "react";
-import type { Rol } from "@/generated/prisma/client";
+import type { Prisma, Rol } from "@/generated/prisma/client";
 import type { AccesoPanel } from "@/nucleo/acceso/panel";
 
 export type { Rol };
@@ -19,6 +19,8 @@ export type DefinicionPermiso = {
 
 export type PropsRutaPanel = {
   tenantId: string;
+  /** Slug de la banda, para armar links: `/b/${slug}/...` */
+  slug: string;
   acceso: AccesoPanel;
   /** Segmentos dinámicos de la ruta: "/x/[id]" → { id } */
   params: Record<string, string>;
@@ -52,6 +54,10 @@ export type EntradaNavegacion = {
   orden: number;
 };
 
+/** Lo que lleva un evento: cualquier valor que se pueda guardar como JSON. */
+export type CargaEvento = Prisma.InputJsonValue;
+
+/** Lo que recibe un manejador. Cada manejador recibe su propia copia del payload. */
 export type Evento = {
   id: string;
   nombre: string;
@@ -68,8 +74,13 @@ export type Modulo = {
   rutasPanel?: RutaModulo<PropsRutaPanel>[];
   rutasPublicas?: RutaModulo<PropsRutaPublica>[];
   navegacion?: EntradaNavegacion[];
-  /** Nombres en pasado: `pedido.pagado`. Los usa el bus de eventos (parte 5). */
+  /** Nombres en pasado: `pedido.pagado`. Solo se puede emitir lo que algún módulo declara acá. */
   eventosEmite?: string[];
+  /**
+   * Manejadores, uno por evento. Corren después de responder al usuario, en orden de
+   * emisión por banda, y solo si el módulo está prendido para la banda del evento.
+   * TIENEN QUE SER IDEMPOTENTES: tras un reproceso pueden recibir el mismo evento dos veces.
+   */
   eventosEscucha?: { evento: string; manejador: (e: Evento) => Promise<void> }[];
   /** Ids de módulos que tienen que estar prendidos para prender este. */
   dependencias?: string[];

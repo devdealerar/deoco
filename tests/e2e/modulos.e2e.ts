@@ -37,7 +37,7 @@ const pestanas = (page: import("playwright-core").Page) =>
 
 describe("prueba 1: prendido, aparece y sus rutas responden", () => {
   it("panel: entrada de menú y ruta del módulo", async () => {
-    await prenderModulo(e.a.id, "prueba");
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
     const { page } = await logueado("multi@x.com");
     await page.goto(`${APP}/b/banda-a`);
     expect(await menu(page)).toEqual(["Prueba"]);
@@ -47,7 +47,7 @@ describe("prueba 1: prendido, aparece y sus rutas responden", () => {
   });
 
   it("sitio público: pestaña y ruta del módulo, sin sesión", async () => {
-    await prenderModulo(e.a.id, "prueba");
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
     const { page } = await anonimo();
     await page.goto(sitio("banda-a"));
     expect(await pestanas(page)).toEqual(["Prueba"]);
@@ -69,17 +69,17 @@ describe("prueba 2: apagado", () => {
   });
 
   it("apagarlo cierra las rutas en el acto", async () => {
-    await prenderModulo(e.a.id, "prueba");
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
     const { page } = await logueado("multi@x.com");
     expect((await page.goto(`${APP}/b/banda-a/prueba`))!.status()).toBe(200);
-    await apagarModulo(e.a.id, "prueba");
+    await apagarModulo(e.staff.id, e.a.id, "prueba");
     expect((await page.goto(`${APP}/b/banda-a/prueba`))!.status()).toBe(404);
   });
 });
 
 describe("prueba 3: prendido en A, apagado en B", () => {
   it("cada banda ve lo suyo, con el mismo usuario", async () => {
-    await prenderModulo(e.a.id, "prueba");
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
     const { page } = await logueado("multi@x.com");
     await page.goto(`${APP}/b/banda-a`);
     expect(await menu(page)).toEqual(["Prueba"]);
@@ -94,7 +94,7 @@ describe("prueba 3: prendido en A, apagado en B", () => {
 
 describe("prueba 5: sin el permiso", () => {
   it("LECTURA no ve la entrada de menú y la ruta le da 403", async () => {
-    await prenderModulo(e.b.id, "prueba");
+    await prenderModulo(e.staff.id, e.b.id, "prueba");
     const { page } = await logueado("ajeno@x.com");
     await page.goto(`${APP}/b/banda-b`);
     expect(await menu(page)).toEqual([]);
@@ -108,5 +108,34 @@ describe("rutas no declaradas", () => {
     expect((await page.goto(`${APP}/b/banda-a/no-existe`))!.status()).toBe(404);
     expect((await page.goto(`${sitio("banda-a")}/no-existe`))!.status()).toBe(404);
     expect((await page.goto(`${APP}/no-existe`))!.status()).toBe(404);
+  });
+});
+
+describe("bus de eventos en un pedido real", () => {
+  it("la respuesta no espera al suscripto: se entrega después, con after()", async () => {
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
+    await dueno.evento.deleteMany();
+    const { page } = await logueado("multi@x.com");
+    await page.goto(`${APP}/b/banda-a/prueba`);
+
+    const inicio = Date.now();
+    const [respuesta] = await Promise.all([
+      page.waitForResponse((r) => r.request().method() === "POST"),
+      page.click("text=Emitir evento de prueba"),
+    ]);
+    const demora = Date.now() - inicio;
+    expect(respuesta.status()).toBe(200);
+    expect(demora).toBeLessThan(1500); // el suscripto tarda 1,5 s
+
+    const evento = await dueno.evento.findFirstOrThrow({ where: { nombre: "prueba.verificada" } });
+    expect(evento).toMatchObject({ tenantId: e.a.id, usuarioId: e.multi.id, payload: { desde: "panel" } });
+
+    let estado = evento.estado;
+    for (let i = 0; i < 50 && estado !== "PROCESADO"; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      estado = (await dueno.evento.findUniqueOrThrow({ where: { id: evento.id } })).estado;
+    }
+    expect(estado).toBe("PROCESADO");
+    console.log(`respuesta en ${demora} ms; el suscripto (1500 ms) terminó después`);
   });
 });
