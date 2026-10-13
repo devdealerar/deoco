@@ -183,9 +183,12 @@ describe("prueba 4: sin sitio.contenido.editar se ve el panel pero no se guarda"
     // Forzando el formulario (como haría alguien desde la consola), el servidor dice que no.
     await page.goto(panel("banda-b", "/home"));
     const form = page.locator("section", { has: page.getByRole("heading", { name: "Bio corta" }) }).locator("form");
-    await form.evaluate((f) => f.querySelectorAll("fieldset").forEach((x) => (x.disabled = false)));
-    await form.locator("textarea").fill("Intento de LECTURA");
-    await form.getByRole("button", { name: "Guardar" }).click();
+    // Habilita todo lo deshabilitado (fieldset, campo y botón) y envía el formulario a mano.
+    await form.evaluate((f: HTMLFormElement) => {
+      f.querySelectorAll<HTMLElement>("[disabled]").forEach((x) => x.removeAttribute("disabled"));
+      f.querySelector("textarea")!.value = "Intento de LECTURA";
+      f.requestSubmit();
+    });
     expect(await form.getByRole("alert").textContent()).toBe("Tu rol no puede editar el sitio.");
     const perfil = await dueno.sitioPerfil.findUniqueOrThrow({ where: { tenantId: e.b.id } });
     expect(perfil.bioCorta).toBe("Folk de cámara desde Bariloche.");
@@ -258,5 +261,18 @@ describe("prueba 9: pasada la cuota, la subida se rechaza con un mensaje claro",
     expect(await f2.getByRole("alert").textContent()).toMatch(
       /^No hay espacio para "foto\.jpg" \(.+\): la banda usa .+ de 1 KB\. Borrá archivos que no uses o ampliá el espacio\.$/,
     );
+  });
+});
+
+describe("casilla oficial (Checkbox) en un formulario de server action", () => {
+  it("marcar 'Quitar el rider' lo quita del borrador", async () => {
+    expect((await dueno.sitioPerfil.findUniqueOrThrow({ where: { tenantId: e.a.id } })).riderArchivoId).not.toBeNull();
+    const { page } = await logueado("multi@x.com");
+    await page.goto(panel("banda-a", "/prensa"));
+    const tarjeta = page.locator("section", { has: page.getByRole("heading", { name: "Textos, rider y contacto" }) });
+    await tarjeta.getByText("Quitar el rider").click();
+    await tarjeta.getByRole("button", { name: "Guardar" }).click();
+    await tarjeta.getByRole("status").waitFor();
+    expect((await dueno.sitioPerfil.findUniqueOrThrow({ where: { tenantId: e.a.id } })).riderArchivoId).toBeNull();
   });
 });

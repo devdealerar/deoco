@@ -1,6 +1,6 @@
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
-import { CampoArchivo, Formulario, Selector, Tarjeta } from "@/ui";
+import { CampoArchivo, Casilla, Formulario, Selector, Tarjeta } from "@/ui";
 import { guardarIdentidad } from "../acciones";
 import { leerBorrador } from "../contenido";
 import { FUENTES } from "../vista/estilo";
@@ -28,9 +28,9 @@ export async function Identidad({ tenantId, slug }: PropsRutaPanel) {
             <div className="flex-1">
               <CampoArchivo name="logo" etiqueta="Logo" accept="image/png,image/webp" ayuda="PNG o WebP, idealmente con fondo transparente." />
               {identidad.logo && (
-                <label className="mt-2 flex items-center gap-2 text-sm text-secondary">
-                  <input type="checkbox" name="quitarLogo" /> Quitar el logo (se muestra el nombre)
-                </label>
+                <div className="mt-2">
+                  <Casilla name="quitarLogo" etiqueta="Quitar el logo (se muestra el nombre)" />
+                </div>
               )}
             </div>
           </div>
@@ -39,9 +39,9 @@ export async function Identidad({ tenantId, slug }: PropsRutaPanel) {
             <div className="flex-1">
               <CampoArchivo name="fondo" etiqueta="Imagen de fondo" accept="image/jpeg,image/png,image/webp" ayuda="JPG, PNG o WebP. Va detrás del logo en la home." />
               {identidad.fondo && (
-                <label className="mt-2 flex items-center gap-2 text-sm text-secondary">
-                  <input type="checkbox" name="quitarFondo" /> Quitar la imagen de fondo
-                </label>
+                <div className="mt-2">
+                  <Casilla name="quitarFondo" etiqueta="Quitar la imagen de fondo" />
+                </div>
               )}
             </div>
           </div>

@@ -1,9 +1,24 @@
-# Kit de componentes del panel
+# Kit de componentes del panel (`@/ui`)
 
-Componentes chicos sobre el **tema oficial de Untitled UI** (`src/styles/theme.css`,
-instalado con `untitledui init`): colores, tipografía, radios y sombras del sistema.
+Las pantallas de los módulos importan **solo** de `@/ui`. Cada export envuelve un
+componente oficial de Untitled UI (`src/components/`, instalados con
+`npx untitledui add ...`) con una interfaz en castellano:
 
-Los componentes oficiales de Untitled UI (`untitledui add ...`) se bajan de
-untitledui.com, que hoy está bloqueado por la política de red del entorno. Cuando se
-habilite, se reemplazan estos por los oficiales manteniendo los nombres de export:
-las pantallas de los módulos no cambian.
+| `@/ui`        | Componente oficial                         |
+| ------------- | ------------------------------------------ |
+| `Boton`       | `base/buttons/button` (`Button`)           |
+| `Campo`       | `base/input/input` (`Input`)               |
+| `AreaTexto`   | `base/textarea/textarea` (`TextArea`)      |
+| `Selector`    | `base/select/select-native` (`NativeSelect`) |
+| `Casilla`     | `base/checkbox/checkbox` (`Checkbox`)      |
+| `Insignia`    | `base/badges/badges` (`Badge`)             |
+| `Formulario`  | usa `Boton`; da el estado "deshabilitado" por contexto a los campos |
+
+Propios (sin equivalente oficial que sirva):
+
+- `CampoArchivo`: `FileTrigger` e `InputFile` oficiales no ponen `name` en su
+  `<input type="file">`, y el archivo no viajaría en el FormData de la server action.
+- `Tarjeta`: la versión gratuita no trae un componente de tarjeta.
+
+Para sumar uno: `NODE_USE_ENV_PROXY=1 npx untitledui@latest add <componente> -y`
+(en este entorno la CLI necesita `NODE_USE_ENV_PROXY=1` para salir por el proxy).

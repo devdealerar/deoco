@@ -1,103 +1,133 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+"use client";
 
-function cx(...clases: (string | false | undefined)[]) {
-  return clases.filter(Boolean).join(" ");
-}
+// Kit del panel. Cada export envuelve un componente OFICIAL de Untitled UI
+// (src/components, instalados con `untitledui add`) con la interfaz en castellano que
+// usan las pantallas de los módulos. Excepciones (sin equivalente oficial que sirva),
+// ver README.md: CampoArchivo y Tarjeta.
+import type { ReactNode } from "react";
+import { Badge } from "@/components/base/badges/badges";
+import { Button } from "@/components/base/buttons/button";
+import { Checkbox } from "@/components/base/checkbox/checkbox";
+import { Input } from "@/components/base/input/input";
+import { NativeSelect } from "@/components/base/select/select-native";
+import { TextArea } from "@/components/base/textarea/textarea";
+import { useDeshabilitado } from "./contexto";
 
 type VarianteBoton = "primario" | "secundario" | "peligro" | "enlace";
-const VARIANTES: Record<VarianteBoton, string> = {
-  primario: "bg-brand-solid text-white shadow-xs hover:bg-brand-solid_hover",
-  secundario: "bg-primary text-secondary ring-1 ring-primary ring-inset shadow-xs hover:bg-primary_hover",
-  peligro: "bg-error-solid text-white shadow-xs hover:bg-error-solid_hover",
-  enlace: "text-brand-secondary hover:text-brand-secondary_hover px-0",
-};
+const COLOR_BOTON = {
+  primario: "primary",
+  secundario: "secondary",
+  peligro: "primary-destructive",
+  enlace: "link-color",
+} as const;
 
 export function Boton({
   variante = "primario",
-  tamano = "md",
-  className,
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variante?: VarianteBoton; tamano?: "sm" | "md" }) {
+  tamano = "sm",
+  type = "button",
+  disabled,
+  children,
+}: {
+  variante?: VarianteBoton;
+  tamano?: "sm" | "md";
+  type?: "button" | "submit";
+  disabled?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <button
-      {...props}
-      className={cx(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
-        tamano === "sm" ? "px-3 py-2 text-sm" : "px-3.5 py-2.5 text-sm",
-        VARIANTES[variante],
-        className,
-      )}
-    />
-  );
-}
-
-const CLASE_CAMPO =
-  "w-full rounded-lg bg-primary px-3.5 py-2.5 text-md text-primary shadow-xs ring-1 ring-primary ring-inset placeholder:text-placeholder focus:ring-2 focus:ring-brand focus:outline-none disabled:bg-secondary disabled:text-tertiary";
-
-function Etiqueta({ texto, ayuda, children }: { texto: string; ayuda?: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-secondary">{texto}</span>
+    <Button type={type} color={COLOR_BOTON[variante]} size={tamano} isDisabled={disabled}>
       {children}
-      {ayuda && <span className="text-sm text-tertiary">{ayuda}</span>}
-    </label>
+    </Button>
   );
 }
 
-export function Campo({ etiqueta, ayuda, ...props }: InputHTMLAttributes<HTMLInputElement> & { etiqueta: string; ayuda?: string }) {
-  return (
-    <Etiqueta texto={etiqueta} ayuda={ayuda}>
-      <input {...props} className={cx(CLASE_CAMPO, props.className)} />
-    </Etiqueta>
-  );
+type PropsCampo = {
+  etiqueta: string;
+  name: string;
+  ayuda?: string;
+  type?: "text" | "email" | "url" | "date" | "tel";
+  defaultValue?: string;
+  placeholder?: string;
+  required?: boolean;
+  maxLength?: number;
+};
+
+export function Campo({ etiqueta, ayuda, required, ...props }: PropsCampo) {
+  return <Input label={etiqueta} hint={ayuda} isRequired={required} isDisabled={useDeshabilitado()} {...props} />;
 }
 
 export function AreaTexto({
   etiqueta,
   ayuda,
+  rows = 4,
   ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & { etiqueta: string; ayuda?: string }) {
-  return (
-    <Etiqueta texto={etiqueta} ayuda={ayuda}>
-      <textarea {...props} className={cx(CLASE_CAMPO, "min-h-28", props.className)} />
-    </Etiqueta>
-  );
+}: {
+  etiqueta: string;
+  name: string;
+  ayuda?: string;
+  defaultValue?: string;
+  maxLength?: number;
+  rows?: number;
+}) {
+  return <TextArea label={etiqueta} hint={ayuda} rows={rows} isDisabled={useDeshabilitado()} {...props} />;
 }
 
 export function Selector({
   etiqueta,
   opciones,
   ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & { etiqueta: string; opciones: { valor: string; texto: string }[] }) {
+}: {
+  etiqueta: string;
+  name: string;
+  defaultValue?: string;
+  opciones: { valor: string; texto: string }[];
+}) {
   return (
-    <Etiqueta texto={etiqueta}>
-      <select {...props} className={CLASE_CAMPO}>
-        {opciones.map((o) => (
-          <option key={o.valor} value={o.valor}>
-            {o.texto}
-          </option>
-        ))}
-      </select>
-    </Etiqueta>
+    <NativeSelect
+      label={etiqueta}
+      options={opciones.map((o) => ({ value: o.valor, label: o.texto }))}
+      disabled={useDeshabilitado()}
+      {...props}
+    />
   );
 }
 
+/** Casilla que se envía como "on" en el formulario cuando está marcada. */
+export function Casilla({ etiqueta, name }: { etiqueta: string; name: string }) {
+  return <Checkbox label={etiqueta} name={name} value="on" isDisabled={useDeshabilitado()} />;
+}
+
+/**
+ * Archivo: PROPIO, no oficial. Los componentes oficiales (FileTrigger, InputFile) no
+ * ponen `name` en su <input type="file">, así que el archivo no viaja en el FormData
+ * de la server action. Este es un input nativo con el estilo del tema.
+ */
 export function CampoArchivo({
   etiqueta,
   ayuda,
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & { etiqueta: string; ayuda?: string }) {
+}: {
+  etiqueta: string;
+  name: string;
+  ayuda?: string;
+  accept?: string;
+  required?: boolean;
+}) {
   return (
-    <Etiqueta texto={etiqueta} ayuda={ayuda}>
+    <label className="flex flex-col gap-1.5">
+      <span className="text-sm font-medium text-secondary">{etiqueta}</span>
       <input
         type="file"
         {...props}
-        className="block w-full text-sm text-tertiary file:mr-3 file:rounded-lg file:border-0 file:bg-brand-primary file:px-3 file:py-2 file:text-sm file:font-semibold file:text-brand-secondary hover:file:bg-brand-primary_alt"
+        disabled={useDeshabilitado()}
+        className="block w-full text-sm text-tertiary file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-semibold file:text-secondary file:shadow-xs-skeuomorphic file:ring-1 file:ring-primary file:ring-inset hover:file:bg-primary_hover disabled:cursor-not-allowed disabled:opacity-50"
       />
-    </Etiqueta>
+      {ayuda && <span className="text-sm text-tertiary">{ayuda}</span>}
+    </label>
   );
 }
 
+/** Tarjeta: PROPIA. La versión gratuita de Untitled UI no trae un componente de tarjeta. */
 export function Tarjeta({ titulo, descripcion, children }: { titulo: string; descripcion?: string; children: ReactNode }) {
   return (
     <section className="rounded-xl bg-primary p-6 shadow-xs ring-1 ring-secondary ring-inset">
@@ -111,19 +141,13 @@ export function Tarjeta({ titulo, descripcion, children }: { titulo: string; des
 }
 
 type ColorInsignia = "gris" | "marca" | "exito" | "advertencia" | "error";
-const INSIGNIAS: Record<ColorInsignia, string> = {
-  gris: "bg-secondary text-secondary ring-secondary",
-  marca: "bg-brand-primary text-brand-secondary ring-brand",
-  exito: "bg-success-primary text-success-primary ring-secondary",
-  advertencia: "bg-warning-primary text-warning-primary ring-secondary",
-  error: "bg-error-primary text-error-primary ring-error",
-};
+const COLOR_INSIGNIA = { gris: "gray", marca: "brand", exito: "success", advertencia: "warning", error: "error" } as const;
 
 export function Insignia({ color = "gris", children }: { color?: ColorInsignia; children: ReactNode }) {
   return (
-    <span className={cx("inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium ring-1 ring-inset", INSIGNIAS[color])}>
+    <Badge type="pill-color" size="md" color={COLOR_INSIGNIA[color]}>
       {children}
-    </span>
+    </Badge>
   );
 }
 

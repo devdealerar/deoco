@@ -1,6 +1,6 @@
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
-import { AreaTexto, Campo, CampoArchivo, Formulario, Tarjeta } from "@/ui";
+import { AreaTexto, Campo, CampoArchivo, Casilla, Formulario, Tarjeta } from "@/ui";
 import { agregarDescargable, borrarDescargable, guardarPrensa } from "../acciones";
 import { Encabezado, Miniatura, puedeEditar as puedeEditarEn } from "./comun";
 
@@ -49,9 +49,9 @@ export async function PrensaPanel({ tenantId, slug }: PropsRutaPanel) {
           <div>
             <CampoArchivo name="rider" etiqueta="Rider técnico" accept="application/pdf" ayuda={rider ? `Actual: ${rider.nombre}. Subí otro para reemplazarlo.` : "PDF."} />
             {rider && (
-              <label className="mt-2 flex items-center gap-2 text-sm text-secondary">
-                <input type="checkbox" name="quitarRider" /> Quitar el rider
-              </label>
+              <div className="mt-2">
+                <Casilla name="quitarRider" etiqueta="Quitar el rider" />
+              </div>
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">

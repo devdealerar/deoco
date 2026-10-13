@@ -11,6 +11,11 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
+  {
+    // Componentes oficiales de Untitled UI (instalados con `untitledui add`): no se editan a mano.
+    files: ["src/components/**", "src/hooks/**", "src/utils/**"],
+    rules: { "@next/next/no-img-element": "off" },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
