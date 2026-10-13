@@ -50,7 +50,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - Cada módulo es `modulos/<id>/index.ts` con `export default` un objeto `Modulo`
   (`src/nucleo/modulos/contrato.ts`). Ejemplo completo: `modulos/prueba/`.
 - Descubrimiento: `scripts/descubrir-modulos.mjs` genera `src/generated/modulos.ts`
-  (imports estáticos, no versionado). Corre solo antes de dev/build/test/typecheck.
+  (imports estáticos, no versionado). Lo corre `next.config.ts` en `next dev` / `next build`
+  (con cualquier comando) y npm antes de test/typecheck.
   El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
 - El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
   `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago` en el panel;
@@ -59,7 +60,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
 - Encendido: fila en `moduloTenant`. `prenderModulo()` / `apagarModulo()` son del staff;
   validan dependencias (no se prende sin ellas, no se apaga una que otro prendido usa).
-- `SOLO_DESARROLLO.md` en la carpeta de un módulo lo excluye de `npm run build` (producción).
+- `SOLO_DESARROLLO.md` en la carpeta de un módulo lo excluye del build de producción
+  (`next build`, lo invoque quien lo invoque).
 - Navegación: menú del panel = entradas de módulos prendidos filtradas por permiso; pestañas
   públicas = entradas `publica: true` de módulos prendidos. Ordena `orden` (menor primero).
 - Un módulo nunca importa código de otro. Sus tablas nacen con `tenantId` + RLS
@@ -70,6 +72,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - `emitir(nombre, tenantId, payload, usuarioId?)` (`src/nucleo/eventos/bus.ts`): guarda la fila
   en `evento` (PENDIENTE) y vuelve. La entrega se programa con `after()` de Next (después de
   responder); fuera de un pedido, en segundo plano.
+- `emitir(..., { tx })`: el evento se guarda en una transacción de `conTenant` de la misma
+  banda (atómico con el dato); la entrega arranca al confirmarse (`alConfirmar`).
 - Nombres `entidad.accion` en participio, declarados en `eventosEmite` de algún módulo.
 - Una cola por banda, por `secuencia`: orden de emisión. Módulo apagado no recibe.
 - Un suscripto que falla queda en `evento.fallos`; el evento termina FALLIDO.

@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { conTenant } from "@/nucleo/db/con-tenant";
+import { alConfirmar, conTenant, tenantDeTransaccion, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { CargaEvento, Evento } from "@/nucleo/modulos/contrato";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
@@ -21,6 +21,9 @@ export type FalloEvento = { intento: number; moduloId: string; error: string; fe
  * - emitir() guarda la fila en `evento` (PENDIENTE) y vuelve. La entrega a los
  *   suscriptos se programa con after() de Next: corre DESPUÉS de mandar la
  *   respuesta. Fuera de un pedido (scripts, pruebas) corre en segundo plano.
+ * - Con `{ tx }`, la fila se guarda en la transacción de quien emite: el dato y el
+ *   evento se confirman o se pierden juntos. La entrega se programa recién cuando
+ *   esa transacción se confirma.
  * - Orden: una cola por banda. Cada vuelta toma el PENDIENTE de menor `secuencia`,
  *   así los eventos de una banda se entregan en orden de emisión.
  * - Errores: cada suscripto corre aislado; si falla, el error queda en `fallos`
@@ -130,17 +133,39 @@ export function crearBus(obtenerRegistro: () => Registro = registroGlobal) {
     /**
      * Guarda el evento y programa su entrega. No espera a los suscriptos.
      * `nombre` tiene que estar declarado en `eventosEmite` de algún módulo.
+     *
+     * `opciones.tx`: una transacción de conTenant de la MISMA banda. El evento se
+     * guarda ahí, atómico con el resto de la operación; si la transacción se
+     * revierte, el evento no existe y no se entrega.
      */
-    async emitir(nombre: string, tenantId: string, payload: CargaEvento, usuarioId?: string) {
+    async emitir(
+      nombre: string,
+      tenantId: string,
+      payload: CargaEvento,
+      usuarioId?: string,
+      opciones: { tx?: TxTenant } = {},
+    ) {
       const problema = problemaNombreEvento(nombre);
       if (problema) throw new ErrorEvento(`Nombre de evento inválido: ${problema}.`);
       if (obtenerRegistro().emisores(nombre).length === 0) {
         throw new ErrorEvento(`Ningún módulo declara emitir "${nombre}" (falta en eventosEmite).`);
       }
-      const fila = await conTenant(tenantId, (tx) =>
-        tx.evento.create({ data: { nombre, tenantId, payload, usuarioId }, select: { id: true } }),
-      );
-      programar(tenantId);
+      const guardar = (tx: TxTenant) =>
+        tx.evento.create({ data: { nombre, tenantId, payload, usuarioId }, select: { id: true } });
+
+      const { tx } = opciones;
+      if (!tx) {
+        const fila = await conTenant(tenantId, guardar);
+        programar(tenantId);
+        return fila;
+      }
+      const deLaTx = tenantDeTransaccion(tx);
+      if (!deLaTx) throw new ErrorEvento("emitir({ tx }) necesita una transacción abierta por conTenant.");
+      if (deLaTx !== tenantId) {
+        throw new ErrorEvento("emitir({ tx }): la transacción es de otra banda que el evento.");
+      }
+      const fila = await guardar(tx);
+      alConfirmar(tx, () => programar(tenantId));
       return fila;
     },
 

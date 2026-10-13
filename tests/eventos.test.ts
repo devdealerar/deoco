@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/nucleo/db/cliente";
+import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { crearBus, type FalloEvento } from "@/nucleo/eventos/bus";
 import { problemaNombreEvento } from "@/nucleo/eventos/nombre";
 import type { Evento, Modulo } from "@/nucleo/modulos/contrato";
@@ -81,7 +82,6 @@ describe("prueba 1: emitir guarda la fila", () => {
   it("la fila queda bajo RLS: la banda B no la ve", async () => {
     await bus.emitir("pedido.pagado", e.a.id, {});
     await bus.esperar();
-    const { conTenant } = await import("@/nucleo/db/con-tenant");
     expect(await conTenant(e.b.id, (tx) => tx.evento.count())).toBe(0);
     expect(await conTenant(e.a.id, (tx) => tx.evento.count())).toBe(1);
   });
@@ -211,6 +211,64 @@ describe("orden de emisión por banda", () => {
     const porSecuencia = await dueno.evento.findMany({ where: { id: { in: ids.map((i) => i.id) } }, orderBy: { secuencia: "asc" } });
     const entregados = recibidos.filter((r) => r.modulo === "proveedor").map((r) => r.evento.id);
     expect(entregados).toEqual(porSecuencia.map((f) => f.id));
+  });
+});
+
+describe("evento y operación en la misma transacción", () => {
+  // La "operación" de estas pruebas: dar de alta un dominio (cualquier dato de banda sirve).
+  const guardarDato = (tx: TxTenant, dominio: string) => tx.dominio.create({ data: { tenantId: e.a.id, dominio } });
+
+  it("si la operación falla después de emitir, no queda ni el dato ni la fila del evento", async () => {
+    await expect(
+      conTenant(e.a.id, async (tx) => {
+        await guardarDato(tx, "pedido-fallido.lvh.me");
+        await bus.emitir("pedido.pagado", e.a.id, { pedido: 9 }, undefined, { tx });
+        throw new Error("falló el cobro"); // algo sale mal después de emitir
+      }),
+    ).rejects.toThrow("falló el cobro");
+    await bus.esperar();
+    expect(await dueno.evento.count()).toBe(0);
+    expect(await dueno.dominio.count({ where: { dominio: "pedido-fallido.lvh.me" } })).toBe(0);
+    expect(recibidos).toEqual([]); // nadie recibió un evento que no existe
+  });
+
+  it("si se confirma, dato y evento quedan juntos, y el suscripto ve el dato ya guardado", async () => {
+    const vistos: boolean[] = [];
+    const conDato = crearRegistro([
+      mod("tienda", { eventosEmite: ["pedido.pagado"] }),
+      mod("proveedor", {
+        eventosEscucha: [
+          {
+            evento: "pedido.pagado",
+            manejador: async (ev) => {
+              const existe = await conTenant(ev.tenantId, (tx) => tx.dominio.count({ where: { dominio: "pedido-ok.lvh.me" } }));
+              vistos.push(existe === 1);
+            },
+          },
+        ],
+      }),
+    ]);
+    const busTx = crearBus(() => conDato);
+    const { id } = await conTenant(e.a.id, async (tx) => {
+      await guardarDato(tx, "pedido-ok.lvh.me");
+      const ev = await busTx.emitir("pedido.pagado", e.a.id, { pedido: 10 }, undefined, { tx });
+      await new Promise((r) => setTimeout(r, 50)); // la transacción sigue abierta un rato
+      return ev;
+    });
+    await busTx.esperar();
+    expect((await fila(id)).estado).toBe("PROCESADO");
+    expect(vistos).toEqual([true]); // se entregó después del commit, nunca antes
+    await dueno.dominio.deleteMany({ where: { dominio: "pedido-ok.lvh.me" } });
+  });
+
+  it("la transacción tiene que ser de conTenant y de la misma banda", async () => {
+    await expect(
+      conTenant(e.b.id, (tx) => bus.emitir("pedido.pagado", e.a.id, {}, undefined, { tx })),
+    ).rejects.toThrow(/otra banda/);
+    await expect(
+      prisma.$transaction((tx) => bus.emitir("pedido.pagado", e.a.id, {}, undefined, { tx })),
+    ).rejects.toThrow(/abierta por conTenant/);
+    expect(await dueno.evento.count()).toBe(0);
   });
 });
 

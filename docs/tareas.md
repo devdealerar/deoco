@@ -1,4 +1,22 @@
-# Tareas · Paso 1 · Núcleo
+# Tareas
+
+## Paso 2 · Parte 0 · Cierres antes del módulo de sitio
+
+| # | Cierre | Estado |
+| --- | --- | --- |
+| 1 | Tablas de módulos (esquema por módulo, prefijo, RLS) | 📝 propuesta, esperando aprobación |
+| 2 | `emitir(..., { tx })`: evento atómico con la operación | ✅ hecha, en revisión |
+| 3 | Módulo de prueba fuera del build con `next build` directo | ✅ hecha, en revisión |
+
+- 2: `conTenant` registra tareas `alConfirmar(tx, fn)` que corren solo tras el commit; el bus
+  programa la entrega ahí. Prueba: una operación que falla después de emitir no deja ni el
+  dato ni la fila del evento (`tests/eventos.test.ts`).
+- 3: `next.config.ts` corre el descubrimiento según la fase (`next build` → producción).
+  Verificado con `next build` directo: sin rastros de `modulos/prueba` en `.next`.
+
+---
+
+# Paso 1 · Núcleo
 
 Fuente: `docs/spec/00-especificacion-nucleo.md`. Una parte por vez; cada una se
 revisa y aprueba antes de pasar a la siguiente.
@@ -138,8 +156,7 @@ Las cinco pruebas originales pasan:
   Sin ella no hay listado global de eventos fallidos ni barrido de pendientes al arrancar.
 - **Eventos pendientes tras un reinicio**: no se pierden (quedan PENDIENTE en la tabla), pero
   se entregan recién cuando esa banda emite otro evento, o al reprocesar.
-- **Emitir dentro de la transacción de quien emite** (outbox): hoy `emitir` usa su propia
-  transacción; si el proceso cae entre "guardé el pedido" y "emití", el evento se pierde.
+- ~~Emitir dentro de la transacción de quien emite~~ → resuelto en Paso 2 · Parte 0.
 - **Accesos del staff**: `registrarAccesoStaff()` no persiste. Tampoco hay registro de
   quién cambia la pasarela (spec); llega con el módulo que tenga la pasarela.
 - **Una sola instancia**: el bus y el orden por banda viven en memoria del proceso.

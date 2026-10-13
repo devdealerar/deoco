@@ -78,6 +78,18 @@ solo antes de `dev`, `build`, `test` y `typecheck`.
 - Para emitir, declaralo en `eventosEmite` y llamá
   `emitir(nombre, tenantId, payload, usuarioId?)` (`src/nucleo/eventos/bus.ts`).
   Vuelve enseguida: los suscriptos corren después de responder al usuario.
+- **Si el evento acompaña a un dato que guardás, emitilo en la misma transacción**, así
+  el dato y el evento se confirman o se pierden juntos:
+
+  ```ts
+  await conTenant(tenantId, async (tx) => {
+    const pedido = await tx.tiendaPedido.update({ where: { id }, data: { estado: "PAGADO" } });
+    await emitir("pedido.pagado", tenantId, { pedidoId: pedido.id }, usuarioId, { tx });
+  });
+  ```
+
+  Si la transacción se revierte, el evento no existe y nadie lo recibe. La entrega
+  arranca recién cuando la transacción se confirma (y, en un pedido, después de responder).
 - Para escuchar, `eventosEscucha: [{ evento, manejador }]`, un manejador por evento.
   Corre solo si el módulo está prendido para la banda del evento, en orden de emisión.
 - Lo que el usuario ve al instante **no** depende de un evento. Un evento mueve trabajo
@@ -103,4 +115,5 @@ que recibirlo una:
 - `dependencias`: no se puede prender si falta alguna; no se puede apagar uno que otro
   prendido usa.
 - Un archivo `SOLO_DESARROLLO.md` en la carpeta deja el módulo afuera del build de
-  producción (como `modulos/prueba`).
+  producción (como `modulos/prueba`), con cualquier comando de build: lo aplica
+  `next.config.ts`.
