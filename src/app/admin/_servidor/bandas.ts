@@ -1,6 +1,12 @@
 import { randomInt } from "node:crypto";
 import { Prisma, type EstadoTenant } from "@/generated/prisma/client";
 import { hashearContrasena } from "@/nucleo/auth/contrasena";
+import {
+  ErrorDominio,
+  agregarDominio as agregarDominioNucleo,
+  marcarPrincipal as marcarPrincipalNucleo,
+  verificarDominio as verificarDominioNucleo,
+} from "@/nucleo/dominios";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
 import { ErrorFormulario } from "@/ui/servidor";
 import { auditar } from "./auditoria";
@@ -85,7 +91,7 @@ export async function altaBanda(staffId: string, datos: DatosAlta) {
   try {
     return await db.$transaction(async (tx) => {
       if (await tx.tenant.findUnique({ where: { slug } })) throw new ErrorFormulario(`Ya existe una banda con el slug "${slug}".`);
-      if (await tx.dominio.findUnique({ where: { dominio } })) throw new ErrorFormulario(`El dominio ${dominio} ya está en uso.`);
+      if (await tx.dominio.findFirst({ where: { dominio } })) throw new ErrorFormulario(`El dominio ${dominio} ya está en uso.`);
 
       let titular = await tx.usuario.findUnique({ where: { email }, select: { id: true } });
       let clave: string | null = null;
@@ -155,33 +161,29 @@ export async function cambiarEstado(staffId: string, tenantId: string, estado: s
   });
 }
 
-const DOMINIO = /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
-
-/** Registra un dominio propio (sin verificar: la verificación DNS llega después). */
-export async function agregarDominio(staffId: string, tenantId: string, dominioCrudo: string) {
-  const dominio = dominioCrudo.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/\.$/, "");
-  if (!DOMINIO.test(dominio)) throw new ErrorFormulario(`"${dominioCrudo}" no es un dominio válido (p. ej. labanda.com).`);
-  const raiz = dominioRaiz();
-  if (dominio === raiz || dominio.endsWith(`.${raiz}`)) {
-    throw new ErrorFormulario(`Los subdominios de ${raiz} los asigna la plataforma: acá va un dominio propio de la banda.`);
+/** Errores del núcleo de dominios → mensaje del formulario. */
+async function dominios<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof ErrorDominio) throw new ErrorFormulario(e.message);
+    throw e;
   }
-  await dbAdmin().$transaction(async (tx) => {
-    if (await tx.dominio.findUnique({ where: { dominio } })) throw new ErrorFormulario(`El dominio ${dominio} ya está en uso.`);
-    await tx.dominio.create({ data: { tenantId, dominio, esPrincipal: false, verificado: false } });
-    await auditar(tx, { usuarioId: staffId, tenantId, accion: "dominio.agregado", detalle: { dominio } });
-  });
 }
 
-/** Marca el dominio principal de la banda (hay uno solo). */
+/** Registra un dominio propio, sin verificar (no resuelve hasta verificarlo). */
+export async function agregarDominio(staffId: string, tenantId: string, dominio: string) {
+  return dominios(() => agregarDominioNucleo(staffId, tenantId, dominio));
+}
+
+/** Consulta el DNS y lo verifica si los registros están. */
+export async function verificarDominio(staffId: string, tenantId: string, dominioId: string) {
+  return dominios(() => verificarDominioNucleo(staffId, tenantId, dominioId));
+}
+
+/** Marca el dominio principal de la banda (hay uno solo, verificado). */
 export async function marcarPrincipal(staffId: string, tenantId: string, dominioId: string) {
-  await dbAdmin().$transaction(async (tx) => {
-    const d = await tx.dominio.findFirst({ where: { id: dominioId, tenantId } });
-    if (!d) throw new ErrorFormulario("Ese dominio no es de esta banda.");
-    if (d.esPrincipal) return;
-    await tx.dominio.updateMany({ where: { tenantId, esPrincipal: true }, data: { esPrincipal: false } });
-    await tx.dominio.update({ where: { id: d.id }, data: { esPrincipal: true } });
-    await auditar(tx, { usuarioId: staffId, tenantId, accion: "dominio.principal_marcado", detalle: { dominio: d.dominio } });
-  });
+  return dominios(() => marcarPrincipalNucleo(staffId, tenantId, dominioId));
 }
 
 // ── miembros ───────────────────────────────────────────────────────────────

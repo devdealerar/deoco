@@ -18,7 +18,7 @@ async function esperar(url: string, host: string) {
 /** Levanta next dev contra la base de pruebas (el env ya viene de .env.test). */
 export async function setup() {
   servidor = spawn("npx", ["next", "dev", "-p", String(PUERTO)], {
-    env: { ...process.env, DEOCO_DOMINIO_RAIZ: "lvh.me", NODE_ENV: "development" },
+    env: { ...process.env, DEOCO_DOMINIO_RAIZ: "lvh.me", DEOCO_IP_PUBLICA: "203.0.113.10", NODE_ENV: "development" },
     stdio: process.env.E2E_LOG ? "inherit" : "ignore",
     detached: true,
   });

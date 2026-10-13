@@ -156,6 +156,7 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
 | `DEOCO_ARCHIVOS_DIR` | no | `/data/archivos` (valor de la imagen) |
 | `DEOCO_ALMACEN` | no | `disco` (único implementado) |
 | `DEOCO_LIMITE_ALMACENAMIENTO` | no | espacio por banda en bytes; por defecto 1 GiB |
+| `DEOCO_IP_PUBLICA` | no | IP a la que apuntan los dominios propios; por defecto, la de `app.<raíz>` |
 
 ## Respaldos
 
@@ -168,11 +169,22 @@ Push a la rama de producción → Easypanel reconstruye → al arrancar se aplic
 migraciones nuevas. Si una migración o la verificación de arranque fallan, el contenedor no
 levanta y el motivo queda en los logs.
 
-## Dominio propio de una banda (más adelante)
+## Dominio propio de una banda
 
-Se registra en `/admin` (banda → Dominios), sin verificar todavía. Para que funcione, la banda
-apunta su dominio (registro `A`) a la IP del VPS y se agrega ese dominio en Easypanel con su
-propio certificado (validación HTTP, no el comodín).
+1. La banda (el titular, en **Panel → Dominios**) o el staff (en `/admin`, detalle de la banda)
+   agrega el dominio. La pantalla muestra dos registros exactos para crear en el DNS del dominio:
+   `A <dominio> → <IP del servidor>` y `TXT _deoco.<dominio> → deoco-verificacion=<token>`.
+2. La banda los crea y toca **Verificar**: la app consulta el DNS. Hasta que verifica, el
+   dominio no muestra el sitio (404).
+3. **Vos** agregás ese dominio en Easypanel (servicio de la app → Domains → `<dominio>`, puerto
+   3000, HTTPS con el resolver HTTP por defecto, **no** el de Cloudflare: el dominio no es
+   tuyo). El certificado lo emite Easypanel; la app no lo toca.
+4. Cuando `https://<dominio>` abre con candado, la banda puede tocar **Usar como principal**:
+   desde ahí el subdominio `<slug>.deoco.com` redirige al dominio propio.
+
+La IP que se muestra es `DEOCO_IP_PUBLICA` si está definida; si no, la que resuelve
+`app.deoco.com` (con el comodín en "solo DNS" es la del VPS). Si alguna vez ponés la nube
+naranja de Cloudflare en `deoco.com`, definí `DEOCO_IP_PUBLICA` con la IP del VPS.
 
 ## Qué se verificó antes de este despliegue
 

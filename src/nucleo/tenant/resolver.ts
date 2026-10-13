@@ -2,7 +2,13 @@ import type { EstadoTenant } from "@/generated/prisma/client";
 import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
 
-export type TenantResuelto = { id: string; slug: string; estado: EstadoTenant };
+export type TenantResuelto = {
+  id: string;
+  slug: string;
+  estado: EstadoTenant;
+  /** Solo por host: el dominio principal de la banda (siempre verificado), si tiene. */
+  principal?: string | null;
+};
 
 /**
  * Funciones SECURITY DEFINER: el único acceso sin tenant fijado (todavía no se
@@ -24,9 +30,16 @@ async function cargar(id: string | null): Promise<TenantResuelto | null> {
   );
 }
 
-/** Sitio público: `labanda.deoco.com` o el dominio propio. */
+/** Sitio público: `labanda.deoco.com` o el dominio propio. Solo dominios verificados. */
 export async function resolverTenantPorHost(host: string): Promise<TenantResuelto | null> {
-  return cargar(await idPor("host", host));
+  const id = await idPor("host", host);
+  if (!id) return null;
+  return conTenant(id, async (tx) => {
+    const t = await tx.tenant.findUnique({ where: { id }, select: { id: true, slug: true, estado: true } });
+    if (!t) return null;
+    const principal = await tx.dominio.findFirst({ where: { esPrincipal: true }, select: { dominio: true } });
+    return { ...t, principal: principal?.dominio ?? null };
+  });
 }
 
 /** Panel: `app.deoco.com/b/<slug>/...`. */

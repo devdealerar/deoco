@@ -131,7 +131,7 @@ const { id } = await guardarArchivo(tenantId, { nombre: f.name, datos }, {
 - `rutasPublicas` se montan en la raíz del sitio de la banda (`labanda.deoco.com<ruta>`).
   El componente recibe `{ tenantId, params }`. Es anónimo: no hay sesión.
 - Segmentos dinámicos: `/tienda/[producto]` → `params.producto`. Las rutas fijas ganan.
-- Rutas del núcleo, prohibidas: `/` y `/pago` en el panel; `/ingresar`, `/api` y `/b` en el sitio.
+- Rutas del núcleo, prohibidas: `/`, `/pago`, `/archivos` y `/dominios` en el panel; `/ingresar`, `/api`, `/b`, `/archivos` y `/admin` en el sitio.
 - Las páginas públicas no leen sesión: es la superficie `"publico"`.
 - Pantallas del panel: usá el kit `@/ui` (componentes oficiales de Untitled UI): `Tarjeta`,
   `Campo`, `AreaTexto`, `Selector`, `Casilla`, `CampoArchivo`, `Boton`, `Insignia` y

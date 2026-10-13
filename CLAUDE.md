@@ -29,6 +29,8 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - Cualquier otro host (`labanda.deoco.com`, dominio propio) → sitio público (superficie
   `"publico"`), tenant por host. Anónimo.
 - `/b/<slug>/pago` lo define el núcleo: abierto con la banda suspendida, solo para el titular.
+- Solo resuelven dominios **verificados**. En el sitio público, todo dominio de la banda que no
+  sea el principal redirige (307) al principal, misma ruta.
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.
 
 ## Sesión, rol y permisos
@@ -55,7 +57,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   (con cualquier comando) y npm antes de test/typecheck.
   El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
 - El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
-  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago` en el panel;
+  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios` en el panel;
   `/ingresar`, `/api`, `/b` en el sitio), navegación que apunta a rutas propias.
 - Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
@@ -71,6 +73,14 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   validado por el script. Migración en `prisma/migrations` terminada en
   `SELECT deoco_aislar_tabla('<tabla>')`. `tests/aislamiento.test.ts` exige RLS, política,
   `tenantId` y prefijo en toda tabla que no sea del núcleo.
+
+## Dominios propios
+
+- `src/nucleo/dominios` (bajo RLS): `agregarDominio`, `verificarDominio` (DNS: `A` a la IP del
+  servidor + `TXT _deoco.<dominio>` con el token de la banda), `marcarPrincipal` (solo verificado).
+- Pantalla `/b/<slug>/dominios` (núcleo, solo titular) y la misma lista en `/admin`
+  (`src/app/_dominios`). El certificado lo emite Easypanel: la app nunca lo intenta.
+- Sin verificar, un dominio puede estar en varias bandas; verificado, en una sola.
 
 ## Archivos
 

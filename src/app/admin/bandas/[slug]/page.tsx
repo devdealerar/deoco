@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { dominiosDeBanda } from "@/nucleo/dominios";
 import { registro } from "@/nucleo/modulos";
 import { Campo, Casilla, Formulario, Insignia, Selector, Tabla, Tarjeta } from "@/ui";
+import { ListaDominios } from "../../../_dominios/lista";
 import { exigirStaff } from "../../_servidor/acceso";
 import { detalleBanda } from "../../_servidor/bandas";
 import {
@@ -13,6 +15,7 @@ import {
   principalAccion,
   quitarAccion,
   rolAccion,
+  verificarAccion,
 } from "./acciones";
 
 const ESTADOS = [
@@ -90,35 +93,15 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
         }))}
       />
 
-      <Tabla
-        titulo="Dominios"
-        descripcion="El subdominio lo asigna la plataforma. Los propios se registran acá; la verificación DNS llega después."
-        columnas={[
-          { id: "dominio", etiqueta: "Dominio" },
-          { id: "estado", etiqueta: "" },
-          { id: "accion", etiqueta: "" },
-        ]}
-        filas={banda.dominios.map((d) => ({
-          id: d.id,
-          celdas: [
-            <span key="d" className="font-medium text-primary">
-              {d.dominio}
-            </span>,
-            <div key="e" className="flex gap-2">
-              {d.esPrincipal && <Insignia color="marca">Principal</Insignia>}
-              {!d.verificado && <Insignia color="advertencia">Sin verificar</Insignia>}
-            </div>,
-            d.esPrincipal ? null : (
-              <Formulario key="a" {...enLinea} accion={principalAccion.bind(null, id, d.id)} etiqueta="Marcar principal" />
-            ),
-          ],
-        }))}
-      />
-      <Tarjeta titulo="Agregar dominio propio">
-        <Formulario accion={dominioAccion.bind(null, id)} puedeEditar etiqueta="Agregar dominio" limpiarAlGuardar>
-          <Campo name="dominio" etiqueta="Dominio" placeholder="labanda.com" required />
-        </Formulario>
-      </Tarjeta>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold text-primary">Dominios</h2>
+        <ListaDominios
+          dominios={await dominiosDeBanda(id)}
+          verificar={(d) => verificarAccion.bind(null, id, d)}
+          principal={(d) => principalAccion.bind(null, id, d)}
+          agregar={dominioAccion.bind(null, id)}
+        />
+      </section>
 
       <Tabla
         titulo="Miembros"

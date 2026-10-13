@@ -49,18 +49,18 @@ model Usuario {
 
 /// La banda. RLS por `id` (es su propio tenant).
 model Tenant {
-  id         String         @id @default(uuid()) @db.Uuid
-  nombre     String
-  slug       String         @unique
-  estado     EstadoTenant   @default(ACTIVO)
+  id                   String         @id @default(uuid()) @db.Uuid
+  nombre               String
+  slug                 String         @unique
+  estado               EstadoTenant   @default(ACTIVO)
   /// Espacio para archivos, en bytes. null = DEOCO_LIMITE_ALMACENAMIENTO. Lo fija un plan (el núcleo no los conoce).
   limiteAlmacenamiento BigInt?
-  creadoEn   DateTime       @default(now())
-  membresias Membresia[]
-  dominios   Dominio[]
-  modulos    ModuloTenant[]
-  eventos    Evento[]
-  archivos   Archivo[]
+  creadoEn             DateTime       @default(now())
+  membresias           Membresia[]
+  dominios             Dominio[]
+  modulos              ModuloTenant[]
+  eventos              Evento[]
+  archivos             Archivo[]
 
   @@map("tenant")
 }
@@ -78,14 +78,22 @@ model Membresia {
   @@map("membresia")
 }
 
+/// Un host resuelve solo si está verificado. Sin verificar, el mismo dominio puede estar
+/// registrado en varias bandas: lo gana la que prueba que es suya (registro TXT con su
+/// `token`). Únicos (índices parciales en la migración): un verificado por dominio y un
+/// principal por banda; el principal siempre está verificado.
 model Dominio {
-  id          String  @id @default(uuid()) @db.Uuid
-  dominio     String  @unique
-  tenantId    String  @db.Uuid
-  esPrincipal Boolean @default(false)
-  verificado  Boolean @default(false)
-  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id           String    @id @default(uuid()) @db.Uuid
+  dominio      String
+  tenantId     String    @db.Uuid
+  esPrincipal  Boolean   @default(false)
+  verificado   Boolean   @default(false)
+  token        String    @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  verificadoEn DateTime?
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@unique([tenantId, dominio])
+  @@index([dominio])
   @@index([tenantId])
   @@map("dominio")
 }

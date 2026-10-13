@@ -77,10 +77,12 @@ describe("estado", () => {
 });
 
 describe("dominios", () => {
-  it("registra un dominio propio sin verificar y lo marca principal (uno solo)", async () => {
+  it("registra un dominio propio sin verificar; sin verificar no puede ser principal", async () => {
     await agregarDominio(e.staff.id, e.a.id, "https://LosSatelites.com.ar/");
-    const d = await dueno.dominio.findUniqueOrThrow({ where: { dominio: "lossatelites.com.ar" } });
+    const d = await dueno.dominio.findFirstOrThrow({ where: { dominio: "lossatelites.com.ar" } });
     expect(d).toMatchObject({ tenantId: e.a.id, esPrincipal: false, verificado: false });
+    await expect(marcarPrincipal(e.staff.id, e.a.id, d.id)).rejects.toThrow(/todavía no está verificado/);
+    await dueno.dominio.update({ where: { id: d.id }, data: { verificado: true } });
     await marcarPrincipal(e.staff.id, e.a.id, d.id);
     const principales = await dueno.dominio.findMany({ where: { tenantId: e.a.id, esPrincipal: true } });
     expect(principales.map((p) => p.dominio)).toEqual(["lossatelites.com.ar"]);
@@ -90,7 +92,7 @@ describe("dominios", () => {
   it.each([
     ["no es un dominio", /no es un dominio válido/],
     ["otra.lvh.me", /los asigna la plataforma/],
-    ["banda-b.deoco.com", /ya está en uso/],
+    ["banda-a.deoco.com", /ya está registrado en esta banda/],
   ])("rechaza %s", async (dominio, error) => {
     await expect(agregarDominio(e.staff.id, e.a.id, dominio)).rejects.toThrow(error);
   });

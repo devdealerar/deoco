@@ -23,6 +23,13 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                   Inicio
                 </Link>
               </li>
+              {acceso.rol === "TITULAR" && (
+                <li>
+                  <Link href={`/b/${slug}/dominios`} className={item}>
+                    Dominios
+                  </Link>
+                </li>
+              )}
               {menu.map((m) => (
                 <li key={m.href} data-modulo={m.moduloId}>
                   <Link href={m.href} className={item}>

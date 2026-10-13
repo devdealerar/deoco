@@ -341,3 +341,32 @@ describe("un formulario rechazado conserva lo escrito", () => {
     expect(await form.locator('input[name="url"]').inputValue()).toBe("");
   });
 });
+
+describe("navegación pública: la pestaña de otro módulo entra sola en el marco del sitio", () => {
+  it("prendido el módulo de prueba, su pestaña aparece en orden y su página va dentro del marco", async () => {
+    const { apagarModulo } = await import("@/nucleo/modulos/encendido");
+    await prenderModulo(e.staff.id, e.a.id, "prueba");
+    try {
+      const { page } = await anonimo();
+      const pestanas = () => page.locator('nav[aria-label="Sitio"] a').allTextContents();
+      await page.goto(sitio("banda-a"));
+      expect(await pestanas()).toEqual(["Home", "Press kit", "Prueba"]);
+
+      await page.click('nav[aria-label="Sitio"] a:text("Prueba")');
+      await page.waitForURL(`${sitio("banda-a")}/prueba`);
+      expect(await page.getByTestId("modulo-prueba-publica").isVisible()).toBe(true);
+      // Es el marco del sitio (no el neutro): pestaña activa marcada por el sitio, pie de la banda.
+      expect(await page.locator('nav[aria-label="Sitio"] a[aria-current="page"]').textContent()).toBe("Prueba");
+      expect(await page.locator("footer").textContent()).toContain("©");
+
+      await apagarModulo(e.staff.id, e.a.id, "prueba");
+      await page.goto(sitio("banda-a"));
+      expect(await pestanas()).toEqual(["Home", "Press kit"]);
+      // La otra banda nunca la tuvo.
+      await page.goto(sitio("banda-b"));
+      expect(await pestanas()).toEqual(["Home", "Press kit"]);
+    } finally {
+      await dueno.moduloTenant.deleteMany({ where: { moduloId: "prueba" } });
+    }
+  });
+});

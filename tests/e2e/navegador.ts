@@ -41,12 +41,16 @@ export async function logueado(email: string) {
   return { ctx, page };
 }
 
-/** dosBandas() crea banda-x.deoco.com; en e2e se necesitan los hosts de desarrollo. */
+/**
+ * dosBandas() crea banda-x.deoco.com como principal; en e2e se navega por los hosts de
+ * desarrollo, que pasan a ser los principales (si no, redirigirían a deoco.com).
+ */
 export async function dominiosDeDesarrollo(a: { id: string }, b: { id: string }) {
+  await dueno.dominio.updateMany({ where: { tenantId: { in: [a.id, b.id] } }, data: { esPrincipal: false } });
   await dueno.dominio.createMany({
     data: [
-      { tenantId: a.id, dominio: "banda-a.lvh.me" },
-      { tenantId: b.id, dominio: "banda-b.lvh.me" },
+      { tenantId: a.id, dominio: "banda-a.lvh.me", verificado: true, esPrincipal: true },
+      { tenantId: b.id, dominio: "banda-b.lvh.me", verificado: true, esPrincipal: true },
     ],
   });
 }

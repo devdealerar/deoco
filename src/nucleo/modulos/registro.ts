@@ -15,7 +15,7 @@ const CLAVE_PERMISO = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;
 const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 
 // Rutas que son del núcleo y ningún módulo puede ocupar.
-const RESERVADAS_PANEL = ["/", "/pago", "/archivos"]; // home del panel, pago de la cuota, archivos
+const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios"]; // home del panel, pago de la cuota, archivos, dominios
 const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin"]; // plataforma y archivos
 
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };

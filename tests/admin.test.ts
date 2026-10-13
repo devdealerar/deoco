@@ -85,7 +85,7 @@ describe("alta de banda (y prueba 5: deja su auditoría)", () => {
     expect(usuario).not.toBeNull();
     const m = await dueno.membresia.findFirstOrThrow({ where: { usuarioId: usuario!.id } });
     expect(m).toMatchObject({ tenantId: r.tenantId, rol: "TITULAR" });
-    expect(await dueno.dominio.findUniqueOrThrow({ where: { dominio: "los-nuevos.lvh.me" } })).toMatchObject({
+    expect(await dueno.dominio.findFirstOrThrow({ where: { dominio: "los-nuevos.lvh.me" } })).toMatchObject({
       tenantId: r.tenantId,
       esPrincipal: true,
     });

@@ -41,7 +41,7 @@ describe("listado de bandas", () => {
     await expect(filas.filter({ hasText: "Banda A" }).count()).resolves.toBe(1);
     const a = await filas.filter({ hasText: "Banda A" }).textContent();
     expect(a).toContain("ACTIVO");
-    expect(a).toContain("banda-a.deoco.com");
+    expect(a).toContain("banda-a.lvh.me");
     expect(a).toMatch(/de 1\.0 GB/);
     await expect(filas.filter({ hasText: "Banda B" }).count()).resolves.toBe(1);
   });

@@ -48,11 +48,28 @@ export async function proxy(request: NextRequest) {
   if (decision.tipo === "no-encontrado") return noEncontrado();
   if (decision.tipo === "prohibido") return prohibido();
 
+  // Un solo dominio canónico: los demás de la banda (el subdominio, otros propios)
+  // redirigen al principal, con la misma ruta. Temporal (307): si la banda cambia de
+  // principal, los navegadores no quedan con la redirección vieja guardada.
+  if (superficie === "publico" && tenant.principal && tenant.principal !== host) {
+    return NextResponse.redirect(urlEnPrincipal(request, tenant.principal), 307);
+  }
+
   cabeceras.set(CABECERA.tenantId, tenant.id);
   cabeceras.set(CABECERA.estado, tenant.estado);
   cabeceras.set(CABECERA.superficie, superficie);
   if (decision.soloTitular) cabeceras.set(CABECERA.soloTitular, "1");
   return seguir();
+}
+
+/** Misma ruta y consulta en el dominio principal; conserva protocolo y puerto del pedido. */
+function urlEnPrincipal(request: NextRequest, principal: string): URL {
+  const puerto = /:(\d+)$/.exec(request.headers.get("host") ?? "")?.[1];
+  const protocolo = request.headers.get("x-forwarded-proto")?.split(",")[0].trim() || request.nextUrl.protocol.replace(":", "");
+  const destino = new URL(`${protocolo}://${principal}${puerto ? `:${puerto}` : ""}`);
+  destino.pathname = request.nextUrl.pathname;
+  destino.search = request.nextUrl.search;
+  return destino;
 }
 
 export const config = {

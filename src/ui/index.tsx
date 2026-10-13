@@ -3,8 +3,8 @@
 // Kit del panel. Cada export envuelve un componente OFICIAL de Untitled UI
 // (src/components, instalados con `untitledui add`) con la interfaz en castellano que
 // usan las pantallas de los módulos. Excepciones (sin equivalente oficial que sirva),
-// ver README.md: CampoArchivo y Tarjeta.
-import type { ReactNode } from "react";
+// ver README.md: CampoArchivo, Tarjeta y Copiable.
+import { type ReactNode, useState } from "react";
 import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { Checkbox } from "@/components/base/checkbox/checkbox";
@@ -186,6 +186,49 @@ export function Tabla({
         </Table.Body>
       </Table>
     </TableCard.Root>
+  );
+}
+
+/** Portapapeles; sin contexto seguro (http en desarrollo) no hay API: copia por selección. */
+async function copiar(valor: string): Promise<boolean> {
+  if (navigator.clipboard) return navigator.clipboard.writeText(valor).then(() => true, () => false);
+  const area = document.createElement("textarea");
+  area.value = valor;
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  const ok = document.execCommand("copy");
+  area.remove();
+  return ok;
+}
+
+/**
+ * Valor listo para copiar (registros DNS, claves): PROPIO, la versión gratuita no trae
+ * uno. El botón es el oficial.
+ */
+export function Copiable({ valor, etiqueta }: { valor: string; etiqueta: string }) {
+  const [copiado, setCopiado] = useState(false);
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <code className="min-w-0 rounded-md bg-secondary px-2 py-1 font-mono text-sm break-all text-primary" data-copiable>
+        {valor}
+      </code>
+      <Button
+        color="secondary"
+        size="sm"
+        aria-label={`Copiar ${etiqueta}`}
+        onPress={() => {
+          void copiar(valor).then((ok) => {
+            if (!ok) return;
+            setCopiado(true);
+            setTimeout(() => setCopiado(false), 2000);
+          });
+        }}
+      >
+        {copiado ? "Copiado" : "Copiar"}
+      </Button>
+    </div>
   );
 }
 

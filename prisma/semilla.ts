@@ -18,7 +18,7 @@ async function main() {
       create: { nombre: slug, slug },
     });
     await db.dominio.upsert({
-      where: { dominio },
+      where: { tenantId_dominio: { tenantId: tenant.id, dominio } },
       update: {},
       create: { dominio, tenantId: tenant.id, esPrincipal: true, verificado: true },
     });

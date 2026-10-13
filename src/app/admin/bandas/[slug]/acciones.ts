@@ -1,9 +1,18 @@
 "use server";
 
 import type { EstadoFormulario } from "@/ui";
-import { email, texto } from "@/ui/servidor";
+import { ErrorFormulario, email, texto } from "@/ui/servidor";
+import { mensajeVerificacion } from "../../../_dominios/mensajes";
 import { accionAdmin } from "../../_servidor/accion";
-import { agregarDominio, cambiarEstado, cambiarRol, invitar, marcarPrincipal, quitarMiembro } from "../../_servidor/bandas";
+import {
+  agregarDominio,
+  cambiarEstado,
+  cambiarRol,
+  invitar,
+  marcarPrincipal,
+  quitarMiembro,
+  verificarDominio,
+} from "../../_servidor/bandas";
 import { apagar, prender } from "../../_servidor/modulos";
 
 export async function estadoAccion(tenantId: string, _: EstadoFormulario, fd: FormData) {
@@ -31,6 +40,14 @@ export async function dominioAccion(tenantId: string, _: EstadoFormulario, fd: F
   return accionAdmin(async (staffId) => {
     await agregarDominio(staffId, tenantId, texto(fd, "dominio", 253));
     return "Dominio registrado (sin verificar).";
+  });
+}
+
+export async function verificarAccion(tenantId: string, dominioId: string, _: EstadoFormulario) {
+  return accionAdmin(async (staffId) => {
+    const m = mensajeVerificacion(await verificarDominio(staffId, tenantId, dominioId));
+    if ("error" in m) throw new ErrorFormulario(m.error);
+    return m.ok;
   });
 }
 

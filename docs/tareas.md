@@ -1,5 +1,28 @@
 # Tareas
 
+## Mientras despliego
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| 1 | Verificación de dominio propio | ✅ hecha |
+| 2 | Repaso de la navegación pública | ✅ hecho (faltantes del contrato, abajo) |
+
+- Dominio propio: la banda (titular) lo agrega en `/b/<slug>/dominios` (o el staff en `/admin`)
+  y ve dos registros exactos para copiar: `A <dominio> → IP del servidor` y
+  `TXT _deoco.<dominio> → deoco-verificacion=<token>`. "Verificar" consulta el DNS.
+  - Por qué dos registros: el A solo no prueba que el dominio sea de esa banda (cualquiera que
+    apunte a Deoco sería "verificable" por quien lo cargó primero). El TXT lleva un token por
+    banda. Sin verificar, el mismo dominio puede estar cargado en varias bandas; lo gana la que
+    prueba que es suyo, y verificado es de una sola (índice único parcial).
+  - IP: `DEOCO_IP_PUBLICA` si está; si no, la que resuelve `app.<raiz>`.
+  - Sin verificar no resuelve (`resolver_tenant_por_host` filtra por `verificado`).
+  - Principal: solo verificado (también lo exige la base). Los demás dominios de la banda,
+    subdominio incluido, redirigen al principal con 307 (misma ruta y consulta).
+  - El certificado no lo emite la app: el dominio se agrega en Easypanel (ver `docs/despliegue.md`).
+- Navegación pública: con un módulo que solo declara ruta y pestaña, la pestaña entra sola en el
+  marco del sitio, en su orden, sin tocar el módulo sitio (`tests/modulos.test.ts` con tienda y
+  ticketera falsas intercaladas; `tests/e2e/sitio.e2e.ts` con el módulo de prueba).
+
 ## Despliegue
 
 | # | Parte | Estado |
@@ -266,7 +289,7 @@ Las cinco pruebas originales pasan:
 - **Accesos del staff**: `registrarAccesoStaff()` no persiste. Tampoco hay registro de
   quién cambia la pasarela (spec); llega con el módulo que tenga la pasarela.
 - **Una sola instancia**: el bus y el orden por banda viven en memoria del proceso.
-- **Dominio propio**: verificación DNS y certificados (infra Easypanel) no están en el paso 1.
+- ~~**Dominio propio**: verificación DNS~~ → resuelto en "Mientras despliego" (el certificado lo emite Easypanel).
 
 ## Preguntas abiertas
 
