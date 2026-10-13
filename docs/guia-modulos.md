@@ -92,6 +92,28 @@ SELECT deoco_aislar_tabla('sitio_perfil');
 da los permisos a la app. Después: `npm run db:migrar`. `tests/aislamiento.test.ts` falla si
 una tabla queda sin RLS, sin política, sin `tenantId` o sin el prefijo de un módulo.
 
+### Archivos
+
+Los bytes nunca los maneja el módulo: usa `src/nucleo/archivos`.
+
+```ts
+const { id } = await guardarArchivo(tenantId, { nombre: f.name, datos }, {
+  moduloId: "sitio",
+  tipos: ["jpeg", "png", "webp"],           // detectados por contenido, no por extensión
+  maxBytes: 25 * 1024 * 1024,               // tope por archivo (máximo absoluto: 25 MB)
+  variantes: [{ nombre: "web", ancho: 1600 }], // versiones livianas WebP (solo imágenes)
+});
+```
+
+- Guardá solo el id (`...ArchivoId`). La cuota de la banda (`tenant.limiteAlmacenamiento`)
+  la controla el núcleo: si se pasa, `guardarArchivo` tira `ErrorArchivo` con un mensaje
+  listo para mostrar.
+- URLs: `urlArchivo(ref, { variante, descargar, panelSlug })`. En el sitio público se sirven
+  solo los archivos marcados con `marcarPublicos(tx, ids, true)`; en el panel
+  (`panelSlug`), todos los de la banda, con sesión.
+- Un SVG se sirve siempre como descarga (nunca se renderiza). Para mostrar, PNG/JPG/WebP.
+- Borrar: `borrarArchivos(tx, tenantId, ids)` (los bytes se borran al confirmar la transacción).
+
 ## 4. Permisos
 
 - Formato `<id>.recurso.accion`. Un módulo solo declara permisos con su propio prefijo.
@@ -111,6 +133,12 @@ una tabla queda sin RLS, sin política, sin `tenantId` o sin el prefijo de un m�
 - Segmentos dinámicos: `/tienda/[producto]` → `params.producto`. Las rutas fijas ganan.
 - Rutas del núcleo, prohibidas: `/` y `/pago` en el panel; `/ingresar`, `/api` y `/b` en el sitio.
 - Las páginas públicas no leen sesión: es la superficie `"publico"`.
+- Pantallas del panel: usá el kit `@/ui` (sobre el tema de Untitled UI): `Tarjeta`, `Campo`,
+  `AreaTexto`, `Selector`, `CampoArchivo`, `Boton`, `Insignia` y `Formulario` (server action
+  `(estado, datos) => { ok | error }`, que se deshabilita sin permiso de edición).
+- `marcoPublico`: el componente que envuelve TODAS las páginas públicas (cabecera,
+  pestañas, identidad de la banda). Lo aporta un solo módulo (hoy `sitio`); si está
+  apagado, el núcleo usa un marco neutro. Recibe `{ tenantId, pestanas, path, children }`.
 - `navegacion`: `publica: true` es una pestaña del sitio; si no, una entrada del menú del
   panel, que se oculta si el usuario no tiene `permiso`. `orden`: menor va primero.
   `href` tiene que ser una ruta declarada por el mismo módulo.

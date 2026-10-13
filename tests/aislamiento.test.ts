@@ -113,7 +113,7 @@ describe("toda tabla con datos de banda nace con RLS", () => {
 });
 
 describe("tablas de módulos", () => {
-  const NUCLEO = ["usuario", "tenant", "membresia", "dominio", "moduloTenant", "evento", "_prisma_migrations"];
+  const NUCLEO = ["usuario", "tenant", "membresia", "dominio", "moduloTenant", "evento", "archivo", "_prisma_migrations"];
 
   it("toda tabla que no es del núcleo lleva el prefijo de un módulo registrado y tiene tenantId", async () => {
     const { registro } = await import("@/nucleo/modulos");

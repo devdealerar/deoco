@@ -3,6 +3,7 @@ import type {
   DefinicionPermiso,
   Evento,
   EntradaNavegacion,
+  MarcoPublico,
   Modulo,
   PropsRutaPanel,
   PropsRutaPublica,
@@ -14,8 +15,8 @@ const CLAVE_PERMISO = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;
 const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 
 // Rutas que son del núcleo y ningún módulo puede ocupar.
-const RESERVADAS_PANEL = ["/", "/pago"]; // home del panel y pago de la cuota
-const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b"]; // rutas de la plataforma
+const RESERVADAS_PANEL = ["/", "/pago", "/archivos"]; // home del panel, pago de la cuota, archivos
+const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos"]; // plataforma y archivos
 
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };
 export type RutaEncontrada<P> = { moduloId: string; ruta: RutaModulo<P>; params: Record<string, string> };
@@ -33,6 +34,8 @@ export type Registro = {
   emisores(nombre: string): readonly string[];
   /** Manejadores suscriptos a este evento, uno por módulo. */
   suscriptos(nombre: string): readonly Suscripto[];
+  /** El marco del sitio público, si algún módulo lo aporta (a lo sumo uno). */
+  marcoPublico?: { moduloId: string; componente: MarcoPublico };
 };
 
 export class ErrorRegistro extends Error {
@@ -101,6 +104,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   const navegacion: EntradaRegistrada[] = [];
   const emisores = new Map<string, string[]>();
   const suscriptos = new Map<string, Suscripto[]>();
+  let marcoPublico: Registro["marcoPublico"];
 
   for (const m of modulos) {
     if (!ID.test(m.id)) throw new ErrorRegistro(m.id, "id inválido (minúsculas, números y guiones)");
@@ -160,6 +164,13 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       navegacion.push({ ...n, moduloId: m.id });
     }
 
+    if (m.marcoPublico) {
+      if (marcoPublico) {
+        throw new ErrorRegistro(m.id, `marcoPublico: ya lo aporta "${marcoPublico.moduloId}" (solo puede haber uno)`);
+      }
+      marcoPublico = { moduloId: m.id, componente: m.marcoPublico };
+    }
+
     for (const nombre of m.eventosEmite ?? []) {
       const problema = problemaNombreEvento(nombre);
       if (problema) throw new ErrorRegistro(m.id, `eventosEmite: ${problema}`);
@@ -185,5 +196,6 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     navegacion: navegacion.sort((a, b) => a.orden - b.orden),
     emisores: (nombre) => emisores.get(nombre) ?? [],
     suscriptos: (nombre) => suscriptos.get(nombre) ?? [],
+    marcoPublico,
   };
 }

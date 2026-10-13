@@ -54,6 +54,21 @@ export type EntradaNavegacion = {
   orden: number;
 };
 
+/**
+ * Marco del sitio público: lo que envuelve a TODAS las páginas públicas (cabecera,
+ * pestañas, identidad visual), sean del módulo que sea. Lo aporta un solo módulo; si
+ * ese módulo está apagado para la banda, el núcleo usa un marco neutro.
+ */
+export type PropsMarcoPublico = {
+  tenantId: string;
+  /** Pestañas de los módulos prendidos, ya ordenadas. */
+  pestanas: { etiqueta: string; href: string }[];
+  /** Ruta pública actual (para marcar la pestaña activa). */
+  path: string;
+  children: ReactNode;
+};
+export type MarcoPublico = (props: PropsMarcoPublico) => ReactNode | Promise<ReactNode>;
+
 /** Lo que lleva un evento: cualquier valor que se pueda guardar como JSON. */
 export type CargaEvento = Prisma.InputJsonValue;
 
@@ -82,6 +97,8 @@ export type Modulo = {
    * TIENEN QUE SER IDEMPOTENTES: tras un reproceso pueden recibir el mismo evento dos veces.
    */
   eventosEscucha?: { evento: string; manejador: (e: Evento) => Promise<void> }[];
+  /** Marco del sitio público (a lo sumo un módulo lo aporta). */
+  marcoPublico?: MarcoPublico;
   /** Ids de módulos que tienen que estar prendidos para prender este. */
   dependencias?: string[];
 };

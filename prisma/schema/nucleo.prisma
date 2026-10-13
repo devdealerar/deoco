@@ -51,11 +51,14 @@ model Tenant {
   nombre     String
   slug       String         @unique
   estado     EstadoTenant   @default(ACTIVO)
+  /// Espacio para archivos, en bytes. null = DEOCO_LIMITE_ALMACENAMIENTO. Lo fija un plan (el núcleo no los conoce).
+  limiteAlmacenamiento BigInt?
   creadoEn   DateTime       @default(now())
   membresias Membresia[]
   dominios   Dominio[]
   modulos    ModuloTenant[]
   eventos    Evento[]
+  archivos   Archivo[]
 
   @@map("tenant")
 }
@@ -125,4 +128,28 @@ model Evento {
   @@index([tenantId, nombre])
   @@index([tenantId, estado, secuencia])
   @@map("evento")
+}
+
+/// Archivos subidos por los módulos (src/nucleo/archivos). El contenido vive en el
+/// almacén (disco del VPS hoy); acá queda lo necesario para servirlo y medir la cuota.
+model Archivo {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  /// Módulo dueño del archivo.
+  moduloId  String
+  /// Nombre original, para la descarga.
+  nombre    String
+  /// jpeg | png | webp | pdf | svg (detectado por contenido, no por extensión)
+  tipo      String
+  /// Original + versiones livianas: lo que cuenta para la cuota.
+  bytes     BigInt
+  /// Versiones livianas generadas (p. ej. "web"), en WebP.
+  variantes String[] @default([])
+  /// Se sirve en el sitio público. Lo decide el módulo (p. ej. al publicar).
+  publico   Boolean  @default(false)
+  creadoEn  DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, moduloId])
+  @@map("archivo")
 }

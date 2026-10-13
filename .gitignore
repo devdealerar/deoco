@@ -47,3 +47,6 @@ next-env.d.ts
 
 # esquemas de módulos copiados por scripts/descubrir-modulos.mjs
 /prisma/schema/modulos
+
+# archivos subidos en desarrollo/pruebas (almacén en disco)
+/.archivos*

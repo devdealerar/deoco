@@ -22,6 +22,10 @@ export default function config(fase: string): NextConfig {
     experimental: {
       // forbidden() → 403
       authInterrupts: true,
+      // Subidas de archivos por server action: hasta 25 MB por archivo (MAX_BYTES_ARCHIVO)
+      // más el sobrante del multipart. El proxy también tiene que dejar pasar ese cuerpo.
+      serverActions: { bodySizeLimit: "26mb" },
+      proxyClientMaxBodySize: "26mb",
     },
     // Desarrollo con subdominios *.lvh.me (ver CLAUDE.md).
     allowedDevOrigins: ["*.lvh.me"],

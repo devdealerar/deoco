@@ -5,18 +5,44 @@
 | # | Parte | Estado |
 | --- | --- | --- |
 | 1 | Tablas de módulos (infraestructura) + guía | ✅ hecha |
-| 2 | Esquema de `modulos/sitio` + migración con RLS | ✅ hecha, en revisión |
-| 3 | Almacenamiento de archivos | 📝 propuesta, esperando aprobación |
-| 4 | Untitled UI + pantallas del panel | ⏳ |
-| 5 | Sitio público: home y press kit | ⏳ |
+| 2 | Esquema de `modulos/sitio` + migración con RLS | ✅ aprobada |
+| 3 | Almacenamiento de archivos (disco + `Almacen`, cuota, sharp, SVG como descarga) | ✅ hecha, en revisión |
+| 4 | `marcoPublico` en el contrato | ✅ hecha, en revisión |
+| 5 | Borrador y publicado (`sitio_publicacion`) | ✅ hecha, en revisión |
+| 6 | Pantallas del panel (tema Untitled UI + kit `src/ui`) | ✅ hecha, en revisión — componentes oficiales pendientes (red) |
+| 7 | Sitio público: home y press kit | ✅ hecha, en revisión |
+
+### Pruebas del módulo sitio
+
+- [x] 1. La banda carga home y press kit desde el panel y se ven en su sitio — e2e
+- [x] 2. El sitio público responde sin sesión y no filtra nada del panel — e2e
+- [x] 3. Dos bandas con contenido distinto: cada sitio muestra lo suyo — e2e
+- [x] 4. Un rol sin `sitio.contenido.editar` ve el panel pero no puede guardar (UI y servidor) — e2e
+- [x] 5. Las tablas del módulo tienen RLS — `tests/aislamiento.test.ts`
+- [x] 6. Un archivo de la banda A no es accesible desde el sitio de la B — `tests/archivos.test.ts` + e2e
+- [x] 7. Lo guardado en borrador no aparece en el sitio hasta que se publica — e2e
+- [x] 8. Un SVG descargable se sirve como descarga, no se renderiza — `tests/archivos.test.ts` + e2e
+- [x] 9. Pasada la cuota, la subida se rechaza con un mensaje claro — `tests/archivos.test.ts` + e2e
+
+E2E en `tests/e2e/sitio.e2e.ts`.
 
 Decisiones:
+- Borrador = las tablas `sitio_*`; publicado = foto JSON en `sitio_publicacion`. Un solo
+  renderizador para el sitio público y la vista previa. Al publicar, los archivos usados quedan
+  públicos y los que ya no usa nadie se borran. Comparación borrador/publicado con claves
+  ordenadas (jsonb no conserva el orden).
+- Versiones web (WebP): slider 1600 px, fondo 2000 px, logo 600 px, miniaturas del press kit 800 px.
+  Los descargables conservan el original.
+- Tipografías del sitio (Inter, Fraunces, Space Mono) desde paquetes @fontsource: sin terceros.
+- Untitled UI: `untitledui init` instaló el tema oficial; `untitledui add` no puede bajar
+  componentes (untitledui.com y github.com bloqueados por la red del entorno, 403). Pantallas
+  con un kit propio sobre el tema, en `src/ui/`, para reemplazar por los oficiales.
 - La superficie pública del núcleo pasó de `"sitio"` a `"publico"`: chocaba con el id del
   módulo `sitio` (lo detectó la prueba de la regla de oro).
 - Archivos en el esquema del sitio: solo ids (`...ArchivoId`), independientes del almacenamiento.
 
-Preguntas:
-- ¿"Publicar" es un paso aparte (borrador → publicado) o lo guardado ya está publicado?
+Pendiente:
+- Habilitar untitledui.com en la red del entorno y reemplazar `src/ui` por los componentes oficiales.
 
 ## Paso 2 · Parte 0 · Cierres antes del módulo de sitio
 

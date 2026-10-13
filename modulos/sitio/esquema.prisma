@@ -91,3 +91,15 @@ enum SitioTipoDescargable {
   FOTO
   LOGO
 }
+
+/// Lo publicado: una foto (JSON) del contenido al momento de publicar. El sitio
+/// público lee solo esto; el panel edita las tablas de arriba (el borrador).
+model SitioPublicacion {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @unique @db.Uuid
+  contenido    Json
+  publicadoEn  DateTime
+  publicadoPor String?  @db.Uuid
+
+  @@map("sitio_publicacion")
+}

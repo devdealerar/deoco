@@ -217,6 +217,8 @@ describe("el registro valida el contrato al arrancar", () => {
       [mod("a", { permisos: [{ clave: "a.x.ver", rolesPorDefecto: [] }], rutasPublicas: [{ ruta: "/a", componente: nada }], navegacion: [{ etiqueta: "A", href: "/a", publica: true, permiso: "a.x.ver", orden: 1 }] })],
       /no llevan permiso/,
     ],
+    ["dos marcos públicos", [mod("a", { marcoPublico: nada }), mod("b", { marcoPublico: nada })], /ya lo aporta "a"/],
+    ["ruta pública del núcleo: /archivos", [mod("a", { rutasPublicas: [{ ruta: "/archivos/x", componente: nada }] })], /es del núcleo/],
     [
       "navegación a una ruta que no existe",
       [mod("a", { navegacion: [{ etiqueta: "A", href: "/a", orden: 1 }] })],

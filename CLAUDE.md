@@ -72,6 +72,23 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   `SELECT deoco_aislar_tabla('<tabla>')`. `tests/aislamiento.test.ts` exige RLS, política,
   `tenantId` y prefijo en toda tabla que no sea del núcleo.
 
+## Archivos
+
+- `src/nucleo/archivos`: interfaz `Almacen` (hoy `AlmacenDisco` en `DEOCO_ARCHIVOS_DIR`, un volumen
+  en Easypanel; mañana S3/MinIO/R2 por `DEOCO_ALMACEN`) + tabla `archivo` (RLS).
+- `guardarArchivo` valida tipo por contenido, tamaño (≤25 MB) y cuota (`tenant.limiteAlmacenamiento`
+  o `DEOCO_LIMITE_ALMACENAMIENTO`); genera versiones WebP con sharp.
+- Se sirven en `/archivos/<id>/<nombre>` (sitio público: solo `publico`, por host) y
+  `/b/<slug>/archivos/...` (panel, con sesión). SVG siempre como descarga, con CSP sandbox.
+
+## Panel y sitio público
+
+- Panel: tema oficial de Untitled UI (`src/styles/`) + kit propio `src/ui/` (los componentes
+  oficiales se bajan de untitledui.com, hoy bloqueado por la red del entorno; ver `src/ui/README.md`).
+- Sitio público: estilo propio de cada banda (marco del módulo sitio, `marcoPublico`).
+- Demo: `npm run db:demo` (Los Satélites y Niebla Norte, usuarios `titular@demo.com`,
+  `lectura@demo.com`, `staff@deoco.com`, clave `demo1234`).
+
 ## Bus de eventos
 
 - `emitir(nombre, tenantId, payload, usuarioId?)` (`src/nucleo/eventos/bus.ts`): guarda la fila
@@ -99,7 +116,8 @@ psql -c "CREATE ROLE deoco_owner LOGIN PASSWORD 'owner' CREATEDB"
 psql -c "CREATE DATABASE deoco OWNER deoco_owner"
 psql -d deoco -v clave="'app'" -f prisma/sql/crear-rol-app.sql
 npm run db:migrar
-npm run db:semilla            # banda-a.lvh.me y banda-b.lvh.me
+npm run db:semilla            # banda-a.lvh.me y banda-b.lvh.me (vacías)
+npm run db:demo               # dos bandas con el sitio cargado y publicado
 
 # base de pruebas
 psql -c "CREATE DATABASE deoco_test OWNER deoco_owner"
