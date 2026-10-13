@@ -7,9 +7,15 @@ export class ErrorSecreto extends Error {}
 
 const VERSION = 1;
 
-/** null si la variable falta o no son 32 bytes en base64. */
-export function claveMaestra(env: Record<string, string | undefined> = process.env): Buffer | null {
-  const cruda = env.DEOCO_CLAVE_SECRETOS?.trim();
+/**
+ * null si la variable falta o no son 32 bytes en base64. `variable`: la actual, o la anterior
+ * durante una rotación (DEOCO_CLAVE_SECRETOS_ANTERIOR, ver docs/despliegue.md).
+ */
+export function claveMaestra(
+  env: Record<string, string | undefined> = process.env,
+  variable: "DEOCO_CLAVE_SECRETOS" | "DEOCO_CLAVE_SECRETOS_ANTERIOR" = "DEOCO_CLAVE_SECRETOS",
+): Buffer | null {
+  const cruda = env[variable]?.trim();
   if (!cruda) return null;
   const clave = Buffer.from(cruda, "base64");
   return clave.length === 32 ? clave : null;
@@ -36,15 +42,20 @@ export function cifrar(valor: string, contexto: string): Uint8Array<ArrayBuffer>
 export function descifrar(cifrado: Uint8Array, contexto: string): string {
   const b = Buffer.from(cifrado);
   if (b[0] !== VERSION || b.length < 29) throw new ErrorSecreto("Credencial guardada con un formato desconocido.");
-  try {
-    const d = createDecipheriv("aes-256-gcm", exigirClave(), b.subarray(1, 13));
-    d.setAAD(Buffer.from(contexto));
-    d.setAuthTag(b.subarray(13, 29));
-    return Buffer.concat([d.update(b.subarray(29)), d.final()]).toString("utf8");
-  } catch {
-    // Sin detalles: ni el valor ni el cifrado van a un mensaje o a un log.
-    throw new ErrorSecreto("No se pudo descifrar la credencial (¿cambió DEOCO_CLAVE_SECRETOS?). Hay que volver a cargarla.");
+  // Durante una rotación, lo que todavía no se recifró está con la anterior.
+  const claves = [exigirClave(), claveMaestra(process.env, "DEOCO_CLAVE_SECRETOS_ANTERIOR")].filter((c) => c !== null);
+  for (const clave of claves) {
+    try {
+      const d = createDecipheriv("aes-256-gcm", clave, b.subarray(1, 13));
+      d.setAAD(Buffer.from(contexto));
+      d.setAuthTag(b.subarray(13, 29));
+      return Buffer.concat([d.update(b.subarray(29)), d.final()]).toString("utf8");
+    } catch {
+      // probar con la siguiente
+    }
   }
+  // Sin detalles: ni el valor ni el cifrado van a un mensaje o a un log.
+  throw new ErrorSecreto("No se pudo descifrar la credencial (¿cambió DEOCO_CLAVE_SECRETOS?). Hay que volver a cargarla.");
 }
 
 /** "…a1b2" si es largo (los últimos 4 no lo delatan); si es corto, nada. */

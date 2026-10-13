@@ -90,6 +90,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   AES-256-GCM con `DEOCO_CLAVE_SECRETOS`, atado a banda/módulo/clave.
 - Lectura (módulos): `leerSecreto(suPropioContrato, tenantId, clave)` (`src/nucleo/secretos`).
   Carga (núcleo, solo titular): `src/nucleo/secretos/carga.ts`, pantalla `/b/<slug>/credenciales`.
+- Rotación de la clave: `DEOCO_CLAVE_SECRETOS_ANTERIOR` + `scripts/rotar-clave-secretos.mjs` (docs/despliegue.md).
 - Un módulo no importa el registro ni la carga (`tests/modulos.test.ts`). Nunca se loguea ni
   se muestra un valor completo. El arranque exige la clave si algún módulo declara secretos.
 
@@ -142,6 +143,12 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - Sitio público: estilo propio de cada banda (marco del módulo sitio, `marcoPublico`).
 - Demo: `npm run db:demo` (Los Satélites y Niebla Norte, usuarios `titular@demo.com`,
   `lectura@demo.com`, `staff@deoco.com`, clave `demo1234`).
+
+## Barrido (`src/nucleo/barrido.ts`)
+
+- Al arrancar (producción) y cada `DEOCO_BARRIDO_SEGUNDOS`: retoma eventos y correos pendientes
+  de todas las bandas (`bandas_con_pendientes()`, solo ids) y revisa dominios propios cada 6 h.
+- Evento y correo se "toman" en la base (`tomadoEn`) antes de procesarse: nunca dos veces.
 
 ## Bus de eventos
 

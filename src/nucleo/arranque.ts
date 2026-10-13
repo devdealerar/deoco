@@ -51,6 +51,9 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
 /** Problemas que solo se ven conectando a la base (con la conexión de la app). */
 /** La clave de cifrado de secretos hace falta solo si algún módulo declara secretos. */
 export function problemasDeSecretos(modulos: readonly Modulo[], env: Entorno): string[] {
+  if (env.DEOCO_CLAVE_SECRETOS_ANTERIOR?.trim() && !claveMaestra(env, "DEOCO_CLAVE_SECRETOS_ANTERIOR")) {
+    return ["DEOCO_CLAVE_SECRETOS_ANTERIOR (rotación) no es de 32 bytes en base64: es la clave vieja tal cual estaba."];
+  }
   const usan = modulos.filter((m) => m.secretos?.length).map((m) => m.id);
   if (usan.length === 0 || claveMaestra(env)) return [];
   return [

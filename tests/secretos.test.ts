@@ -189,3 +189,72 @@ describe("contrato y arranque", () => {
     expect(problemasDeSecretos([pasarela], { DEOCO_CLAVE_SECRETOS: Buffer.alloc(32).toString("base64") })).toEqual([]);
   });
 });
+
+describe("rotación de DEOCO_CLAVE_SECRETOS", () => {
+  const VIEJA = Buffer.alloc(32, 1).toString("base64");
+  const NUEVA = Buffer.alloc(32, 2).toString("base64");
+  const entorno = { actual: process.env.DEOCO_CLAVE_SECRETOS, anterior: process.env.DEOCO_CLAVE_SECRETOS_ANTERIOR };
+  afterEach(() => {
+    process.env.DEOCO_CLAVE_SECRETOS = entorno.actual;
+    if (entorno.anterior === undefined) delete process.env.DEOCO_CLAVE_SECRETOS_ANTERIOR;
+    else process.env.DEOCO_CLAVE_SECRETOS_ANTERIOR = entorno.anterior;
+  });
+
+  async function conDueno<T>(fn: (db: import("pg").Client) => Promise<T>): Promise<T> {
+    const { default: pg } = await import("pg");
+    const db = new pg.Client({ connectionString: process.env.DATABASE_URL_MIGRACIONES });
+    await db.connect();
+    try {
+      return await fn(db);
+    } finally {
+      await db.end();
+    }
+  }
+
+  it("con la anterior configurada se sigue leyendo; el script recifra todo con la nueva y es repetible", async () => {
+    const { leerClave, rotarSecretos } = await import("../scripts/rotar-clave-secretos.mjs");
+    process.env.DEOCO_CLAVE_SECRETOS = VIEJA;
+    await guardar(e.multi.id);
+
+    // Paso 1: la nueva pasa a ser la actual y la vieja queda como anterior. Se sigue leyendo.
+    process.env.DEOCO_CLAVE_SECRETOS = NUEVA;
+    process.env.DEOCO_CLAVE_SECRETOS_ANTERIOR = VIEJA;
+    expect(await leerSecreto(pasarela, e.a.id, "access_token", reg)).toBe(TOKEN);
+    // Lo que se carga mientras tanto ya va con la nueva.
+    await guardarSecreto(e.multi.id, e.a.id, "otro-falso", "api_key", "clave-cargada-durante-la-rotacion", reg);
+
+    // Paso 2: el script.
+    const r = await conDueno((db) => rotarSecretos(db, { anterior: leerClave(VIEJA)!, nueva: leerClave(NUEVA)! }));
+    expect(r).toEqual({ recifradas: 1, yaEstaban: 1 });
+    expect(await conDueno((db) => rotarSecretos(db, { anterior: leerClave(VIEJA)!, nueva: leerClave(NUEVA)! }))).toEqual({
+      recifradas: 0,
+      yaEstaban: 2,
+    });
+
+    // Paso 3: sin la anterior, todo se lee con la nueva.
+    delete process.env.DEOCO_CLAVE_SECRETOS_ANTERIOR;
+    expect(await leerSecreto(pasarela, e.a.id, "access_token", reg)).toBe(TOKEN);
+    expect(await leerSecreto(otro, e.a.id, "api_key", reg)).toBe("clave-cargada-durante-la-rotacion");
+  });
+
+  it("si una no abre con ninguna de las dos, no cambia nada y dice cuál, sin el valor", async () => {
+    const { leerClave, rotarSecretos } = await import("../scripts/rotar-clave-secretos.mjs");
+    process.env.DEOCO_CLAVE_SECRETOS = VIEJA;
+    await guardar(e.multi.id);
+    process.env.DEOCO_CLAVE_SECRETOS = Buffer.alloc(32, 9).toString("base64"); // una tercera
+    await guardarSecreto(e.multi.id, e.a.id, "otro-falso", "api_key", "cifrada-con-una-tercera-clave", reg);
+    const antes = await dueno.secreto.findMany({ orderBy: { id: "asc" } });
+    const error = await conDueno((db) => rotarSecretos(db, { anterior: leerClave(VIEJA)!, nueva: leerClave(NUEVA)! })).catch((x) => x);
+    expect(error.message).toMatch(new RegExp(`1 credenciales .*\\n.*banda ${e.a.id} · otro-falso · api_key`));
+    expect(error.message).not.toContain("tercera");
+    expect(await dueno.secreto.findMany({ orderBy: { id: "asc" } })).toEqual(antes);
+  });
+
+  it("el arranque avisa si la anterior está mal escrita", () => {
+    const ok = Buffer.alloc(32).toString("base64");
+    expect(problemasDeSecretos([pasarela], { DEOCO_CLAVE_SECRETOS: ok, DEOCO_CLAVE_SECRETOS_ANTERIOR: "corta" })).toEqual([
+      expect.stringMatching(/DEOCO_CLAVE_SECRETOS_ANTERIOR/),
+    ]);
+    expect(problemasDeSecretos([pasarela], { DEOCO_CLAVE_SECRETOS: ok, DEOCO_CLAVE_SECRETOS_ANTERIOR: VIEJA })).toEqual([]);
+  });
+});

@@ -34,3 +34,15 @@ y por qué. Si alguna no va, se cambia.
    correo (no estaba pedido).
 4. **Si no se sabe la IP** del servidor (sin `DEOCO_IP_PUBLICA` y sin DNS de `app.<raíz>`), no
    se revisa nada (aviso en el log): mejor no marcar que marcar todo mal.
+
+## A3 · Rotación de la clave de secretos
+
+1. **Dos claves a la vez** durante la rotación (`DEOCO_CLAVE_SECRETOS_ANTERIOR`): así no hay
+   corte, ni hace falta apagar la app. Se cifra siempre con la actual.
+2. **Script en la consola** (`node scripts/rotar-clave-secretos.mjs`, con el rol dueño como
+   `crear-staff.mjs`), no una pantalla del back office: es una operación de servidor, rara,
+   y la clave no debería pasar por un formulario.
+3. **Todo o nada**: si una credencial no abre con ninguna, no se recifra ninguna. Mejor un
+   estado único (todas con la misma clave) que uno mezclado.
+4. El script repite el formato de `src/nucleo/secretos/cifrado.ts` en JS (la imagen no trae
+   `tsx`); una prueba cifra con el núcleo, rota con el script y lee con el núcleo.

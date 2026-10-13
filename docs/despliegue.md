@@ -161,7 +161,8 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
 | `DEOCO_ARCHIVOS_DIR` | no | `/data/archivos` (valor de la imagen) |
 | `DEOCO_ALMACEN` | no | `disco` (único implementado) |
 | `DEOCO_LIMITE_ALMACENAMIENTO` | no | espacio por banda en bytes; por defecto 1 GiB |
-| `DEOCO_CLAVE_SECRETOS` | si algún módulo guarda credenciales | `openssl rand -base64 32` — **fija**: si cambia, las credenciales de las bandas no se pueden leer y hay que volver a cargarlas |
+| `DEOCO_CLAVE_SECRETOS` | si algún módulo guarda credenciales | `openssl rand -base64 32` — **fija**: si cambia sin rotar, las credenciales de las bandas no se pueden leer. Para cambiarla, ver "Rotar la clave de secretos" |
+| `DEOCO_CLAVE_SECRETOS_ANTERIOR` | solo durante una rotación | La clave vieja: lo que todavía no se recifró se lee con ella |
 | `DEOCO_CORREO` | para que salgan correos | `smtp` (producción) o `memoria` (desarrollo). Sin ella, en producción los correos quedan pendientes |
 | `DEOCO_SMTP_URL` | con `DEOCO_CORREO=smtp` | `smtps://resend:<API key>@smtp.resend.com:465` |
 | `DEOCO_CORREO_REMITENTE` | con `DEOCO_CORREO=smtp` | `tiendas@deoco.com` (dominio verificado en Resend) |
@@ -177,6 +178,23 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
    `DEOCO_CORREO_REMITENTE=tiendas@deoco.com`. Si falta algo, la app no arranca y dice qué.
 
 Para cambiar de proveedor (Postmark, SES) solo cambia `DEOCO_SMTP_URL`.
+
+## Rotar la clave de secretos
+
+Para cambiar `DEOCO_CLAVE_SECRETOS` (se filtró, o por rutina) sin que las bandas tengan que
+volver a cargar sus credenciales:
+
+1. Generá la nueva: `openssl rand -base64 32`. Guardala aparte junto con la vieja.
+2. En Easypanel (servicio de la app → Environment): `DEOCO_CLAVE_SECRETOS_ANTERIOR` = la
+   **vieja**, `DEOCO_CLAVE_SECRETOS` = la **nueva**. Deploy. Desde acá la app lee con
+   cualquiera de las dos y todo lo que se carga va con la nueva: no hay corte.
+3. En la consola del servicio de la app:
+   `node scripts/rotar-clave-secretos.mjs`
+   Recifra todas las credenciales con la nueva, en una sola transacción. Dice cuántas
+   recifró. Si alguna no abre con ninguna de las dos claves, no cambia **nada** y dice cuál
+   (banda, módulo, clave; nunca el valor): esa la tiene que volver a cargar la banda (o
+   borrarla) y se corre de nuevo. Se puede correr las veces que haga falta.
+4. Quitá `DEOCO_CLAVE_SECRETOS_ANTERIOR` y hacé deploy. La vieja ya no sirve para nada.
 
 ## Respaldos
 
