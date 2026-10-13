@@ -13,8 +13,8 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
 | 1 | Correo del núcleo, `conStaff()`, `rutasAdmin`, `urlFirmada()` | ✅ hecha |
 | 2 | Catálogo base y proveedores, desde el back office | ✅ hecha |
 | 3 | Panel de la banda: diseños, productos, precios y margen | ✅ hecha |
-| 4 | Tienda pública: catálogo, carrito, checkout | ✅ hecha (a revisar) |
-| 5 | Pago con Mercado Pago, aviso y deuda con el proveedor | pendiente |
+| 4 | Tienda pública: catálogo, carrito, checkout | ✅ hecha |
+| 5 | Pago con Mercado Pago, aviso y deuda con el proveedor | ✅ hecha (a revisar) |
 | 6 | Mails: confirmación al fan y orden al proveedor | pendiente |
 
 - Correo: tabla `correo` (RLS), estados PENDIENTE → ENVIANDO → ENVIADO/FALLIDO, `claveUnica`.
@@ -57,8 +57,7 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
     un precio cambió. Una respuesta vieja de revisión no se muestra.
   - Checkout: datos del fan, dirección (24 provincias, CP de 4 dígitos o CPA), resumen. El
     pedido nace PENDIENTE con su copia de precio y envío por renglón y sus totales.
-  - Total = suma de precios + suma de envíos (envío por unidad). Ojo: tres remeras pagan tres
-    envíos (ver pregunta abierta).
+  - Total = suma de precios + UN envío por pedido, el mayor de los productos (parte 5).
   - Aislamiento: además de buscar el producto bajo RLS, claves foráneas compuestas
     (tenantId, productoId) / (tenantId, pedidoId) / (tenantId, disenoId): la base rechaza
     mezclar bandas aunque se salteen las validaciones (incluso con el rol dueño).
@@ -66,6 +65,28 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
     confirmar) y la banda ve un aviso en su panel con el link a Credenciales (titular).
   - Pasarelas: `modulos/tienda/pasarelas/` (interfaz + Mercado Pago, por ahora solo las
     credenciales; el cobro en la parte 5).
+- Parte 5 (pago y deuda):
+  - Envío: lo paga el fan aparte, uno por pedido (el mayor). Margen = precio − producción.
+  - Pasarela (`modulos/tienda/pasarelas/`): `crearCobro`, `leerAviso`, `consultarCobro`,
+    `probarConexion`. Mercado Pago: Checkout Pro con el token de la banda; `notification_url`
+    = `urlAviso(…, "/pago/mercadopago")`, `external_reference` = id del pedido; vuelta a
+    `/tienda/pedido/<id>?resultado=exito|fallo|pendiente`. En pruebas, `DEOCO_MERCADOPAGO_API`
+    apunta a un Mercado Pago falso (`tests/mercadopago-falso.ts`).
+  - Aviso: del cuerpo solo se toma el id; el cobro se consulta a la API con el token de la
+    banda. Firma `x-signature` verificada si el titular cargó la clave de webhooks (opcional).
+  - PENDIENTE → PAGADO condicional, solo si: aprobado, pedido de esa banda (RLS), monto y
+    moneda (ARS) iguales. En la misma transacción: copia de costos, deuda y
+    `emitir("pedido.pagado", …, { unica: "<pasarela>:<cobro>" })`.
+  - Estados: PENDIENTE (con lo último que dijo la pasarela: pendiente, rechazado), PAGADO,
+    EN_REVISION (aprobado pero no coincide: la banda lo ve marcado), CANCELADO (reservado).
+    El fan ve en qué anda su pedido, puede reintentar el pago y la página se actualiza sola
+    mientras se acredita.
+  - Deuda (`tienda_deuda`): por (pedido, proveedor), producción de sus renglones + un envío
+    (el mayor de sus renglones). Panel: "Deuda con proveedores"; back office: por banda y
+    proveedor (`conStaff`, lectura auditada; políticas `lectura_staff` en `tienda_deuda` y
+    `tenant`). `saldarDeudas()` lista (quién, cuándo, nota), sin pantalla: conviene que la
+    confirme el proveedor desde su panel.
+  - "Probar conexión" (titular, `tienda.pasarela.conectar` exclusivo): a nombre de quién cobra.
 - `conStaff`: la auditoría se inserta sin RETURNING (la política deja insertar, no leer).
 - Pendiente anotado: barrido de correos y eventos pendientes al arrancar (hoy salen con el
   siguiente de la misma banda o al reintentar).
@@ -397,6 +418,7 @@ Las cinco pruebas originales pasan:
 
 ## Preguntas abiertas
 
-- Tienda · envío: hoy el fan paga precio + envío y el margen (parte 3) resta el envío: el envío
-  se estaría descontando dos veces. ¿El precio incluye el envío o el fan lo paga aparte?
-- Tienda · envío con varias unidades: se suma un envío por unidad (3 remeras = 3 envíos).
+- Tienda · pedido con productos de dos proveedores: el fan paga un envío (el mayor) pero cada
+  proveedor despacha su paquete y cobra su envío; la banda pone la diferencia.
+- Tienda · un mismo pedido pagado dos veces (el fan pagó dos cobros): el segundo aviso no
+  cambia nada ("ya-pagado"); la devolución la hace la banda en su pasarela.

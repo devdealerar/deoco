@@ -12,8 +12,11 @@ import { productosPublicados } from "../productos";
 import { Agregar } from "./agregar";
 import { Carrito } from "./carrito";
 import { Checkout } from "./checkout";
+import { estadoParaFan } from "../estados";
 import { c } from "./estilo";
 import { fotoDeProducto, urlFoto } from "./foto";
+import { Pagar } from "./pagar";
+import { Refrescar } from "./refrescar";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -101,7 +104,7 @@ export async function FichaProducto({ tenantId, params }: PropsRutaPublica) {
         </Link>
         <h1 className="text-3xl font-black tracking-tight">{p.nombre}</h1>
         <div className="text-2xl font-bold tabular-nums" data-precio>
-          {formatearPesos(p.precio)} <span className={`text-sm font-normal ${c.suave}`}>+ envío {formatearPesos(p.productoBase.costoEnvio)}</span>
+          {formatearPesos(p.precio)} <span className={`text-sm font-normal ${c.suave}`}>+ envío {formatearPesos(p.productoBase.costoEnvio)} (uno por pedido)</span>
         </div>
         {p.descripcion && <p className={`whitespace-pre-line ${c.suave}`}>{p.descripcion}</p>}
         {!lista && <NoDisponible />}
@@ -133,16 +136,25 @@ export function CheckoutPublico(_: PropsRutaPublica) {
   );
 }
 
-/** /tienda/pedido/<id>: pedido recibido. Sin datos personales del fan (el id no es un secreto fuerte). */
-export async function PedidoPublico({ tenantId, params }: PropsRutaPublica) {
+/** /tienda/pedido/<id>: en qué anda el pedido. Sin datos personales del fan (el id no es un secreto fuerte). */
+export async function PedidoPublico({ tenantId, params, consulta }: PropsRutaPublica) {
   if (!UUID.test(params.id)) notFound();
   const pedido = await conTenant(tenantId, (tx) => tx.tiendaPedido.findUnique({ where: { id: params.id }, include: { items: true } }));
   if (!pedido) notFound();
+  const resultado = consulta.get("resultado");
+  const estado = estadoParaFan(pedido, resultado);
+  const esperandoAcreditacion = pedido.estado === "PENDIENTE" && (resultado === "exito" || pedido.estadoCobro === "approved");
+  const puedePagar = pedido.estado === "PENDIENTE" && !esperandoAcreditacion;
   return (
-    <Pagina titulo="Pedido recibido">
-      <p data-estado-pedido={pedido.estado}>
-        {pedido.estado === "PENDIENTE" ? "Recibimos tu pedido. Falta el pago." : pedido.estado === "PAGADO" ? "¡Pago recibido! Gracias." : "Este pedido se canceló."}
-      </p>
+    <Pagina titulo="Tu pedido">
+      <div className="flex flex-col gap-2" data-estado-pedido={pedido.estado}>
+        <p className="text-xl font-black" data-titulo-estado>
+          {estado.titulo}
+        </p>
+        <p className={c.suave}>{estado.detalle}</p>
+      </div>
+      {esperandoAcreditacion && <Refrescar />}
+      {puedePagar && <Pagar pedidoId={pedido.id} />}
       <ul className={`divide-y ${c.linea}`}>
         {pedido.items.map((i) => (
           <li key={i.id} className="flex justify-between py-2">

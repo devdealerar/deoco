@@ -205,12 +205,15 @@ describe("prueba 5: sin credenciales no se compra", () => {
   });
 });
 
-describe("prueba 6: total = suma de precios + suma de envíos", () => {
-  it("dos remeras y un poster", async () => {
+describe("prueba 6: total = suma de precios + un solo envío, el mayor", () => {
+  it("dos remeras y un poster: un paquete", async () => {
     const { remera, poster } = await tiendaDe(e.a.id, e.multi.id);
     const pedido = await crearPedido(tienda, e.a.id, [linea(remera.id, { Talle: "M" }, 2), linea(poster.id)], FAN);
-    // 2 × 25.000 + 15.000 = 65.000 · envíos 2 × 3.500 + 3.000 = 10.000 · total 75.000
-    expect(pedido).toMatchObject({ estado: "PENDIENTE", subtotal: 6500000, envio: 1000000, total: 7500000 });
+    // 2 × 25.000 + 15.000 = 65.000 · envío: el mayor entre 3.500 y 3.000 = 3.500 · total 68.500
+    expect(pedido).toMatchObject({ estado: "PENDIENTE", subtotal: 6500000, envio: 350000, total: 6850000 });
+    // Tres remeras solas: un envío, no tres.
+    const solo = await crearPedido(tienda, e.a.id, [linea(remera.id, { Talle: "S" }, 3)], FAN);
+    expect(solo).toMatchObject({ subtotal: 7500000, envio: 350000, total: 7850000 });
     expect(pedido).toMatchObject({ email: "lucia@fan.com", codigoPostal: "S2000ABC", provincia: "Santa Fe" });
   });
 });

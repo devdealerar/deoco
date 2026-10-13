@@ -1,3 +1,4 @@
+import { request } from "node:http";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { conStaffComo } from "@/nucleo/acceso/staff";
@@ -6,7 +7,25 @@ import { guardarSecreto } from "@/nucleo/secretos/carga";
 import { type ComoStaff, crearProductoBase, crearProveedor, leerOpciones } from "../../modulos/tienda/catalogo";
 import { actualizarProducto, crearProducto, publicarProducto, subirDiseno } from "../../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "../apoyo";
+import { MercadoPagoFalso } from "../mercadopago-falso";
 import { APP, abrirNavegador, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado, sitio } from "./navegador";
+import { PUERTO, PUERTO_MP } from "./servidor";
+
+const mp = new MercadoPagoFalso();
+const TOKEN_A = "APP_USR-1234567890-token-de-prueba";
+
+/** POST crudo al servidor de pruebas (lo que haría Mercado Pago con el aviso). */
+function postear(host: string, path: string, cuerpo: string) {
+  return new Promise<{ estado: number; cuerpo: string }>((ok, mal) => {
+    const r = request({ host: "127.0.0.1", port: PUERTO, path, method: "POST", headers: { host: `${host}:${PUERTO}`, "content-type": "application/json" } }, (res) => {
+      let d = "";
+      res.on("data", (c) => (d += c));
+      res.on("end", () => ok({ estado: res.statusCode!, cuerpo: d }));
+    });
+    r.on("error", mal);
+    r.end(cuerpo);
+  });
+}
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
 const SITIO = sitio("banda-a");
@@ -14,16 +33,18 @@ let remera: Awaited<ReturnType<typeof crearProducto>>;
 let poster: Awaited<ReturnType<typeof crearProducto>>;
 let borrador: Awaited<ReturnType<typeof crearProducto>>;
 const TALLES = [{ nombre: "Talle", valores: ["S", "M", "L"] }];
-const TOKEN = () => guardarSecreto(e.multi.id, e.a.id, "tienda", "mercadopago_access_token", "APP_USR-1234567890-token-de-prueba");
+const TOKEN = () => guardarSecreto(e.multi.id, e.a.id, "tienda", "mercadopago_access_token", TOKEN_A);
 
 const png = (a: number, h: number) =>
   sharp({ create: { width: a, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).withMetadata({ density: 300 }).png().toBuffer();
 const plano = async (l: import("playwright-core").Locator) => ((await l.textContent()) ?? "").replace(/\s/g, " ");
 
 beforeAll(async () => {
+  await mp.iniciar(PUERTO_MP);
+  mp.cuentas.set(TOKEN_A, { nickname: "LOSSATELITES", email: "cobros@banda-a.com" });
   e = await escenarioAcceso();
   await dominiosDeDesarrollo(e.a, e.b);
-  for (const t of ["tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
+  for (const t of ["tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   const comoStaff: ComoStaff = (accion, fn) => conStaffComo(e.staff.id, accion, fn);
@@ -49,12 +70,13 @@ beforeAll(async () => {
 afterEach(() => cerrarContextos());
 afterAll(async () => {
   await cerrarNavegador();
+  await mp.cerrar();
   await dueno.moduloTenant.deleteMany({ where: { moduloId: { in: ["tienda", "sitio"] } } });
   await dueno.$disconnect();
 });
 
 describe("tienda pública", () => {
-  it("pruebas 1 y 6: pestaña Tienda en el marco de la banda; solo publicados; carrito en la cabecera; total con envíos", async () => {
+  it("del catálogo a la pasarela de la banda, el aviso y la deuda: solo publicados, total con un envío, PAGADO una vez", async () => {
     const { page } = await anonimo();
     await page.goto(SITIO);
     await page.click('nav[aria-label="Sitio"] a:text("Tienda")');
@@ -84,10 +106,10 @@ describe("tienda pública", () => {
 
     await page.goto(`${SITIO}/tienda/carrito`);
     await page.locator("[data-total]").waitFor();
-    // 2 × 25.000 + 15.000 = 65.000; envíos 2 × 3.500 + 3.000 = 10.000; total 75.000
+    // Prueba 6: 2 × 25.000 + 15.000 = 65.000; un envío, el mayor: 3.500; total 68.500
     expect(await plano(page.locator("[data-subtotal]"))).toBe("$ 65.000");
-    expect(await plano(page.locator("[data-envio]"))).toBe("$ 10.000");
-    expect(await plano(page.locator("[data-total]"))).toBe("$ 75.000");
+    expect(await plano(page.locator("[data-envio]"))).toBe("$ 3.500");
+    expect(await plano(page.locator("[data-total]"))).toBe("$ 68.500");
 
     // Checkout → pedido PENDIENTE con su copia de precios.
     await page.click("text=Ir a pagar");
@@ -102,17 +124,54 @@ describe("tienda pública", () => {
     await f.locator("input[name=ciudad]").fill("Rosario");
     await f.locator("select[name=provincia]").selectOption("Santa Fe");
     await f.locator("input[name=codigoPostal]").fill("2000");
-    await f.getByRole("button", { name: "Confirmar pedido" }).click();
-    await page.waitForURL(new RegExp(`${SITIO}/tienda/pedido/[0-9a-f-]{36}$`));
-    expect(await page.locator("[data-estado-pedido]").getAttribute("data-estado-pedido")).toBe("PENDIENTE");
-    await page.locator("header [data-carrito='0']").waitFor(); // se vació
+    await f.getByRole("button", { name: "Confirmar y pagar" }).click();
+    // Prueba 1 (pago): el fan va a la pasarela de la banda, con el cobro creado con SU token.
+    await page.waitForURL(new RegExp(`^${mp.base}/checkout\\?pref=pref-1$`));
+    expect(await page.locator("[data-pasarela]").textContent()).toBe("Pagá con Mercado Pago");
+    expect(mp.preferencias.map((p) => p.token)).toEqual([TOKEN_A]);
 
     const pedido = await dueno.tiendaPedido.findFirstOrThrow({ include: { items: { orderBy: { nombreProducto: "asc" } } } });
-    expect(pedido).toMatchObject({ tenantId: e.a.id, estado: "PENDIENTE", subtotal: 6500000, envio: 1000000, total: 7500000, nombre: "Lucía Fan" });
-    expect(pedido.items.map((i) => [i.nombreProducto, i.cantidad, i.precioUnitario, i.envioUnitario, i.variante])).toEqual([
-      ["Poster Gira", 1, 1500000, 300000, {}],
-      ["Remera Gira", 2, 2500000, 350000, { Talle: "M" }],
+    expect(pedido).toMatchObject({ tenantId: e.a.id, estado: "PENDIENTE", subtotal: 6500000, envio: 350000, total: 6850000, nombre: "Lucía Fan" });
+    expect(pedido.items.map((i) => [i.nombreProducto, i.cantidad, i.precioUnitario, i.variante])).toEqual([
+      ["Poster Gira", 1, 1500000, {}],
+      ["Remera Gira", 2, 2500000, { Talle: "M" }],
     ]);
+    expect(mp.preferencias[0].cuerpo).toMatchObject({ external_reference: pedido.id });
+
+    // Vuelve de la pasarela antes de que llegue el aviso: "estamos confirmando".
+    await page.goto(`${SITIO}/tienda/pedido/${pedido.id}?resultado=exito`);
+    expect(await page.locator("[data-titulo-estado]").textContent()).toBe("Estamos confirmando tu pago");
+    await page.locator("header [data-carrito='0']").waitFor(); // el carrito se vació
+
+    // Prueba 2 (pago): llega el aviso de Mercado Pago (a la plataforma) → PAGADO; repetido, nada.
+    mp.pagos.set("777", { status: "approved", external_reference: pedido.id, transaction_amount: 68500, currency_id: "ARS", token: TOKEN_A });
+    const avisoPath = `/avisos/${e.a.id}/tienda/pago/mercadopago`;
+    const cuerpo = JSON.stringify({ type: "payment", data: { id: "777" } });
+    expect(JSON.parse((await postear("app.lvh.me", avisoPath, cuerpo)).cuerpo)).toEqual({ resultado: "pagado" });
+    expect(JSON.parse((await postear("app.lvh.me", avisoPath, cuerpo)).cuerpo)).toEqual({ resultado: "ya-pagado" });
+    // La página se actualiza sola mientras confirma.
+    await page.locator("[data-titulo-estado]", { hasText: "¡Pago recibido!" }).waitFor({ timeout: 15000 });
+
+    // La banda lo ve en su panel: pedido pagado y deuda con el proveedor (un paquete: un envío).
+    const { page: panel } = await logueado("multi@x.com");
+    await panel.goto(`${APP}/b/banda-a/tienda/pedidos`);
+    expect(await panel.locator(`[data-estado="PAGADO"]`).count()).toBe(1);
+    expect(await plano(panel.locator("[data-estado=PAGADO]"))).toContain("Pagado · en producción");
+    await panel.goto(`${APP}/b/banda-a/tienda/deuda`);
+    // Sur: 2 × 9.000 + 4.500 de producción + 3.500 de envío = 26.000
+    expect(await plano(panel.locator('[data-deuda="Sur"] [data-pendiente]'))).toBe("$ 26.000");
+    // Y el titular prueba la conexión: a nombre de quién cobra.
+    await panel.goto(`${APP}/b/banda-a/tienda`);
+    const probar = panel.locator("section", { has: panel.getByRole("heading", { name: "Cobro con Mercado Pago" }) }).locator("form[data-hidratado]");
+    await probar.getByRole("button", { name: "Probar conexión" }).click();
+    expect(await probar.getByRole("status").textContent()).toBe(
+      "Conectada: los pagos entran a la cuenta de Mercado Pago LOSSATELITES · cobros@banda-a.com.",
+    );
+
+    // El staff la ve en el back office, por banda y por proveedor.
+    const { page: staff } = await logueado("staff@deoco.com");
+    await staff.goto(`${APP}/admin/m/tienda/deudas`);
+    expect(await plano(staff.locator('[data-banda="banda-a"] [data-deuda="Sur"] [data-pendiente]'))).toBe("$ 26.000");
 
     // El borrador no existe en la tienda, ni por URL.
     expect((await page.goto(`${SITIO}/tienda/${borrador.id}`))!.status()).toBe(404);
@@ -148,7 +207,7 @@ describe("tienda pública", () => {
       const problemas = page.locator("[data-problemas]");
       await problemas.waitFor();
       expect(await plano(problemas)).toBe('"Poster Gira" ya no está a la venta: sacalo del carrito para seguir.');
-      expect(await page.getByRole("button", { name: "Confirmar pedido" }).isDisabled()).toBe(true);
+      expect(await page.getByRole("button", { name: "Confirmar y pagar" }).isDisabled()).toBe(true);
       await page.goto(`${SITIO}/tienda/carrito`);
       await page.locator("[data-problemas]").waitFor();
       expect(await page.getByText("Ir a pagar").count()).toBe(0);

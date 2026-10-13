@@ -2,11 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { accesoPanel, puedeEnPedido } from "@/nucleo/acceso/panel";
+import { accesoPanel, exigirPermiso, puedeEnPedido } from "@/nucleo/acceso/panel";
 import { prisma } from "@/nucleo/db/cliente";
 import type { EstadoFormulario } from "@/ui";
 import { archivo, ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
 import type { Opcion } from "../catalogo";
+import tienda from "../index";
+import { credencialesDe, pasarelaLista } from "../pasarelas";
+import { ErrorPasarela } from "../pasarelas/tipos";
 import { leerPesos, formatearPesos } from "../dinero";
 import {
   actualizarProducto,
@@ -74,7 +77,7 @@ function datosProducto(fd: FormData, delBase: Opcion[]): DatosProducto {
   };
 }
 
-const avisoMargen = (precio: number, base: { costoProduccion: number; costoEnvio: number }) => {
+const avisoMargen = (precio: number, base: { costoProduccion: number }) => {
   const m = margen(precio, base);
   return m.negativo ? ` Atención: con este precio perdés ${formatearPesos(-m.margen)} por cada venta.` : "";
 };
@@ -105,4 +108,18 @@ export async function publicarAccion(slug: string, id: string, publicado: boolea
     await publicarProducto(tenantId, id, publicado);
     return publicado ? "Publicado: ya se ve en la tienda." : "Pasó a borrador: ya no se ve en la tienda.";
   });
+}
+
+/** Prueba las credenciales de la pasarela: a nombre de quién cobra. Solo el titular. */
+export async function probarConexionAccion(slug: string, _: EstadoFormulario): Promise<EstadoFormulario> {
+  const acceso = await exigirPermiso("tienda.pasarela.conectar", `/b/${slug}/tienda`);
+  const { pasarela, lista } = await pasarelaLista(tienda, acceso.tenantId);
+  if (!lista) return { error: "Primero cargá las credenciales en Credenciales." };
+  try {
+    const { cuenta } = await pasarela.probarConexion(await credencialesDe(tienda, acceso.tenantId, pasarela));
+    return { ok: `Conectada: los pagos entran a la cuenta de ${pasarela.nombre} ${cuenta}.` };
+  } catch (e) {
+    if (e instanceof ErrorPasarela) return { error: `${pasarela.nombre} rechazó las credenciales. Revisá el access token en Credenciales.` };
+    throw e;
+  }
 }

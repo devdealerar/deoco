@@ -98,10 +98,10 @@ describe("panel de la tienda", () => {
     expect(await page.locator("[data-estado-producto]").textContent()).toContain("Borrador: no se ve en la tienda");
     const panelMargen = page.locator("[data-margen]");
     const texto = (await panelMargen.textContent())!.replace(/\s/g, " ");
-    expect(texto).toContain("Precio de venta (lo que paga el fan)$ 25.000");
+    expect(texto).toContain("Precio de venta (lo que paga el fan por el producto)$ 25.000");
     expect(texto).toContain("Costo de producción− $ 9.000");
-    expect(texto).toContain("Costo de envío− $ 3.500");
-    expect((await panelMargen.locator("[data-valor-margen]").textContent())!.replace(/\s/g, " ")).toBe("$ 12.500 · 50%");
+    expect(texto).toContain("El envío ($ 3.500) lo paga el fan aparte");
+    expect((await panelMargen.locator("[data-valor-margen]").textContent())!.replace(/\s/g, " ")).toBe("$ 16.000 · 64%");
     expect(texto).toContain("Deoco no se lleva nada de la venta");
     const producto = await dueno.tiendaProducto.findFirstOrThrow({ where: { nombre: "Remera Gira 2026" } });
     expect(producto.variantes).toEqual([{ nombre: "Talle", valores: ["S", "M", "L"] }]);
@@ -113,14 +113,14 @@ describe("panel de la tienda", () => {
 
     // A pérdida: avisa fuerte, pero guarda.
     const datos = await tarjeta(page, "Datos");
-    await datos.locator('input[name="precio"]').fill("10000");
+    await datos.locator('input[name="precio"]').fill("6500");
     await datos.getByRole("button", { name: "Guardar" }).click();
     expect((await datos.getByRole("status").textContent())!.replace(/\s/g, " ")).toBe(
       "Guardado. Atención: con este precio perdés $ 2.500 por cada venta.",
     );
     await page.locator("[data-margen-negativo]").waitFor();
-    expect((await page.locator("[data-valor-margen]").textContent())!.replace(/\s/g, " ")).toBe("-$ 2.500 · -25%");
-    expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: producto.id } })).precio).toBe(1000000);
+    expect((await page.locator("[data-valor-margen]").textContent())!.replace(/\s/g, " ")).toBe("-$ 2.500 · -38,5%");
+    expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: producto.id } })).precio).toBe(650000);
   });
 
   it("prueba 6: LECTURA ve la tienda pero no guarda (ni forzando el formulario)", async () => {
@@ -131,7 +131,7 @@ describe("panel de la tienda", () => {
     expect(await page.getByText("Solo lectura").count()).toBe(1);
     expect(await page.getByRole("link", { name: "Nuevo producto" }).count()).toBe(0);
     await page.goto(`${APP}/b/banda-b/tienda/productos/${p.id}`);
-    expect((await page.locator("[data-valor-margen]").textContent())!.replace(/\s/g, " ")).toBe("$ 7.500 · 37,5%");
+    expect((await page.locator("[data-valor-margen]").textContent())!.replace(/\s/g, " ")).toBe("$ 11.000 · 55%");
     const datos = await tarjeta(page, "Datos");
     expect(await datos.getByRole("button", { name: "Guardar" }).isDisabled()).toBe(true);
     await datos.evaluate((f: HTMLFormElement) => {

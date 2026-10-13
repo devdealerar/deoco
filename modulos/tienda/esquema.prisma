@@ -21,6 +21,7 @@ model TiendaProveedor {
   creadoEn   DateTime @default(now())
 
   productosBase TiendaProductoBase[]
+  deudas        TiendaDeuda[]
 
   @@map("tienda_proveedor")
 }
@@ -120,9 +121,13 @@ model TiendaProducto {
   @@map("tienda_producto")
 }
 
+/// PENDIENTE: esperando el pago. PAGADO: pago aprobado y verificado contra la pasarela.
+/// EN_REVISION: la pasarela aprobó un pago que no coincide (monto o moneda): hay que revisarlo.
+/// CANCELADO: reservado. Despachado y entregado llegan con el panel del proveedor.
 enum TiendaEstadoPedido {
   PENDIENTE
   PAGADO
+  EN_REVISION
   CANCELADO
 }
 
@@ -143,14 +148,25 @@ model TiendaPedido {
   codigoPostal String
   /// Preparado para envío por zonas (sin uso todavía).
   zonaEnvio String?
-  /// Copias al crearse (centavos): suma de precios, suma de envíos y total.
+  /// Copias al crearse (centavos): suma de precios, envío (uno por pedido: el mayor) y total.
   subtotal  Int
   envio     Int
   total     Int
   creadoEn  DateTime           @default(now())
   pagadoEn  DateTime?
+  /// Cobro en la pasarela de la banda.
+  pasarela      String?
+  /// Id del cobro creado (preferencia en Mercado Pago) y adónde va el fan a pagar.
+  preferenciaId String?
+  urlPago       String?
+  /// Id del pago aprobado (el que lo marcó PAGADO) y lo último que dijo la pasarela.
+  cobroId       String?
+  estadoCobro   String?
+  /// Por qué quedó EN_REVISION (monto o moneda distintos).
+  observacion   String?
 
-  items TiendaPedidoItem[]
+  items  TiendaPedidoItem[]
+  deudas TiendaDeuda[]
 
   @@unique([tenantId, id])
   @@index([tenantId, estado])
@@ -185,4 +201,28 @@ model TiendaPedidoItem {
 
   @@index([tenantId, pedidoId])
   @@map("tienda_pedido_item")
+}
+
+/// Lo que la banda le debe a un proveedor por un pedido pagado: producción de sus renglones más
+/// un envío (el mayor de sus renglones: lo despacha en un paquete). Se registra al pagarse, una
+/// sola vez por (pedido, proveedor). Deoco solo lleva la cuenta: no cobra ni mueve esa plata.
+model TiendaDeuda {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  pedidoId    String   @db.Uuid
+  pedido      TiendaPedido @relation(fields: [tenantId, pedidoId], references: [tenantId, id], onDelete: Cascade)
+  proveedorId String   @db.Uuid
+  proveedor   TiendaProveedor @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  produccion  Int
+  envio       Int
+  total       Int
+  creadoEn    DateTime @default(now())
+  /// Saldada: cuándo, quién (usuario) y una nota (p. ej. "transferencia del 3/11").
+  saldadaEn   DateTime?
+  saldadaPor  String?  @db.Uuid
+  notaSaldo   String?
+
+  @@unique([tenantId, pedidoId, proveedorId])
+  @@index([tenantId, proveedorId, saldadaEn])
+  @@map("tienda_deuda")
 }

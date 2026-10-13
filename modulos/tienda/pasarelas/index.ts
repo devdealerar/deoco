@@ -11,6 +11,16 @@ export const pasarelaDe = (id: string) => PASARELAS.find((p) => p.id === id);
 /** Todas las credenciales que la tienda declara en su contrato. */
 export const credencialesDeTodas = () => PASARELAS.flatMap((p) => p.credenciales);
 
+/** Las credenciales de la banda para una pasarela (solo las que cargó). No se loguean. */
+export async function credencialesDe(tienda: Modulo, tenantId: string, pasarela: Pasarela): Promise<Record<string, string>> {
+  const cred: Record<string, string> = {};
+  for (const c of pasarela.credenciales) {
+    const v = await leerSecreto(tienda, tenantId, c.clave);
+    if (v) cred[c.clave] = v;
+  }
+  return cred;
+}
+
 /**
  * ¿La banda puede cobrar? Su pasarela (hoy, Mercado Pago) con las credenciales obligatorias
  * cargadas por el titular. `tienda`: el contrato del módulo (leerSecreto exige el propio).

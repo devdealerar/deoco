@@ -94,7 +94,7 @@ export async function NuevoProducto({ tenantId, slug, consulta }: PropsRutaPanel
           </ul>
         </Tarjeta>
       ) : (
-        <Tarjeta titulo={`Nuevo producto · ${base.nombre}`} descripcion={`Archivo de impresión: ${describirEspecificacion(base)}. Producción ${formatearPesos(base.costoProduccion)} + envío ${formatearPesos(base.costoEnvio)}: tu margen es el precio menos eso.`}>
+        <Tarjeta titulo={`Nuevo producto · ${base.nombre}`} descripcion={`Archivo de impresión: ${describirEspecificacion(base)}. Producción ${formatearPesos(base.costoProduccion)}: tu margen es el precio menos eso. El envío (${formatearPesos(base.costoEnvio)}) lo paga el fan aparte.`}>
           <Formulario accion={crearProductoAccion.bind(null, slug, base.id)} puedeEditar={puedeEditar} etiqueta="Crear (queda en borrador)">
             <Campos tenantId={tenantId} base={base} />
           </Formulario>
@@ -137,7 +137,7 @@ export async function EditarProducto({ tenantId, slug, params, consulta }: Props
           />
         </div>
       </div>
-      <PanelMargen m={margen(producto.precio, base)} />
+      <PanelMargen m={margen(producto.precio, base)} envio={base.costoEnvio} />
       <Tarjeta titulo="Datos" descripcion={`${base.nombre} · archivo de impresión: ${describirEspecificacion(base)}`}>
         <Formulario accion={actualizarProductoAccion.bind(null, slug, producto.id)} puedeEditar={puedeEditar}>
           <Campos tenantId={tenantId} base={base} producto={producto} />

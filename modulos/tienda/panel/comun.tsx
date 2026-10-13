@@ -7,10 +7,20 @@ import { formatearPesos } from "../dinero";
 export const puedeEditar = (slug: string) => puedeEnPedido("tienda.producto.editar", `/b/${slug}/tienda`);
 
 /** Título y pestañas de la tienda en el panel. */
-export function Encabezado({ slug, actual, puedeEditar }: { slug: string; actual: "" | "/disenos"; puedeEditar: boolean }) {
+export function Encabezado({
+  slug,
+  actual,
+  puedeEditar,
+}: {
+  slug: string;
+  actual: "" | "/disenos" | "/pedidos" | "/deuda";
+  puedeEditar: boolean;
+}) {
   const pestanas = [
     ["", "Productos"],
     ["/disenos", "Diseños"],
+    ["/pedidos", "Pedidos"],
+    ["/deuda", "Deuda con proveedores"],
   ] as const;
   return (
     <header className="flex flex-col gap-3">
@@ -34,12 +44,11 @@ export function Encabezado({ slug, actual, puedeEditar }: { slug: string; actual
   );
 }
 
-/** Precio, costos y margen de un producto. Lo que le queda a la banda; Deoco no se lleva nada. */
-export function PanelMargen({ m }: { m: Margen }) {
+/** Precio, costo y margen de un producto. Lo que le queda a la banda; Deoco no se lleva nada. */
+export function PanelMargen({ m, envio }: { m: Margen; envio: number }) {
   const filas: [string, string][] = [
-    ["Precio de venta (lo que paga el fan)", formatearPesos(m.precio)],
+    ["Precio de venta (lo que paga el fan por el producto)", formatearPesos(m.precio)],
     ["Costo de producción", `− ${formatearPesos(m.costoProduccion)}`],
-    ["Costo de envío", `− ${formatearPesos(m.costoEnvio)}`],
   ];
   return (
     <section data-margen className="flex flex-col gap-4 rounded-xl bg-primary p-6 shadow-xs ring-1 ring-secondary ring-inset">
@@ -64,6 +73,9 @@ export function PanelMargen({ m }: { m: Margen }) {
           especial), pero cada venta te cuesta plata.
         </p>
       )}
+      <p className="text-sm text-tertiary" data-envio-aparte>
+        El envío ({formatearPesos(envio)}) lo paga el fan aparte, uno por pedido, y es para el proveedor: no entra en tu margen.
+      </p>
       <p className="text-sm text-tertiary">
         El margen es lo que le queda a la banda. <strong className="text-secondary">Deoco no se lleva nada de la venta</strong>: el fan te
         paga a vos, en tu pasarela de pago. No incluye la comisión que cobra la pasarela (Mercado Pago).

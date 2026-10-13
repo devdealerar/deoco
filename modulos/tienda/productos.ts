@@ -196,7 +196,6 @@ export const productosPublicados = (tenantId: string) =>
 export type Margen = {
   precio: number;
   costoProduccion: number;
-  costoEnvio: number;
   /** Lo que le queda a la banda (antes de la comisión de su pasarela de pago). */
   margen: number;
   /** Sobre el precio de venta, con un decimal. */
@@ -204,13 +203,15 @@ export type Margen = {
   negativo: boolean;
 };
 
-/** Margen = precio − costo de producción − envío (los costos vigentes del producto base). */
-export function margen(precio: number, base: { costoProduccion: number; costoEnvio: number }): Margen {
-  const m = precio - base.costoProduccion - base.costoEnvio;
+/**
+ * Margen = precio − costo de producción (el vigente del producto base). El envío no entra:
+ * lo paga el fan aparte y va al proveedor.
+ */
+export function margen(precio: number, base: { costoProduccion: number }): Margen {
+  const m = precio - base.costoProduccion;
   return {
     precio,
     costoProduccion: base.costoProduccion,
-    costoEnvio: base.costoEnvio,
     margen: m,
     porcentaje: precio > 0 ? Math.round((m / precio) * 1000) / 10 : 0,
     negativo: m < 0,

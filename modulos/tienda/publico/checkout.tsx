@@ -24,11 +24,12 @@ export function Checkout() {
   const router = useRouter();
 
   useEffect(() => {
-    if (resultado.pedidoId) {
-      guardarCarrito([]);
-      router.push(`/tienda/pedido/${resultado.pedidoId}`);
-    }
-  }, [resultado.pedidoId, router]);
+    if (!resultado.pedidoId) return;
+    guardarCarrito([]);
+    // A la pasarela de la banda (otro sitio); si no se pudo crear el cobro, a la página del pedido.
+    if (resultado.redireccion) window.location.assign(resultado.redireccion);
+    else router.push(`/tienda/pedido/${resultado.pedidoId}`);
+  }, [resultado.pedidoId, resultado.redireccion, router]);
 
   if (!hidratado) return null;
   if (lineas.length === 0 && !resultado.pedidoId) return <p className={c.suave}>Tu carrito está vacío.</p>;
@@ -81,7 +82,7 @@ export function Checkout() {
         {estado && <Resumen estado={estado} />}
         {resultado.problemas && <Problemas problemas={resultado.problemas} />}
         <button type="submit" className={c.boton} disabled={bloqueado || pendiente}>
-          {pendiente ? "Confirmando…" : "Confirmar pedido"}
+          {pendiente || resultado.pedidoId ? "Yendo a pagar…" : "Confirmar y pagar"}
         </button>
       </aside>
     </form>

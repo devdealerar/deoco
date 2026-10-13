@@ -4,9 +4,12 @@
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { AdminCatalogo } from "./admin/catalogo";
 import { AdminProductoBase } from "./admin/producto";
+import { AdminDeudas } from "./admin/deudas";
 import { AdminProveedores } from "./admin/proveedores";
+import { avisoDePago } from "./aviso";
 import { DisenosTienda } from "./panel/disenos";
 import { EditarProducto, NuevoProducto } from "./panel/producto";
+import { DeudaTienda, PedidosTienda } from "./panel/pedidos";
 import { ResumenTienda } from "./panel/resumen";
 import { credencialesDeTodas } from "./pasarelas";
 import { ContadorCarrito } from "./publico/cabecera";
@@ -28,18 +31,23 @@ const tienda: Modulo = {
     { clave: VER, rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL", "PUERTA", "LECTURA"] },
     // Productos y precios: el responsable comercial es el que fija precios.
     { clave: "tienda.producto.editar", rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL"] },
+    // Probar la conexión con la cuenta de cobro: solo el titular (ni otro rol ni el staff).
+    { clave: "tienda.pasarela.conectar", rolesPorDefecto: ["TITULAR"], exclusivoTitular: true },
   ],
   rutasPanel: [
     { ruta: "/tienda", permiso: VER, componente: ResumenTienda },
     { ruta: "/tienda/disenos", permiso: VER, componente: DisenosTienda },
     { ruta: "/tienda/productos/nuevo", permiso: VER, componente: NuevoProducto },
     { ruta: "/tienda/productos/[id]", permiso: VER, componente: EditarProducto },
+    { ruta: "/tienda/pedidos", permiso: VER, componente: PedidosTienda },
+    { ruta: "/tienda/deuda", permiso: VER, componente: DeudaTienda },
   ],
   // Back office (solo staff): catálogo base y proveedores, iguales para todas las bandas.
   rutasAdmin: [
     { ruta: "/", componente: AdminCatalogo },
     { ruta: "/productos/[id]", componente: AdminProductoBase },
     { ruta: "/proveedores", componente: AdminProveedores },
+    { ruta: "/deudas", componente: AdminDeudas },
   ],
   // Sitio público: catálogo, ficha, carrito (en el navegador del fan), checkout.
   rutasPublicas: [
@@ -50,6 +58,9 @@ const tienda: Modulo = {
     { ruta: "/tienda/[producto]", componente: FichaProducto, metadatos: metadatosFicha },
   ],
   cabeceraPublica: ContadorCarrito,
+  // Aviso de pago de la pasarela (webhook), en app.<raiz>/avisos/<tenantId>/tienda/pago/<pasarela>.
+  avisos: [{ ruta: "/pago/[pasarela]", metodos: ["POST", "GET"], manejador: avisoDePago }],
+  eventosEmite: ["pedido.pagado"],
   // Credenciales de la pasarela de la banda (las carga el titular en Credenciales).
   secretos: credencialesDeTodas(),
   navegacion: [
@@ -57,6 +68,7 @@ const tienda: Modulo = {
     { etiqueta: "Tienda", href: "/tienda", publica: true, orden: 30 },
     { etiqueta: "Catálogo base", href: "/", admin: true, orden: 100 },
     { etiqueta: "Proveedores", href: "/proveedores", admin: true, orden: 110 },
+    { etiqueta: "Deuda con proveedores", href: "/deudas", admin: true, orden: 120 },
   ],
   tablasGlobales: ["tienda_proveedor", "tienda_producto_base"],
 };

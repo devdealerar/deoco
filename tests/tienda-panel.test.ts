@@ -184,22 +184,23 @@ describe("prueba 2: borrador y publicado", () => {
 });
 
 describe("pruebas 3 y 4: margen", () => {
-  it("precio − costo de producción − envío, en pesos y porcentaje del precio", () => {
-    expect(margen(2500000, { costoProduccion: 900000, costoEnvio: 350000 })).toEqual({
+  it("prueba 5 (parte 5): precio − costo de producción, sin restar el envío (lo paga el fan aparte)", () => {
+    expect(margen(2500000, { costoProduccion: 900000 })).toEqual({
       precio: 2500000,
       costoProduccion: 900000,
-      costoEnvio: 350000,
-      margen: 1250000,
-      porcentaje: 50,
+      margen: 1600000,
+      porcentaje: 64,
       negativo: false,
     });
-    expect(margen(1999900, { costoProduccion: 900000, costoEnvio: 350000 }).porcentaje).toBe(37.5);
+    // Aunque se le pase el producto base entero (con su envío), el envío no entra.
+    expect(margen(2000000, { costoProduccion: 900000, costoEnvio: 350000 } as { costoProduccion: number }).margen).toBe(1100000);
+    expect(margen(1999900, { costoProduccion: 900000 }).porcentaje).toBe(55);
   });
 
   it("negativo: se avisa (negativo: true) y se guarda igual", async () => {
     const d = await disenoBueno();
-    const p = await crearProducto(e.a.id, remera.id, { disenoId: d.id, nombre: "A pérdida", descripcion: "", precio: 1000000, variantes: remera.opciones as never });
-    expect(margen(p.precio, remera)).toMatchObject({ margen: -250000, porcentaje: -25, negativo: true });
+    const p = await crearProducto(e.a.id, remera.id, { disenoId: d.id, nombre: "A pérdida", descripcion: "", precio: 800000, variantes: remera.opciones as never });
+    expect(margen(p.precio, remera)).toMatchObject({ margen: -100000, porcentaje: -12.5, negativo: true });
     const otra = await actualizarProducto(e.a.id, p.id, { disenoId: d.id, nombre: "A pérdida", descripcion: "", precio: 500000, variantes: remera.opciones as never });
     expect(otra.precio).toBe(500000);
   });
@@ -212,7 +213,7 @@ describe("pruebas 3 y 4: margen", () => {
       activo: true,
     });
     const vigente = await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: remera.id } });
-    expect(margen(2500000, vigente).margen).toBe(1150000);
+    expect(margen(2500000, vigente).margen).toBe(1500000);
     await actualizarProductoBase(comoStaff, remera.id, { ...remera, opciones: remera.opciones as never, activo: true });
   });
 });

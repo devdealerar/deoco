@@ -75,7 +75,7 @@ export function problemaDeVariante(ofrecidas: Opcion[], elegida: Record<string, 
 
 /**
  * Revisa el carrito contra la base de ESTA banda (bajo RLS: un producto de otra banda no
- * existe). Precios y envíos: los de ahora. Total = suma de precios + suma de envíos.
+ * existe). Precios y envíos: los de ahora. Total = suma de precios + un envío (el mayor).
  */
 export async function revisarCarrito(tenantId: string, lineas: LineaCarrito[]): Promise<Revision> {
   const ids = [...new Set(lineas.map((l) => l.productoId))];
@@ -110,7 +110,8 @@ export async function revisarCarrito(tenantId: string, lineas: LineaCarrito[]): 
   }
   if (lineas.length === 0) problemas.push("El carrito está vacío.");
   const subtotal = revisadas.reduce((s, l) => s + l.precio * l.cantidad, 0);
-  const envio = revisadas.reduce((s, l) => s + l.envio * l.cantidad, 0);
+  // Un envío por pedido: el mayor de los productos del carrito (viaja en un paquete).
+  const envio = revisadas.reduce((s, l) => Math.max(s, l.envio), 0);
   return { lineas: revisadas, problemas, subtotal, envio, total: subtotal + envio };
 }
 

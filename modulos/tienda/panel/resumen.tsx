@@ -1,10 +1,12 @@
 import Link from "next/link";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
-import { Insignia, Tabla } from "@/ui";
+import { puedeEnPedido } from "@/nucleo/acceso/panel";
+import { Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
 import { formatearPesos } from "../dinero";
 import tienda from "../index";
 import { pasarelaLista } from "../pasarelas";
 import { listarProductos, margen } from "../productos";
+import { probarConexionAccion } from "./acciones";
 import { Encabezado, puedeEditar as puedeEditarEn } from "./comun";
 
 /** Panel · Tienda: los productos de la banda, con su precio y su margen. */
@@ -26,6 +28,11 @@ export async function ResumenTienda({ tenantId, slug, acceso }: PropsRutaPanel) 
           )}
           . El cobro va a tu cuenta de {pasarela.pasarela.nombre}: Deoco no toca la plata.
         </div>
+      )}
+      {pasarela.lista && (await puedeEnPedido("tienda.pasarela.conectar", `/b/${slug}/tienda`)) && (
+        <Tarjeta titulo={`Cobro con ${pasarela.pasarela.nombre}`} descripcion="Los pagos de los fans entran directo a tu cuenta. Probá que sea la tuya.">
+          <Formulario accion={probarConexionAccion.bind(null, slug)} puedeEditar variante="secundario" etiqueta="Probar conexión" />
+        </Tarjeta>
       )}
       <p className="text-md text-tertiary">
         Merch bajo demanda: no hace falta stock. El fan te paga a vos, un proveedor produce y envía cada pedido.{" "}
