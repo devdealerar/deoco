@@ -1,148 +1,195 @@
 # Despliegue en Easypanel
 
-Deoco se despliega como **una sola aplicación** (monolito modular) más **un Postgres**,
-en el VPS de Hostinger con Easypanel.
+Deoco se despliega como **una sola aplicación** (monolito modular) más **un Postgres**, en el
+VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un **comodín
+`*.deoco.com` validado por DNS en Cloudflare**.
 
 ```
-                 ┌───────────────────────── VPS (Easypanel) ─────────────────────────┐
- app.deoco.com ─┐│  ┌──────────────── servicio "deoco" (Dockerfile) ───────────────┐  │
- *.deoco.com  ──┼┼─▶│ Next.js :3000  ──▶ /data/archivos (volumen: fotos, riders…)    │  │
- labanda.com  ──┘│  │      │ DATABASE_URL (deoco_app, con RLS)                       │  │
-                 │  └──────┼───────────────────────────────────────────────────────┘  │
-                 │  ┌──────▼──────── servicio "postgres" ───────┐                     │
-                 │  │ base "deoco"  · roles deoco_owner / deoco_app                  │
-                 │  └───────────────────────────────────────────┘                     │
-                 └────────────────────────────────────────────────────────────────────┘
+ Cloudflare DNS (nube gris)          VPS · Easypanel
+ *.deoco.com ─ A ─▶ IP del VPS ──▶ Traefik (TLS, certificado *.deoco.com)
+                                     │  Host original + X-Forwarded-Proto: https
+                                     ▼
+                       servicio "deoco" (Dockerfile) · Next.js :3000
+                         app.deoco.com      → panel y /admin
+                         <banda>.deoco.com  → sitio público de la banda
+                         /data/archivos     → volumen (fotos, logos, riders)
+                                     │ deoco_app (con RLS) · deoco_admin (solo /admin)
+                                     ▼
+                       servicio "postgres" · base "deoco"
 ```
 
-## Qué hace la imagen
+## Qué hace la imagen (para entender los logs)
 
-- `Dockerfile` construye con `next build`. El descubrimiento de módulos corre solo en ese
-  paso (desde `next.config.ts`) y deja afuera los módulos marcados `SOLO_DESARROLLO.md`
-  (el de prueba): no importa qué comando de build use Easypanel.
-- Al arrancar, `scripts/arrancar.sh`:
-  1. verifica que estén las variables obligatorias y que el volumen de archivos se pueda escribir;
-  2. aplica las migraciones pendientes (`prisma migrate deploy`, con el rol dueño);
-  3. levanta el servidor en el puerto 3000.
-- Cada despliegue nuevo aplica solo las migraciones que falten. No hace falta correr nada a mano.
+- **Build** (`Dockerfile`): `npm ci` + `next build`. El descubrimiento de módulos corre dentro
+  de `next build` y deja afuera los marcados `SOLO_DESARROLLO.md` (el módulo de prueba).
+- **Arranque** (`scripts/arrancar.sh`):
+  1. verifica que estén `DATABASE_URL`, `DATABASE_URL_MIGRACIONES`, `DATABASE_URL_ADMIN`,
+     `AUTH_SECRET`, `DEOCO_DOMINIO_RAIZ` y que el volumen se pueda escribir;
+  2. aplica las migraciones pendientes (`prisma migrate deploy`, rol dueño);
+  3. levanta Next. Antes de atender el primer pedido, **la app se verifica a sí misma**
+     (`src/nucleo/arranque.ts`): variables, que `DATABASE_URL` sea un rol sujeto a RLS y no
+     el dueño, que `DATABASE_URL_ADMIN` tenga BYPASSRLS, que el build sea de producción, que
+     los módulos sean válidos y que la base esté migrada. Si algo falla, **el contenedor se
+     cae** con el motivo en el log; nunca queda sirviendo errores.
+- Log de un arranque sano, en este orden:
+  `Aplicando migraciones…` → `Levantando Deoco en el puerto 3000…` →
+  `[deoco] arranque verificado · módulos: sitio`.
 
-## Paso a paso
+## Lo que configurás vos, en orden
 
-### 1. Postgres
+### A. Cloudflare (dominio `deoco.com`)
 
-1. En el proyecto de Easypanel, crear un servicio **Postgres** (16 o más nuevo).
-2. Con el usuario administrador de ese servicio, conectado a la base `postgres`, correr
-   `prisma/sql/preparar-base.sql` (desde la consola del servicio o con `psql`):
+1. **Token de API** (My Profile → API Tokens → Create Token → "Edit zone DNS"):
+   permisos **Zone · DNS · Edit** y **Zone · Zone · Read**, limitado a la zona `deoco.com`.
+   Guardalo: lo usa Traefik para el desafío DNS.
+2. **Registro DNS**: `A` · nombre `*` · IP del VPS · **solo DNS (nube gris)**.
+   Cubre `app.deoco.com` y todas las bandas. Empezá con la nube gris: el certificado lo pone
+   Traefik y hay una pieza menos que mirar si algo falla. (Si después querés el proxy de
+   Cloudflare, nube naranja con SSL/TLS en **Full (strict)**.)
+3. Si existen registros `TXT _acme-challenge` viejos, borralos: pueden hacer fallar la
+   validación.
 
-   ```sh
-   psql "postgresql://<admin>:<clave-admin>@<host-postgres>:5432/postgres" \
-     -v clave_duena="'<clave larga 1>'" -v clave_app="'<clave larga 2>'" -v clave_admin="'<clave larga 3>'" \
-     -f prisma/sql/preparar-base.sql
+### B. Easypanel · Traefik (una vez por servidor)
+
+4. **Settings → Traefik → Environment**: definir un *resolver* de certificados que valide por
+   DNS con Cloudflare y reiniciar Traefik. Con un resolver llamado `cloudflare`, las variables
+   estándar de Traefik son:
+
+   ```
+   TRAEFIK_CERTIFICATESRESOLVERS_CLOUDFLARE_ACME_EMAIL=<tu email>
+   TRAEFIK_CERTIFICATESRESOLVERS_CLOUDFLARE_ACME_STORAGE=<ruta del archivo acme que indica la guía>
+   TRAEFIK_CERTIFICATESRESOLVERS_CLOUDFLARE_ACME_DNSCHALLENGE_PROVIDER=cloudflare
+   TRAEFIK_CERTIFICATESRESOLVERS_CLOUDFLARE_ACME_DNSCHALLENGE_RESOLVERS=1.1.1.1:53,1.0.0.1:53
+   CF_DNS_API_TOKEN=<el token del paso 1>
    ```
 
-   Crea la base `deoco`, el rol `deoco_owner` (dueño: **solo** migraciones), `deoco_app`
-   (la aplicación: sin `BYPASSRLS`, no es dueño de nada) y `deoco_admin` (el back office
-   `/admin`: ve todas las bandas; la app lo usa solo desde esas rutas).
-   Si la base ya estaba creada de antes del back office, falta solo ese rol:
-   `prisma/sql/crear-rol-admin.sql` (antes de desplegar la versión con `/admin`). Si el archivo no está a mano en el
-   servidor, se pueden pegar las tres sentencias en la consola reemplazando `:clave_duena` y
-   `:clave_app` por las claves entre comillas simples.
+   **Confirmá los nombres y la ruta de `STORAGE` en la guía oficial de Easypanel
+   ("Setting Up a Wildcard Domain", easypanel.io/docs/guides/wildcard-domain)**: desde el
+   entorno de desarrollo no se pudo abrir y estos valores son los de Traefik, no los
+   verificados en Easypanel.
 
-### 2. Aplicación
+### C. Easypanel · Postgres
 
-1. Crear un servicio **App** desde el repositorio de GitHub, rama de producción.
-2. Build: **Dockerfile** (el de la raíz del repo).
-3. Puerto interno (proxy): **3000**.
-4. Volumen: montar un volumen persistente en **`/data/archivos`**. Ahí quedan las fotos,
-   logos y riders que suben las bandas. Si no se monta, se pierden en cada despliegue.
-5. Variables de entorno (ver tabla abajo).
-6. Desplegar. En los logs tiene que aparecer `Aplicando migraciones…` y después
-   `Levantando Deoco en el puerto 3000…`.
+5. Crear un servicio **Postgres** (16 o más nuevo) en el proyecto.
+6. En la **consola del servicio Postgres** (`psql` como el usuario administrador), pegar con
+   tres claves largas distintas (`openssl rand -base64 24`):
 
-### 3. Dominios y DNS
+   ```sql
+   CREATE ROLE deoco_owner LOGIN PASSWORD '<clave 1>' NOSUPERUSER NOCREATEROLE;
+   CREATE ROLE deoco_app   LOGIN PASSWORD '<clave 2>' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+   CREATE ROLE deoco_admin LOGIN PASSWORD '<clave 3>' NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;
+   CREATE DATABASE deoco OWNER deoco_owner;
+   ```
 
-En el DNS de `deoco.com` (donde esté registrado):
+   (Es `prisma/sql/preparar-base.sql`.) `deoco_owner` solo corre migraciones; `deoco_app` es la
+   app, sujeta a RLS; `deoco_admin` es el back office, ve todas las bandas.
+7. Anotá el **host interno** del servicio Postgres (lo muestra Easypanel en sus credenciales).
 
-| Registro | Nombre | Apunta a |
+### D. Easypanel · Aplicación
+
+8. Crear un servicio **App** desde el repositorio de GitHub, rama de producción, build con
+   **Dockerfile** (el de la raíz).
+9. **Variables de entorno**:
+
+   | Variable | Valor |
+   | --- | --- |
+   | `DATABASE_URL` | `postgresql://deoco_app:<clave 2>@<host-postgres>:5432/deoco` |
+   | `DATABASE_URL_MIGRACIONES` | `postgresql://deoco_owner:<clave 1>@<host-postgres>:5432/deoco` |
+   | `DATABASE_URL_ADMIN` | `postgresql://deoco_admin:<clave 3>@<host-postgres>:5432/deoco` |
+   | `AUTH_SECRET` | `openssl rand -base64 32` — **fijo**: si cambia, se cierran todas las sesiones |
+   | `DEOCO_DOMINIO_RAIZ` | `deoco.com` |
+   | `DEOCO_LIMITE_ALMACENAMIENTO` | opcional: bytes por banda (por defecto 1 GiB) |
+
+   `NODE_ENV`, el puerto y `DEOCO_ARCHIVOS_DIR=/data/archivos` ya los fija la imagen. Si una
+   clave tiene caracteres como `@`, `:` o `/`, va codificada en la URL (o generala sin ellos).
+10. **Volumen** persistente montado en **`/data/archivos`** (si falta, la app no arranca).
+11. **Dominio**: `*.deoco.com` → puerto **3000**, HTTPS, con **"Wildcard domain"** activado y
+    el resolver `cloudflare`. Ese único dominio cubre `app.deoco.com` y todas las bandas: la app
+    distingue panel y sitios por el `Host`. No hace falta configurar `deoco.com` sola (si llega
+    un pedido ahí, responde 404).
+12. **Deploy**. En los logs, las tres líneas de "arranque sano" de arriba.
+
+### E. Primer acceso
+
+13. En la **consola del servicio de la app**:
+
+    ```sh
+    CLAVE='<tu clave, 10+ caracteres>' node scripts/crear-staff.mjs vos@deoco.com "Tu Nombre"
+    ```
+
+    Es la única vez que se toca algo a mano. Todo lo demás se hace en `https://app.deoco.com/admin`.
+14. **Prueba de humo** (en este orden; cada paso prueba algo distinto):
+    1. `https://app.deoco.com` → candado válido → ingresar con tu usuario.
+    2. `https://app.deoco.com/admin` → listado de bandas (vacío).
+    3. Nueva banda de prueba (con un email tuyo como titular) → anotá la clave temporal.
+    4. En el detalle de la banda, prender **Sitio**.
+    5. En otra ventana privada, entrar como titular → te pide elegir clave → entra al panel.
+    6. Sitio → cargar bio corta y una imagen (una foto de celular) → Publicar.
+    7. `https://<slug>.deoco.com` → se ve publicado, con candado válido.
+    8. En `/admin`, pasar la banda de prueba a Archivado (confirmando) → su sitio da 404.
+
+## Qué puede fallar en el primer despliegue y cómo te das cuenta
+
+| Síntoma | Dónde se ve | Causa probable |
 | --- | --- | --- |
-| A | `app` | IP del VPS |
-| A | `*` (comodín) | IP del VPS |
+| El build falla en `npm ci` o al bajar `node:22` | logs de build | red o límite de Docker Hub en el VPS; reintentar |
+| `Falta la variable de entorno …` y el contenedor reinicia | logs de la app | variable sin cargar en el servicio |
+| `role "deoco_app" does not exist` al migrar | logs de la app | no se corrió el paso 6 |
+| `Deoco no puede arrancar:` + lista | logs de la app | lee la lista: dice exactamente qué (rol equivocado en una URL, volumen, etc.) |
+| `No se puede escribir en /data/archivos` | logs de la app | falta el volumen del paso 10 |
+| El navegador advierte "certificado no válido" | navegador; logs de Traefik (`acme`, `cloudflare`) | token sin permisos, registro en nube naranja, TXT viejos, o variables de Traefik mal escritas |
+| Todo da 404, incluido `app.deoco.com` | navegador | `DEOCO_DOMINIO_RAIZ` mal escrito, o el proxy no pasa el `Host` original |
+| **Login: ingresás y volvés a la pantalla de ingresar, sin error** | navegador | la cookie `__Host-deoco.sesion` es `Secure`: solo se guarda por **HTTPS**. Entraste por `http://`, o el certificado no está. Revisá en las herramientas del navegador (Application → Cookies → `app.deoco.com`) si la cookie existe |
+| Login: después de un redeploy te saca a todos | — | cambió `AUTH_SECRET`; dejalo fijo |
+| Formularios del panel fallan con error genérico | logs de la app (`Server Action`, `origin`) | el proxy reescribe `Host`/`Origin`; Traefik por defecto no lo hace |
+| Subir una foto grande falla | mensaje en el formulario o logs | más de 25 MB (límite de Deoco); si es menor, un límite de cuerpo en el proxy |
 
-En el servicio de la aplicación en Easypanel, agregar los dominios con HTTPS:
+## Variables de entorno (referencia)
 
-- `app.deoco.com` → puerto 3000 (el panel).
-- Las bandas: `<slug>.deoco.com` → puerto 3000. Hay dos formas, a confirmar en Easypanel:
-  - **Un dominio por banda**: se agrega cada subdominio al dar de alta una banda. El
-    certificado se emite solo (Let's Encrypt). Es lo más simple; hay que confirmar el límite
-    de dominios por proyecto (pendiente que ya marca la spec).
-  - **Comodín `*.deoco.com`**: un solo certificado para todas las bandas. Let's Encrypt solo
-    emite comodines validando por DNS, así que requiere que Easypanel/Traefik tenga acceso
-    al proveedor de DNS (p. ej. Cloudflare).
-- Dominio propio de una banda (`labanda.com`): la banda crea un registro A a la IP del VPS, se
-  agrega el dominio en Easypanel y se carga en la tabla `dominio` (todavía sin pantalla).
-
-La app distingue panel y sitios **por el host**: es importante que Easypanel pase el `Host`
-original (lo hace por defecto).
-
-### 4. Primer acceso
-
-Solo la **primera persona de staff** se da de alta por SQL, con el rol dueño
-(`DATABASE_URL_MIGRACIONES`). Todo lo demás se hace desde el back office en
-`https://app.deoco.com/admin`: bandas y titulares, estados, módulos, dominios propios,
-miembros e invitaciones, y eventos fallidos. Quien recibe una clave temporal (titular de un
-alta o invitado) la tiene que cambiar en su primer ingreso. Primero, el hash de la clave (en la consola del
-contenedor de la app; la clave nunca se guarda en claro):
-
-```sh
-node -e "require('@node-rs/argon2').hash(process.argv[1]).then(console.log)" 'la-clave'
-```
-
-- Staff de Deoco: `prisma/sql/alta-staff.sql`
-- Banda + titular (alternativa por SQL al back office): `prisma/sql/alta-banda.sql`
-
-Las instrucciones exactas están en el encabezado de cada archivo. Después: entrar a
-`https://app.deoco.com`, cargar el sitio en el panel, publicar, y verlo en
-`https://<slug>.deoco.com`.
-
-## Variables de entorno
-
-| Variable | Obligatoria | Valor en producción |
+| Variable | Obligatoria | Para qué |
 | --- | --- | --- |
-| `DATABASE_URL` | sí | `postgresql://deoco_app:<clave 2>@<host-postgres>:5432/deoco` |
-| `DATABASE_URL_MIGRACIONES` | sí | `postgresql://deoco_owner:<clave 1>@<host-postgres>:5432/deoco` |
-| `DATABASE_URL_ADMIN` | sí | `postgresql://deoco_admin:<clave 3>@<host-postgres>:5432/deoco` |
-| `AUTH_SECRET` | sí | 32+ bytes aleatorios: `openssl rand -base64 32` |
-| `DEOCO_DOMINIO_RAIZ` | sí | `deoco.com` |
-| `DEOCO_ARCHIVOS_DIR` | no | `/data/archivos` (ya es el valor de la imagen) |
+| `DATABASE_URL` | sí | la app (rol `deoco_app`, con RLS) |
+| `DATABASE_URL_MIGRACIONES` | sí | migraciones al arrancar y `crear-staff.mjs` (rol `deoco_owner`) |
+| `DATABASE_URL_ADMIN` | sí | solo el back office `/admin` (rol `deoco_admin`) |
+| `AUTH_SECRET` | sí | firma de las sesiones (32+ caracteres, fijo) |
+| `DEOCO_DOMINIO_RAIZ` | sí | `deoco.com`: el panel es `app.<raíz>`, las bandas `<slug>.<raíz>` |
+| `DEOCO_ARCHIVOS_DIR` | no | `/data/archivos` (valor de la imagen) |
 | `DEOCO_ALMACEN` | no | `disco` (único implementado) |
-| `DEOCO_LIMITE_ALMACENAMIENTO` | no | bytes por banda si no tiene límite propio; por defecto 1 GiB |
-
-`<host-postgres>` es el nombre interno del servicio Postgres en Easypanel (lo muestra el
-propio servicio). `NODE_ENV=production` y el puerto ya los fija la imagen.
-
-**Nunca** apuntar `DATABASE_URL` a `deoco_owner` ni al administrador: la app tiene que
-conectarse con `deoco_app` para que RLS aísle a las bandas.
+| `DEOCO_LIMITE_ALMACENAMIENTO` | no | espacio por banda en bytes; por defecto 1 GiB |
 
 ## Respaldos
 
-Hay dos cosas que respaldar, y van juntas:
-
-1. **La base** `deoco` (backups del servicio Postgres en Easypanel, o `pg_dump` programado).
-2. **El volumen** `/data/archivos` (la base guarda qué archivo es de quién; el volumen, los bytes).
+Dos cosas, juntas: la **base** `deoco` (backups del servicio Postgres o `pg_dump` programado) y
+el **volumen** `/data/archivos` (la base sabe qué archivo es de quién; el volumen tiene los bytes).
 
 ## Actualizar
 
-Push a la rama de producción → Easypanel reconstruye (o "Deploy" a mano) → al arrancar se
-aplican las migraciones nuevas. Si una migración falla, el contenedor no levanta y el error
-queda en los logs del servicio.
+Push a la rama de producción → Easypanel reconstruye → al arrancar se aplican solo las
+migraciones nuevas. Si una migración o la verificación de arranque fallan, el contenedor no
+levanta y el motivo queda en los logs.
 
-## Qué se verificó y qué no
+## Dominio propio de una banda (más adelante)
 
-- **Verificado** (sin Docker, en un Postgres nuevo): `npm ci` y `next build` sin ninguna
-  variable de base, `npm prune --omit=dev`, `preparar-base.sql`, las 10 migraciones desde cero
-  vía `scripts/arrancar.sh`, `alta-staff.sql` y `alta-banda.sql`, y el servidor en modo
-  producción respondiendo panel, sitio público y 404.
-- **No verificado**: la construcción de la imagen Docker en sí (desde el entorno de desarrollo
-  no se puede descargar la imagen base de Node: Docker Hub y su espejo están bloqueados), y el
-  login en producción, que necesita HTTPS (la cookie `__Host-deoco.sesion` es `Secure`).
-  Las dos cosas se ven en el primer despliegue.
+Se registra en `/admin` (banda → Dominios), sin verificar todavía. Para que funcione, la banda
+apunta su dominio (registro `A`) a la IP del VPS y se agrega ese dominio en Easypanel con su
+propio certificado (validación HTTP, no el comodín).
+
+## Qué se verificó antes de este despliegue
+
+En el entorno de desarrollo, sin Docker, sobre un Postgres **nuevo y vacío**:
+
+- `npm ci` + `next build` **sin ninguna variable de base**, `npm prune --omit=dev`; la salida
+  del build no contiene nada del módulo de prueba.
+- `preparar-base.sql`, las migraciones desde cero vía `scripts/arrancar.sh`.
+- Arranque que falla a la vista: sin `DATABASE_URL_ADMIN` (lo frena `arrancar.sh`), sin
+  `AUTH_SECRET` arrancando Next directo (lo frena la verificación de la app) y con
+  `DATABASE_URL` apuntando al rol dueño.
+- **Detrás de un proxy HTTPS como Traefik**: login del staff con la cookie
+  `__Host-deoco.sesion` (`Secure`, `HttpOnly`, solo `app.`), `/admin`, alta de banda,
+  prender Sitio, titular con clave temporal → cambio de clave → panel, subida de una foto de
+  11 MB, publicar, sitio público por HTTPS sin cookies.
+- `scripts/crear-staff.mjs` contra una base real.
+
+**No verificado**: la construcción de la imagen Docker (desde el entorno de desarrollo no se
+puede bajar `node:22`) y la emisión del certificado comodín en Easypanel. Las dos se ven en el
+primer despliegue: logs de build y candado del navegador.

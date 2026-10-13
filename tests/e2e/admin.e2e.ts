@@ -166,7 +166,10 @@ describe("prueba 8 (pantalla): quitar al único titular", () => {
     const quitar = fila.locator("form[data-hidratado]").last();
     await quitar.waitFor();
     await quitar.getByRole("button", { name: "Quitar" }).click();
-    expect(await quitar.getByRole("alert").textContent()).toMatch(/no puede quedar sin titular/);
+    expect(await quitar.getByRole("alert").textContent()).toMatch(/Para quitar a b@x\.com de la banda, confirmalo/);
+    await quitar.getByText("Confirmo").click();
+    await quitar.getByRole("button", { name: "Quitar" }).click();
+    await quitar.getByRole("alert").filter({ hasText: /no puede quedar sin titular/ }).waitFor();
     expect(await dueno.membresia.count({ where: { tenant: { slug: "banda-b" }, rol: "TITULAR" } })).toBe(1);
   });
 });

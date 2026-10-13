@@ -101,6 +101,9 @@ export function descubrir({ produccion = false } = {}) {
     "",
     `export const modulosDescubiertos: Modulo[] = [${ids.map((_, i) => `m${i}`).join(", ")}];`,
     "",
+    "/** Para qué se generó esta lista. En producción, el arranque exige \"produccion\". */",
+    `export const generadoPara: "produccion" | "desarrollo" = "${produccion ? "produccion" : "desarrollo"}";`,
+    "",
   ];
   mkdirSync(path.dirname(salida), { recursive: true });
   writeFileSync(salida, lineas.join("\n"));

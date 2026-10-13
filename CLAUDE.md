@@ -120,10 +120,13 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 ## Despliegue
 
 Guía completa: `docs/despliegue.md` (Easypanel: Postgres + app por `Dockerfile` + volumen
-`/data/archivos`). Al arrancar, `scripts/arrancar.sh` aplica migraciones y levanta el server.
+`/data/archivos`; comodín `*.deoco.com` por DNS en Cloudflare). Al arrancar,
+`scripts/arrancar.sh` aplica migraciones y levanta el server; en producción
+`src/instrumentation.ts` → `src/nucleo/arranque.ts` verifica variables, roles de base, volumen,
+módulos y que el build sea de producción (`generadoPara`), y si algo falla el proceso termina.
 `next build` no necesita base (el cliente Prisma es perezoso; `prisma.config.ts` tolera la
-falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va por SQL
-(`prisma/sql/alta-staff.sql`); el resto, desde `/admin`.
+falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va a mano
+(`CLAVE=… node scripts/crear-staff.mjs <email> "<nombre>"` en la consola de la app); el resto, desde `/admin`.
 
 ## Comandos
 

@@ -59,9 +59,9 @@ export async function rolAccion(tenantId: string, membresiaId: string, _: Estado
   });
 }
 
-export async function quitarAccion(tenantId: string, membresiaId: string, _: EstadoFormulario) {
+export async function quitarAccion(tenantId: string, membresiaId: string, _: EstadoFormulario, fd: FormData) {
   return accionAdmin(async (staffId) => {
-    await quitarMiembro(staffId, tenantId, membresiaId);
+    await quitarMiembro(staffId, tenantId, membresiaId, fd.get("confirmar") === "on");
     return "Quitado de la banda.";
   });
 }

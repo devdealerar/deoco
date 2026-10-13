@@ -245,11 +245,19 @@ export async function cambiarRol(staffId: string, tenantId: string, membresiaId:
   });
 }
 
-export async function quitarMiembro(staffId: string, tenantId: string, membresiaId: string) {
+/** Quita a alguien de la banda. Exige confirmación explícita, como archivar. */
+export async function quitarMiembro(staffId: string, tenantId: string, membresiaId: string, confirmado: boolean) {
   await dbAdmin().$transaction(async (tx) => {
     await bloquearBanda(tx, tenantId);
     const m = await tx.membresia.findFirst({ where: { id: membresiaId, tenantId }, include: { usuario: { select: { email: true } } } });
     if (!m) return;
+    if (!confirmado) {
+      throw new ErrorFormulario(
+        m.usuarioId === staffId
+          ? "Te estás quitando a vos mismo de esta banda: perdés tu membresía y tu rol en ella (como staff seguís pudiendo entrar). Para hacerlo, confirmalo."
+          : `Para quitar a ${m.usuario.email} de la banda, confirmalo: pierde el acceso a su panel.`,
+      );
+    }
     if (m.rol === "TITULAR") await quedaTitular(tx, tenantId, m.id);
     await tx.membresia.delete({ where: { id: m.id } });
     await auditar(tx, { usuarioId: staffId, tenantId, accion: "membresia.quitada", detalle: { email: m.usuario.email, rol: m.rol } });

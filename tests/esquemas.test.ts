@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pascal, problemasEsquema } from "../scripts/descubrir-modulos.mjs";
+import { descubrir, pascal, problemasEsquema } from "../scripts/descubrir-modulos.mjs";
 
 const valido = `
 enum SitioColor {
@@ -37,5 +37,21 @@ describe("reglas del esquema de un módulo", () => {
   it("ids con guion: prefijo PressKit y tablas press_kit_", () => {
     const e = `model PressKitFoto {\n tenantId String @db.Uuid\n @@map("press_kit_foto")\n}`;
     expect(problemasEsquema("press-kit", e)).toEqual([]);
+  });
+});
+
+describe("el módulo de prueba no llega a producción", () => {
+  it("la lista de producción excluye los SOLO_DESARROLLO y queda marcada como de producción", async () => {
+    try {
+      const prod = descubrir({ produccion: true });
+      expect(prod.ids).not.toContain("prueba");
+      expect(prod.excluidos).toEqual(["prueba"]);
+      const { readFileSync } = await import("node:fs");
+      const generado = readFileSync("src/generated/modulos.ts", "utf8");
+      expect(generado).not.toMatch(/modulos\/prueba/);
+      expect(generado).toMatch(/generadoPara: "produccion" \| "desarrollo" = "produccion"/);
+    } finally {
+      descubrir({ produccion: false }); // deja la lista de desarrollo para el resto de las pruebas
+    }
   });
 });

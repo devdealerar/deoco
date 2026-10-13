@@ -10,3 +10,5 @@ src/generated
 prisma/schema/modulos
 coverage
 tests
+vitest.config.mts
+vitest.e2e.config.mts

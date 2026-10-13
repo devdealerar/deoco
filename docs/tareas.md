@@ -1,5 +1,19 @@
 # Tareas
 
+## Despliegue
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| 1 | Confirmación al quitar un miembro (mensaje propio si es uno mismo) | ✅ hecha |
+| 2 | Repaso previo al despliegue | ✅ hecho |
+
+- Verificación de arranque en producción (`src/nucleo/arranque.ts`): variables, roles (app sin
+  BYPASSRLS ni dueña de tablas; admin con BYPASSRLS; no cruzados), volumen, módulos, base migrada,
+  build de producción. Falla → el proceso termina con la lista de problemas.
+- `scripts/crear-staff.mjs`: primer staff en un paso desde la consola de la app.
+- Ensayo completo sobre Postgres vacío, detrás de un proxy HTTPS (ver `docs/despliegue.md`).
+- No verificado: build de la imagen Docker y certificado comodín en Easypanel (primer despliegue).
+
 ## Paso 3 · Formularios y back office
 
 | # | Parte | Estado |
@@ -14,8 +28,9 @@ Pruebas del back office: 1 (404), 2 (alta → titular entra), 3 (dependencia, mi
 8 (último titular), 9 (reprocesar) — `tests/admin.test.ts`, `tests/backoffice.test.ts`,
 `tests/e2e/admin.e2e.ts`.
 
-- 2b: la clave temporal no se guarda en ningún lado (ni en la auditoría); cambiar la clave no
-  cierra otras sesiones abiertas (JWT sin estado) — anotado.
+- 2b: la clave temporal no se guarda en ningún lado (ni en la auditoría).
+- **Pendiente:** cambiar la clave no cierra las otras sesiones abiertas (la sesión es un JWT
+  sin estado en el servidor). Llega cuando haya sesiones en servidor.
 - 2c: dominios propios se registran sin verificar y no pueden ser subdominios de la raíz;
   quitar/degradar titular bloquea la fila de la banda (dos cambios a la vez no la dejan sin titular).
 

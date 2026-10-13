@@ -25,7 +25,7 @@ const ROLES = ["TITULAR", "EDITOR", "COMERCIAL", "PUERTA", "LECTURA"].map((r) =>
 const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
 
 export default async function Banda({ params }: { params: Promise<{ slug: string }> }) {
-  await exigirStaff();
+  const { usuarioId: staffId } = await exigirStaff();
   const { slug } = await params;
   const banda = await detalleBanda(slug);
   if (!banda) notFound();
@@ -140,7 +140,9 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
             <Formulario key="r" {...enLinea} accion={rolAccion.bind(null, id, m.id)} etiqueta="Cambiar">
               <Selector name="rol" etiqueta="Rol" defaultValue={m.rol} opciones={ROLES} />
             </Formulario>,
-            <Formulario key="q" {...enLinea} variante="peligro" accion={quitarAccion.bind(null, id, m.id)} etiqueta="Quitar" />,
+            <Formulario key="q" {...enLinea} variante="peligro" accion={quitarAccion.bind(null, id, m.id)} etiqueta="Quitar">
+              <Casilla name="confirmar" etiqueta={m.usuario.id === staffId ? "Confirmo quitarme" : "Confirmo"} />
+            </Formulario>,
           ],
         }))}
       />

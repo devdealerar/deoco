@@ -116,7 +116,7 @@ describe("miembros", () => {
     // La banda B tiene un único titular (b@x.com).
     expect(await dueno.membresia.count({ where: { tenantId: e.b.id, rol: "TITULAR" } })).toBe(1);
     const titularB = await dueno.membresia.findFirstOrThrow({ where: { tenantId: e.b.id, rol: "TITULAR" } });
-    await expect(quitarMiembro(e.staff.id, e.b.id, titularB.id)).rejects.toThrow("La banda no puede quedar sin titular");
+    await expect(quitarMiembro(e.staff.id, e.b.id, titularB.id, true)).rejects.toThrow("La banda no puede quedar sin titular");
     await expect(cambiarRol(e.staff.id, e.b.id, titularB.id, "EDITOR")).rejects.toThrow("La banda no puede quedar sin titular");
     expect((await dueno.membresia.findUniqueOrThrow({ where: { id: titularB.id } })).rol).toBe("TITULAR");
     expect(await acciones()).toEqual([]);
@@ -127,9 +127,26 @@ describe("miembros", () => {
     const editorA = await dueno.membresia.findFirstOrThrow({ where: { tenantId: e.a.id, usuarioId: e.editorA.id } });
     await cambiarRol(e.staff.id, e.a.id, editorA.id, "TITULAR");
     const original = await dueno.membresia.findFirstOrThrow({ where: { tenantId: e.a.id, usuarioId: e.multi.id } });
-    await quitarMiembro(e.staff.id, e.a.id, original.id);
+    await quitarMiembro(e.staff.id, e.a.id, original.id, true);
     expect(await dueno.membresia.count({ where: { tenantId: e.a.id, rol: "TITULAR" } })).toBe(2); // a@x.com y editor-a
     expect(await acciones(e.a.id)).toEqual(["membresia.rol_cambiado", "membresia.quitada"]);
+  });
+});
+
+describe("quitar un miembro pide confirmación", () => {
+  it("sin confirmar no quita, y el mensaje nombra a quién", async () => {
+    const lectura = await dueno.membresia.findFirstOrThrow({ where: { tenantId: e.b.id, usuarioId: e.ajeno.id } });
+    await expect(quitarMiembro(e.staff.id, e.b.id, lectura.id, false)).rejects.toThrow(
+      "Para quitar a ajeno@x.com de la banda, confirmalo: pierde el acceso a su panel.",
+    );
+    expect(await dueno.membresia.findUnique({ where: { id: lectura.id } })).not.toBeNull();
+  });
+
+  it("si es el propio usuario, el mensaje lo dice", async () => {
+    const propia = await dueno.membresia.create({ data: { tenantId: e.b.id, usuarioId: e.staff.id, rol: "EDITOR" } });
+    await expect(quitarMiembro(e.staff.id, e.b.id, propia.id, false)).rejects.toThrow(/Te estás quitando a vos mismo de esta banda/);
+    await quitarMiembro(e.staff.id, e.b.id, propia.id, true);
+    expect(await dueno.membresia.findUnique({ where: { id: propia.id } })).toBeNull();
   });
 });
 
