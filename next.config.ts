@@ -1,17 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
+  experimental: {
+    // forbidden() → 403
+    authInterrupts: true,
   },
+  // Desarrollo con subdominios *.lvh.me (ver CLAUDE.md).
+  allowedDevOrigins: ["*.lvh.me"],
 };
 
 export default nextConfig;

@@ -30,9 +30,23 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - `/b/<slug>/pago` lo define el núcleo: abierto con la banda suspendida, solo para el titular.
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.
 
+## Sesión, rol y permisos
+
+- Auth.js (`src/nucleo/auth`): email + contraseña (argon2id). La sesión (JWT) lleva SOLO `sub`.
+  Cookie `deoco.sesion` (`__Host-deoco.sesion` en producción), host-only de `app.<raiz>`:
+  los sitios públicos no la reciben. Auth.js, `/ingresar` y el selector dan 404 en hosts de banda.
+- Rol por pedido: sesión + tenant del proxy → `membresia` (`src/nucleo/acceso/resolver.ts`).
+- En páginas y rutas del panel: `accesoPanel()`, `exigirPermiso()`, `exigirTitular()`,
+  `puedeEnPedido()` (`src/nucleo/acceso/panel.ts`). Fuera del pedido: `puede(usuarioId, tenantId, permiso)`.
+- Permisos: los declara cada módulo (`registrarPermisos`). `exclusivoTitular` = ni otro rol
+  ni el staff (pasarela de cobro). La excepción del staff está en `src/nucleo/permisos/puede.ts`.
+- Staff sin membresía: pasa por `registrarAccesoStaff()` (hoy no persiste).
+
 ## Comandos
 
 - `npm test` — pruebas, contra la base de `.env.test` (ver `.env.test.example`)
+- `npm run test:e2e` — punta a punta: levanta `next dev` en :3200 sobre la base de pruebas
+  y navega con Chromium (`/opt/pw-browsers/chromium`, o la ruta en `CHROMIUM`)
 - `npm run typecheck` · `npm run lint`
 - `npx prisma migrate dev` — migraciones (rol dueño)
 

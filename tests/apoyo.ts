@@ -33,3 +33,33 @@ export async function dosBandas() {
   }
   return { a, b, ua, ub };
 }
+
+export const CONTRASENA = "clave-de-prueba";
+
+/**
+ * Escenario de acceso sobre dos bandas:
+ * - multi: TITULAR en A, EDITOR en B
+ * - ajeno: solo LECTURA en B
+ * - editorA: EDITOR en A
+ * - staff: esStaff, sin membresías
+ */
+export async function escenarioAcceso() {
+  const { hashearContrasena } = await import("@/nucleo/auth/contrasena");
+  const { a, b } = await dosBandas();
+  const hashContrasena = await hashearContrasena(CONTRASENA);
+  const crear = (email: string, esStaff = false) =>
+    dueno.usuario.create({ data: { email, nombre: email, hashContrasena, esStaff } });
+  const multi = await crear("multi@x.com");
+  const ajeno = await crear("ajeno@x.com");
+  const editorA = await crear("editor-a@x.com");
+  const staff = await crear("staff@deoco.com", true);
+  await dueno.membresia.createMany({
+    data: [
+      { usuarioId: multi.id, tenantId: a.id, rol: "TITULAR" },
+      { usuarioId: multi.id, tenantId: b.id, rol: "EDITOR" },
+      { usuarioId: ajeno.id, tenantId: b.id, rol: "LECTURA" },
+      { usuarioId: editorA.id, tenantId: a.id, rol: "EDITOR" },
+    ],
+  });
+  return { a, b, multi, ajeno, editorA, staff };
+}

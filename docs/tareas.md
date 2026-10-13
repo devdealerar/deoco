@@ -7,8 +7,8 @@ revisa y aprueba antes de pasar a la siguiente.
 | --- | --- | --- |
 | 1 | Esquema Prisma + migraciones con RLS + `conTenant()` | ✅ aprobada |
 | 2a | Estados del tenant + proxy de resolución por dominio | ✅ aprobada |
-| 2a′ | Corrección: panel en `app.<raiz>/b/<slug>`, proxy con dos caminos | ✅ hecha, en revisión |
-| 2b | Auth.js (sesión solo con el usuario) + rol por pedido + `puede()` + staff | ⏳ |
+| 2a′ | Corrección: panel en `app.<raiz>/b/<slug>`, proxy con dos caminos | ✅ aprobada |
+| 2c | Auth.js + membresía y rol por pedido + `puede()` + staff + solo titular | ✅ hecha, en revisión |
 | 4 | Registro de módulos (contrato, descubrimiento, navegación, 404 si está apagado) | ⏳ |
 | 5 | Bus de eventos: `emitir()` + suscriptos | ⏳ |
 
@@ -23,11 +23,24 @@ revisa y aprueba antes de pasar a la siguiente.
 ### Pruebas de la parte 2
 
 - [x] 1. Host de la banda A → tenant A; host inexistente → 404 — `tests/proxy.test.ts`
-- [ ] 2. Usuario sin membresía en esa banda (`/b/<slug>`) → 403
-- [ ] 3. Mismo usuario, dos bandas, dos roles: `puede()` distinto en cada una
-- [ ] 4. Cambiar de `/b/banda-a` a `/b/banda-b` no pide re-login y cambia el contexto
+- [x] 2. Usuario sin membresía en esa banda (`/b/<slug>`) → 403 — `tests/e2e/panel.e2e.ts`, `tests/permisos.test.ts`
+- [x] 3. Mismo usuario, dos bandas, dos roles: `puede()` distinto en cada una — `tests/permisos.test.ts`
+- [x] 4. Cambiar de `/b/banda-a` a `/b/banda-b` no pide re-login y cambia rol — `tests/e2e/panel.e2e.ts`
 - [x] 5. `SUSPENDIDO`: panel 403, sitio 200. `ARCHIVADO`: ambos 404, por host y por slug — `tests/proxy.test.ts`
-- [ ] 6. Staff entra a cualquier tenant pero no pasa el permiso de pasarela
+- [x] 6. Staff entra a cualquier banda pero no pasa el permiso de pasarela — ambos archivos
+- [x] 7. Banda `SUSPENDIDO`: titular entra a `/pago`; `EDITOR` (y staff) 403 — `tests/e2e/panel.e2e.ts`
+- [x] 8. La cookie de sesión no se manda a `banda-a.lvh.me` — `tests/e2e/panel.e2e.ts`
+
+## Decisiones tomadas en la parte 2c
+
+- Permiso con `exclusivoTitular: true` (agregado opcional al contrato de permisos): marca
+  la pasarela de cobro sin que el núcleo conozca módulos. Solo admite `rolesPorDefecto: ["TITULAR"]`.
+- Staff que además es miembro de la banda: vale su rol (un staff titular sí tiene su pasarela).
+- `/b/<slug>/pago` exige TITULAR siempre (el titular es quien paga), no solo con la marca del proxy.
+- Selector: función `bandas_visibles(usuario)` (SECURITY DEFINER; el chequeo de staff lo hace
+  la base). No lista bandas ARCHIVADAS. La conexión aparte del back office llega con el back office.
+- `/` en `app.<raiz>` es el selector; en un host de banda es la home pública (provisoria, anónima).
+- `puede()` todavía no mira si el módulo está prendido: entra con el registro de módulos (parte 4).
 
 ## Decisiones tomadas en la parte 2a / 2a′
 
