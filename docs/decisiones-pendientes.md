@@ -46,3 +46,15 @@ y por qué. Si alguna no va, se cambia.
    estado único (todas con la misma clave) que uno mezclado.
 4. El script repite el formato de `src/nucleo/secretos/cifrado.ts` en JS (la imagen no trae
    `tsx`); una prueba cifra con el núcleo, rota con el script y lee con el núcleo.
+
+## B · Consultas entre módulos
+
+1. **Por id con texto** (`"ticketera.proximas-fechas"`), sin tipos compartidos: un módulo no
+   importa código de otro, tampoco tipos. Quien pregunta valida la forma con `interpretar`
+   (obligatorio) y la forma se documenta junto a la declaración.
+2. **Errores y demoras → vacío** (3 s por defecto), además del módulo apagado. "Nunca rompe a
+   quien pregunta" lo tomé literal: un sitio no se cae porque la ticketera falla.
+3. **Respuesta JSON y copiada**: así nadie comparte objetos ni se cuelan clases o funciones.
+4. **Solo lectura.** No hay "comandos" entre módulos: para avisar algo están los eventos.
+5. Quien pregunta **no declara** que usa una consulta (no hacía falta para nada concreto; se
+   puede sumar si se quiere validar al arrancar).

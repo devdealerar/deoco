@@ -167,6 +167,23 @@ export type DefinicionSecreto = {
   ayuda?: string;
 };
 
+/**
+ * Consulta que un módulo ofrece a los demás (p. ej. la ticketera, sus próximas fechas). Otro
+ * módulo la pide por id con `consultar(tenantId, "<id>.<nombre>", params, { vacio })`, sin
+ * importar código. Si el módulo que responde está apagado para la banda, no existe o falla,
+ * quien pregunta recibe su `vacio`: nunca se rompe.
+ *
+ * La respuesta tiene que ser un valor JSON (objetos, listas, texto, números, booleanos, null;
+ * las fechas, como texto ISO). Su forma es el contrato público del módulo: documentala junto a
+ * la declaración, y no la cambies sin avisar a quien la usa.
+ */
+export type DefinicionConsulta = {
+  /** Minúsculas, números y guiones: `proximas-fechas`. Se pide como `<id>.<nombre>`. */
+  nombre: string;
+  /** Corre con la banda que pregunta; lee con conTenant. Rápida: se corta a los pocos segundos. */
+  responder: (tenantId: string, params: Record<string, unknown>) => Promise<unknown>;
+};
+
 export type Modulo = {
   id: string;
   nombre: string;
@@ -204,6 +221,8 @@ export type Modulo = {
   avisos?: DefinicionAviso[];
   /** Credenciales por banda que necesita (cifradas; solo las carga el titular). */
   secretos?: DefinicionSecreto[];
+  /** Consultas que ofrece a otros módulos (ver DefinicionConsulta). */
+  consultas?: DefinicionConsulta[];
   /** Ids de módulos que tienen que estar prendidos para prender este. */
   dependencias?: string[];
 };

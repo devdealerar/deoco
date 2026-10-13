@@ -2,6 +2,7 @@ import { problemaNombreEvento } from "@/nucleo/eventos/nombre";
 import type {
   CabeceraPublica,
   DefinicionAviso,
+  DefinicionConsulta,
   DefinicionPermiso,
   Evento,
   EntradaNavegacion,
@@ -19,6 +20,7 @@ const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 
 // Rutas que son del núcleo y ningún módulo puede ocupar.
 const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, secretos
+const NOMBRE_CONSULTA = /^[a-z][a-z0-9-]{0,62}$/;
 const CLAVE_SECRETO = /^[a-z][a-z0-9_]{0,62}$/;
 const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas"]; // plataforma, archivos y avisos
 
@@ -52,6 +54,8 @@ export type Registro = {
   cabeceraPublica?: { moduloId: string; componente: CabeceraPublica };
   /** Metadatos del sitio público, si algún módulo los aporta (a lo sumo uno). */
   metadatosPublicos?: { moduloId: string; fn: NonNullable<Modulo["metadatosPublicos"]> };
+  /** Consulta ofrecida con ese id (`<modulo>.<nombre>`). */
+  consulta(id: string): { moduloId: string; definicion: DefinicionConsulta } | undefined;
 };
 
 export class ErrorRegistro extends Error {
@@ -127,6 +131,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   const admin = new Map<string, (path: string) => RutaEncontrada<PropsRutaAdmin> | undefined>();
   const tablasGlobales: { moduloId: string; tabla: string }[] = [];
   const definiciones = new Map<RutaModulo<unknown>, DefinicionAviso>();
+  const consultas = new Map<string, { moduloId: string; definicion: DefinicionConsulta }>();
 
   for (const m of modulos) {
     if (!ID.test(m.id)) throw new ErrorRegistro(m.id, "id inválido (minúsculas, números y guiones)");
@@ -239,6 +244,15 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       clavesSecretos.add(sec.clave);
     }
 
+    for (const c of m.consultas ?? []) {
+      if (!NOMBRE_CONSULTA.test(c.nombre)) {
+        throw new ErrorRegistro(m.id, `consulta "${c.nombre}": nombre inválido (minúsculas, números y guiones)`);
+      }
+      if (consultas.has(`${m.id}.${c.nombre}`)) throw new ErrorRegistro(m.id, `consulta "${c.nombre}" repetida`);
+      if (typeof c.responder !== "function") throw new ErrorRegistro(m.id, `consulta "${c.nombre}": falta responder`);
+      consultas.set(`${m.id}.${c.nombre}`, { moduloId: m.id, definicion: c });
+    }
+
     if (m.marcoPublico) {
       if (marcoPublico) {
         throw new ErrorRegistro(m.id, `marcoPublico: ya lo aporta "${marcoPublico.moduloId}" (solo puede haber uno)`);
@@ -292,5 +306,6 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     marcoPublico,
     metadatosPublicos,
     cabeceraPublica,
+    consulta: (id) => consultas.get(id),
   };
 }

@@ -348,6 +348,46 @@ avisos: [{ ruta: "/mercadopago", manejador: avisoMercadoPago }], // POST por def
   respuesta es 500 (la pasarela reintenta) y al log va solo el mensaje, nunca el cuerpo.
 - Ejemplo completo: `modulos/prueba/aviso.ts` (firma HMAC con la credencial de la banda).
 
+## 6 ter. Consultas a otros módulos
+
+Un módulo nunca importa código de otro. Cuando uno necesita **leer** datos de otro (el sitio
+muestra las fechas de la ticketera), el que tiene los datos **ofrece una consulta** y el otro
+la **pide por id**.
+
+El que responde la declara en su contrato:
+
+```ts
+// modulos/ticketera/index.ts
+consultas: [
+  {
+    nombre: "proximas-fechas", // se pide como "ticketera.proximas-fechas"
+    // Responde: [{ id, nombre, fecha (ISO), lugar, ciudad, url }] — publicadas y por venir.
+    responder: async (tenantId, params) => proximasFechas(tenantId, Number(params.limite) || 20),
+  },
+],
+```
+
+El que pregunta la pide con `consultar` (`@/nucleo/consultas`):
+
+```ts
+const fechas = await consultar(tenantId, "ticketera.proximas-fechas", { limite: 10 }, {
+  vacio: [], // lo que recibe si no hay respuesta
+  interpretar: (r) => validarFechas(r), // valida la forma; si tira, recibe `vacio`
+});
+```
+
+- **Nunca rompe a quien pregunta.** Si el módulo que responde está **apagado** para la banda,
+  no está en este build, tira un error o tarda más de 3 s (`esperaMs`), vuelve `vacio`. Así
+  el que pregunta puede tener su propio plan B (el sitio muestra las fechas cargadas a mano).
+- **La respuesta es JSON** (las fechas, como texto ISO) y llega copiada. Su forma es el
+  contrato público del módulo que responde: documentala en un comentario junto a la
+  declaración y no la cambies sin revisar a quién la usa (`grep "<id>.<nombre>"`).
+- **Quien pregunta valida** con `interpretar`: no confía en la forma. Si no coincide, recibe
+  `vacio` (y queda en el log).
+- `responder` corre con la banda que pregunta y lee con `conTenant` como cualquier código del
+  módulo: RLS sigue aislando. Solo lectura y rápida: para avisar que algo pasó, eventos.
+- Nombres: minúsculas, números y guiones. El registro rechaza nombres inválidos o repetidos.
+
 ## 7. Encendido
 
 - Un módulo nace apagado. Lo prende o apaga el staff (`prenderModulo`, `apagarModulo`

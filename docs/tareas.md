@@ -10,7 +10,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | A1 | Barrido de pendientes (eventos y correos) al arrancar y periódico | ✅ hecha |
 | A2 | Revisión periódica de dominios propios + aviso en el panel | ✅ hecha |
 | A3 | Rotación de `DEOCO_CLAVE_SECRETOS` | ✅ hecha |
-| B | Consultas entre módulos | pendiente |
+| B | Consultas entre módulos | ✅ hecha |
 | C | Panel del proveedor | pendiente |
 | D | Módulo ticketera | pendiente |
 | E | Revisión final | pendiente |
@@ -26,6 +26,8 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   (insignia "No apunta a Deoco" + registro A a corregir). Componente propio `Aviso` en `@/ui`.
 - A3: `DEOCO_CLAVE_SECRETOS_ANTERIOR` (se lee con las dos) + `scripts/rotar-clave-secretos.mjs`
   (todo o nada, repetible). Procedimiento en `docs/despliegue.md`.
+- B: contrato `consultas`, `consultar()` en `src/nucleo/consultas` (vacío si el módulo está
+  apagado, no existe, falla o tarda >3 s; quien pregunta valida con `interpretar`). Guía §6 ter.
 
 ## Paso 4 · Módulo de tienda
 
