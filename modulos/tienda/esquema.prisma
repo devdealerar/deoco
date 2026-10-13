@@ -61,21 +61,59 @@ model TiendaProductoBase {
   @@map("tienda_producto_base")
 }
 
-/// Producto de una banda, hecho a partir de un producto base.
+/// Archivo de impresión de la banda (PNG de alta o PDF). Un diseño sirve para varios productos.
+/// Guarda lo que se midió al subirlo, para validar contra cada producto base.
+model TiendaDiseno {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  nombre        String
+  /// Archivo privado de la banda (al proveedor le llega con un link firmado).
+  archivoId     String   @db.Uuid
+  archivoNombre String
+  /// "png" | "pdf"
+  formato       String
+  /// PNG: píxeles y resolución declarada (dpi; null si el archivo no la trae).
+  anchoPx       Int?
+  altoPx        Int?
+  dpi           Int?
+  /// PDF: tamaño de la primera página, en puntos (1/72 pulgada).
+  anchoPt       Float?
+  altoPt        Float?
+  /// PNG: hay versión liviana para ver en el panel.
+  conVistaPrevia Boolean @default(false)
+  creadoEn      DateTime @default(now())
+
+  productos TiendaProducto[]
+
+  @@index([tenantId])
+  @@map("tienda_diseno")
+}
+
+/// Producto de una banda, hecho a partir de un producto base y un diseño.
 model TiendaProducto {
   id             String   @id @default(uuid()) @db.Uuid
   tenantId       String   @db.Uuid
   productoBaseId String   @db.Uuid
   productoBase   TiendaProductoBase @relation(fields: [productoBaseId], references: [id], onDelete: Restrict)
+  disenoId       String   @db.Uuid
+  diseno         TiendaDiseno @relation(fields: [disenoId], references: [id], onDelete: Restrict)
   nombre         String
-  /// Precio al fan, envío incluido.
+  descripcion    String   @default("")
+  /// Precio al fan, envío incluido (centavos).
   precio         Int
-  activo         Boolean  @default(true)
+  /// Variantes que ofrece, subconjunto de las del base: [{ "nombre": "Talle", "valores": ["S", "M"] }]
+  variantes      Json     @default("[]")
+  /// Foto propia (archivo de la banda, público al publicar). Sin foto: la del producto base.
+  fotoArchivoId  String?  @db.Uuid
+  fotoNombre     String?
+  /// Borrador (false) no se ve en la tienda.
+  publicado      Boolean  @default(false)
   creadoEn       DateTime @default(now())
+  actualizadoEn  DateTime @default(now()) @updatedAt
 
   items TiendaPedidoItem[]
 
-  @@index([tenantId])
+  @@index([tenantId, publicado])
   @@map("tienda_producto")
 }
 

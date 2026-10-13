@@ -3,9 +3,11 @@
 const enteros = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const conCentavos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2 });
 
-/** 1250050 → "$ 12.500,50"; 1250000 → "$ 12.500" */
+/** 1250050 → "$ 12.500,50"; 1250000 → "$ 12.500"; −250000 → "-$ 2.500" (igual en todo motor de Intl). */
 export function formatearPesos(centavos: number): string {
-  return (centavos % 100 ? conCentavos : enteros).format(centavos / 100);
+  const abs = Math.abs(centavos);
+  const texto = (abs % 100 ? conCentavos : enteros).format(abs / 100);
+  return centavos < 0 ? `-${texto}` : texto;
 }
 
 /**

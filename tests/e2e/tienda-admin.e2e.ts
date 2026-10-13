@@ -12,6 +12,7 @@ beforeAll(async () => {
   await dueno.tiendaPedidoItem.deleteMany();
   await dueno.tiendaPedido.deleteMany();
   await dueno.tiendaProducto.deleteMany();
+  await dueno.tiendaDiseno.deleteMany();
   await dueno.tiendaProductoBase.deleteMany();
   await dueno.tiendaProveedor.deleteMany();
   await abrirNavegador();
@@ -78,9 +79,12 @@ describe("back office de la tienda: proveedores y catálogo base", () => {
 
   it("en uso no se borra (el mensaje lo dice) y se desactiva; el costo nuevo queda guardado", async () => {
     const base = await dueno.tiendaProductoBase.findFirstOrThrow({ where: { nombre: "Remera" } });
-    await conTenant(e.a.id, (tx) =>
-      tx.tiendaProducto.create({ data: { tenantId: e.a.id, productoBaseId: base.id, nombre: "Remera A", precio: 2500000 } }),
-    );
+    await conTenant(e.a.id, async (tx) => {
+      const diseno = await tx.tiendaDiseno.create({
+        data: { tenantId: e.a.id, nombre: "Logo", archivoId: crypto.randomUUID(), archivoNombre: "logo.png", formato: "png", anchoPx: 4200, altoPx: 4800, dpi: 300 },
+      });
+      await tx.tiendaProducto.create({ data: { tenantId: e.a.id, productoBaseId: base.id, disenoId: diseno.id, nombre: "Remera A", precio: 2500000 } });
+    });
     const { page } = await logueado("staff@deoco.com");
     await page.goto(`${APP}/admin/m/tienda`);
     await formulario(page, "Nuevo producto base"); // hidratada: el clic lo toma el router

@@ -46,6 +46,7 @@ beforeEach(async () => {
   await dueno.tiendaPedidoItem.deleteMany();
   await dueno.tiendaPedido.deleteMany();
   await dueno.tiendaProducto.deleteMany();
+  await dueno.tiendaDiseno.deleteMany();
   await dueno.tiendaProductoBase.deleteMany();
   await dueno.tiendaProveedor.deleteMany();
   await dueno.archivoPlataforma.deleteMany();
@@ -59,7 +60,12 @@ afterAll(async () => {
 /** Una banda que vende el producto base: producto + pedido con un renglón. */
 async function venta(tenantId: string, productoBaseId: string) {
   return conTenant(tenantId, async (tx) => {
-    const producto = await tx.tiendaProducto.create({ data: { tenantId, productoBaseId, nombre: "Remera Los Satélites", precio: 2500000 } });
+    const diseno = await tx.tiendaDiseno.create({
+      data: { tenantId, nombre: "Logo", archivoId: crypto.randomUUID(), archivoNombre: "logo.png", formato: "png", anchoPx: 4200, altoPx: 4800, dpi: 300 },
+    });
+    const producto = await tx.tiendaProducto.create({
+      data: { tenantId, productoBaseId, disenoId: diseno.id, nombre: "Remera Los Satélites", precio: 2500000, publicado: true },
+    });
     const pedido = await tx.tiendaPedido.create({ data: { tenantId } });
     await tx.tiendaPedidoItem.create({
       data: { tenantId, pedidoId: pedido.id, productoId: producto.id, productoBaseId, variante: { Talle: "M" }, cantidad: 2, precioUnitario: 2500000 },
@@ -156,7 +162,7 @@ describe("prueba 3: un producto base en uso no se borra, se desactiva", () => {
     await actualizarProductoBase(comoStaff, base.id, { ...remera(), activo: false });
     expect((await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: base.id } })).activo).toBe(false);
     // Desactivado: el producto que la banda ya tenía sigue existiendo y vendiéndose.
-    expect(await conTenant(e.a.id, (tx) => tx.tiendaProducto.count({ where: { productoBaseId: base.id, activo: true } }))).toBe(1);
+    expect(await conTenant(e.a.id, (tx) => tx.tiendaProducto.count({ where: { productoBaseId: base.id, publicado: true } }))).toBe(1);
   });
 });
 
@@ -224,5 +230,6 @@ describe("dinero en pesos", () => {
     expect(leerPesos("-3")).toBeNull();
     expect(formatearPesos(1250050).replace(/\s/g, " ")).toBe("$ 12.500,50");
     expect(formatearPesos(1250000).replace(/\s/g, " ")).toBe("$ 12.500");
+    expect(formatearPesos(-250000).replace(/\s/g, " ")).toBe("-$ 2.500");
   });
 });

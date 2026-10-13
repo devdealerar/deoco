@@ -11,8 +11,8 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
 | # | Parte | Estado |
 | --- | --- | --- |
 | 1 | Correo del núcleo, `conStaff()`, `rutasAdmin`, `urlFirmada()` | ✅ hecha |
-| 2 | Catálogo base y proveedores, desde el back office | ✅ hecha (a revisar) |
-| 3 | Panel de la banda: diseños, productos, precios y margen | pendiente |
+| 2 | Catálogo base y proveedores, desde el back office | ✅ hecha |
+| 3 | Panel de la banda: diseños, productos, precios y margen | ✅ hecha (a revisar) |
 | 4 | Tienda pública: catálogo, carrito, checkout | pendiente |
 | 5 | Pago con Mercado Pago, aviso y deuda con el proveedor | pendiente |
 | 6 | Mails: confirmación al fan y orden al proveedor | pendiente |
@@ -34,6 +34,21 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
     servidos en cualquier host en `/archivos/plataforma/<id>/<nombre>`.
   - Ojo para la parte 4: una clave foránea no mira RLS; al crear un renglón hay que verificar
     bajo `conTenant` que el producto sea de la banda.
+- Parte 3 (`/b/<slug>/tienda`): diseños, productos, margen.
+  - Diseño: PNG (píxeles y dpi declarados, `sharp`) o PDF (tamaño de página, `pdf-lib`).
+    Al subir se puede revisar contra un producto base ("Revisarlo para"); si no cumple no se
+    guarda y el error trae los números. Cada diseño muestra para qué productos sirve; al crear
+    o editar un producto se vuelve a validar. Más grande está bien, más chico no; un PNG sin
+    dpi declarado se rechaza. Archivo privado de la banda, con vista previa en el panel.
+  - Producto: base activo (solo para nuevos), diseño que sirva, nombre, descripción, precio
+    (envío incluido), variantes ofrecidas (subconjunto del base), foto propia o la del base.
+    Publicado/borrador es un estado del producto: lo que se edita en uno publicado se ve al
+    guardar (no hay copia publicada aparte, a diferencia del sitio).
+  - Margen = precio − producción − envío (costos vigentes del base), en pesos y % del precio.
+    Negativo: aviso fuerte, se guarda igual. La pantalla aclara que Deoco no se lleva nada y
+    que el margen no descuenta la comisión de la pasarela.
+  - Permisos: `tienda.producto.ver` (todos los roles) y `tienda.producto.editar` (TITULAR,
+    EDITOR, COMERCIAL), exigido también en el servidor.
 - `conStaff`: la auditoría se inserta sin RETURNING (la política deja insertar, no leer).
 - Pendiente anotado: barrido de correos y eventos pendientes al arrancar (hoy salen con el
   siguiente de la misma banda o al reintentar).
