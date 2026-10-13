@@ -19,10 +19,15 @@ enum Rol {
   LECTURA
 }
 
-// PENDIENTE: valores de estado a confirmar con producto.
+// ACTIVO y MOROSO: todo funciona (MOROSO avisa al titular).
+// SUSPENDIDO: panel 403 salvo rutas de pago (solo titular); sitio público normal.
+// ARCHIVADO: panel y sitio 404; los datos se conservan.
+// Las reglas viven en src/nucleo/tenant/reglas.ts.
 enum EstadoTenant {
   ACTIVO
+  MOROSO
   SUSPENDIDO
+  ARCHIVADO
 }
 
 /// Identidad global: una persona, un usuario, en toda la plataforma. Sin RLS.

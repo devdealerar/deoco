@@ -43,3 +43,4 @@ next-env.d.ts
 # prisma client generado
 /src/generated
 !.env.example
+!.env.test.example
