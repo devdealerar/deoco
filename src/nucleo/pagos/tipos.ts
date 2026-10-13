@@ -1,5 +1,5 @@
 // Una pasarela de pago: donde el fan le paga a la banda, con las credenciales de la banda.
-// Los módulos (tienda, ticketera) hablan con @/nucleo/pagos y nunca nombran una pasarela
+// Los módulos que cobran hablan con @/nucleo/pagos y nunca nombran una pasarela
 // concreta. Sumar otra (PayPal, Stripe) es un archivo nuevo acá y una línea en ./index.ts.
 import type { AvisoEntrante, DefinicionSecreto } from "@/nucleo/modulos/contrato";
 

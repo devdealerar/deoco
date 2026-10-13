@@ -2,6 +2,7 @@ import { urlArchivo } from "@/nucleo/archivos";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { MetadatosPagina, PropsMarcoPublico, PropsRutaPublica } from "@/nucleo/modulos/contrato";
 import { ACENTO_POR_DEFECTO, type ContenidoSitio, leerPublicado, type RefArchivo } from "./contenido";
+import { conFechasVivas } from "./fechas";
 import type { Rutas } from "./vista/estilo";
 import { Home } from "./vista/home";
 import { MarcoBanda } from "./vista/marco";
@@ -45,7 +46,7 @@ function EnPreparacion() {
 
 export async function HomePublica({ tenantId }: PropsRutaPublica) {
   const publicado = await leerPublicado(tenantId);
-  return publicado ? <Home contenido={publicado.contenido} rutas={rutas} /> : <EnPreparacion />;
+  return publicado ? <Home contenido={await conFechasVivas(tenantId, publicado.contenido)} rutas={rutas} /> : <EnPreparacion />;
 }
 
 export async function PrensaPublica({ tenantId }: PropsRutaPublica) {

@@ -1,4 +1,4 @@
-// Consultas entre módulos: un módulo pide datos a otro por id (`ticketera.proximas-fechas`),
+// Consultas entre módulos: un módulo pide datos a otro por id (`<modulo>.<nombre>`),
 // sin importar su código. El núcleo resuelve quién responde, si está prendido para la banda,
 // y protege a quien pregunta: apagado, inexistente, lento o con error → su `vacio`.
 import { registro as registroGlobal } from "@/nucleo/modulos";

@@ -157,7 +157,10 @@ contacto de la banda. Vuelve enseguida y se envía después de responder.
 - Con `tx` (de `conTenant`), el correo se confirma o se pierde con el dato.
 - Con `unica`, el mismo correo sale una sola vez aunque se pida de nuevo (un aviso repetido).
 - Escapá lo que venga del usuario con `escaparHtml()`.
-- Si falla, queda FALLIDO con el motivo; `reintentarCorreo(tenantId, id)`.
+- Si falla, queda FALLIDO con el motivo; el barrido lo reintenta solo dos veces (2 y 15 min) y
+  después, a mano: `reintentarCorreo(tenantId, id)`.
+- `adjuntos: [{ nombre, tipo, cid?, contenido }]` (PNG, JPG, PDF o calendario; hasta 30 y 1 MB):
+  con `cid`, la imagen va dentro del html como `<img src="cid:…">` (los QR de las entradas).
 
 ## 4. Permisos
 
@@ -368,7 +371,9 @@ avisos: [{ ruta: "/pago/[pasarela]", metodos: ["POST", "GET"], manejador: avisoD
   verificá que `cobro.referencia` sea tuya **en esta banda**, monto y moneda, y registralo con
   un cambio condicional (dos avisos a la vez no lo registran dos veces).
 - `probarConexion(modulo, tenantId)`: a nombre de quién cobra (para que el titular confirme).
-- Ejemplos: `modulos/tienda/pagos.ts` + `aviso.ts`, `modulos/ticketera/compras.ts`.
+- Ejemplos: `modulos/tienda/pagos.ts` + `aviso.ts`, `modulos/ticketera/compras.ts` + `aviso.ts`.
+- Cupos (entradas, stock): un contador en la fila con `CHECK (ocupadas <= cupo)` y la fila
+  bloqueada (`SELECT … FOR UPDATE`) al reservar; ver `modulos/ticketera/compras.ts`.
 
 ## 6 ter. Consultas a otros módulos
 

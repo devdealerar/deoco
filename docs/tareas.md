@@ -12,7 +12,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | A3 | Rotación de `DEOCO_CLAVE_SECRETOS` | ✅ hecha |
 | B | Consultas entre módulos | ✅ hecha |
 | C | Panel del proveedor | ✅ hecha |
-| D | Módulo ticketera | pendiente |
+| D | Módulo ticketera | ✅ hecha |
 | E | Revisión final | pendiente |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
@@ -36,6 +36,21 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   cada apertura, 3 días), despachar, cuenta corriente y "marcar saldadas" (solo el proveedor).
   Back office: Proveedores → Accesos al panel. Pruebas: `tests/tienda-proveedor.test.ts`,
   `tests/e2e/tienda-proveedor.e2e.ts`.
+- D: cobros al núcleo (`src/nucleo/pagos`, Credenciales → Cobros; la tienda lo usa igual) y
+  adjuntos en el correo del núcleo (QR con `cid:`). Módulo `modulos/ticketera`:
+  - Panel "Entradas": shows (nombre, fecha y hora, lugar, ciudad, dirección, descripción,
+    foto), tipos (precio, cupo, ventana de venta), vendidas / pagando ahora / disponibles,
+    borrador o publicado, compras y pagos a revisar.
+  - Sitio: pestaña "Fechas" (`/fechas`, `/fechas/<id>` con la compra, `/fechas/compra/<id>?t=`
+    con los QR). Cupo en la base (`ocupadas` con CHECK ≤ cupo, fila bloqueada); reserva de 20
+    min que vence sola; entradas nominadas (nombre y documento) creadas al pagarse.
+  - Mail con un QR por entrada (`compra.pagada`). Pago tardío: entra si hay lugar; si no, a
+    revisión (la banda devuelve). Pagos duplicados quedan anotados.
+  - Puerta (`/puerta`, rol PUERTA): escanear (cámara + jsQR) o tipear; resultado grande;
+    "ya entró a las HH:MM"; reintentos con el mismo intento ante mala señal; resumen vivo.
+  - El sitio muestra las fechas de la ticketera por la consulta `ticketera.proximas-fechas`;
+    apagada, las cargadas a mano.
+  - Pruebas: `tests/ticketera.test.ts`, `tests/e2e/ticketera.e2e.ts`.
 
 ## Paso 4 · Módulo de tienda
 

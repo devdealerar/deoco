@@ -97,3 +97,39 @@ y por qué. Si alguna no va, se cambia.
    titular las vuelve a cargar).
 3. **El aviso sigue siendo de cada módulo** (`/avisos/<banda>/<modulo>/pago/<pasarela>`): el
    núcleo consulta el cobro a la API y el módulo lo registra. Así la URL de la tienda no cambió.
+
+## D · Ticketera
+
+1. **Una compra = un tipo de entrada** (y una cantidad, hasta 10). Para dos tipos, dos compras.
+2. **Precio mayor a cero**: no hay entradas gratis (la pasarela no cobra $0). Si hace falta,
+   se agrega un flujo sin pago.
+3. **Cupo en la base**: `ticketera_tipo.ocupadas` (vendidas + reservadas vigentes) con
+   `CHECK (ocupadas <= cupo)` y la fila bloqueada en cada compra. Probado con 8 compras a la vez
+   para 5 lugares.
+4. **Reserva de 20 minutos** mientras el fan paga. Vence sola (se libera al intentar otra compra
+   del mismo tipo; no hace falta un proceso aparte). Si paga después de vencida: entra si todavía
+   hay lugar; si no, la compra queda "a revisar" y la banda devuelve el pago desde su pasarela.
+5. **Monto distinto** → "a revisar" y libera el lugar. Pago duplicado → anotado en la compra,
+   visible en el panel, para devolver. Deoco no devuelve nada.
+6. **Las entradas se crean al pagarse** (no antes): un QR nunca existe sin pago.
+7. **Código de 10 caracteres** sin letras confusas (0/O/1/I), único por banda, en el QR y para
+   tipear. La página de las entradas pide un token aparte (`?t=`), porque deja entrar.
+8. **Mala señal en la puerta**: elegí la forma más simple que nunca deja entrar dos veces: decide
+   siempre el servidor (cambio condicional). El teléfono reintenta solo el mismo intento con un
+   id: si la primera llegó y se perdió la respuesta, el reintento dice "PASA" y no "ya entró".
+   **Sin conexión no hay verde** (dice "Sin señal: reintentando" y "no lo dejes pasar"). No hice
+   un modo sin conexión con la lista descargada: con dos puertas, dos teléfonos sin señal
+   podrían dejar pasar la misma entrada. Si hace falta, se puede sumar con una sola puerta
+   "dueña" del show.
+9. **Escaneo** con la cámara y jsQR (anda en Android y iPhone; la cámara pide https). Siempre se
+   puede tipear el código.
+10. **Rol PUERTA**: solo la pantalla de puerta (ni ventas ni compradores). El titular también
+    valida. Editar shows: titular, editor y comercial.
+11. **Pestaña "Fechas" de la ticketera** (`/fechas`): la pone la ticketera, no el sitio. La home
+    del sitio muestra los próximos shows de la ticketera (con "Entradas" a `/fechas/<id>`) si
+    está prendida, aunque no haya ninguno; apagada, las cargadas a mano (que se guardan). La
+    vista previa del panel del sitio sigue mostrando las cargadas a mano.
+12. **Mail con los QR como imágenes embebidas** (`cid:`): sumé adjuntos al correo del núcleo
+    (genérico, hasta 30 y 1 MB). Los servicios de correo bloquean imágenes `data:`.
+13. **Shows a la vista hasta 6 h después de empezar** (la noche del show sigue en Fechas y en la
+    puerta).

@@ -13,6 +13,8 @@ export type MensajeSaliente = {
   texto: string;
   /** Para rastrear el envío en el proveedor (cabecera X-Deoco-Correo). */
   id: string;
+  /** Con `cid`, se ve dentro del html como <img src="cid:…">. */
+  adjuntos?: { nombre: string; tipo: string; cid?: string; contenido: Buffer }[];
 };
 
 export interface TransporteCorreo {
@@ -35,6 +37,7 @@ class TransporteSmtp implements TransporteCorreo {
       html: m.html,
       text: m.texto,
       headers: { "X-Deoco-Correo": m.id },
+      attachments: (m.adjuntos ?? []).map((a) => ({ filename: a.nombre, contentType: a.tipo, cid: a.cid, content: a.contenido })),
     });
   }
 }

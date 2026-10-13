@@ -101,6 +101,12 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   bandas con `conCuentaExterna()` + políticas SELECT del módulo con `app_referencia_externa('<id>')`.
   Lo usa la tienda: panel del proveedor (órdenes, despacho, cuenta corriente).
 
+## Ticketera (`modulos/ticketera`)
+
+- Shows, tipos con cupo (CHECK en la base), compra con `@/nucleo/pagos`, entradas nominadas
+  con QR (mail con `adjuntos` cid:), puerta (`/b/<slug>/puerta`, rol PUERTA). Pestaña "Fechas".
+  El sitio lee sus fechas con la consulta `ticketera.proximas-fechas`.
+
 ## Cobros (`src/nucleo/pagos`)
 
 - Pasarelas (hoy Mercado Pago) y credenciales de cobro de la banda: del núcleo (secreto con
@@ -127,7 +133,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 
 ## Correo, staff en módulos y links firmados
 
-- Correo (`src/nucleo/correo`): `enviarCorreo(contrato, tenantId, correo, { tx?, unica? })` guarda
+- Correo (`src/nucleo/correo`): `enviarCorreo(contrato, tenantId, correo, { tx?, unica? })` (con
+  `adjuntos` opcionales, imágenes `cid:`) guarda
   en `correo` (RLS) y sale después de responder. Transporte por `DEOCO_CORREO` (`smtp` con
   `DEOCO_SMTP_URL`/`DEOCO_CORREO_REMITENTE`, `memoria` en desarrollo y pruebas).
 - `conStaff(accion, fn)` (`src/nucleo/acceso/staff.ts`): transacción de la app marcada como staff

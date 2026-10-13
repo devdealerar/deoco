@@ -46,7 +46,7 @@ type PropsCampo = {
   etiqueta: string;
   name: string;
   ayuda?: string;
-  type?: "text" | "email" | "url" | "date" | "tel" | "password";
+  type?: "text" | "email" | "url" | "date" | "datetime-local" | "number" | "tel" | "password";
   defaultValue?: string;
   placeholder?: string;
   required?: boolean;

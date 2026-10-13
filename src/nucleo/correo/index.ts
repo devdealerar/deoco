@@ -22,7 +22,12 @@ export type Correo = {
   responderA?: string;
   /** Nombre del remitente; por defecto, el nombre de la banda. La dirección es la de Deoco. */
   nombreRemitente?: string;
+  /** Imágenes (con `cid`, se usan en el html como src="cid:<cid>") o archivos. Hasta 30, 1 MB en total. */
+  adjuntos?: { nombre: string; tipo: string; cid?: string; contenido: Buffer }[];
 };
+
+const TIPOS_ADJUNTO = ["image/png", "image/jpeg", "application/pdf", "text/calendar"];
+type AdjuntoGuardado = { nombre: string; tipo: string; cid?: string; base64: string };
 
 const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 const sinSaltos = (t: string) => /[\r\n]/.test(t);
@@ -37,6 +42,16 @@ function validar(c: Correo) {
     throw new ErrorCorreo("Nombre de remitente inválido.");
   }
   if (!c.html.trim() || !c.texto.trim()) throw new ErrorCorreo("El correo necesita html y texto.");
+  const adjuntos = c.adjuntos ?? [];
+  if (adjuntos.length > 30 || adjuntos.reduce((s, a) => s + a.contenido.length, 0) > 1024 * 1024) {
+    throw new ErrorCorreo("Demasiados adjuntos (hasta 30, 1 MB en total).");
+  }
+  for (const a of adjuntos) {
+    if (!TIPOS_ADJUNTO.includes(a.tipo)) throw new ErrorCorreo(`Tipo de adjunto no permitido: ${a.tipo}.`);
+    if (!/^[\w .-]{1,100}$/.test(a.nombre) || (a.cid !== undefined && !/^[\w.-]{1,100}$/.test(a.cid))) {
+      throw new ErrorCorreo(`Nombre o cid de adjunto inválido: ${a.nombre}.`);
+    }
+  }
 }
 
 /** Escapa texto para meterlo en el html de un correo. */
@@ -95,6 +110,7 @@ async function entregarPendientes(tenantId: string) {
         asunto: fila.asunto,
         html: fila.html,
         texto: fila.texto,
+        adjuntos: (fila.adjuntos as AdjuntoGuardado[]).map((a) => ({ nombre: a.nombre, tipo: a.tipo, cid: a.cid, contenido: Buffer.from(a.base64, "base64") })),
       });
       await conTenant(tenantId, (tx) =>
         tx.correo.update({ where: { id: fila.id }, data: { estado: "ENVIADO", enviadoEn: new Date(), error: null, tomadoEn: null } }),
@@ -149,6 +165,9 @@ export async function enviarCorreo(
       asunto: correo.asunto,
       html: correo.html,
       texto: correo.texto,
+      adjuntos: (correo.adjuntos ?? []).map(
+        (a): AdjuntoGuardado => ({ nombre: a.nombre, tipo: a.tipo, ...(a.cid ? { cid: a.cid } : {}), base64: a.contenido.toString("base64") }),
+      ),
       claveUnica: unica,
     };
     if (unica === undefined) {

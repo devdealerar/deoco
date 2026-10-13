@@ -33,7 +33,7 @@ export async function secretosDeBanda(
       select: { moduloId: true, clave: true, pista: true, actualizadoEn: true },
     }),
   );
-  // Cobros: del núcleo, una vez para todos los módulos que cobran (tienda, ticketera).
+  // Cobros: del núcleo, una vez para todos los módulos que cobran.
   const cobros = (await bandaCobra(tenantId, reg))
     ? credencialesDeCobro().map((s) => {
         const fila = filas.find(

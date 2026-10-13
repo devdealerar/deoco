@@ -8,3 +8,4 @@ pantallas (todas importan de `@/ui`).
 | --- | --- | --- |
 | `Aviso` | `application/alerts` | Panel: dominio que dejó de apuntar al servidor |
 | `Tarjeta` | (no hay tarjeta en la gratuita) | Varias pantallas del panel |
+| (pantalla propia) | — | Puerta de la ticketera: resultado a pantalla completa (PASA / YA ENTRÓ), contadores y visor de cámara. Botones nativos con los colores del tema. |

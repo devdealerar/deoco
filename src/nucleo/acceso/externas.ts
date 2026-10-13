@@ -1,5 +1,5 @@
-// Cuentas externas: usuarios que no son de una banda sino de algo de un módulo (el proveedor
-// de la tienda). Entran por app.<raiz>/portal/<modulo>; nunca ven un panel de banda (no
+// Cuentas externas: usuarios que no son de una banda sino de algo de un módulo (un proveedor
+// que produce para las bandas). Entran por app.<raiz>/portal/<modulo>; nunca ven un panel de banda (no
 // tienen membresía). El núcleo no sabe qué es la "referencia": la interpreta el módulo.
 //
 // Lectura entre bandas: conCuentaExterna() marca la transacción con el módulo y la referencia

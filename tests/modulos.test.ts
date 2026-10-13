@@ -173,8 +173,8 @@ describe("pestañas públicas de módulos nuevos (tienda, ticketera) junto a las
     navegacion: [{ etiqueta: "Merch", href: "/merch", publica: true, orden: 30 }],
   });
   const ticketera = mod("ticketera-falsa", {
-    rutasPublicas: [{ ...pagina, ruta: "/fechas" }],
-    navegacion: [{ etiqueta: "Fechas", href: "/fechas", publica: true, orden: 15 }],
+    rutasPublicas: [{ ...pagina, ruta: "/shows" }],
+    navegacion: [{ etiqueta: "Shows", href: "/shows", publica: true, orden: 15 }],
   });
   const reales = registro().modulos;
 
@@ -184,7 +184,7 @@ describe("pestañas públicas de módulos nuevos (tienda, ticketera) junto a las
     const pestanas = (prendidos: string[]) => pestanasSitio(reg, new Set([sitio, ...prendidos])).map((p) => p.etiqueta);
     expect(pestanas([])).toEqual(["Home", "Press kit"]);
     expect(pestanas(["tienda-falsa"])).toEqual(["Home", "Press kit", "Merch"]);
-    expect(pestanas(["tienda-falsa", "ticketera-falsa"])).toEqual(["Home", "Fechas", "Press kit", "Merch"]);
+    expect(pestanas(["tienda-falsa", "ticketera-falsa"])).toEqual(["Home", "Shows", "Press kit", "Merch"]);
   });
 
   it("sus rutas (también las dinámicas) quedan bajo el marco del sitio", () => {

@@ -242,6 +242,8 @@ model Correo {
   intentos        Int          @default(0)
   error           String?
   claveUnica      String?
+  /// [{ nombre, tipo, cid?, base64 }]: imágenes embebidas (cid:) o archivos adjuntos.
+  adjuntos        Json         @default("[]")
   creadoEn        DateTime     @default(now())
   enviadoEn       DateTime?
   /// Cuándo se tomó para enviar (uno colgado en ENVIANDO lo marca el barrido).

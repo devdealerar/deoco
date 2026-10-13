@@ -1,4 +1,5 @@
 import { conTenant } from "@/nucleo/db/con-tenant";
+import { fechasDeTicketera } from "../fechas";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { AreaTexto, Campo, CampoArchivo, Formulario, Selector, Tarjeta } from "@/ui";
 import {
@@ -38,6 +39,7 @@ export async function HomePanel({ tenantId, slug }: PropsRutaPanel) {
     puedeEditarEn(slug),
   ]);
   const archivo = (id: string) => datos.archivos.find((a) => a.id === id);
+  const conTicketera = (await fechasDeTicketera(tenantId)) !== null;
   const p = { puedeEditar, enLinea: true, variante: "secundario" as const };
 
   return (
@@ -81,7 +83,14 @@ export async function HomePanel({ tenantId, slug }: PropsRutaPanel) {
         </Formulario>
       </Tarjeta>
 
-      <Tarjeta titulo="Próximas fechas" descripcion="Cargadas a mano. La home muestra solo las que vienen.">
+      <Tarjeta
+        titulo="Próximas fechas"
+        descripcion={
+          conTicketera
+            ? "La ticketera está prendida: la home muestra sus shows publicados (Entradas). Estas, cargadas a mano, quedan guardadas y vuelven si la apagás."
+            : "Cargadas a mano. La home muestra solo las que vienen."
+        }
+      >
         {datos.fechas.length > 0 && (
           <ul className="mb-5 divide-y divide-secondary">
             {datos.fechas.map((f) => (

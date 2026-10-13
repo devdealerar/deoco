@@ -42,7 +42,7 @@ export type PropsRutaAdmin = {
 /**
  * Ruta del portal de cuentas externas del módulo: `app.<raiz>/portal/<id><ruta>`. Solo un
  * usuario con cuenta externa en este módulo (la crea el staff); si no, 404. `referencia` es
- * lo que la cuenta vincula (el id del proveedor). Lecturas: `conCuentaExterna()`.
+ * lo que la cuenta vincula (p. ej. el id de un proveedor). Lecturas: `conCuentaExterna()`.
  */
 export type PropsRutaExterna = {
   usuarioId: string;
@@ -182,7 +182,7 @@ export type DefinicionSecreto = {
 };
 
 /**
- * Consulta que un módulo ofrece a los demás (p. ej. la ticketera, sus próximas fechas). Otro
+ * Consulta que un módulo ofrece a los demás (p. ej. sus próximas fechas de shows). Otro
  * módulo la pide por id con `consultar(tenantId, "<id>.<nombre>", params, { vacio })`, sin
  * importar código. Si el módulo que responde está apagado para la banda, no existe o falla,
  * quien pregunta recibe su `vacio`: nunca se rompe.
@@ -236,8 +236,8 @@ export type Modulo = {
   /** Credenciales por banda que necesita (cifradas; solo las carga el titular). */
   secretos?: DefinicionSecreto[];
   /**
-   * Cuentas externas: usuarios que no son de una banda sino de algo del módulo (el proveedor
-   * de la tienda). `etiqueta`: nombre del portal ("Panel de proveedor"). Exige rutasExternas.
+   * Cuentas externas: usuarios que no son de una banda sino de algo del módulo (p. ej. un
+   * proveedor). `etiqueta`: nombre del portal ("Panel de proveedor"). Exige rutasExternas.
    */
   cuentasExternas?: { etiqueta: string };
   /** Pantallas del portal de cuentas externas, en app.<raiz>/portal/<id><ruta>. */

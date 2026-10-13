@@ -88,8 +88,7 @@ export function Home({ contenido, rutas, hoy = new Date() }: { contenido: Conten
                   {f.link && (
                     <a
                       href={f.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      {...(f.link.startsWith("/") ? {} : { target: "_blank", rel: "noopener noreferrer" })}
                       className="shrink-0 rounded-full bg-[var(--acento)] px-4 py-2 text-sm font-bold text-[var(--sobre-acento)]"
                     >
                       Entradas

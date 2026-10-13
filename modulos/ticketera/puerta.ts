@@ -1,0 +1,66 @@
+// Validación en la puerta. Siempre la decide el servidor, con un cambio condicional: dos
+// teléfonos que escanean el mismo QR a la vez → uno "válida" y el otro "ya entró a las …".
+// Con mala señal el teléfono reintenta el MISMO intento (mismo `intento`): si el primero llegó
+// y se perdió la respuesta, el reintento responde "válida" otra vez, no "ya validada".
+// Sin conexión no hay verde: nadie entra dos veces.
+import { conTenant } from "@/nucleo/db/con-tenant";
+import { esUuid } from "./eventos";
+
+export type ResultadoValidacion =
+  | { resultado: "valida"; nombre: string; documento: string; tipo: string }
+  | { resultado: "ya-validada"; nombre: string; tipo: string; validadaEn: string }
+  | { resultado: "otro-show"; show: string }
+  | { resultado: "invalida" };
+
+export const normalizarCodigo = (crudo: string) => crudo.toUpperCase().replace(/[^A-Z0-9]/g, "");
+const INTENTO = /^[A-Za-z0-9-]{8,64}$/;
+
+export async function validarEntrada(
+  tenantId: string,
+  eventoId: string,
+  codigoCrudo: string,
+  usuarioId: string,
+  intento: string,
+  ahora = new Date(),
+): Promise<ResultadoValidacion> {
+  const codigo = normalizarCodigo(codigoCrudo);
+  if (!esUuid(eventoId) || !INTENTO.test(intento) || codigo.length !== 10) return { resultado: "invalida" };
+  return conTenant(tenantId, async (tx) => {
+    const e = await tx.ticketeraEntrada.findUnique({
+      where: { tenantId_codigo: { tenantId, codigo } },
+      include: { tipo: { select: { nombre: true } }, evento: { select: { nombre: true, fecha: true } }, compra: { select: { estado: true } } },
+    });
+    if (!e || e.compra.estado !== "PAGADA") return { resultado: "invalida" };
+    if (e.eventoId !== eventoId) return { resultado: "otro-show", show: e.evento.nombre };
+    const { count } = await tx.ticketeraEntrada.updateMany({
+      where: { id: e.id, validadaEn: null },
+      data: { validadaEn: ahora, validadaPor: usuarioId, validadaIntento: intento },
+    });
+    if (count === 1 || e.validadaIntento === intento) {
+      return { resultado: "valida", nombre: e.nombre, documento: e.documento, tipo: e.tipo.nombre };
+    }
+    const ya = await tx.ticketeraEntrada.findUniqueOrThrow({ where: { id: e.id }, select: { validadaEn: true, validadaIntento: true } });
+    if (ya.validadaIntento === intento) return { resultado: "valida", nombre: e.nombre, documento: e.documento, tipo: e.tipo.nombre };
+    return { resultado: "ya-validada", nombre: e.nombre, tipo: e.tipo.nombre, validadaEn: ya.validadaEn!.toISOString() };
+  });
+}
+
+export type ResumenPuerta = { vendidas: number; entraron: number; faltan: number; porTipo: { nombre: string; vendidas: number; entraron: number }[] };
+
+/** Cuántos entraron y cuántos faltan (entradas pagadas), en total y por tipo. */
+export async function resumenPuerta(tenantId: string, eventoId: string): Promise<ResumenPuerta> {
+  if (!esUuid(eventoId)) return { vendidas: 0, entraron: 0, faltan: 0, porTipo: [] };
+  return conTenant(tenantId, async (tx) => {
+    const tipos = await tx.ticketeraTipo.findMany({ where: { eventoId }, select: { id: true, nombre: true }, orderBy: { precio: "asc" } });
+    const filas = await tx.ticketeraEntrada.groupBy({ by: ["tipoId"], where: { eventoId }, _count: { _all: true } });
+    const adentro = await tx.ticketeraEntrada.groupBy({ by: ["tipoId"], where: { eventoId, validadaEn: { not: null } }, _count: { _all: true } });
+    const porTipo = tipos.map((t) => ({
+      nombre: t.nombre,
+      vendidas: filas.find((f) => f.tipoId === t.id)?._count._all ?? 0,
+      entraron: adentro.find((f) => f.tipoId === t.id)?._count._all ?? 0,
+    }));
+    const vendidas = porTipo.reduce((s, t) => s + t.vendidas, 0);
+    const entraron = porTipo.reduce((s, t) => s + t.entraron, 0);
+    return { vendidas, entraron, faltan: vendidas - entraron, porTipo };
+  });
+}
