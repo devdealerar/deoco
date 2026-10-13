@@ -9,8 +9,12 @@ import { esperarEventos } from "@/nucleo/eventos/bus";
 import { guardarSecreto } from "@/nucleo/secretos/carga";
 import tienda from "../modulos/tienda";
 import { type ComoStaff, crearProductoBase, crearProveedor, leerOpciones } from "../modulos/tienda/catalogo";
-import { deudaDeBanda, deudaDeTodas, iniciarCobro, saldarDeudas } from "../modulos/tienda/pagos";
-import { crearPedido, type DatosFan } from "../modulos/tienda/pedidos";
+import { verificarFirma } from "@/nucleo/archivos/firmados";
+import { bandejaDeSalida, esperarCorreos, vaciarBandeja } from "@/nucleo/correo";
+import { alPagarsePedido, VALIDEZ_LINK_IMPRESION } from "../modulos/tienda/correos";
+import { guardarContacto } from "../modulos/tienda/contacto";
+import { deudaDeBanda, deudaDeTodas, iniciarCobro, registrarPago, saldarDeudas } from "../modulos/tienda/pagos";
+import { crearPedido, type DatosFan, revisarCarrito } from "../modulos/tienda/pedidos";
 import { crearProducto, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "./apoyo";
 import { MercadoPagoFalso } from "./mercadopago-falso";
@@ -78,7 +82,7 @@ beforeAll(async () => {
   e = await escenarioAcceso();
   titularB = (await dueno.usuario.findUniqueOrThrow({ where: { email: "b@x.com" } })).id;
   comoStaff = (accion, fn) => conStaffComo(e.staff.id, accion, fn);
-  for (const t of ["tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
+  for (const t of ["tiendaPagoExtra", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   sur = await crearProveedor(comoStaff, { nombre: "Estampados Sur", email: "ordenes@sur.com", contacto: "", formatos: ["png", "pdf"] });
@@ -89,10 +93,14 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   mp.limpiar();
-  for (const t of ["tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno"] as const) {
+  for (const t of ["tiendaPagoExtra", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   await dueno.evento.deleteMany();
+  await dueno.correo.deleteMany();
+  await dueno.tiendaPagoExtra.deleteMany();
+  await dueno.tiendaConfig.deleteMany();
+  vaciarBandeja();
   await dueno.secreto.deleteMany();
   await dueno.moduloTenant.deleteMany({ where: { moduloId: "tienda" } });
   await dueno.moduloTenant.createMany({ data: [{ tenantId: e.a.id, moduloId: "tienda" }, { tenantId: e.b.id, moduloId: "tienda" }] });
@@ -117,7 +125,9 @@ describe("prueba 1: el cobro se crea en la pasarela de esa banda, con su token",
       items: [
         { title: "Remera Gira", quantity: 2, unit_price: 25000, currency_id: "ARS" },
         { title: "Vinilo", quantity: 1, unit_price: 40000, currency_id: "ARS" },
-        { title: "Envío", quantity: 1, unit_price: 5000, currency_id: "ARS" }, // un envío: el mayor
+        // Dos proveedores, dos paquetes: un envío por cada uno.
+        { title: "Envío de Remera Gira", quantity: 1, unit_price: 3500, currency_id: "ARS" },
+        { title: "Envío de Vinilo", quantity: 1, unit_price: 5000, currency_id: "ARS" },
       ],
       payer: { name: "Lucía Fan", email: "lucia@fan.com" },
       external_reference: pedido.id,
@@ -270,5 +280,130 @@ describe("prueba 4: deuda con el proveedor al pagarse, sin duplicar", () => {
     expect(saldada).toMatchObject({ saldadaPor: e.multi.id, notaSaldo: "Transferencia del 3/11" });
     expect(saldada.saldadaEn).toBeInstanceOf(Date);
     expect((await deudaDeBanda(e.a.id)).find((d) => d.proveedor === "Estampados Sur")).toMatchObject({ pendiente: 0, saldado: 2150000 });
+  });
+});
+
+describe("envío: uno por proveedor (el mayor de sus renglones)", () => {
+  it("un solo proveedor: un envío; dos proveedores: dos, desglosados", async () => {
+    const { remera, vinilo } = await productos(e.a.id);
+    const soloRemeras = await revisarCarrito(e.a.id, [{ productoId: remera.id, variante: { Talle: "M" }, cantidad: 3 }]);
+    expect([soloRemeras.envio, soloRemeras.envios.length, soloRemeras.total]).toEqual([350000, 1, 7850000]);
+    const dos = await revisarCarrito(e.a.id, [
+      { productoId: remera.id, variante: { Talle: "M" }, cantidad: 2 },
+      { productoId: vinilo.id, variante: {}, cantidad: 1 },
+    ]);
+    // 2 × 25.000 + 40.000 = 90.000; envíos: Sur 3.500 + Prensa 5.000 = 8.500; total 98.500
+    expect(dos.envios.map((x) => [x.proveedorId, x.monto, x.productos])).toEqual([
+      [sur.id, 350000, ["Remera Gira"]],
+      [prensa.id, 500000, ["Vinilo"]],
+    ]);
+    expect([dos.subtotal, dos.envio, dos.total]).toEqual([9000000, 850000, 9850000]);
+    const pedido = await crearPedido(tienda, e.a.id, [
+      { productoId: remera.id, variante: { Talle: "M" }, cantidad: 2 },
+      { productoId: vinilo.id, variante: {}, cantidad: 1 },
+    ], FAN);
+    expect(pedido).toMatchObject({ envio: 850000, total: 9850000 });
+  });
+});
+
+/** Paga el pedido de A por el aviso y espera evento y mails. */
+async function pagar(pedido: { id: string; total: number }, pagoId: string) {
+  aprobar(pagoId, pedido.id, pedido.total);
+  const r = await (await avisoDePago(e.a.id, pagoId)).json();
+  await esperarEventos();
+  await esperarCorreos();
+  return r;
+}
+
+describe("mails al pagarse (pruebas 1 a 5)", () => {
+  it("1 y 2: un mail al fan y una orden por proveedor, cada una con lo suyo", async () => {
+    await guardarContacto(e.a.id, { nombre: "Los Satélites", email: "tienda@banda-a.com", telefono: "341 600-0000" });
+    const { pedido } = await pedidoDeA();
+    expect(await pagar(pedido, "9100")).toEqual({ resultado: "pagado" });
+    const mails = [...bandejaDeSalida()].sort((x, y) => x.para.localeCompare(y.para));
+    expect(mails.map((m) => [m.para, m.de.nombre, m.responderA])).toEqual([
+      ["lucia@fan.com", "Banda A", "tienda@banda-a.com"],
+      ["ordenes@sur.com", "Banda A", "tienda@banda-a.com"],
+      ["pedidos@vinilos.com", "Banda A", "tienda@banda-a.com"],
+    ]);
+    const [fan, sur_, vinilos] = mails;
+    expect(fan.asunto).toMatch(/^Tu compra en Banda A · pedido #[0-9A-F]{8}$/);
+    for (const t of ["Remera Gira × 2", "Talle: M", "Vinilo × 1", "Envío de Remera Gira", "Envío de Vinilo", "$ 98.500", "Córdoba 1234", "Rosario, Santa Fe (2000)", "se produce especialmente para vos"]) {
+      expect(fan.texto.replace(/\s/g, " ")).toContain(t);
+    }
+    // Cada orden, solo lo suyo.
+    expect(sur_.asunto).toMatch(/^Orden de producción #[0-9A-F]{8} · Banda A$/);
+    expect(sur_.texto).toContain("2 × Remera · Talle: M (producto de la banda: Remera Gira)");
+    expect(sur_.texto).not.toContain("Vinilo");
+    expect(vinilos.texto).toContain("1 × Vinilo (producto de la banda: Vinilo)");
+    expect(vinilos.texto).not.toContain("Remera");
+    for (const o of [sur_, vinilos]) {
+      for (const t of ["Lucía Fan", "Córdoba 1234", "Tel.: 341 555-1234", "Los Satélites", "tienda@banda-a.com", "Tel.: 341 600-0000"]) expect(o.texto).toContain(t);
+    }
+  });
+
+  it("3: el aviso repetido (y un reproceso del evento) no manda nada dos veces", async () => {
+    const { pedido } = await pedidoDeA();
+    await pagar(pedido, "9110");
+    await pagar(pedido, "9110");
+    await alPagarsePedido({ id: "x", nombre: "pedido.pagado", tenantId: e.a.id, usuarioId: null, fecha: new Date(), payload: { pedidoId: pedido.id } });
+    await esperarCorreos();
+    expect(bandejaDeSalida()).toHaveLength(3);
+    expect(await dueno.correo.count()).toBe(3);
+  });
+
+  it("4: el link del archivo de impresión es el diseño de esa banda, firmado, y vence", async () => {
+    const { pedido } = await pedidoDeA();
+    await pagar(pedido, "9120");
+    const orden = bandejaDeSalida().find((m) => m.para === "ordenes@sur.com")!;
+    const href = /href="([^"]+\/descargas\/[^"]+)"/.exec(orden.html)![1].replace(/&amp;/g, "&");
+    const u = new URL(href);
+    const [, , tenant, archivo] = u.pathname.split("/");
+    const diseno = await conTenant(e.a.id, (tx) => tx.tiendaDiseno.findFirstOrThrow());
+    expect([tenant, archivo]).toEqual([e.a.id, diseno.archivoId]);
+    const vence = Number(u.searchParams.get("vence"));
+    expect(vence * 1000 - Date.now()).toBeGreaterThan((VALIDEZ_LINK_IMPRESION - 60) * 1000);
+    expect(verificarFirma(tenant, archivo, u.searchParams.get("vence"), u.searchParams.get("firma"))).toBe("ok");
+    expect(verificarFirma(tenant, archivo, u.searchParams.get("vence"), u.searchParams.get("firma"), new Date((vence + 1) * 1000))).toBe("vencido");
+  });
+
+  it("5: la orden al proveedor no tiene montos de venta ni datos de pago", async () => {
+    const { pedido } = await pedidoDeA();
+    await pagar(pedido, "9130");
+    for (const o of bandejaDeSalida().filter((m) => m.para !== "lucia@fan.com")) {
+      for (const contenido of [o.texto, o.html]) {
+        expect(contenido).not.toMatch(/\$\s?\d/); // ningún monto en pesos
+        expect(contenido).not.toMatch(/25\.000|40\.000|98\.500|9130|pago|mercado/i);
+        expect(contenido).not.toContain("lucia@fan.com"); // tampoco el mail del fan
+      }
+    }
+  });
+
+  it("sin contacto cargado, responder-a es el mail de un titular de la banda", async () => {
+    const { pedido } = await pedidoDeA();
+    await pagar(pedido, "9140");
+    const fan = bandejaDeSalida().find((m) => m.para === "lucia@fan.com")!;
+    expect(["a@x.com", "multi@x.com"]).toContain(fan.responderA);
+  });
+});
+
+describe("prueba 6: pago duplicado", () => {
+  it("otro pago aprobado para un pedido pagado: se registra, el pedido no cambia, nada se duplica", async () => {
+    const { pedido } = await pedidoDeA();
+    await pagar(pedido, "9200");
+    aprobar("9201", pedido.id, pedido.total);
+    expect(await (await avisoDePago(e.a.id, "9201")).json()).toEqual({ resultado: "duplicado" });
+    expect(await (await avisoDePago(e.a.id, "9201")).json()).toEqual({ resultado: "duplicado" }); // repetido: una fila
+    await esperarEventos();
+    await esperarCorreos();
+    const extras = await conTenant(e.a.id, (tx) => tx.tiendaPagoExtra.findMany());
+    expect(extras.map((x) => [x.pedidoId, x.cobroId, x.monto, x.moneda, x.pasarela])).toEqual([[pedido.id, "9201", pedido.total, "ARS", "mercadopago"]]);
+    expect(await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id } })).toMatchObject({ estado: "PAGADO", cobroId: "9200" });
+    expect(await dueno.tiendaDeuda.count()).toBe(2);
+    expect(await dueno.evento.count({ where: { nombre: "pedido.pagado" } })).toBe(1);
+    expect(bandejaDeSalida()).toHaveLength(3);
+    // Un pago que no está aprobado, para un pedido pagado, no se registra como extra.
+    expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "9202", estado: "rechazado", estadoPasarela: "rejected", pedidoId: pedido.id, monto: 1, moneda: "ARS" })).toBe("ya-pagado");
+    expect(await dueno.tiendaPagoExtra.count()).toBe(1);
   });
 });

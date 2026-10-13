@@ -7,6 +7,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import type { EstadoFormulario } from "@/ui";
 import { archivo, ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
 import type { Opcion } from "../catalogo";
+import { ErrorContacto, guardarContacto } from "../contacto";
 import tienda from "../index";
 import { credencialesDe, pasarelaLista } from "../pasarelas";
 import { ErrorPasarela } from "../pasarelas/tipos";
@@ -39,7 +40,7 @@ async function conEdicion(slug: string, fn: (tenantId: string) => Promise<string
     revalidatePath(volver, "layout");
     return { ok: ok ?? "Guardado." };
   } catch (e) {
-    if (e instanceof ErrorTienda || e instanceof ErrorImpresion || e instanceof ErrorArchivo || e instanceof ErrorFormulario) {
+    if (e instanceof ErrorTienda || e instanceof ErrorImpresion || e instanceof ErrorArchivo || e instanceof ErrorFormulario || e instanceof ErrorContacto) {
       return { error: e.message };
     }
     throw e;
@@ -122,4 +123,12 @@ export async function probarConexionAccion(slug: string, _: EstadoFormulario): P
     if (e instanceof ErrorPasarela) return { error: `${pasarela.nombre} rechazó las credenciales. Revisá el access token en Credenciales.` };
     throw e;
   }
+}
+
+/** Contacto de la tienda: responder-a del mail al fan y contacto en la orden al proveedor. */
+export async function contactoAccion(slug: string, _: EstadoFormulario, fd: FormData) {
+  return conEdicion(slug, async (tenantId) => {
+    await guardarContacto(tenantId, { nombre: texto(fd, "nombre", 120), email: texto(fd, "email", 200), telefono: texto(fd, "telefono", 40) });
+    return "Contacto guardado.";
+  });
 }

@@ -1,17 +1,23 @@
 import Link from "next/link";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { puedeEnPedido } from "@/nucleo/acceso/panel";
-import { Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
+import { Campo, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
+import { contactoDeTienda } from "../contacto";
 import { formatearPesos } from "../dinero";
 import tienda from "../index";
 import { pasarelaLista } from "../pasarelas";
 import { listarProductos, margen } from "../productos";
-import { probarConexionAccion } from "./acciones";
+import { contactoAccion, probarConexionAccion } from "./acciones";
 import { Encabezado, puedeEditar as puedeEditarEn } from "./comun";
 
 /** Panel · Tienda: los productos de la banda, con su precio y su margen. */
 export async function ResumenTienda({ tenantId, slug, acceso }: PropsRutaPanel) {
-  const [productos, puedeEditar, pasarela] = [await listarProductos(tenantId), await puedeEditarEn(slug), await pasarelaLista(tienda, tenantId)];
+  const [productos, puedeEditar, pasarela, contacto] = [
+    await listarProductos(tenantId),
+    await puedeEditarEn(slug),
+    await pasarelaLista(tienda, tenantId),
+    await contactoDeTienda(tenantId),
+  ];
   return (
     <div className="flex flex-col gap-6">
       <Encabezado slug={slug} actual="" puedeEditar={puedeEditar} />
@@ -73,6 +79,20 @@ export async function ResumenTienda({ tenantId, slug, acceso }: PropsRutaPanel) 
           };
         })}
       />
+      <Tarjeta
+        titulo="Contacto de la tienda"
+        descripcion={`Al fan le llega como "responder a" en el mail de compra; el proveedor lo ve en cada orden.${
+          contacto.cargado ? "" : ` Sin un mail acá, se usa el del titular (${contacto.email}).`
+        }`}
+      >
+        <Formulario accion={contactoAccion.bind(null, slug)} puedeEditar={puedeEditar} etiqueta="Guardar contacto">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Campo name="nombre" etiqueta="Nombre" defaultValue={contacto.nombre} maxLength={120} />
+            <Campo name="email" type="email" etiqueta="Mail" defaultValue={contacto.cargado ? contacto.email : ""} />
+            <Campo name="telefono" etiqueta="Teléfono" defaultValue={contacto.telefono} maxLength={40} />
+          </div>
+        </Formulario>
+      </Tarjeta>
     </div>
   );
 }

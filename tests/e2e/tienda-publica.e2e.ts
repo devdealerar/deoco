@@ -14,6 +14,18 @@ import { PUERTO, PUERTO_MP } from "./servidor";
 const mp = new MercadoPagoFalso();
 const TOKEN_A = "APP_USR-1234567890-token-de-prueba";
 
+/** GET crudo al servidor de pruebas, con el Host que elijamos. */
+function bajar(host: string, path: string) {
+  return new Promise<{ estado: number; tipo: string }>((ok, mal) => {
+    const r = request({ host: "127.0.0.1", port: PUERTO, path, headers: { host: `${host}:${PUERTO}` } }, (res) => {
+      res.resume();
+      res.on("end", () => ok({ estado: res.statusCode!, tipo: String(res.headers["content-type"]) }));
+    });
+    r.on("error", mal);
+    r.end();
+  });
+}
+
 /** POST crudo al servidor de pruebas (lo que haría Mercado Pago con el aviso). */
 function postear(host: string, path: string, cuerpo: string) {
   return new Promise<{ estado: number; cuerpo: string }>((ok, mal) => {
@@ -32,6 +44,7 @@ const SITIO = sitio("banda-a");
 let remera: Awaited<ReturnType<typeof crearProducto>>;
 let poster: Awaited<ReturnType<typeof crearProducto>>;
 let borrador: Awaited<ReturnType<typeof crearProducto>>;
+let vinilo: Awaited<ReturnType<typeof crearProducto>>;
 const TALLES = [{ nombre: "Talle", valores: ["S", "M", "L"] }];
 const TOKEN = () => guardarSecreto(e.multi.id, e.a.id, "tienda", "mercadopago_access_token", TOKEN_A);
 
@@ -44,11 +57,13 @@ beforeAll(async () => {
   mp.cuentas.set(TOKEN_A, { nickname: "LOSSATELITES", email: "cobros@banda-a.com" });
   e = await escenarioAcceso();
   await dominiosDeDesarrollo(e.a, e.b);
-  for (const t of ["tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
+  await dueno.correo.deleteMany();
+  for (const t of ["tiendaPagoExtra", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   const comoStaff: ComoStaff = (accion, fn) => conStaffComo(e.staff.id, accion, fn);
   await crearProveedor(comoStaff, { nombre: "Sur", email: "o@sur.com", contacto: "", formatos: ["png", "pdf"] });
+  const prensa = await crearProveedor(comoStaff, { nombre: "Prensa", email: "o@prensa.com", contacto: "", formatos: ["png", "pdf"] });
   const comun = { descripcion: "", proveedorId: null, impresionDpi: 300, impresionFormatos: ["png"] };
   const remeraBase = await crearProductoBase(comoStaff, {
     ...comun, nombre: "Remera", opciones: leerOpciones("Talle: S, M, L, XL"), costoProduccion: 900000, costoEnvio: 350000, impresionAnchoPx: 4200, impresionAltoPx: 4800,
@@ -56,12 +71,16 @@ beforeAll(async () => {
   const posterBase = await crearProductoBase(comoStaff, {
     ...comun, nombre: "Poster", opciones: [], costoProduccion: 450000, costoEnvio: 300000, impresionAnchoPx: 3508, impresionAltoPx: 4961,
   });
+  const viniloBase = await crearProductoBase(comoStaff, {
+    ...comun, nombre: "Vinilo", opciones: [], costoProduccion: 2000000, costoEnvio: 500000, impresionAnchoPx: 3508, impresionAltoPx: 3508, proveedorId: prensa.id,
+  });
   for (const m of ["sitio", "tienda"]) await prenderModulo(e.staff.id, e.a.id, m);
   await prenderModulo(e.staff.id, e.b.id, "tienda");
   const d = await subirDiseno(e.a.id, "Logo", { nombre: "logo.png", datos: await png(4200, 5000) });
   remera = await crearProducto(e.a.id, remeraBase.id, { disenoId: d.id, nombre: "Remera Gira", descripcion: "Algodón", precio: 2500000, variantes: TALLES });
   poster = await crearProducto(e.a.id, posterBase.id, { disenoId: d.id, nombre: "Poster Gira", descripcion: "", precio: 1500000, variantes: [] });
   borrador = await crearProducto(e.a.id, posterBase.id, { disenoId: d.id, nombre: "Poster Secreto", descripcion: "", precio: 1000000, variantes: [] });
+  vinilo = await crearProducto(e.a.id, viniloBase.id, { disenoId: d.id, nombre: "Vinilo Gira", descripcion: "", precio: 4000000, variantes: [] });
   await publicarProducto(e.a.id, remera.id, true);
   await publicarProducto(e.a.id, poster.id, true);
   await TOKEN();
@@ -85,7 +104,7 @@ describe("tienda pública", () => {
     expect((await page.locator("[data-producto]").allTextContents()).map((t) => t.replace(/\s/g, " "))).toEqual([
       "Poster Gira$ 15.000",
       "Remera Gira$ 25.000",
-    ]);
+    ]); // el vinilo está en borrador (se publica en su prueba)
     expect(await page.title()).toBe("Tienda · Banda A");
 
     // Ficha: sin talle elegido, no agrega.
@@ -168,6 +187,28 @@ describe("tienda pública", () => {
       "Conectada: los pagos entran a la cuenta de Mercado Pago LOSSATELITES · cobros@banda-a.com.",
     );
 
+    // Los mails salieron (en desarrollo, transporte en memoria): al fan y la orden a Sur.
+    const correos = await dueno.correo.findMany({ where: { tenantId: e.a.id }, orderBy: { para: "asc" } });
+    expect(correos.map((c) => [c.para, c.estado])).toEqual([
+      ["lucia@fan.com", "ENVIADO"],
+      ["o@sur.com", "ENVIADO"],
+    ]);
+    // El link del archivo de impresión de la orden funciona sin sesión (y no está en el sitio de la banda).
+    const href = /href="([^"]+\/descargas\/[^"]+)"/.exec(correos[1].html)![1].replace(/&amp;/g, "&");
+    const archivo = await bajar("app.lvh.me", new URL(href).pathname + new URL(href).search);
+    expect([archivo.estado, archivo.tipo]).toEqual([200, "image/png"]);
+    expect((await bajar("banda-a.lvh.me", new URL(href).pathname + new URL(href).search)).estado).toBe(404);
+
+    // Prueba 6 (mails): el fan pagó dos veces → el segundo pago queda registrado y la banda lo ve.
+    mp.pagos.set("778", { status: "approved", external_reference: pedido.id, transaction_amount: 68500, currency_id: "ARS", token: TOKEN_A });
+    expect(JSON.parse((await postear("app.lvh.me", avisoPath, JSON.stringify({ type: "payment", data: { id: "778" } }))).cuerpo)).toEqual({
+      resultado: "duplicado",
+    });
+    await panel.goto(`${APP}/b/banda-a/tienda/pedidos`);
+    expect(await plano(panel.locator("[data-aviso-duplicados]"))).toContain("Un fan pagó dos veces el mismo pedido");
+    expect(await plano(panel.locator('[data-pago-duplicado="778"]'))).toContain("Pago duplicado: $ 68.500 (pago 778 en Mercado Pago)");
+    expect(await dueno.correo.count()).toBe(2); // ni mails ni deuda de más
+
     // El staff la ve en el back office, por banda y por proveedor.
     const { page: staff } = await logueado("staff@deoco.com");
     await staff.goto(`${APP}/admin/m/tienda/deudas`);
@@ -214,6 +255,28 @@ describe("tienda pública", () => {
     } finally {
       await publicarProducto(e.a.id, poster.id, true);
     }
+  });
+
+  it("envío por proveedor: con dos proveedores, el checkout lo desglosa", async () => {
+    await publicarProducto(e.a.id, vinilo.id, true);
+    const { page } = await anonimo();
+    await page.goto(`${SITIO}/tienda/${remera.id}`);
+    await page.getByRole("button", { name: "L", exact: true }).click();
+    await page.getByRole("button", { name: "Agregar al carrito" }).click();
+    await page.locator("header [data-carrito='1']").waitFor();
+    await page.goto(`${SITIO}/tienda/${vinilo.id}`);
+    await page.getByRole("button", { name: "Agregar al carrito" }).click();
+    await page.locator("header [data-carrito='2']").waitFor();
+    await page.goto(`${SITIO}/tienda/checkout`);
+    await page.locator("[data-total]").waitFor();
+    expect((await page.locator("[data-envio-proveedor]").allTextContents()).map((t) => t.replace(/\s/g, " "))).toEqual([
+      "Envío de Remera Gira$ 3.500",
+      "Envío de Vinilo Gira$ 5.000",
+    ]);
+    expect(await plano(page.locator("[data-envio]"))).toBe("$ 8.500");
+    // 25.000 + 40.000 + 8.500
+    expect(await plano(page.locator("[data-total]"))).toBe("$ 73.500");
+    await publicarProducto(e.a.id, vinilo.id, false);
   });
 
   it("prueba 2: el producto de A no existe en la tienda de B", async () => {

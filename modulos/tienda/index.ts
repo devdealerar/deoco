@@ -7,6 +7,7 @@ import { AdminProductoBase } from "./admin/producto";
 import { AdminDeudas } from "./admin/deudas";
 import { AdminProveedores } from "./admin/proveedores";
 import { avisoDePago } from "./aviso";
+import { alPagarsePedido } from "./correos";
 import { DisenosTienda } from "./panel/disenos";
 import { EditarProducto, NuevoProducto } from "./panel/producto";
 import { DeudaTienda, PedidosTienda } from "./panel/pedidos";
@@ -61,6 +62,8 @@ const tienda: Modulo = {
   // Aviso de pago de la pasarela (webhook), en app.<raiz>/avisos/<tenantId>/tienda/pago/<pasarela>.
   avisos: [{ ruta: "/pago/[pasarela]", metodos: ["POST", "GET"], manejador: avisoDePago }],
   eventosEmite: ["pedido.pagado"],
+  // Al pagarse: mail al fan y una orden de producción por proveedor (idempotente).
+  eventosEscucha: [{ evento: "pedido.pagado", manejador: alPagarsePedido }],
   // Credenciales de la pasarela de la banda (las carga el titular en Credenciales).
   secretos: credencialesDeTodas(),
   navegacion: [

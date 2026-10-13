@@ -148,9 +148,11 @@ model TiendaPedido {
   codigoPostal String
   /// Preparado para envío por zonas (sin uso todavía).
   zonaEnvio String?
-  /// Copias al crearse (centavos): suma de precios, envío (uno por pedido: el mayor) y total.
+  /// Copias al crearse (centavos): suma de precios, envío y total. Envío: uno por proveedor (el
+  /// mayor de sus renglones); `envios` lo desglosa: [{ "proveedorId", "monto", "productos": [..] }].
   subtotal  Int
   envio     Int
+  envios    Json               @default("[]")
   total     Int
   creadoEn  DateTime           @default(now())
   pagadoEn  DateTime?
@@ -165,8 +167,9 @@ model TiendaPedido {
   /// Por qué quedó EN_REVISION (monto o moneda distintos).
   observacion   String?
 
-  items  TiendaPedidoItem[]
-  deudas TiendaDeuda[]
+  items       TiendaPedidoItem[]
+  deudas      TiendaDeuda[]
+  pagosExtra  TiendaPagoExtra[]
 
   @@unique([tenantId, id])
   @@index([tenantId, estado])
@@ -225,4 +228,35 @@ model TiendaDeuda {
   @@unique([tenantId, pedidoId, proveedorId])
   @@index([tenantId, proveedorId, saldadaEn])
   @@map("tienda_deuda")
+}
+
+/// Un pago aprobado de más para un pedido que ya estaba pagado (el fan pagó dos veces). El
+/// pedido no cambia; la banda lo ve en su panel y lo devuelve desde su pasarela. Deoco no
+/// devuelve nada: solo avisa.
+model TiendaPagoExtra {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  pedidoId  String   @db.Uuid
+  pedido    TiendaPedido @relation(fields: [tenantId, pedidoId], references: [tenantId, id], onDelete: Cascade)
+  pasarela  String
+  cobroId   String
+  /// Centavos.
+  monto     Int
+  moneda    String
+  creadoEn  DateTime @default(now())
+
+  @@unique([tenantId, pasarela, cobroId])
+  @@index([tenantId, pedidoId])
+  @@map("tienda_pago_extra")
+}
+
+/// Datos de la tienda de una banda: el contacto que ven el fan (responder-a) y el proveedor.
+model TiendaConfig {
+  id               String @id @default(uuid()) @db.Uuid
+  tenantId         String @unique @db.Uuid
+  contactoNombre   String @default("")
+  contactoEmail    String @default("")
+  contactoTelefono String @default("")
+
+  @@map("tienda_config")
 }

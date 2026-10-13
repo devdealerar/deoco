@@ -104,7 +104,7 @@ export async function FichaProducto({ tenantId, params }: PropsRutaPublica) {
         </Link>
         <h1 className="text-3xl font-black tracking-tight">{p.nombre}</h1>
         <div className="text-2xl font-bold tabular-nums" data-precio>
-          {formatearPesos(p.precio)} <span className={`text-sm font-normal ${c.suave}`}>+ envío {formatearPesos(p.productoBase.costoEnvio)} (uno por pedido)</span>
+          {formatearPesos(p.precio)} <span className={`text-sm font-normal ${c.suave}`}>+ envío {formatearPesos(p.productoBase.costoEnvio)}</span>
         </div>
         {p.descripcion && <p className={`whitespace-pre-line ${c.suave}`}>{p.descripcion}</p>}
         {!lista && <NoDisponible />}

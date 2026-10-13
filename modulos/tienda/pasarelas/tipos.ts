@@ -11,7 +11,8 @@ export type Cobro = {
   pedidoId: string;
   /** Renglones tal como los ve el fan, en centavos. */
   items: { titulo: string; cantidad: number; precioUnitario: number }[];
-  envio: number;
+  /** Un envío por proveedor (paquete). */
+  envios: { titulo: string; monto: number }[];
   total: number;
   comprador: { nombre: string; email: string };
   urls: { exito: string; fallo: string; pendiente: string; aviso: string };
@@ -40,6 +41,8 @@ export interface Pasarela {
   credenciales: DefinicionSecreto[];
   /** Las credenciales obligatorias para cobrar (de las de arriba). */
   obligatorias: string[];
+  /** Cómo devuelve la banda un pago desde su cuenta (para un pago duplicado). */
+  comoDevolver: string;
   /** Crea el cobro en la cuenta de la banda. Devuelve adónde mandar al fan. */
   crearCobro(cred: Credenciales, cobro: Cobro): Promise<{ redireccion: string; preferenciaId: string }>;
   /**

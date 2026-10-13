@@ -7,7 +7,9 @@ import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { emitir } from "@/nucleo/eventos/bus";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { fijarCostosDelPedido } from "./catalogo";
+import { tituloEnvio } from "./comun";
 import { credencialesDe, pasarelaLista } from "./pasarelas";
+import type { EnvioDeProveedor } from "./pedidos";
 import { type CobroConsultado, ErrorPasarela } from "./pasarelas/tipos";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,7 +28,7 @@ export async function iniciarCobro(tienda: Modulo, tenantId: string, pedidoId: s
   const { redireccion, preferenciaId } = await pasarela.crearCobro(await credencialesDe(tienda, tenantId, pasarela), {
     pedidoId: pedido.id,
     items: pedido.items.map((i) => ({ titulo: i.nombreProducto, cantidad: i.cantidad, precioUnitario: i.precioUnitario })),
-    envio: pedido.envio,
+    envios: (pedido.envios as unknown as EnvioDeProveedor[]).map((e) => ({ titulo: tituloEnvio(e, pedido.envios), monto: e.monto })),
     total: pedido.total,
     comprador: { nombre: pedido.nombre, email: pedido.email },
     urls: { exito: volver("exito"), fallo: volver("fallo"), pendiente: volver("pendiente"), aviso: urlAviso(tenantId, tienda, `/pago/${pasarela.id}`) },
@@ -39,7 +41,8 @@ export async function iniciarCobro(tienda: Modulo, tenantId: string, pedidoId: s
 
 export type ResultadoPago =
   | "pagado" // se marcó PAGADO ahora
-  | "ya-pagado" // ya estaba pagado (aviso repetido): no se hizo nada
+  | "ya-pagado" // ya estaba pagado con este mismo cobro (aviso repetido): no se hizo nada
+  | "duplicado" // otro cobro aprobado para un pedido ya pagado: se registra para que la banda lo devuelva
   | "no-aprobado" // la pasarela todavía no lo aprueba (o lo rechazó)
   | "en-revision" // aprobado pero no coincide con el pedido: no se marca pagado
   | "ajeno"; // el cobro no es de un pedido de esta banda
@@ -54,7 +57,16 @@ export async function registrarPago(tenantId: string, pasarelaId: string, cobro:
   return conTenant(tenantId, async (tx) => {
     const pedido = await tx.tiendaPedido.findUnique({ where: { id: pedidoId } });
     if (!pedido) return "ajeno";
-    if (pedido.estado === "PAGADO") return "ya-pagado";
+    if (pedido.estado !== "PENDIENTE") {
+      if (cobro.estado !== "aprobado" || cobro.cobroId === pedido.cobroId) return "ya-pagado";
+      // El fan pagó otra vez un pedido ya cerrado: el pedido no cambia ni se duplica la deuda,
+      // pero el pago extra queda registrado y la banda lo ve para devolverlo desde su pasarela.
+      await tx.tiendaPagoExtra.createMany({
+        data: [{ tenantId, pedidoId, pasarela: pasarelaId, cobroId: cobro.cobroId, monto: cobro.monto, moneda: cobro.moneda }],
+        skipDuplicates: true,
+      });
+      return "duplicado";
+    }
 
     if (cobro.estado !== "aprobado") {
       await tx.tiendaPedido.updateMany({ where: { id: pedidoId, estado: "PENDIENTE" }, data: { estadoCobro: cobro.estadoPasarela } });

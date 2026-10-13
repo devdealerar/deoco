@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { formatearPesos } from "../dinero";
-import { describirVariante } from "../comun";
+import { describirVariante, tituloEnvio } from "../comun";
 import { type EstadoCarrito, revisarAccion } from "./acciones";
 import { guardarCarrito, type LineaLocal, useCarrito } from "./carrito-local";
 import { c } from "./estilo";
@@ -74,8 +74,17 @@ export function Resumen({ estado }: { estado: EstadoCarrito }) {
             {formatearPesos(estado.subtotal)}
           </dd>
         </div>
+        {estado.envios.length > 1 ? (
+          // Más de un proveedor: un paquete (y un envío) por cada uno.
+          estado.envios.map((e) => (
+            <div key={e.proveedorId} className="flex justify-between gap-4" data-envio-proveedor>
+              <dt className={c.suave}>{tituloEnvio(e, estado.envios)}</dt>
+              <dd className="tabular-nums">{formatearPesos(e.monto)}</dd>
+            </div>
+          ))
+        ) : null}
         <div className="flex justify-between">
-          <dt className={c.suave}>Envío</dt>
+          <dt className={c.suave}>{estado.envios.length > 1 ? `Envío total (${estado.envios.length} paquetes)` : "Envío"}</dt>
           <dd className="tabular-nums" data-envio>
             {formatearPesos(estado.envio)}
           </dd>

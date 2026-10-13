@@ -13,3 +13,8 @@ export const PROVINCIAS = [
   "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
 ];
 
+
+/** "Envío" si hay uno solo; "Envío de Remera, Poster" si el pedido viaja en más de un paquete. */
+export function tituloEnvio(e: { productos: string[] }, todos: unknown): string {
+  return Array.isArray(todos) && todos.length > 1 ? `Envío de ${e.productos.join(", ")}` : "Envío";
+}

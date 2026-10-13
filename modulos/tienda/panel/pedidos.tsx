@@ -5,6 +5,7 @@ import { describirVariante } from "../comun";
 import { formatearPesos } from "../dinero";
 import { ESTADO_PANEL } from "../estados";
 import { deudaDeBanda } from "../pagos";
+import { pasarelaDe } from "../pasarelas";
 import { Encabezado, puedeEditar as puedeEditarEn } from "./comun";
 
 const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" });
@@ -12,12 +13,20 @@ const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: 
 /** Panel · Pedidos: los de la banda y en qué anda cada uno. */
 export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
   const [pedidos, puedeEditar] = [
-    await conTenant(tenantId, (tx) => tx.tiendaPedido.findMany({ orderBy: { creadoEn: "desc" }, take: 200, include: { items: true } })),
+    await conTenant(tenantId, (tx) =>
+      tx.tiendaPedido.findMany({ orderBy: { creadoEn: "desc" }, take: 200, include: { items: true, pagosExtra: true } }),
+    ),
     await puedeEditarEn(slug),
   ];
   return (
     <div className="flex flex-col gap-6">
       <Encabezado slug={slug} actual="/pedidos" puedeEditar={puedeEditar} />
+      {pedidos.some((p) => p.pagosExtra.length > 0) && (
+        <p role="alert" data-aviso-duplicados className="rounded-xl bg-error-primary p-4 text-md text-error-primary ring-1 ring-error_subtle ring-inset">
+          <strong>Hay pagos duplicados.</strong> Un fan pagó dos veces el mismo pedido. Devolvé el pago extra desde tu cuenta de la
+          pasarela. Deoco no devuelve nada: solo te avisa.
+        </p>
+      )}
       {pedidos.some((p) => p.estado === "EN_REVISION") && (
         <p role="alert" className="rounded-xl bg-error-primary p-4 text-md text-error-primary ring-1 ring-error_subtle ring-inset">
           Hay pagos a revisar: la pasarela aprobó un monto que no coincide con el pedido. Revisalo en tu cuenta de la pasarela antes
@@ -53,6 +62,13 @@ export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
             <div key="e" className="flex flex-col gap-1" data-estado={p.estado}>
               <Insignia color={ESTADO_PANEL[p.estado].color}>{ESTADO_PANEL[p.estado].texto}</Insignia>
               {p.observacion && <span className="text-xs text-error-primary">{p.observacion}</span>}
+              {p.pagosExtra.map((x) => (
+                <span key={x.id} className="text-xs font-semibold text-error-primary" data-pago-duplicado={x.cobroId}>
+                  Pago duplicado: {x.moneda === "ARS" ? formatearPesos(x.monto) : `${x.moneda} ${(x.monto / 100).toFixed(2)}`}{" "}
+                  {`(pago ${x.cobroId} en ${pasarelaDe(x.pasarela)?.nombre ?? x.pasarela}).`} Tenés que devolverlo desde tu pasarela.{" "}
+                  {pasarelaDe(x.pasarela)?.comoDevolver}
+                </span>
+              ))}
             </div>,
           ],
         }))}

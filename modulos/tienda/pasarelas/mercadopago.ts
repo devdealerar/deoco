@@ -72,12 +72,13 @@ export const mercadoPago: Pasarela = {
     },
   ],
   obligatorias: [TOKEN],
+  comoDevolver: "En Mercado Pago: Tu actividad → el pago → Devolver dinero.",
 
   async crearCobro(cred, cobro) {
     const r = await llamar<{ id: string; init_point: string }>(cred, "POST", "/checkout/preferences", {
       items: [
         ...cobro.items.map((i) => ({ title: i.titulo, quantity: i.cantidad, unit_price: pesos(i.precioUnitario), currency_id: "ARS" })),
-        ...(cobro.envio > 0 ? [{ title: "Envío", quantity: 1, unit_price: pesos(cobro.envio), currency_id: "ARS" }] : []),
+        ...cobro.envios.filter((e) => e.monto > 0).map((e) => ({ title: e.titulo, quantity: 1, unit_price: pesos(e.monto), currency_id: "ARS" })),
       ],
       payer: { name: cobro.comprador.nombre, email: cobro.comprador.email },
       back_urls: { success: cobro.urls.exito, failure: cobro.urls.fallo, pending: cobro.urls.pendiente },

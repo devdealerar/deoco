@@ -5,7 +5,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { Modulo } from "@/nucleo/modulos/contrato";
-import type { Opcion } from "./catalogo";
+import { type Opcion, proveedorEfectivo } from "./catalogo";
 import { PROVINCIAS } from "./comun";
 import { pasarelaLista } from "./pasarelas";
 
@@ -30,15 +30,22 @@ export type LineaRevisada = LineaCarrito & {
   precio: number;
   envio: number;
   productoBaseId: string;
+  /** Quién lo produce y lo despacha (el asignado al producto base o el de la plataforma). */
+  proveedorId: string;
   foto: { id: string; nombre: string; plataforma: boolean } | null;
 };
+
+/** Un envío por proveedor: el mayor de sus renglones. `productos`: para mostrarle al fan de qué es. */
+export type EnvioDeProveedor = { proveedorId: string; monto: number; productos: string[] };
 
 export type Revision = {
   lineas: LineaRevisada[];
   /** Por qué no se puede seguir (vacío: se puede). */
   problemas: string[];
   subtotal: number;
+  /** Suma de `envios`. */
   envio: number;
+  envios: EnvioDeProveedor[];
   total: number;
 };
 
@@ -75,18 +82,19 @@ export function problemaDeVariante(ofrecidas: Opcion[], elegida: Record<string, 
 
 /**
  * Revisa el carrito contra la base de ESTA banda (bajo RLS: un producto de otra banda no
- * existe). Precios y envíos: los de ahora. Total = suma de precios + un envío (el mayor).
+ * existe). Precios y envíos: los de ahora. Total = suma de precios + un envío por proveedor.
  */
 export async function revisarCarrito(tenantId: string, lineas: LineaCarrito[]): Promise<Revision> {
   const ids = [...new Set(lineas.map((l) => l.productoId))];
-  const productos = await conTenant(tenantId, (tx) =>
-    tx.tiendaProducto.findMany({ where: { id: { in: ids } }, include: { productoBase: true } }),
-  );
+  const [productos, porDefecto] = await conTenant(tenantId, async (tx) => [
+    await tx.tiendaProducto.findMany({ where: { id: { in: ids } }, include: { productoBase: true } }),
+    await proveedorEfectivo(tx, { proveedorId: null }),
+  ] as const);
   const revisadas: LineaRevisada[] = [];
   const problemas: string[] = [];
   for (const l of lineas) {
     const p = productos.find((x) => x.id === l.productoId);
-    if (!p || !p.publicado) {
+    if (!p || !p.publicado || (!p.productoBase.proveedorId && !porDefecto)) {
       problemas.push(p ? `"${p.nombre}" ya no está a la venta: sacalo del carrito para seguir.` : "Un producto del carrito ya no existe: sacalo para seguir.");
       continue;
     }
@@ -101,6 +109,7 @@ export async function revisarCarrito(tenantId: string, lineas: LineaCarrito[]): 
       precio: p.precio,
       envio: p.productoBase.costoEnvio,
       productoBaseId: p.productoBaseId,
+      proveedorId: p.productoBase.proveedorId ?? porDefecto?.id ?? "",
       foto: p.fotoArchivoId && p.fotoNombre
         ? { id: p.fotoArchivoId, nombre: p.fotoNombre, plataforma: false }
         : p.productoBase.fotoArchivoId && p.productoBase.fotoNombre
@@ -110,9 +119,24 @@ export async function revisarCarrito(tenantId: string, lineas: LineaCarrito[]): 
   }
   if (lineas.length === 0) problemas.push("El carrito está vacío.");
   const subtotal = revisadas.reduce((s, l) => s + l.precio * l.cantidad, 0);
-  // Un envío por pedido: el mayor de los productos del carrito (viaja en un paquete).
-  const envio = revisadas.reduce((s, l) => Math.max(s, l.envio), 0);
-  return { lineas: revisadas, problemas, subtotal, envio, total: subtotal + envio };
+  const envios = enviosPorProveedor(revisadas);
+  const envio = envios.reduce((s, x) => s + x.monto, 0);
+  return { lineas: revisadas, problemas, subtotal, envio, envios, total: subtotal + envio };
+}
+
+/**
+ * Un envío por proveedor: cada proveedor despacha un paquete con lo suyo, y su envío es el
+ * mayor de sus renglones. Con un solo proveedor (lo normal), un envío por pedido.
+ */
+export function enviosPorProveedor(lineas: { proveedorId: string; envio: number; nombre: string }[]): EnvioDeProveedor[] {
+  const m = new Map<string, EnvioDeProveedor>();
+  for (const l of lineas) {
+    const e = m.get(l.proveedorId) ?? { proveedorId: l.proveedorId, monto: 0, productos: [] };
+    e.monto = Math.max(e.monto, l.envio);
+    if (!e.productos.includes(l.nombre)) e.productos.push(l.nombre);
+    m.set(l.proveedorId, e);
+  }
+  return [...m.values()];
 }
 
 // ---------- Datos del fan ----------
@@ -170,7 +194,14 @@ export async function crearPedido(tienda: Modulo, tenantId: string, lineas: Line
 
   return conTenant(tenantId, async (tx) => {
     const pedido = await tx.tiendaPedido.create({
-      data: { tenantId, ...datos, subtotal: revision.subtotal, envio: revision.envio, total: revision.total },
+      data: {
+        tenantId,
+        ...datos,
+        subtotal: revision.subtotal,
+        envio: revision.envio,
+        envios: revision.envios as unknown as Prisma.InputJsonValue,
+        total: revision.total,
+      },
     });
     for (const l of revision.lineas) {
       // Defensa en dos capas: la revisión buscó el producto bajo RLS (de esta banda), y la clave

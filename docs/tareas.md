@@ -14,8 +14,8 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
 | 2 | Catálogo base y proveedores, desde el back office | ✅ hecha |
 | 3 | Panel de la banda: diseños, productos, precios y margen | ✅ hecha |
 | 4 | Tienda pública: catálogo, carrito, checkout | ✅ hecha |
-| 5 | Pago con Mercado Pago, aviso y deuda con el proveedor | ✅ hecha (a revisar) |
-| 6 | Mails: confirmación al fan y orden al proveedor | pendiente |
+| 5 | Pago con Mercado Pago, aviso y deuda con el proveedor | ✅ hecha |
+| 6 | Envío por proveedor, pago duplicado y mails (fan y proveedor) | ✅ hecha (a revisar) |
 
 - Correo: tabla `correo` (RLS), estados PENDIENTE → ENVIANDO → ENVIADO/FALLIDO, `claveUnica`.
   Sin transporte en producción quedan pendientes (aviso en el log de arranque). Por ahora solo
@@ -57,7 +57,7 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
     un precio cambió. Una respuesta vieja de revisión no se muestra.
   - Checkout: datos del fan, dirección (24 provincias, CP de 4 dígitos o CPA), resumen. El
     pedido nace PENDIENTE con su copia de precio y envío por renglón y sus totales.
-  - Total = suma de precios + UN envío por pedido, el mayor de los productos (parte 5).
+  - Total = suma de precios + un envío POR PROVEEDOR, el mayor de sus renglones (parte 6).
   - Aislamiento: además de buscar el producto bajo RLS, claves foráneas compuestas
     (tenantId, productoId) / (tenantId, pedidoId) / (tenantId, disenoId): la base rechaza
     mezclar bandas aunque se salteen las validaciones (incluso con el rol dueño).
@@ -66,7 +66,7 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
   - Pasarelas: `modulos/tienda/pasarelas/` (interfaz + Mercado Pago, por ahora solo las
     credenciales; el cobro en la parte 5).
 - Parte 5 (pago y deuda):
-  - Envío: lo paga el fan aparte, uno por pedido (el mayor). Margen = precio − producción.
+  - Envío: lo paga el fan aparte. Margen = precio − producción.
   - Pasarela (`modulos/tienda/pasarelas/`): `crearCobro`, `leerAviso`, `consultarCobro`,
     `probarConexion`. Mercado Pago: Checkout Pro con el token de la banda; `notification_url`
     = `urlAviso(…, "/pago/mercadopago")`, `external_reference` = id del pedido; vuelta a
@@ -87,6 +87,19 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
     `tenant`). `saldarDeudas()` lista (quién, cuándo, nota), sin pantalla: conviene que la
     confirme el proveedor desde su panel.
   - "Probar conexión" (titular, `tienda.pasarela.conectar` exclusivo): a nombre de quién cobra.
+- Parte 6:
+  - Envío por proveedor: el pedido guarda el desglose (`envios`); con más de un proveedor el
+    checkout y el cobro lo muestran por paquete ("Envío de Remera Gira"). Con uno, igual que antes.
+  - Pago duplicado: otro pago aprobado para un pedido ya cerrado se guarda en
+    `tienda_pago_extra` (monto, id, pasarela); el pedido no cambia y la banda lo ve marcado en
+    Pedidos con cómo devolverlo desde su pasarela (`Pasarela.comoDevolver`).
+  - Mails (`pedido.pagado` → `alPagarsePedido`): al fan (qué compró, variantes, envíos, total,
+    dirección, qué sigue; a nombre de la banda, responder-a al contacto) y una orden por
+    proveedor (sus renglones, variante, cantidad, link firmado al archivo de impresión por 14
+    días, dirección y teléfono del fan, contacto de la banda; sin montos ni datos de pago ni el
+    mail del fan). Claves únicas `pedido:<id>:fan` y `pedido:<id>:orden:<proveedor>`.
+  - Contacto de la tienda (`tienda_config`): lo carga la banda en el panel; si no, el mail del
+    titular.
 - `conStaff`: la auditoría se inserta sin RETURNING (la política deja insertar, no leer).
 - Pendiente anotado: barrido de correos y eventos pendientes al arrancar (hoy salen con el
   siguiente de la misma banda o al reintentar).
@@ -418,7 +431,4 @@ Las cinco pruebas originales pasan:
 
 ## Preguntas abiertas
 
-- Tienda · pedido con productos de dos proveedores: el fan paga un envío (el mayor) pero cada
-  proveedor despacha su paquete y cobra su envío; la banda pone la diferencia.
-- Tienda · un mismo pedido pagado dos veces (el fan pagó dos cobros): el segundo aviso no
-  cambia nada ("ya-pagado"); la devolución la hace la banda en su pasarela.
+- (ninguna)

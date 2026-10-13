@@ -74,11 +74,11 @@ export function PanelMargen({ m, envio }: { m: Margen; envio: number }) {
         </p>
       )}
       <p className="text-sm text-tertiary" data-envio-aparte>
-        El envío ({formatearPesos(envio)}) lo paga el fan aparte, uno por pedido, y es para el proveedor: no entra en tu margen.
+        El envío ({formatearPesos(envio)}) lo paga el fan aparte (uno por paquete) y es para el proveedor: no entra en tu margen.
       </p>
       <p className="text-sm text-tertiary">
         El margen es lo que le queda a la banda. <strong className="text-secondary">Deoco no se lleva nada de la venta</strong>: el fan te
-        paga a vos, en tu pasarela de pago. No incluye la comisión que cobra la pasarela (Mercado Pago).
+        paga a vos, en tu pasarela de pago. No incluye la comisión que cobra la pasarela.
       </p>
     </section>
   );
