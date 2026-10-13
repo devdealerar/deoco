@@ -33,7 +33,9 @@ export function ListaDominios({
             <h2 className="text-lg font-semibold break-all text-primary">{d.dominio}</h2>
             {d.esPrincipal && <Insignia color="marca">Principal</Insignia>}
             {d.dePlataforma && <Insignia>Subdominio de Deoco</Insignia>}
-            {d.verificado ? (
+            {d.noApunta ? (
+              <Insignia color="error">No apunta a Deoco</Insignia>
+            ) : d.verificado ? (
               !d.dePlataforma && <Insignia color="exito">Verificado</Insignia>
             ) : (
               <Insignia color="advertencia">Sin verificar</Insignia>
@@ -55,6 +57,20 @@ export function ListaDominios({
             <p className="text-sm text-tertiary">
               El subdominio de Deoco sigue andando y redirige acá. Para quitar este dominio, primero elegí otro como principal.
             </p>
+          )}
+
+          {d.noApunta && (
+            <div data-no-apunta className="flex flex-col gap-2">
+              <p className="text-sm text-secondary">
+                Desde el {d.noApunta.desde.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}{" "}
+                este dominio no apunta al servidor de Deoco: quien entra por acá no llega al sitio. El sitio sigue
+                publicado. Corregí el registro A; cuando apunte de nuevo, este aviso se va solo (se revisa cada pocas horas).
+              </p>
+              <div className="grid items-center gap-1 sm:grid-cols-[6rem_1fr]">
+                <span className="text-xs text-tertiary">A · {d.noApunta.registroA.nombre}</span>
+                <Copiable valor={d.noApunta.registroA.valor} etiqueta="valor del registro A" />
+              </div>
+            </div>
           )}
 
           {d.registros && (

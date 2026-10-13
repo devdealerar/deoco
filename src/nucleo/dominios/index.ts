@@ -3,6 +3,7 @@
 // El certificado HTTPS NO se emite acá: lo emite Easypanel (Traefik) para cada dominio.
 import { resolve4, resolveTxt } from "node:dns/promises";
 import { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
 
@@ -87,6 +88,8 @@ export type DominioBanda = {
   dePlataforma: boolean;
   /** Solo los propios sin verificar. */
   registros: RegistroDns[] | null;
+  /** Verificado que dejó de apuntar al servidor (revisión periódica): el registro A a corregir. */
+  noApunta: { desde: Date; registroA: RegistroDns } | null;
 };
 
 /** Los dominios de la banda, el principal primero, con los registros a crear si faltan verificar. */
@@ -94,7 +97,9 @@ export async function dominiosDeBanda(tenantId: string, dns: ConsultaDns = dnsDe
   const filas = await conTenant(tenantId, (tx) =>
     tx.dominio.findMany({ orderBy: [{ esPrincipal: "desc" }, { verificado: "desc" }, { dominio: "asc" }] }),
   );
-  const ip = filas.some((d) => !d.verificado) ? ((await ipPublica(dns)) ?? "IP del servidor (sin configurar)") : "";
+  const ip = filas.some((d) => !d.verificado || d.noApuntaDesde)
+    ? ((await ipPublica(dns)) ?? "IP del servidor (sin configurar)")
+    : "";
   return filas.map((d) => ({
     id: d.id,
     dominio: d.dominio,
@@ -102,6 +107,8 @@ export async function dominiosDeBanda(tenantId: string, dns: ConsultaDns = dnsDe
     verificado: d.verificado,
     dePlataforma: esDePlataforma(d.dominio),
     registros: d.verificado ? null : registrosDns(d.dominio, d.token, ip),
+    noApunta:
+      d.verificado && d.noApuntaDesde ? { desde: d.noApuntaDesde, registroA: registrosDns(d.dominio, d.token, ip)[0] } : null,
   }));
 }
 
@@ -244,4 +251,60 @@ export async function quitarDominio(usuarioId: string, tenantId: string, dominio
     await tx.dominio.delete({ where: { id: d.id } });
     await auditar(tx, usuarioId, tenantId, "dominio.quitado", { dominio: d.dominio, verificado: d.verificado });
   });
+}
+
+/** Cada cuánto se revisa que un dominio propio verificado siga apuntando al servidor. */
+export const REVISAR_DOMINIOS_CADA_MS = 6 * 3600_000;
+/** Revisiones seguidas sin apuntar para avisar (una sola puede ser un DNS que tardó). */
+const FALLAS_PARA_AVISAR = 2;
+
+/**
+ * Revisión periódica (la corre el barrido): cada dominio propio verificado tiene que seguir
+ * apuntando (registro A) a la IP del servidor. Si dos revisiones seguidas no apunta, queda
+ * marcado (`noApuntaDesde`) y la banda lo ve en su panel. NO se despublica ni se le quita la
+ * verificación: si la banda corrige el DNS, la próxima revisión lo desmarca sola.
+ * El TXT no se vuelve a pedir: ya probó que el dominio es de la banda, y mucha gente lo borra.
+ */
+export async function revisarDominios(
+  dns: ConsultaDns = dnsDelSistema,
+  ahora = new Date(),
+): Promise<{ revisados: number; noApuntan: number }> {
+  const ip = await ipPublica(dns);
+  if (!ip) {
+    console.warn("[dominios] no se revisan: no se sabe la IP del servidor (DEOCO_IP_PUBLICA o app.<raiz>).");
+    return { revisados: 0, noApuntan: 0 };
+  }
+  const antes = new Date(ahora.getTime() - REVISAR_DOMINIOS_CADA_MS);
+  const bandas = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT b AS id FROM bandas_con_dominios_a_revisar(${dominioRaiz()}, ${antes}::timestamp) AS b`;
+  let revisados = 0;
+  let noApuntan = 0;
+  for (const { id: tenantId } of bandas) {
+    const dominios = await conTenant(tenantId, (tx) =>
+      tx.dominio.findMany({
+        where: { verificado: true, OR: [{ revisadoEn: null }, { revisadoEn: { lt: antes } }] },
+      }),
+    );
+    for (const d of dominios) {
+      if (esDePlataforma(d.dominio)) continue;
+      const apunta = (await dns.a(d.dominio)).includes(ip);
+      const fallas = apunta ? 0 : d.fallasSeguidas + 1;
+      const noApuntaDesde = apunta ? null : (d.noApuntaDesde ?? (fallas >= FALLAS_PARA_AVISAR ? ahora : null));
+      await conTenant(tenantId, (tx) =>
+        tx.dominio.update({ where: { id: d.id }, data: { revisadoEn: ahora, fallasSeguidas: fallas, noApuntaDesde } }),
+      );
+      if (noApuntaDesde && !d.noApuntaDesde) console.warn(`[dominios] ${d.dominio} dejó de apuntar al servidor.`);
+      revisados++;
+      if (noApuntaDesde) noApuntan++;
+    }
+  }
+  return { revisados, noApuntan };
+}
+
+/** Dominios propios de la banda que dejaron de apuntar al servidor (para el aviso del panel). */
+export async function dominiosQueNoApuntan(tenantId: string): Promise<{ dominio: string; desde: Date }[]> {
+  const filas = await conTenant(tenantId, (tx) =>
+    tx.dominio.findMany({ where: { noApuntaDesde: { not: null } }, select: { dominio: true, noApuntaDesde: true }, orderBy: { dominio: "asc" } }),
+  );
+  return filas.map((f) => ({ dominio: f.dominio, desde: f.noApuntaDesde! }));
 }

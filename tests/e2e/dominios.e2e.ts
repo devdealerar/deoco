@@ -93,4 +93,24 @@ describe("dominio propio desde el panel de la banda", () => {
       expect((await page.goto(DOMINIOS))!.status()).toBe(403);
     }
   });
+
+  it("uno que dejó de apuntar al servidor: el titular ve el aviso en el panel y el registro A a corregir", async () => {
+    await dueno.dominio.create({
+      data: { tenantId: e.a.id, dominio: "lossatelites.com.ar", verificado: true, noApuntaDesde: new Date("2026-10-12T15:00:00Z") },
+    });
+    const { page } = await logueado("multi@x.com");
+    await page.goto(`${APP}/b/banda-a`);
+    const aviso = page.locator("[data-dominio-no-apunta]");
+    expect(await aviso.textContent()).toContain("lossatelites.com.ar dejó de apuntar a Deoco");
+    await aviso.getByRole("link", { name: "Ver dominios" }).click();
+    await page.waitForURL(DOMINIOS);
+    const tarjeta = page.locator('[data-dominio="lossatelites.com.ar"]');
+    expect(await tarjeta.textContent()).toContain("No apunta a Deoco");
+    expect(await tarjeta.locator("[data-no-apunta] [data-copiable]").allTextContents()).toEqual(["203.0.113.10"]);
+
+    // Otro rol no lo ve (no lo puede arreglar).
+    const editor = await logueado("editor-a@x.com");
+    await editor.page.goto(`${APP}/b/banda-a`);
+    expect(await editor.page.locator("[data-dominio-no-apunta]").count()).toBe(0);
+  });
 });

@@ -28,9 +28,15 @@ export type FalloEvento = { intento: number; moduloId: string; error: string; fe
  *   así los eventos de una banda se entregan en orden de emisión.
  * - Errores: cada suscripto corre aislado; si falla, el error queda en `fallos`
  *   y el evento termina FALLIDO, sin frenar a los demás ni a quien emitió.
+ * - Entrega tomada en la base (`tomadoEn`): aunque dos procesos se solapen un rato
+ *   (un deploy), un evento no se entrega dos veces. Lo que quedó sin entregar lo
+ *   retoma el barrido (src/nucleo/barrido.ts).
  * - Un solo proceso: el día que haya varias instancias, esto se cambia por una cola
  *   de verdad sin tocar a quien emite ni a quien escucha.
  */
+/** Una entrega tomada hace más que esto se da por colgada (el proceso murió a mitad). */
+export const EVENTO_COLGADO_MS = 10 * 60_000;
+
 export function crearBus(obtenerRegistro: () => Registro = registroGlobal) {
   const colas = new Map<string, Promise<void>>();
 
@@ -58,11 +64,21 @@ export function crearBus(obtenerRegistro: () => Registro = registroGlobal) {
 
   async function procesarPendientes(tenantId: string) {
     for (;;) {
-      const evento = await conTenant(tenantId, (tx) =>
-        tx.evento.findFirst({ where: { estado: "PENDIENTE" }, orderBy: { secuencia: "asc" } }),
-      );
-      if (!evento) return;
-      await entregar(evento);
+      const evento = await conTenant(tenantId, async (tx) => {
+        const e = await tx.evento.findFirst({ where: { estado: "PENDIENTE" }, orderBy: { secuencia: "asc" } });
+        if (!e) return null;
+        // Lo está entregando otro proceso (un deploy que se solapa): ese sigue la cola. Si
+        // quedó colgado (el proceso murió a mitad), se retoma pasado EVENTO_COLGADO_MS.
+        if (e.tomadoEn && Date.now() - e.tomadoEn.getTime() < EVENTO_COLGADO_MS) return null;
+        // Tomarlo: si otro lo tomó entre la lectura y acá, no se entrega dos veces.
+        const { count } = await tx.evento.updateMany({
+          where: { id: e.id, estado: "PENDIENTE", tomadoEn: e.tomadoEn },
+          data: { tomadoEn: new Date() },
+        });
+        return count === 1 ? e : undefined;
+      });
+      if (evento === null) return;
+      if (evento) await entregar(evento);
     }
   }
 
@@ -124,6 +140,7 @@ export function crearBus(obtenerRegistro: () => Registro = registroGlobal) {
           fallos: [...((fila.fallos as FalloEvento[]) ?? []), ...fallos],
           soloPara: [],
           procesadoEn: new Date(),
+          tomadoEn: null,
         },
       }),
     );
@@ -205,10 +222,19 @@ export function crearBus(obtenerRegistro: () => Registro = registroGlobal) {
         ),
       ];
       await conTenant(tenantId, async (tx) => {
-        await tx.evento.update({ where: { id: eventoId }, data: { estado: "PENDIENTE", soloPara: fallaron } });
+        await tx.evento.update({ where: { id: eventoId }, data: { estado: "PENDIENTE", soloPara: fallaron, tomadoEn: null } });
         await opciones.registrar?.(tx); // p. ej. la auditoría del back office, en la misma transacción
       });
       await encolar(tenantId);
+    },
+
+    /**
+     * Retoma los PENDIENTES de la banda (los que quedaron sin entregar: el proceso se
+     * reinició, o la entrega se cortó). Lo usa el barrido; va por la misma cola, así que
+     * no se cruza con una entrega en curso. Resuelve cuando la cola se vació.
+     */
+    retomar(tenantId: string) {
+      return encolar(tenantId);
     },
 
     /** Espera a que se vacíen todas las colas. Para pruebas y cierres ordenados. */
@@ -224,3 +250,4 @@ const bus = crearBus();
 export const emitir = bus.emitir;
 export const reprocesarEvento = bus.reprocesar;
 export const esperarEventos = bus.esperar;
+export const retomarEventos = bus.retomar;

@@ -92,6 +92,12 @@ model Dominio {
   verificado   Boolean   @default(false)
   token        String    @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   verificadoEn DateTime?
+  /// Última revisión periódica del DNS (solo propios verificados).
+  revisadoEn     DateTime?
+  /// Revisiones seguidas en que no apuntó al servidor.
+  fallasSeguidas Int       @default(0)
+  /// Desde cuándo no apunta al servidor (dos revisiones seguidas). Null = bien.
+  noApuntaDesde  DateTime?
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, dominio])
@@ -134,6 +140,8 @@ model Evento {
   /// Al reprocesar: solo estos suscriptos (los que fallaron). Vacío = todos.
   soloPara    String[]     @default([])
   procesadoEn DateTime?
+  /// Mientras se entrega: cuándo se tomó. Se suelta al terminar; uno colgado se retoma.
+  tomadoEn    DateTime?
   /// Idempotencia: el mismo (banda, nombre, claveUnica) se guarda una sola vez (p. ej. el id
   /// del pago en un aviso de pasarela repetido). Null = sin control.
   claveUnica  String?
@@ -235,6 +243,10 @@ model Correo {
   claveUnica      String?
   creadoEn        DateTime     @default(now())
   enviadoEn       DateTime?
+  /// Cuándo se tomó para enviar (uno colgado en ENVIANDO lo marca el barrido).
+  tomadoEn        DateTime?
+  /// FALLIDO que el barrido reintenta solo a partir de esta fecha. Null = no se reintenta solo.
+  reintentarEn    DateTime?
   tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, claveUnica])

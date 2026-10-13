@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { type AccesoPanel, prendidosDelPedido } from "@/nucleo/acceso/panel";
 import { registro } from "@/nucleo/modulos";
 import { menuPanel } from "@/nucleo/modulos/navegacion";
+import { dominiosQueNoApuntan } from "@/nucleo/dominios";
+import { Aviso } from "@/ui";
 import { BotonSalir } from "../../salir";
 
 /** Marco del panel de una banda: menú armado con los módulos prendidos y los permisos. */
@@ -12,6 +14,9 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   const menu = menuPanel(reg, prendidos, acceso, slug);
   const esTitular = acceso.rol === "TITULAR";
   const conCredenciales = esTitular && reg.modulos.some((m) => prendidos.has(m.id) && m.secretos?.length);
+  // Dominios propios que dejaron de apuntar al servidor (los marca el barrido): lo ve quien
+  // lo puede arreglar (el staff lo ve en /admin). El sitio no se despublica.
+  const noApuntan = esTitular ? await dominiosQueNoApuntan(acceso.tenantId) : [];
   const item = "block rounded-md px-3 py-2 text-md font-semibold text-secondary hover:bg-primary_hover hover:text-secondary_hover";
   return (
     <div className="min-h-dvh bg-secondary lg:flex">
@@ -62,7 +67,24 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
         </div>
       </aside>
       <div className="min-w-0 flex-1 p-4 lg:p-10">
-        <div className="mx-auto max-w-5xl">{children}</div>
+        <div className="mx-auto max-w-5xl">
+          {noApuntan.length > 0 && (
+            <div className="mb-6">
+              <Aviso
+                titulo={
+                  noApuntan.length === 1
+                    ? `${noApuntan[0].dominio} dejó de apuntar a Deoco`
+                    : `${noApuntan.map((d) => d.dominio).join(", ")} dejaron de apuntar a Deoco`
+                }
+                data-dominio-no-apunta
+              >
+                El sitio sigue publicado, pero quien entra por ese dominio no llega. Revisá el registro A en tu
+                proveedor de dominio. <Link href={`/b/${slug}/dominios`} className="font-semibold underline">Ver dominios</Link>
+              </Aviso>
+            </div>
+          )}
+          {children}
+        </div>
       </div>
     </div>
   );

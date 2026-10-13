@@ -143,6 +143,26 @@ export function Tarjeta({ titulo, descripcion, children }: { titulo: string; des
   );
 }
 
+/**
+ * Aviso: PROPIO. El componente de alertas de Untitled UI es PRO (docs/untitled-ui-pro.md).
+ * Una franja con título y texto; `error` para lo que hay que corregir ya.
+ */
+export function Aviso({
+  tono = "advertencia",
+  titulo,
+  children,
+  ...datos
+}: { tono?: "advertencia" | "error"; titulo: string; children?: ReactNode } & Record<`data-${string}`, string | boolean>) {
+  const color =
+    tono === "error" ? "bg-error-primary text-error-primary ring-error_subtle" : "bg-warning-primary text-warning-primary ring-utility-yellow-200";
+  return (
+    <div role="alert" className={`rounded-xl p-4 text-md ring-1 ring-inset ${color}`} {...datos}>
+      <p className="font-semibold">{titulo}</p>
+      {children && <div className="mt-1">{children}</div>}
+    </div>
+  );
+}
+
 type ColorInsignia = "gris" | "marca" | "exito" | "advertencia" | "error";
 const COLOR_INSIGNIA = { gris: "gray", marca: "brand", exito: "success", advertencia: "warning", error: "error" } as const;
 

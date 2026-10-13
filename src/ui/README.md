@@ -20,6 +20,7 @@ Propios (sin equivalente oficial que sirva):
 - `CampoArchivo`: `FileTrigger` e `InputFile` oficiales no ponen `name` en su
   `<input type="file">`, y el archivo no viajaría en el FormData de la server action.
 - `Tarjeta`: la versión gratuita no trae un componente de tarjeta.
+- `Aviso`: franja de advertencia o error (las alertas de Untitled UI son PRO).
 - `Copiable`: un valor con botón "Copiar" (el botón es el oficial; el resto, no hay).
 
 `@/ui/servidor` (solo servidor): lectura y validación de formularios para server actions.

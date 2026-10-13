@@ -34,6 +34,10 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
 - Log de un arranque sano, en este orden:
   `Aplicando migraciones…` → `Levantando Deoco en el puerto 3000…` →
   `[deoco] arranque verificado · módulos: sitio`.
+- **Barrido** (`src/nucleo/barrido.ts`): al arrancar y cada `DEOCO_BARRIDO_SEGUNDOS` (60) retoma
+  eventos y correos que quedaron pendientes (un reinicio a mitad, un SMTP caído) y, cada 6 h,
+  revisa que los dominios propios verificados sigan apuntando al servidor. Un correo que falla
+  se reintenta solo dos veces (a los 2 y a los 15 minutos); después queda FALLIDO, a mano.
 
 ## Lo que configurás vos, en orden
 
@@ -161,6 +165,7 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
 | `DEOCO_CORREO` | para que salgan correos | `smtp` (producción) o `memoria` (desarrollo). Sin ella, en producción los correos quedan pendientes |
 | `DEOCO_SMTP_URL` | con `DEOCO_CORREO=smtp` | `smtps://resend:<API key>@smtp.resend.com:465` |
 | `DEOCO_CORREO_REMITENTE` | con `DEOCO_CORREO=smtp` | `tiendas@deoco.com` (dominio verificado en Resend) |
+| `DEOCO_BARRIDO_SEGUNDOS` | no | Cada cuánto corre el barrido de pendientes (60; mínimo 5) |
 | `DEOCO_IP_PUBLICA` | no | IP a la que apuntan los dominios propios; por defecto, la de `app.<raíz>` |
 
 ## Correo (Resend por SMTP)
@@ -199,6 +204,11 @@ levanta y el motivo queda en los logs.
    `<slug>.deoco.com` redirige al dominio propio.
 5. Si la banda **quita** un dominio (con confirmación; nunca el principal ni el subdominio),
    sacalo también de Easypanel.
+
+6. Cada 6 horas la app revisa que cada dominio propio verificado siga apuntando (registro A) al
+   servidor. Si dos revisiones seguidas no apunta, la banda ve un aviso en su panel y el
+   dominio queda marcado en la lista (también en `/admin`). **No** se despublica ni pierde la
+   verificación: cuando la banda corrige el DNS, la próxima revisión lo desmarca.
 
 La IP que se muestra es `DEOCO_IP_PUBLICA` si está definida; si no, la que resuelve
 `app.deoco.com` (con el comodín en "solo DNS" es la del VPS). Si alguna vez ponés la nube

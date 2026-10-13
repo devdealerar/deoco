@@ -44,6 +44,11 @@ export function escaparHtml(t: string): string {
   return t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+/** Espera antes de reintentar solo tras el 1.er y el 2.º fallo. Después del 3.º, a mano. */
+export const ESPERA_REINTENTO_MS = [2 * 60_000, 15 * 60_000];
+/** Un correo en ENVIANDO hace más que esto quedó colgado (el proceso murió mientras salía). */
+export const CORREO_COLGADO_MS = 15 * 60_000;
+
 const colas = new Map<string, Promise<void>>();
 
 function encolar(tenantId: string): Promise<void> {
@@ -75,7 +80,7 @@ async function entregarPendientes(tenantId: string) {
       // Tomarlo: si otro proceso lo tomó primero, no sale dos veces.
       const { count } = await tx.correo.updateMany({
         where: { id: c.id, estado: "PENDIENTE" },
-        data: { estado: "ENVIANDO", intentos: { increment: 1 } },
+        data: { estado: "ENVIANDO", intentos: { increment: 1 }, tomadoEn: new Date(), reintentarEn: null },
       });
       return count === 1 ? c : undefined;
     });
@@ -92,13 +97,19 @@ async function entregarPendientes(tenantId: string) {
         texto: fila.texto,
       });
       await conTenant(tenantId, (tx) =>
-        tx.correo.update({ where: { id: fila.id }, data: { estado: "ENVIADO", enviadoEn: new Date(), error: null } }),
+        tx.correo.update({ where: { id: fila.id }, data: { estado: "ENVIADO", enviadoEn: new Date(), error: null, tomadoEn: null } }),
       );
     } catch (e) {
       const error = (e instanceof Error ? e.message : String(e)).slice(0, 500);
       // Solo el motivo: ni el cuerpo ni el destinatario van al log.
       console.error(`[correo] falló el envío ${fila.id} de la banda ${tenantId}: ${error}`);
-      await conTenant(tenantId, (tx) => tx.correo.update({ where: { id: fila.id }, data: { estado: "FALLIDO", error } }));
+      // Los primeros fallos se reintentan solos (un SMTP caído un rato); después, a mano.
+      const intentos = fila.intentos + 1;
+      const espera = ESPERA_REINTENTO_MS[intentos - 1];
+      const reintentarEn = espera === undefined ? null : new Date(Date.now() + espera);
+      await conTenant(tenantId, (tx) =>
+        tx.correo.update({ where: { id: fila.id }, data: { estado: "FALLIDO", error, tomadoEn: null, reintentarEn } }),
+      );
     }
   }
 }
@@ -163,9 +174,36 @@ export async function enviarCorreo(
 /** Vuelve a intentar un correo FALLIDO. Resuelve cuando terminó el intento. */
 export async function reintentarCorreo(tenantId: string, correoId: string) {
   const { count } = await conTenant(tenantId, (tx) =>
-    tx.correo.updateMany({ where: { id: correoId, estado: "FALLIDO" }, data: { estado: "PENDIENTE" } }),
+    tx.correo.updateMany({ where: { id: correoId, estado: "FALLIDO" }, data: { estado: "PENDIENTE", reintentarEn: null } }),
   );
   if (count === 0) throw new ErrorCorreo("Ese correo no existe en esta banda o no está fallido.");
+  await encolar(tenantId);
+}
+
+/**
+ * Lo usa el barrido: retoma los correos de la banda que quedaron sin salir.
+ * - PENDIENTE: sale (el proceso se reinició antes de mandarlo, o no había transporte).
+ * - FALLIDO con `reintentarEn` vencido: se reintenta.
+ * - ENVIANDO hace más de CORREO_COLGADO_MS: el proceso murió mientras salía y no se sabe
+ *   si llegó. Queda FALLIDO sin reintento automático (mejor uno que no llega que uno
+ *   doble); se reintenta a mano.
+ */
+export async function retomarCorreos(tenantId: string, ahora = new Date()) {
+  await conTenant(tenantId, async (tx) => {
+    await tx.correo.updateMany({
+      where: { estado: "ENVIANDO", tomadoEn: { lt: new Date(ahora.getTime() - CORREO_COLGADO_MS) } },
+      data: {
+        estado: "FALLIDO",
+        tomadoEn: null,
+        reintentarEn: null,
+        error: "Se cortó mientras salía: no se sabe si llegó. No se reintenta solo para no mandarlo dos veces.",
+      },
+    });
+    await tx.correo.updateMany({
+      where: { estado: "FALLIDO", reintentarEn: { lte: ahora } },
+      data: { estado: "PENDIENTE", reintentarEn: null },
+    });
+  });
   await encolar(tenantId);
 }
 

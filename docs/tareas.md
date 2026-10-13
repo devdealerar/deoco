@@ -1,5 +1,30 @@
 # Tareas
 
+## Trabajo largo sin supervisión
+
+Decisiones tomadas sin consultar: `docs/decisiones-pendientes.md` (para revisar).
+Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.md`.
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| A1 | Barrido de pendientes (eventos y correos) al arrancar y periódico | ✅ hecha |
+| A2 | Revisión periódica de dominios propios + aviso en el panel | ✅ hecha |
+| A3 | Rotación de `DEOCO_CLAVE_SECRETOS` | pendiente |
+| B | Consultas entre módulos | pendiente |
+| C | Panel del proveedor | pendiente |
+| D | Módulo ticketera | pendiente |
+| E | Revisión final | pendiente |
+
+- A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
+  con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
+  se toman en la base (`evento.tomadoEn`) antes de entregarse; uno tomado por otro proceso no
+  se toca ni se adelanta el siguiente; colgado (>10 min) se retoma. Correos: PENDIENTE sale,
+  FALLIDO se reintenta solo con `reintentarEn` (2 y 15 min), ENVIANDO colgado (>15 min) queda
+  FALLIDO sin reintento automático. Pruebas: `tests/barrido.test.ts`.
+- A2: `revisarDominios()` en `src/nucleo/dominios` (solo registro A; dos fallas seguidas →
+  `noApuntaDesde`). Aviso en `MarcoPanel` (titular) y en la lista de dominios
+  (insignia "No apunta a Deoco" + registro A a corregir). Componente propio `Aviso` en `@/ui`.
+
 ## Paso 4 · Módulo de tienda
 
 Decisiones: pasarela detrás de una interfaz (`modulos/tienda/pasarelas/`), Mercado Pago
@@ -421,8 +446,7 @@ Las cinco pruebas originales pasan:
   antes del primer módulo con tablas.
 - **Back office**: la conexión aparte con un rol que ve todo (spec) no existe todavía.
   Sin ella no hay listado global de eventos fallidos ni barrido de pendientes al arrancar.
-- **Eventos pendientes tras un reinicio**: no se pierden (quedan PENDIENTE en la tabla), pero
-  se entregan recién cuando esa banda emite otro evento, o al reprocesar.
+- ~~**Eventos pendientes tras un reinicio**~~ → resuelto con el barrido (trabajo largo, A1).
 - ~~Emitir dentro de la transacción de quien emite~~ → resuelto en Paso 2 · Parte 0.
 - **Accesos del staff**: `registrarAccesoStaff()` no persiste. Tampoco hay registro de
   quién cambia la pasarela (spec); llega con el módulo que tenga la pasarela.
