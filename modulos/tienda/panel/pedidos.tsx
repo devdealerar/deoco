@@ -5,7 +5,7 @@ import { describirVariante } from "../comun";
 import { formatearPesos } from "../dinero";
 import { ESTADO_PANEL } from "../estados";
 import { deudaDeBanda } from "../pagos";
-import { pasarelaDe } from "../pasarelas";
+import { pasarelaDe } from "@/nucleo/pagos";
 import { Encabezado, puedeEditar as puedeEditarEn } from "./comun";
 
 const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" });

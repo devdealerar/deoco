@@ -21,6 +21,8 @@ const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 
 // Rutas que son del núcleo y ningún módulo puede ocupar.
 const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, secretos
+/** Ids que usa el núcleo como "módulo" (p. ej. las credenciales de cobro en `secreto`). */
+const ID_RESERVADOS = ["pagos", "nucleo"];
 const NOMBRE_CONSULTA = /^[a-z][a-z0-9-]{0,62}$/;
 const CLAVE_SECRETO = /^[a-z][a-z0-9_]{0,62}$/;
 const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal"]; // plataforma, archivos y avisos
@@ -140,6 +142,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   for (const m of modulos) {
     if (!ID.test(m.id)) throw new ErrorRegistro(m.id, "id inválido (minúsculas, números y guiones)");
     if (porId.has(m.id)) throw new ErrorRegistro(m.id, "id repetido");
+    if (ID_RESERVADOS.includes(m.id)) throw new ErrorRegistro(m.id, "id reservado por el núcleo");
     if (m.dependencias?.includes(m.id)) throw new ErrorRegistro(m.id, "no puede depender de sí mismo");
     porId.set(m.id, m);
 
@@ -262,6 +265,9 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       deAvisos.push({ moduloId: m.id, ruta });
     }
     if (deAvisos.length) avisos.set(m.id, indiceRutas(deAvisos));
+    if (m.cobros && !(m.avisos ?? []).some((a) => a.ruta === "/pago/[pasarela]")) {
+      throw new ErrorRegistro(m.id, 'cobros: falta el aviso "/pago/[pasarela]" (ahí avisa la pasarela)');
+    }
 
     const clavesSecretos = new Set<string>();
     for (const sec of m.secretos ?? []) {

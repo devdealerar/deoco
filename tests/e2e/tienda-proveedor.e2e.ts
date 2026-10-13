@@ -48,7 +48,7 @@ beforeAll(async () => {
     costoProduccion: 900000, costoEnvio: 350000, impresionAnchoPx: 4200, impresionAltoPx: 4800,
   });
   await prenderModulo(e.staff.id, e.a.id, "tienda");
-  await guardarSecreto(e.multi.id, e.a.id, "tienda", "mercadopago_access_token", "APP_USR-e2e");
+  await guardarSecreto(e.multi.id, e.a.id, "pagos", "mercadopago_access_token", "APP_USR-e2e");
   const d = await subirDiseno(e.a.id, "Logo", { nombre: "logo.png", datos: await png(4200, 5000) });
   const remera = await crearProducto(e.a.id, remeraBase.id, { disenoId: d.id, nombre: "Remera Gira", descripcion: "", precio: 2500000, variantes: [{ nombre: "Talle", valores: ["M"] }] });
   await publicarProducto(e.a.id, remera.id, true);
@@ -56,7 +56,7 @@ beforeAll(async () => {
     nombre: "Lucía Fan", email: "lucia@fan.com", telefono: "341 555-1234", calle: "Córdoba", numero: "1234", piso: "", ciudad: "Rosario", provincia: "Santa Fe", codigoPostal: "2000",
   });
   pedidoId = pedido.id;
-  await registrarPago(e.a.id, "mercadopago", { cobroId: "e2e-1", estado: "aprobado", estadoPasarela: "approved", pedidoId: pedido.id, monto: pedido.total, moneda: "ARS" });
+  await registrarPago(e.a.id, "mercadopago", { cobroId: "e2e-1", estado: "aprobado", estadoPasarela: "approved", referencia: pedido.id, monto: pedido.total, moneda: "ARS" });
   await esperarEventos();
   await esperarCorreos();
   await abrirNavegador();

@@ -21,7 +21,7 @@ export function leerClave(cruda) {
   return clave.length === 32 ? clave : null;
 }
 
-function abrir(cifrado, contexto, clave) {
+export function abrir(cifrado, contexto, clave) {
   const b = Buffer.from(cifrado);
   if (b[0] !== VERSION || b.length < 29) return null;
   try {
@@ -34,7 +34,7 @@ function abrir(cifrado, contexto, clave) {
   }
 }
 
-function cerrar(valor, contexto, clave) {
+export function cerrar(valor, contexto, clave) {
   const iv = randomBytes(12);
   const c = createCipheriv("aes-256-gcm", clave, iv);
   c.setAAD(Buffer.from(contexto));

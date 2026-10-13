@@ -46,7 +46,7 @@ let poster: Awaited<ReturnType<typeof crearProducto>>;
 let borrador: Awaited<ReturnType<typeof crearProducto>>;
 let vinilo: Awaited<ReturnType<typeof crearProducto>>;
 const TALLES = [{ nombre: "Talle", valores: ["S", "M", "L"] }];
-const TOKEN = () => guardarSecreto(e.multi.id, e.a.id, "tienda", "mercadopago_access_token", TOKEN_A);
+const TOKEN = () => guardarSecreto(e.multi.id, e.a.id, "pagos", "mercadopago_access_token", TOKEN_A);
 
 const png = (a: number, h: number) =>
   sharp({ create: { width: a, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).withMetadata({ density: 300 }).png().toBuffer();

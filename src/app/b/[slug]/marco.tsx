@@ -4,6 +4,7 @@ import { type AccesoPanel, prendidosDelPedido } from "@/nucleo/acceso/panel";
 import { registro } from "@/nucleo/modulos";
 import { menuPanel } from "@/nucleo/modulos/navegacion";
 import { dominiosQueNoApuntan } from "@/nucleo/dominios";
+import { bandaCobra } from "@/nucleo/pagos";
 import { Aviso } from "@/ui";
 import { BotonSalir } from "../../salir";
 
@@ -13,7 +14,8 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   const prendidos = await prendidosDelPedido(acceso.tenantId);
   const menu = menuPanel(reg, prendidos, acceso, slug);
   const esTitular = acceso.rol === "TITULAR";
-  const conCredenciales = esTitular && reg.modulos.some((m) => prendidos.has(m.id) && m.secretos?.length);
+  const conCredenciales =
+    esTitular && (reg.modulos.some((m) => prendidos.has(m.id) && m.secretos?.length) || (await bandaCobra(acceso.tenantId, reg)));
   // Dominios propios que dejaron de apuntar al servidor (los marca el barrido): lo ve quien
   // lo puede arreglar (el staff lo ve en /admin). El sitio no se despublica.
   const noApuntan = esTitular ? await dominiosQueNoApuntan(acceso.tenantId) : [];

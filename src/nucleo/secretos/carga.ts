@@ -5,6 +5,7 @@ import { conTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import type { Registro } from "@/nucleo/modulos/registro";
+import { bandaCobra, credencialesDeCobro, ID_COBROS } from "@/nucleo/pagos";
 import { cifrar, ErrorSecreto, pistaDe } from "./cifrado";
 import { contextoSecreto, moduloDueno } from "./index";
 
@@ -22,19 +23,25 @@ export type SecretoEnPantalla = {
 };
 
 /** Los secretos que declaran los módulos prendidos de la banda, con su estado. */
-export async function secretosDeBanda(tenantId: string, reg: Registro = registroGlobal()): Promise<SecretoEnPantalla[]> {
+export async function secretosDeBanda(
+  tenantId: string,
+  reg: Registro = registroGlobal(),
+): Promise<SecretoEnPantalla[]> {
   const prendidos = await modulosPrendidos(tenantId, reg);
   const filas = await conTenant(tenantId, (tx) =>
-    tx.secreto.findMany({ select: { moduloId: true, clave: true, pista: true, actualizadoEn: true } }),
+    tx.secreto.findMany({
+      select: { moduloId: true, clave: true, pista: true, actualizadoEn: true },
+    }),
   );
-  return reg.modulos
-    .filter((m) => prendidos.has(m.id))
-    .flatMap((m) =>
-      (m.secretos ?? []).map((s) => {
-        const fila = filas.find((f) => f.moduloId === m.id && f.clave === s.clave);
+  // Cobros: del núcleo, una vez para todos los módulos que cobran (tienda, ticketera).
+  const cobros = (await bandaCobra(tenantId, reg))
+    ? credencialesDeCobro().map((s) => {
+        const fila = filas.find(
+          (f) => f.moduloId === ID_COBROS && f.clave === s.clave,
+        );
         return {
-          moduloId: m.id,
-          moduloNombre: m.nombre,
+          moduloId: ID_COBROS,
+          moduloNombre: "Cobros",
           clave: s.clave,
           etiqueta: s.etiqueta,
           ayuda: s.ayuda,
@@ -42,17 +49,46 @@ export async function secretosDeBanda(tenantId: string, reg: Registro = registro
           pista: fila?.pista ?? "",
           actualizadoEn: fila?.actualizadoEn ?? null,
         };
-      }),
-    );
+      })
+    : [];
+  return [
+    ...cobros,
+    ...reg.modulos
+      .filter((m) => prendidos.has(m.id))
+      .flatMap((m) =>
+        (m.secretos ?? []).map((s) => {
+          const fila = filas.find(
+            (f) => f.moduloId === m.id && f.clave === s.clave,
+          );
+          return {
+            moduloId: m.id,
+            moduloNombre: m.nombre,
+            clave: s.clave,
+            etiqueta: s.etiqueta,
+            ayuda: s.ayuda,
+            cargado: !!fila,
+            pista: fila?.pista ?? "",
+            actualizadoEn: fila?.actualizadoEn ?? null,
+          };
+        }),
+      ),
+  ];
 }
 
 /** Solo el titular (el staff no: es una credencial de cobro de la banda). */
 async function exigirTitular(usuarioId: string, tenantId: string) {
   const acceso = await resolverAcceso(usuarioId, tenantId);
-  if (acceso?.rol !== "TITULAR") throw new ErrorSecreto("Solo el titular de la banda carga credenciales.");
+  if (acceso?.rol !== "TITULAR")
+    throw new ErrorSecreto("Solo el titular de la banda carga credenciales.");
 }
 
 function declarado(moduloId: string, clave: string, reg: Registro) {
+  if (moduloId === ID_COBROS) {
+    const def = credencialesDeCobro().find((c) => c.clave === clave);
+    if (!def)
+      throw new ErrorSecreto(`Cobros no tiene la credencial "${clave}".`);
+    return { def };
+  }
   const modulo = reg.modulo(moduloId);
   if (!modulo) throw new ErrorSecreto(`No existe el módulo "${moduloId}".`);
   return { modulo, def: moduloDueno(modulo, clave, reg) };
@@ -68,10 +104,16 @@ export async function guardarSecreto(
 ): Promise<void> {
   const { def } = declarado(moduloId, clave, reg);
   await exigirTitular(usuarioId, tenantId);
-  if (!(await modulosPrendidos(tenantId, reg)).has(moduloId)) throw new ErrorSecreto("Ese módulo no está prendido para la banda.");
+  const prendido =
+    moduloId === ID_COBROS
+      ? await bandaCobra(tenantId, reg)
+      : (await modulosPrendidos(tenantId, reg)).has(moduloId);
+  if (!prendido)
+    throw new ErrorSecreto("Ese módulo no está prendido para la banda.");
   const valor = valorCrudo.trim();
   if (!valor) throw new ErrorSecreto(`Falta el valor de "${def.etiqueta}".`);
-  if (valor.length > LARGO_MAXIMO) throw new ErrorSecreto(`"${def.etiqueta}" es demasiado largo.`);
+  if (valor.length > LARGO_MAXIMO)
+    throw new ErrorSecreto(`"${def.etiqueta}" es demasiado largo.`);
   const datos = {
     cifrado: cifrar(valor, contextoSecreto(tenantId, moduloId, clave)),
     pista: pistaDe(valor),
@@ -84,7 +126,14 @@ export async function guardarSecreto(
       update: datos,
     });
     // La auditoría dice qué se cargó y quién, nunca el valor.
-    await tx.auditoria.create({ data: { usuarioId, tenantId, accion: "secreto.guardado", detalle: { modulo: moduloId, clave } } });
+    await tx.auditoria.create({
+      data: {
+        usuarioId,
+        tenantId,
+        accion: "secreto.guardado",
+        detalle: { modulo: moduloId, clave },
+      },
+    });
   });
 }
 
@@ -98,9 +147,18 @@ export async function borrarSecreto(
   declarado(moduloId, clave, reg);
   await exigirTitular(usuarioId, tenantId);
   await conTenant(tenantId, async (tx) => {
-    const { count } = await tx.secreto.deleteMany({ where: { moduloId, clave } });
+    const { count } = await tx.secreto.deleteMany({
+      where: { moduloId, clave },
+    });
     if (count) {
-      await tx.auditoria.create({ data: { usuarioId, tenantId, accion: "secreto.borrado", detalle: { modulo: moduloId, clave } } });
+      await tx.auditoria.create({
+        data: {
+          usuarioId,
+          tenantId,
+          accion: "secreto.borrado",
+          detalle: { modulo: moduloId, clave },
+        },
+      });
     }
   });
 }

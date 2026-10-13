@@ -85,3 +85,15 @@ y por qué. Si alguna no va, se cambia.
    (se vincula sin clave nueva). Varias personas por proveedor, sí.
 10. **Nombre de la banda copiado en la orden** (`bandaNombre`): el proveedor no lee la tabla de
     bandas. Si la banda cambia de nombre, las órdenes viejas muestran el anterior.
+
+## D · Ticketera: el pago
+
+1. **El cobro pasó al núcleo** (`src/nucleo/pagos`). "Reusá el flujo de pago, no lo dupliques"
+   + "un módulo no importa código de otro" solo cierran si la pasarela es del núcleo. Es
+   genérico (ningún módulo nombrado); tienda y ticketera lo usan igual.
+2. **Credenciales de cobro, una por banda** (Credenciales → Cobros), no una por módulo: el
+   titular carga el token una vez. Se guardan en `secreto` con módulo `pagos` (id reservado).
+   Las ya cargadas en la tienda se mueven con `scripts/mover-credenciales-de-cobro.mjs` (o el
+   titular las vuelve a cargar).
+3. **El aviso sigue siendo de cada módulo** (`/avisos/<banda>/<modulo>/pago/<pasarela>`): el
+   núcleo consulta el cobro a la API y el módulo lo registra. Así la URL de la tienda no cambió.

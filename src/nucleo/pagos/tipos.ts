@@ -1,18 +1,18 @@
 // Una pasarela de pago: donde el fan le paga a la banda, con las credenciales de la banda.
-// La tienda habla con esta interfaz y nunca nombra a una pasarela concreta. Sumar otra
-// (PayPal, Stripe) es un archivo nuevo acá y una línea en ./index.ts.
+// Los módulos (tienda, ticketera) hablan con @/nucleo/pagos y nunca nombran una pasarela
+// concreta. Sumar otra (PayPal, Stripe) es un archivo nuevo acá y una línea en ./index.ts.
 import type { AvisoEntrante, DefinicionSecreto } from "@/nucleo/modulos/contrato";
 
 /** Credenciales de la banda para esta pasarela: clave → valor (nunca se loguean). */
 export type Credenciales = Record<string, string>;
 
 export type Cobro = {
-  /** Id del pedido: vuelve en el aviso (external_reference) para saber qué se pagó. */
-  pedidoId: string;
-  /** Renglones tal como los ve el fan, en centavos. */
+  /** Lo que el módulo cobra (id del pedido, de la compra): vuelve en el cobro consultado. */
+  referencia: string;
+  /** Renglones tal como los ve el comprador, en centavos. */
   items: { titulo: string; cantidad: number; precioUnitario: number }[];
-  /** Un envío por proveedor (paquete). */
-  envios: { titulo: string; monto: number }[];
+  /** Cargos aparte (un envío por proveedor), en centavos. Los de 0 no se mandan. */
+  extras: { titulo: string; monto: number }[];
   total: number;
   comprador: { nombre: string; email: string };
   urls: { exito: string; fallo: string; pendiente: string; aviso: string };
@@ -26,7 +26,8 @@ export type CobroConsultado = {
   estado: EstadoDeCobro;
   /** Crudo de la pasarela, para mostrar ("rejected", "in_process"…). */
   estadoPasarela: string;
-  pedidoId: string | null;
+  /** La referencia con que se creó el cobro (null si no tiene). */
+  referencia: string | null;
   /** Centavos. */
   monto: number;
   moneda: string;

@@ -242,6 +242,11 @@ export type Modulo = {
   cuentasExternas?: { etiqueta: string };
   /** Pantallas del portal de cuentas externas, en app.<raiz>/portal/<id><ruta>. */
   rutasExternas?: RutaModulo<PropsRutaExterna>[];
+  /**
+   * Cobra con la pasarela de la banda (`@/nucleo/pagos`): las credenciales las carga el titular
+   * una vez, en Credenciales → Cobros. Exige un aviso en "/pago/[pasarela]".
+   */
+  cobros?: boolean;
   /** Consultas que ofrece a otros módulos (ver DefinicionConsulta). */
   consultas?: DefinicionConsulta[];
   /** Ids de módulos que tienen que estar prendidos para prender este. */

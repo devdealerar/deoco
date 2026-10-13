@@ -2,15 +2,13 @@
 // La fuente de verdad del pago es la CONSULTA a la API de la pasarela, nunca el cuerpo del
 // aviso. Un pedido pasa a PAGADO una sola vez (cambio condicional), y en esa misma
 // transacción se copian los costos, se registra la deuda y se emite pedido.pagado.
-import { urlAviso } from "@/nucleo/avisos";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { emitir } from "@/nucleo/eventos/bus";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { fijarCostosDelPedido } from "./catalogo";
 import { tituloEnvio } from "./comun";
-import { credencialesDe, pasarelaLista } from "./pasarelas";
 import type { EnvioDeProveedor } from "./pedidos";
-import { type CobroConsultado, ErrorPasarela } from "./pasarelas/tipos";
+import { type CobroConsultado, crearCobro, ErrorPasarela } from "@/nucleo/pagos";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const MONEDA = "ARS";
@@ -20,21 +18,19 @@ export const MONEDA = "ARS";
  * mandar al fan. `origen`: el sitio de la banda (para volver después de pagar).
  */
 export async function iniciarCobro(tienda: Modulo, tenantId: string, pedidoId: string, origen: string): Promise<string> {
-  const { lista, pasarela } = await pasarelaLista(tienda, tenantId);
-  if (!lista) throw new ErrorPasarela("La tienda no está recibiendo pedidos en este momento.");
   const pedido = await conTenant(tenantId, (tx) => tx.tiendaPedido.findUnique({ where: { id: pedidoId }, include: { items: true } }));
   if (!pedido || pedido.estado !== "PENDIENTE") throw new ErrorPasarela("Ese pedido no está esperando un pago.");
   const volver = (resultado: string) => `${origen}/tienda/pedido/${pedido.id}?resultado=${resultado}`;
-  const { redireccion, preferenciaId } = await pasarela.crearCobro(await credencialesDe(tienda, tenantId, pasarela), {
-    pedidoId: pedido.id,
+  const { pasarela, redireccion, preferenciaId } = await crearCobro(tienda, tenantId, {
+    referencia: pedido.id,
     items: pedido.items.map((i) => ({ titulo: i.nombreProducto, cantidad: i.cantidad, precioUnitario: i.precioUnitario })),
-    envios: (pedido.envios as unknown as EnvioDeProveedor[]).map((e) => ({ titulo: tituloEnvio(e, pedido.envios), monto: e.monto })),
+    extras: (pedido.envios as unknown as EnvioDeProveedor[]).map((e) => ({ titulo: tituloEnvio(e, pedido.envios), monto: e.monto })),
     total: pedido.total,
     comprador: { nombre: pedido.nombre, email: pedido.email },
-    urls: { exito: volver("exito"), fallo: volver("fallo"), pendiente: volver("pendiente"), aviso: urlAviso(tenantId, tienda, `/pago/${pasarela.id}`) },
+    urls: { exito: volver("exito"), fallo: volver("fallo"), pendiente: volver("pendiente") },
   });
   await conTenant(tenantId, (tx) =>
-    tx.tiendaPedido.update({ where: { id: pedido.id }, data: { pasarela: pasarela.id, preferenciaId, urlPago: redireccion } }),
+    tx.tiendaPedido.update({ where: { id: pedido.id }, data: { pasarela, preferenciaId, urlPago: redireccion } }),
   );
   return redireccion;
 }
@@ -52,8 +48,8 @@ export type ResultadoPago =
  * aprobado, el pedido es de ESTA banda (búsqueda bajo RLS) y monto y moneda coinciden.
  */
 export async function registrarPago(tenantId: string, pasarelaId: string, cobro: CobroConsultado): Promise<ResultadoPago> {
-  if (!cobro.pedidoId || !UUID.test(cobro.pedidoId)) return "ajeno";
-  const pedidoId = cobro.pedidoId;
+  if (!cobro.referencia || !UUID.test(cobro.referencia)) return "ajeno";
+  const pedidoId = cobro.referencia;
   return conTenant(tenantId, async (tx) => {
     const pedido = await tx.tiendaPedido.findUnique({ where: { id: pedidoId } });
     if (!pedido) return "ajeno";

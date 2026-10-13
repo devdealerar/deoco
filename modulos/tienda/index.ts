@@ -13,7 +13,6 @@ import { DisenosTienda } from "./panel/disenos";
 import { EditarProducto, NuevoProducto } from "./panel/producto";
 import { DeudaTienda, PedidosTienda } from "./panel/pedidos";
 import { ResumenTienda } from "./panel/resumen";
-import { credencialesDeTodas } from "./pasarelas";
 import { PortalCuenta, PortalOrden, PortalOrdenes } from "./portal/paginas";
 import { ContadorCarrito } from "./publico/cabecera";
 import {
@@ -79,8 +78,8 @@ const tienda: Modulo = {
     { evento: "pedido.pagado", manejador: alPagarsePedido },
     { evento: "orden.despachada", manejador: alDespacharseOrden },
   ],
-  // Credenciales de la pasarela de la banda (las carga el titular en Credenciales).
-  secretos: credencialesDeTodas(),
+  // Cobra con la pasarela de la banda (núcleo: @/nucleo/pagos; credenciales en Credenciales → Cobros).
+  cobros: true,
   navegacion: [
     { etiqueta: "Tienda", href: "/tienda", permiso: VER, orden: 20 },
     { etiqueta: "Tienda", href: "/tienda", publica: true, orden: 30 },

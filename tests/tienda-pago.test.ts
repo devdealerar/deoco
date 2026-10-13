@@ -104,8 +104,8 @@ beforeEach(async () => {
   await dueno.secreto.deleteMany();
   await dueno.moduloTenant.deleteMany({ where: { moduloId: "tienda" } });
   await dueno.moduloTenant.createMany({ data: [{ tenantId: e.a.id, moduloId: "tienda" }, { tenantId: e.b.id, moduloId: "tienda" }] });
-  await guardarSecreto(e.multi.id, e.a.id, "tienda", "mercadopago_access_token", TOKEN_A);
-  await guardarSecreto(titularB, e.b.id, "tienda", "mercadopago_access_token", TOKEN_B);
+  await guardarSecreto(e.multi.id, e.a.id, "pagos", "mercadopago_access_token", TOKEN_A);
+  await guardarSecreto(titularB, e.b.id, "pagos", "mercadopago_access_token", TOKEN_B);
 });
 afterAll(async () => {
   await esperarEventos();
@@ -195,7 +195,7 @@ describe("prueba 2: el aviso marca PAGADO; repetido, no duplica nada", () => {
 
   it("con la clave de webhooks cargada, la firma se verifica", async () => {
     const { pedido } = await pedidoDeA();
-    await guardarSecreto(e.multi.id, e.a.id, "tienda", "mercadopago_secreto_avisos", "secreto-de-webhooks-de-la-banda");
+    await guardarSecreto(e.multi.id, e.a.id, "pagos", "mercadopago_secreto_avisos", "secreto-de-webhooks-de-la-banda");
     aprobar("9005", pedido.id, pedido.total);
     const firmar = (id: string, ts: string, req: string) =>
       createHmac("sha256", "secreto-de-webhooks-de-la-banda").update(`id:${id};request-id:${req};ts:${ts};`).digest("hex");
@@ -390,7 +390,7 @@ describe("prueba 6: pago duplicado", () => {
     expect(await dueno.evento.count({ where: { nombre: "pedido.pagado" } })).toBe(1);
     expect(bandejaDeSalida()).toHaveLength(3);
     // Un pago que no está aprobado, para un pedido pagado, no se registra como extra.
-    expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "9202", estado: "rechazado", estadoPasarela: "rejected", pedidoId: pedido.id, monto: 1, moneda: "ARS" })).toBe("ya-pagado");
+    expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "9202", estado: "rechazado", estadoPasarela: "rejected", referencia: pedido.id, monto: 1, moneda: "ARS" })).toBe("ya-pagado");
     expect(await dueno.tiendaPagoExtra.count()).toBe(1);
   });
 });

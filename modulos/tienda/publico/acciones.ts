@@ -5,8 +5,7 @@ import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import tienda from "../index";
 import { crearPedido, ErrorCompra, leerCarrito, revisarCarrito, type Revision } from "../pedidos";
 import { iniciarCobro } from "../pagos";
-import { pasarelaLista } from "../pasarelas";
-import { ErrorPasarela } from "../pasarelas/tipos";
+import { ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
 
 /** Solo en el sitio público de una banda: la banda sale del host, nunca del navegador. */
 async function banda(): Promise<string> {

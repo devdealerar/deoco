@@ -348,6 +348,28 @@ avisos: [{ ruta: "/mercadopago", manejador: avisoMercadoPago }], // POST por def
   respuesta es 500 (la pasarela reintenta) y al log va solo el mensaje, nunca el cuerpo.
 - Ejemplo completo: `modulos/prueba/aviso.ts` (firma HMAC con la credencial de la banda).
 
+## 6 bis′. Cobrar (pasarela de la banda)
+
+Un módulo que cobra (tienda, ticketera) **no** habla con Mercado Pago ni guarda el token:
+eso es del núcleo (`@/nucleo/pagos`). El dinero va directo a la cuenta de la banda.
+
+```ts
+cobros: true,
+avisos: [{ ruta: "/pago/[pasarela]", metodos: ["POST", "GET"], manejador: avisoDePago }],
+```
+
+- Las credenciales las carga el titular **una vez** en Credenciales → Cobros (aparece si algún
+  módulo prendido cobra). Ningún módulo las ve.
+- `pasarelaLista(modulo, tenantId)`: ¿puede cobrar? (si no, no ofrezcas comprar).
+- `crearCobro(modulo, tenantId, { referencia, items, extras, total, comprador, urls })` → adónde
+  mandar al comprador. `referencia` es tu id (pedido, compra): vuelve en el cobro consultado.
+- En el aviso: `const r = await cobroDelAviso(modulo, aviso)`. Si trae `respuesta`, devolvela;
+  si trae `cobro`, es lo que dijo la **API** de la pasarela (nunca el cuerpo del aviso):
+  verificá que `cobro.referencia` sea tuya **en esta banda**, monto y moneda, y registralo con
+  un cambio condicional (dos avisos a la vez no lo registran dos veces).
+- `probarConexion(modulo, tenantId)`: a nombre de quién cobra (para que el titular confirme).
+- Ejemplos: `modulos/tienda/pagos.ts` + `aviso.ts`, `modulos/ticketera/compras.ts`.
+
 ## 6 ter. Consultas a otros módulos
 
 Un módulo nunca importa código de otro. Cuando uno necesita **leer** datos de otro (el sitio

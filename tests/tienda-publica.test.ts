@@ -6,7 +6,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import { guardarSecreto } from "@/nucleo/secretos/carga";
 import { type ComoStaff, crearProductoBase, crearProveedor, leerOpciones } from "../modulos/tienda/catalogo";
 import tienda from "../modulos/tienda";
-import { pasarelaLista } from "../modulos/tienda/pasarelas";
+import { pasarelaLista } from "@/nucleo/pagos";
 import { crearPedido, type DatosFan, ErrorCompra, leerCarrito, revisarCarrito, validarDatosFan } from "../modulos/tienda/pedidos";
 import { actualizarProducto, crearProducto, productosPublicados, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "./apoyo";
@@ -44,7 +44,7 @@ async function tiendaDe(tenantId: string, titular: string) {
   const poster = await crearProducto(tenantId, posterBase.id, { disenoId: d.id, nombre: "Poster", descripcion: "", precio: 1500000, variantes: [] });
   await publicarProducto(tenantId, remera.id, true);
   await publicarProducto(tenantId, poster.id, true);
-  await guardarSecreto(titular, tenantId, "tienda", "mercadopago_access_token", "APP_USR-1234567890-token-de-prueba");
+  await guardarSecreto(titular, tenantId, "pagos", "mercadopago_access_token", "APP_USR-1234567890-token-de-prueba");
   return { remera, poster };
 }
 

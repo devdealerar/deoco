@@ -78,13 +78,13 @@ export const mercadoPago: Pasarela = {
     const r = await llamar<{ id: string; init_point: string }>(cred, "POST", "/checkout/preferences", {
       items: [
         ...cobro.items.map((i) => ({ title: i.titulo, quantity: i.cantidad, unit_price: pesos(i.precioUnitario), currency_id: "ARS" })),
-        ...cobro.envios.filter((e) => e.monto > 0).map((e) => ({ title: e.titulo, quantity: 1, unit_price: pesos(e.monto), currency_id: "ARS" })),
+        ...cobro.extras.filter((e) => e.monto > 0).map((e) => ({ title: e.titulo, quantity: 1, unit_price: pesos(e.monto), currency_id: "ARS" })),
       ],
       payer: { name: cobro.comprador.nombre, email: cobro.comprador.email },
       back_urls: { success: cobro.urls.exito, failure: cobro.urls.fallo, pending: cobro.urls.pendiente },
       auto_return: "approved",
       notification_url: cobro.urls.aviso,
-      external_reference: cobro.pedidoId,
+      external_reference: cobro.referencia,
     });
     if (!r.init_point || !r.id) throw new ErrorPasarela("Mercado Pago no devolvió adónde pagar.");
     return { redireccion: r.init_point, preferenciaId: r.id };
@@ -116,7 +116,7 @@ export const mercadoPago: Pasarela = {
       cobroId: String(p.id),
       estado: ESTADOS[p.status] ?? "pendiente",
       estadoPasarela: p.status,
-      pedidoId: p.external_reference || null,
+      referencia: p.external_reference || null,
       monto: Math.round(Number(p.transaction_amount) * 100),
       moneda: p.currency_id,
     };

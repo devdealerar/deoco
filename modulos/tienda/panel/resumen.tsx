@@ -5,7 +5,7 @@ import { Campo, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
 import { contactoDeTienda } from "../contacto";
 import { formatearPesos } from "../dinero";
 import tienda from "../index";
-import { pasarelaLista } from "../pasarelas";
+import { pasarelaLista } from "@/nucleo/pagos";
 import { listarProductos, margen } from "../productos";
 import { contactoAccion, probarConexionAccion } from "./acciones";
 import { Encabezado, puedeEditar as puedeEditarEn } from "./comun";

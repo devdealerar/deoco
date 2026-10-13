@@ -6,7 +6,7 @@ import type { MetadatosPagina, PropsRutaPublica } from "@/nucleo/modulos/contrat
 import type { Opcion } from "../catalogo";
 import { formatearPesos } from "../dinero";
 import tienda from "../index";
-import { pasarelaLista } from "../pasarelas";
+import { pasarelaLista } from "@/nucleo/pagos";
 import { describirVariante } from "../comun";
 import { productosPublicados } from "../productos";
 import { Agregar } from "./agregar";

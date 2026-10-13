@@ -54,7 +54,7 @@ async function pedidoPagado(tenantId: string, cobro: string) {
     { productoId: remera.id, variante: { Talle: "M" }, cantidad: 2 },
     { productoId: vinilo.id, variante: {}, cantidad: 1 },
   ], FAN);
-  expect(await registrarPago(tenantId, "mercadopago", { cobroId: cobro, estado: "aprobado", estadoPasarela: "approved", pedidoId: pedido.id, monto: pedido.total, moneda: "ARS" })).toBe("pagado");
+  expect(await registrarPago(tenantId, "mercadopago", { cobroId: cobro, estado: "aprobado", estadoPasarela: "approved", referencia: pedido.id, monto: pedido.total, moneda: "ARS" })).toBe("pagado");
   return pedido;
 }
 
@@ -93,8 +93,8 @@ beforeEach(async () => {
   // La tienda recibe pedidos solo con la pasarela cargada.
   await dueno.secreto.deleteMany();
   const titularB = (await dueno.usuario.findUniqueOrThrow({ where: { email: "b@x.com" } })).id;
-  await guardarSecreto(e.multi.id, e.a.id, "tienda", "mercadopago_access_token", "APP_USR-AAAA");
-  await guardarSecreto(titularB, e.b.id, "tienda", "mercadopago_access_token", "APP_USR-BBBB");
+  await guardarSecreto(e.multi.id, e.a.id, "pagos", "mercadopago_access_token", "APP_USR-AAAA");
+  await guardarSecreto(titularB, e.b.id, "pagos", "mercadopago_access_token", "APP_USR-BBBB");
 });
 afterAll(async () => {
   await esperarEventos();

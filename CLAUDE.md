@@ -101,6 +101,12 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   bandas con `conCuentaExterna()` + políticas SELECT del módulo con `app_referencia_externa('<id>')`.
   Lo usa la tienda: panel del proveedor (órdenes, despacho, cuenta corriente).
 
+## Cobros (`src/nucleo/pagos`)
+
+- Pasarelas (hoy Mercado Pago) y credenciales de cobro de la banda: del núcleo (secreto con
+  módulo `pagos`, Credenciales → Cobros). Módulos con `cobros: true` + aviso `/pago/[pasarela]`
+  usan `pasarelaLista`, `crearCobro`, `cobroDelAviso`, `probarConexion`. Lo usan tienda y ticketera.
+
 ## Consultas entre módulos
 
 - Contrato: `consultas: [{ nombre, responder(tenantId, params) }]`. Otro módulo la pide con

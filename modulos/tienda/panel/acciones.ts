@@ -9,8 +9,7 @@ import { archivo, ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
 import type { Opcion } from "../catalogo";
 import { ErrorContacto, guardarContacto } from "../contacto";
 import tienda from "../index";
-import { credencialesDe, pasarelaLista } from "../pasarelas";
-import { ErrorPasarela } from "../pasarelas/tipos";
+import { ErrorPasarela, pasarelaLista, probarConexion } from "@/nucleo/pagos";
 import { leerPesos, formatearPesos } from "../dinero";
 import {
   actualizarProducto,
@@ -115,9 +114,9 @@ export async function publicarAccion(slug: string, id: string, publicado: boolea
 export async function probarConexionAccion(slug: string, _: EstadoFormulario): Promise<EstadoFormulario> {
   const acceso = await exigirPermiso("tienda.pasarela.conectar", `/b/${slug}/tienda`);
   const { pasarela, lista } = await pasarelaLista(tienda, acceso.tenantId);
-  if (!lista) return { error: "Primero cargá las credenciales en Credenciales." };
+  if (!lista) return { error: "Primero cargá las credenciales de cobro en Credenciales." };
   try {
-    const { cuenta } = await pasarela.probarConexion(await credencialesDe(tienda, acceso.tenantId, pasarela));
+    const { cuenta } = await probarConexion(tienda, acceso.tenantId);
     return { ok: `Conectada: los pagos entran a la cuenta de ${pasarela.nombre} ${cuenta}.` };
   } catch (e) {
     if (e instanceof ErrorPasarela) return { error: `${pasarela.nombre} rechazó las credenciales. Revisá el access token en Credenciales.` };

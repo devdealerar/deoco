@@ -7,7 +7,7 @@ import { conTenant } from "@/nucleo/db/con-tenant";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { type Opcion, proveedorEfectivo } from "./catalogo";
 import { PROVINCIAS } from "./comun";
-import { pasarelaLista } from "./pasarelas";
+import { pasarelaLista } from "@/nucleo/pagos";
 
 export { describirVariante, PROVINCIAS } from "./comun";
 

@@ -207,6 +207,14 @@ Push a la rama de producción → Easypanel reconstruye → al arrancar se aplic
 migraciones nuevas. Si una migración o la verificación de arranque fallan, el contenedor no
 levanta y el motivo queda en los logs.
 
+### Una vez: credenciales de cobro al núcleo
+
+Desde la versión con ticketera, el token de Mercado Pago es del núcleo (Credenciales → Cobros) y
+lo usan la tienda y la ticketera. Si alguna banda ya lo había cargado en la tienda, después del
+primer deploy de esa versión corré una vez, en la consola de la app:
+`node scripts/mover-credenciales-de-cobro.mjs` (las recifra en su nuevo lugar; repetible). Si
+no, el titular las vuelve a cargar en Credenciales.
+
 ## Dominio propio de una banda
 
 1. La banda (el titular, en **Panel → Dominios**) o el staff (en `/admin`, detalle de la banda)

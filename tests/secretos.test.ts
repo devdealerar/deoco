@@ -258,3 +258,33 @@ describe("rotación de DEOCO_CLAVE_SECRETOS", () => {
     expect(problemasDeSecretos([pasarela], { DEOCO_CLAVE_SECRETOS: ok, DEOCO_CLAVE_SECRETOS_ANTERIOR: VIEJA })).toEqual([]);
   });
 });
+
+describe("credenciales de cobro: de la tienda a Cobros (núcleo)", () => {
+  it("el script las recifra en su nuevo lugar, el núcleo las lee, y es repetible", async () => {
+    const { leerClave } = await import("../scripts/rotar-clave-secretos.mjs");
+    const { cerrar } = await import("../scripts/rotar-clave-secretos.mjs");
+    const { moverCredenciales } = await import("../scripts/mover-credenciales-de-cobro.mjs");
+    const { pasarelaLista } = await import("@/nucleo/pagos");
+    const tienda = (await import("../modulos/tienda")).default;
+    const clave = leerClave(process.env.DEOCO_CLAVE_SECRETOS)!;
+    // Como estaba guardada antes: módulo "tienda".
+    await dueno.secreto.create({
+      data: {
+        tenantId: e.a.id, moduloId: "tienda", clave: "mercadopago_access_token", pista: "…a1b2", actualizadoPor: e.multi.id,
+        cifrado: new Uint8Array(cerrar("APP_USR-vieja-a1b2", `deoco/secreto/${e.a.id}/tienda/mercadopago_access_token`, clave)),
+      },
+    });
+    await dueno.moduloTenant.create({ data: { tenantId: e.a.id, moduloId: "tienda" } });
+    const { default: pg } = await import("pg");
+    const db = new pg.Client({ connectionString: process.env.DATABASE_URL_MIGRACIONES });
+    await db.connect();
+    try {
+      expect(await moverCredenciales(db, clave)).toEqual({ movidas: 1, yaEstaban: 0 });
+      expect(await moverCredenciales(db, clave)).toEqual({ movidas: 0, yaEstaban: 0 });
+    } finally {
+      await db.end();
+    }
+    expect((await dueno.secreto.findMany()).map((s) => [s.moduloId, s.clave, s.pista])).toEqual([["pagos", "mercadopago_access_token", "…a1b2"]]);
+    expect(await pasarelaLista(tienda, e.a.id)).toMatchObject({ lista: true });
+  });
+});
