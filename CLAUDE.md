@@ -58,7 +58,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
 - El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
   `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios`, `/credenciales` en el panel;
-  `/ingresar`, `/api`, `/b` en el sitio), navegación que apunta a rutas propias.
+  `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos`, `/clave` en el sitio), navegación que apunta a rutas propias.
 - Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
 - Encendido: fila en `moduloTenant`. `prenderModulo()` / `apagarModulo()` son del staff;
@@ -96,6 +96,21 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 ## Parámetros de consulta
 
 - Las rutas de módulos (panel y públicas) reciben `consulta: URLSearchParams`.
+
+## Avisos externos (webhooks)
+
+- Contrato: `avisos: [{ ruta, metodos?, manejador }]`. URL de plataforma:
+  `app.<raiz>/avisos/<tenantId>/<moduloId><ruta>` (`src/app/avisos/...` → `atenderAviso` en
+  `src/nucleo/avisos`). En hosts de banda, 404. El núcleo resuelve banda/módulo prendido; la
+  firma la verifica el módulo con el cuerpo crudo. Rápidos e idempotentes.
+- `emitir(..., { unica })`: idempotencia por (banda, nombre, clave) — `evento.claveUnica`.
+
+## Sitio público: título, vista previa y cabecera
+
+- `metadatos` por ruta pública + `metadatosPublicos` (un módulo) → `resolverMetadatos`
+  (`src/nucleo/modulos/metadatos.ts`). Fallback: nombre de la banda, nunca "Deoco" (también
+  en el layout y el 404 de los hosts de banda).
+- `cabeceraPublica` (un módulo): elemento en la cabecera del marco (el carrito).
 
 ## Archivos
 

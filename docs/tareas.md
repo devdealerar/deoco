@@ -5,16 +5,25 @@
 | # | Parte | Estado |
 | --- | --- | --- |
 | 1 | Cierre de dominios: HTTPS antes de principal, quitar con confirmación | ✅ hecha |
-| 2a | Parámetros de URL para las rutas de módulos | ✅ hecha (a revisar) |
-| 2b | Secretos por banda | ✅ hecha (a revisar) |
-| 2c | Puntos de entrada para avisos externos (en `app.<raiz>`) | pendiente |
-| 2d | Título y vista previa por página (y el sitio: nombre de la banda) | pendiente |
-| 2e | Elemento del módulo en la cabecera del marco (carrito) + pestaña activa por segmento | pendiente |
+| 2a | Parámetros de URL para las rutas de módulos | ✅ hecha |
+| 2b | Secretos por banda | ✅ hecha |
+| 2c | Avisos externos en `app.<raiz>` + `emitir({ unica })` | ✅ hecha |
+| 2d | Título y vista previa por página (y el sitio: nombre de la banda) | ✅ hecha |
+| 2e | Elemento del módulo en la cabecera del marco (carrito) + pestaña activa por segmento | ✅ hecha |
+
+Con esto el contrato queda listo para la tienda.
 
 - Principal: antes de marcarlo, `https://<dominio>/` tiene que responder con certificado válido
   (sin seguir redirecciones; cualquier estado HTTP sirve). Si no, explica que falta el certificado.
 - Quitar: confirmado; el principal no (primero otro principal); el subdominio, nunca.
 - Parámetros: `consulta: URLSearchParams` en `PropsRutaPanel` y `PropsRutaPublica`.
+- Avisos: el núcleo resuelve banda y módulo; la firma, el módulo (cuerpo crudo). Una banda
+  suspendida o morosa sigue recibiendo avisos (los pagos de sus ventas tienen que entrar).
+  Idempotencia: `emitir(..., { unica })`, índice único (banda, nombre, clave).
+- Metadatos: el sitio aporta nombre, bio corta e imagen (fondo o logo, solo PNG/JPG/WebP); el
+  press kit, "Press kit", la bio larga resumida y la primera foto. 404 propio con el nombre de
+  la banda en sus hosts.
+- `/clave` también quedó reservada en el sitio (ya existía como ruta de la plataforma).
 - Secretos: ver CLAUDE.md "Secretos por banda". Garantía de "solo el módulo dueño": el núcleo
   exige el objeto de contrato registrado, y una prueba impide que un módulo importe el de otro,
   el registro o la carga.

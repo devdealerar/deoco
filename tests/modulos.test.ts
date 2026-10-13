@@ -206,6 +206,26 @@ describe("parámetros de consulta para los módulos", () => {
   });
 });
 
+describe("cabecera del sitio público y pestaña activa", () => {
+  it("un solo módulo aporta el elemento de cabecera, como el marco", () => {
+    const cabecera = () => null;
+    expect(crearRegistro([mod("a", { cabeceraPublica: cabecera })]).cabeceraPublica?.moduloId).toBe("a");
+    expect(() => crearRegistro([mod("a", { cabeceraPublica: cabecera }), mod("b", { cabeceraPublica: cabecera })])).toThrow(
+      /cabeceraPublica: ya la aporta "a"/,
+    );
+  });
+
+  it("la pestaña activa se decide por segmento, no por prefijo", async () => {
+    const { pestanaActiva } = await import("../modulos/sitio/vista/marco");
+    expect(pestanaActiva("/tienda", "/tienda")).toBe(true);
+    expect(pestanaActiva("/tienda", "/tienda/remera")).toBe(true);
+    expect(pestanaActiva("/tienda", "/tiendas")).toBe(false);
+    expect(pestanaActiva("/prensa", "/prensario")).toBe(false);
+    expect(pestanaActiva("/", "/prensa")).toBe(false);
+    expect(pestanaActiva("/", "/")).toBe(true);
+  });
+});
+
 describe("rutas de módulos", () => {
   it("segmentos dinámicos, y las fijas ganan sobre las dinámicas", () => {
     const reg = crearRegistro([

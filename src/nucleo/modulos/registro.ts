@@ -1,5 +1,7 @@
 import { problemaNombreEvento } from "@/nucleo/eventos/nombre";
 import type {
+  CabeceraPublica,
+  DefinicionAviso,
   DefinicionPermiso,
   Evento,
   EntradaNavegacion,
@@ -17,12 +19,14 @@ const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 // Rutas que son del núcleo y ningún módulo puede ocupar.
 const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, secretos
 const CLAVE_SECRETO = /^[a-z][a-z0-9_]{0,62}$/;
-const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin"]; // plataforma y archivos
+const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave"]; // plataforma, archivos y avisos
 
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };
 export type RutaEncontrada<P> = { moduloId: string; ruta: RutaModulo<P>; params: Record<string, string> };
 export type EntradaRegistrada = EntradaNavegacion & { moduloId: string };
 export type Suscripto = { moduloId: string; manejador: (e: Evento) => Promise<void> };
+
+export type AvisoEncontrado = { definicion: DefinicionAviso; params: Record<string, string> };
 
 export type Registro = {
   modulos: readonly Modulo[];
@@ -30,6 +34,8 @@ export type Registro = {
   permiso(clave: string): PermisoRegistrado | undefined;
   rutaPanel(path: string): RutaEncontrada<PropsRutaPanel> | undefined;
   rutaPublica(path: string): RutaEncontrada<PropsRutaPublica> | undefined;
+  /** Aviso externo declarado por ese módulo para esa ruta. */
+  aviso(moduloId: string, path: string): AvisoEncontrado | undefined;
   navegacion: readonly EntradaRegistrada[];
   /** Módulos que declaran emitir este evento. */
   emisores(nombre: string): readonly string[];
@@ -37,6 +43,10 @@ export type Registro = {
   suscriptos(nombre: string): readonly Suscripto[];
   /** El marco del sitio público, si algún módulo lo aporta (a lo sumo uno). */
   marcoPublico?: { moduloId: string; componente: MarcoPublico };
+  /** Elemento de cabecera del sitio público, si algún módulo lo aporta (a lo sumo uno). */
+  cabeceraPublica?: { moduloId: string; componente: CabeceraPublica };
+  /** Metadatos del sitio público, si algún módulo los aporta (a lo sumo uno). */
+  metadatosPublicos?: { moduloId: string; fn: NonNullable<Modulo["metadatosPublicos"]> };
 };
 
 export class ErrorRegistro extends Error {
@@ -106,6 +116,10 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   const emisores = new Map<string, string[]>();
   const suscriptos = new Map<string, Suscripto[]>();
   let marcoPublico: Registro["marcoPublico"];
+  let metadatosPublicos: Registro["metadatosPublicos"];
+  let cabeceraPublica: Registro["cabeceraPublica"];
+  const avisos = new Map<string, (path: string) => RutaEncontrada<unknown> | undefined>();
+  const definiciones = new Map<RutaModulo<unknown>, DefinicionAviso>();
 
   for (const m of modulos) {
     if (!ID.test(m.id)) throw new ErrorRegistro(m.id, "id inválido (minúsculas, números y guiones)");
@@ -135,6 +149,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     for (const r of m.rutasPanel ?? []) {
       validarRuta(m, r.ruta, RESERVADAS_PANEL);
       permisoPropio(r.permiso, `ruta de panel "${r.ruta}"`);
+      if (r.metadatos) throw new ErrorRegistro(m.id, `ruta de panel "${r.ruta}": los metadatos son solo del sitio público`);
       const otro = ocupadasPanel.get(canonica(r.ruta));
       if (otro) throw new ErrorRegistro(m.id, `la ruta de panel "${r.ruta}" ya la declara "${otro}"`);
       ocupadasPanel.set(canonica(r.ruta), m.id);
@@ -165,6 +180,23 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       navegacion.push({ ...n, moduloId: m.id });
     }
 
+    const rutasAviso = new Set<string>();
+    const deAvisos: { moduloId: string; ruta: RutaModulo<unknown> }[] = [];
+    for (const a of m.avisos ?? []) {
+      validarRuta(m, a.ruta, []);
+      if (rutasAviso.has(canonica(a.ruta))) throw new ErrorRegistro(m.id, `aviso "${a.ruta}" repetido`);
+      rutasAviso.add(canonica(a.ruta));
+      const metodos = a.metodos ?? ["POST"];
+      if (metodos.length === 0 || metodos.some((x) => x !== "GET" && x !== "POST")) {
+        throw new ErrorRegistro(m.id, `aviso "${a.ruta}": métodos válidos GET y POST`);
+      }
+      if (typeof a.manejador !== "function") throw new ErrorRegistro(m.id, `aviso "${a.ruta}": falta el manejador`);
+      const ruta: RutaModulo<unknown> = { ruta: a.ruta, componente: () => null };
+      definiciones.set(ruta, a);
+      deAvisos.push({ moduloId: m.id, ruta });
+    }
+    if (deAvisos.length) avisos.set(m.id, indiceRutas(deAvisos));
+
     const clavesSecretos = new Set<string>();
     for (const sec of m.secretos ?? []) {
       if (!CLAVE_SECRETO.test(sec.clave)) {
@@ -180,6 +212,18 @@ export function crearRegistro(modulos: Modulo[]): Registro {
         throw new ErrorRegistro(m.id, `marcoPublico: ya lo aporta "${marcoPublico.moduloId}" (solo puede haber uno)`);
       }
       marcoPublico = { moduloId: m.id, componente: m.marcoPublico };
+    }
+    if (m.cabeceraPublica) {
+      if (cabeceraPublica) {
+        throw new ErrorRegistro(m.id, `cabeceraPublica: ya la aporta "${cabeceraPublica.moduloId}" (solo puede haber una)`);
+      }
+      cabeceraPublica = { moduloId: m.id, componente: m.cabeceraPublica };
+    }
+    if (m.metadatosPublicos) {
+      if (metadatosPublicos) {
+        throw new ErrorRegistro(m.id, `metadatosPublicos: ya los aporta "${metadatosPublicos.moduloId}" (solo puede haber uno)`);
+      }
+      metadatosPublicos = { moduloId: m.id, fn: m.metadatosPublicos };
     }
 
     for (const nombre of m.eventosEmite ?? []) {
@@ -204,9 +248,15 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     permiso: (clave) => permisos.get(clave),
     rutaPanel: indiceRutas(panel),
     rutaPublica: indiceRutas(publicas),
+    aviso: (moduloId, path) => {
+      const e = avisos.get(moduloId)?.(path);
+      return e && { definicion: definiciones.get(e.ruta)!, params: e.params };
+    },
     navegacion: navegacion.sort((a, b) => a.orden - b.orden),
     emisores: (nombre) => emisores.get(nombre) ?? [],
     suscriptos: (nombre) => suscriptos.get(nombre) ?? [],
     marcoPublico,
+    metadatosPublicos,
+    cabeceraPublica,
   };
 }

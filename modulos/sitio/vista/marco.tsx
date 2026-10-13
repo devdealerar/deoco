@@ -4,6 +4,11 @@ import type { ReactNode } from "react";
 import type { ContenidoSitio } from "../contenido";
 import { type Rutas, variables } from "./estilo";
 
+/** La pestaña de "/tienda" está activa en "/tienda" y "/tienda/remera", no en "/tiendas". */
+export function pestanaActiva(href: string, path: string) {
+  return href === path || (href !== "/" && path.startsWith(`${href}/`));
+}
+
 /** Marco del sitio de la banda: identidad, pestañas y pie. Envuelve todas las páginas públicas. */
 export function MarcoBanda({
   contenido,
@@ -11,6 +16,7 @@ export function MarcoBanda({
   path,
   rutas,
   aviso,
+  cabecera,
   children,
 }: {
   contenido: ContenidoSitio;
@@ -18,6 +24,8 @@ export function MarcoBanda({
   path: string;
   rutas: Rutas;
   aviso?: ReactNode;
+  /** Lo que otro módulo aporta a la cabecera (el carrito), tal cual. */
+  cabecera?: ReactNode;
   children: ReactNode;
 }) {
   const { logo } = contenido.identidad;
@@ -36,28 +44,31 @@ export function MarcoBanda({
               <span className="truncate text-lg font-black tracking-tight uppercase">{contenido.nombre}</span>
             )}
           </Link>
-          {pestanas.length > 1 && (
-            <nav aria-label="Sitio">
-              <ul className="flex gap-1 text-sm font-bold">
-                {pestanas.map((p) => {
-                  const activa = p.href === path || (p.href !== "/" && path.startsWith(p.href));
-                  return (
-                    <li key={p.href}>
-                      <Link
-                        href={p.href}
-                        aria-current={activa ? "page" : undefined}
-                        className={`block rounded-full px-3.5 py-1.5 transition ${
-                          activa ? "bg-[var(--acento)] text-[var(--sobre-acento)]" : "hover:bg-[var(--superficie)]"
-                        }`}
-                      >
-                        {p.etiqueta}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-          )}
+          <div className="flex min-w-0 items-center gap-3">
+            {pestanas.length > 1 && (
+              <nav aria-label="Sitio">
+                <ul className="flex gap-1 text-sm font-bold">
+                  {pestanas.map((p) => {
+                    const activa = pestanaActiva(p.href, path);
+                    return (
+                      <li key={p.href}>
+                        <Link
+                          href={p.href}
+                          aria-current={activa ? "page" : undefined}
+                          className={`block rounded-full px-3.5 py-1.5 transition ${
+                            activa ? "bg-[var(--acento)] text-[var(--sobre-acento)]" : "hover:bg-[var(--superficie)]"
+                          }`}
+                        >
+                          {p.etiqueta}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </nav>
+            )}
+            {cabecera && <div data-cabecera>{cabecera}</div>}
+          </div>
         </div>
       </header>
       <main>{children}</main>

@@ -44,7 +44,19 @@ export type RutaModulo<P> = {
   /** Solo panel: permiso necesario para entrar (si falta, alcanza con ser miembro). */
   permiso?: string;
   componente: (props: P) => ReactNode | Promise<ReactNode>;
+  /**
+   * Solo sitio público: título, descripción e imagen de la página (pestaña del navegador y
+   * vista previa al compartir). Lo que falte sale de `metadatosPublicos` y, al final, del
+   * nombre de la banda: nunca "Deoco".
+   */
+  metadatos?: (props: P) => MetadatosPagina | Promise<MetadatosPagina>;
 };
+
+/**
+ * `titulo` de una página: "Press kit" → "Press kit · <banda>". `imagen`: URL absoluta o
+ * ruta del mismo sitio (`urlArchivo(...)` de un archivo público).
+ */
+export type MetadatosPagina = { titulo?: string; descripcion?: string; imagen?: string };
 
 export type EntradaNavegacion = {
   etiqueta: string;
@@ -69,9 +81,51 @@ export type PropsMarcoPublico = {
   pestanas: { etiqueta: string; href: string }[];
   /** Ruta pública actual (para marcar la pestaña activa). */
   path: string;
+  /** Elemento que un módulo aporta a la cabecera (p. ej. el carrito); null si no hay. */
+  cabecera: ReactNode;
   children: ReactNode;
 };
 export type MarcoPublico = (props: PropsMarcoPublico) => ReactNode | Promise<ReactNode>;
+
+/** Elemento de cabecera del sitio público (el carrito de la tienda). Lo aporta un solo módulo. */
+export type PropsCabeceraPublica = { tenantId: string; path: string };
+export type CabeceraPublica = (props: PropsCabeceraPublica) => ReactNode | Promise<ReactNode>;
+
+/**
+ * Aviso externo (webhook de una pasarela). Llega a
+ * `app.<raiz>/avisos/<tenantId>/<moduloId><ruta>`: el núcleo resuelve la banda (tiene que
+ * existir, no estar archivada y tener el módulo prendido) y llama al manejador.
+ */
+export type AvisoEntrante = {
+  tenantId: string;
+  metodo: "GET" | "POST";
+  /** Segmentos dinámicos de la ruta del aviso. */
+  params: Record<string, string>;
+  consulta: URLSearchParams;
+  cabeceras: Headers;
+  /** Cuerpo crudo, byte por byte como llegó: para verificar la firma (HMAC) de la pasarela. */
+  cuerpo: Uint8Array;
+  /** El cuerpo como texto UTF-8. */
+  texto(): string;
+  /** El cuerpo como JSON; null si no lo es. */
+  json(): unknown;
+};
+
+/** Sin respuesta → 200 "ok". */
+export type RespuestaAviso = { estado?: number; cuerpo?: string | Record<string, unknown> };
+
+/**
+ * El manejador TIENE QUE SER RÁPIDO E IDEMPOTENTE: la pasarela reintenta y puede mandar el
+ * mismo aviso varias veces. Verifica la firma, y el trabajo pesado lo manda al bus con
+ * `emitir(..., { unica: <id externo> })`.
+ */
+export type DefinicionAviso = {
+  /** Empieza con "/", admite `[param]`. */
+  ruta: string;
+  /** Por defecto solo POST. */
+  metodos?: ("GET" | "POST")[];
+  manejador: (aviso: AvisoEntrante) => Promise<RespuestaAviso | void>;
+};
 
 /** Lo que lleva un evento: cualquier valor que se pueda guardar como JSON. */
 export type CargaEvento = Prisma.InputJsonValue;
@@ -117,6 +171,16 @@ export type Modulo = {
   eventosEscucha?: { evento: string; manejador: (e: Evento) => Promise<void> }[];
   /** Marco del sitio público (a lo sumo un módulo lo aporta). */
   marcoPublico?: MarcoPublico;
+  /** Elemento en la cabecera del sitio público, junto a las pestañas (a lo sumo un módulo). */
+  cabeceraPublica?: CabeceraPublica;
+  /**
+   * Metadatos de todo el sitio público de la banda (a lo sumo un módulo): `titulo` es el
+   * nombre con el que se muestra la banda; descripción e imagen, los de cualquier página
+   * que no declare los suyos.
+   */
+  metadatosPublicos?: (tenantId: string) => MetadatosPagina | Promise<MetadatosPagina>;
+  /** Avisos externos (webhooks), en `app.<raiz>/avisos/<tenantId>/<id><ruta>`. */
+  avisos?: DefinicionAviso[];
   /** Credenciales por banda que necesita (cifradas; solo las carga el titular). */
   secretos?: DefinicionSecreto[];
   /** Ids de módulos que tienen que estar prendidos para prender este. */

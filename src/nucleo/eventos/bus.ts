@@ -137,21 +137,40 @@ export function crearBus(obtenerRegistro: () => Registro = registroGlobal) {
      * `opciones.tx`: una transacción de conTenant de la MISMA banda. El evento se
      * guarda ahí, atómico con el resto de la operación; si la transacción se
      * revierte, el evento no existe y no se entrega.
+     *
+     * `opciones.unica`: clave de idempotencia (p. ej. `mp:pago:123`). Si ya hay un evento
+     * con el mismo nombre y clave en la banda, no se guarda otro: vuelve el existente con
+     * `repetido: true` (un aviso de pasarela repetido no duplica el efecto).
      */
     async emitir(
       nombre: string,
       tenantId: string,
       payload: CargaEvento,
       usuarioId?: string,
-      opciones: { tx?: TxTenant } = {},
-    ) {
+      opciones: { tx?: TxTenant; unica?: string } = {},
+    ): Promise<{ id: string; repetido: boolean }> {
       const problema = problemaNombreEvento(nombre);
       if (problema) throw new ErrorEvento(`Nombre de evento inválido: ${problema}.`);
       if (obtenerRegistro().emisores(nombre).length === 0) {
         throw new ErrorEvento(`Ningún módulo declara emitir "${nombre}" (falta en eventosEmite).`);
       }
-      const guardar = (tx: TxTenant) =>
-        tx.evento.create({ data: { nombre, tenantId, payload, usuarioId }, select: { id: true } });
+      const { unica } = opciones;
+      if (unica !== undefined && (!unica || unica.length > 200)) {
+        throw new ErrorEvento("emitir({ unica }): la clave tiene que tener entre 1 y 200 caracteres.");
+      }
+      const guardar = async (tx: TxTenant) => {
+        if (unica === undefined) {
+          const { id } = await tx.evento.create({ data: { nombre, tenantId, payload, usuarioId }, select: { id: true } });
+          return { id, repetido: false };
+        }
+        // ON CONFLICT DO NOTHING: no aborta la transacción del que emite si ya existía.
+        const { count } = await tx.evento.createMany({
+          data: [{ nombre, tenantId, payload, usuarioId, claveUnica: unica }],
+          skipDuplicates: true,
+        });
+        const { id } = await tx.evento.findFirstOrThrow({ where: { nombre, claveUnica: unica }, select: { id: true } });
+        return { id, repetido: count === 0 };
+      };
 
       const { tx } = opciones;
       if (!tx) {

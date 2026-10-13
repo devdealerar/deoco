@@ -5,12 +5,20 @@ import { usuarioActivo } from "@/nucleo/acceso/panel";
 import { consultaDe, type SearchParamsNext } from "@/nucleo/modulos/consulta";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { BotonSalir } from "./salir";
-import { SuperficiePublica } from "./publico";
+import { metadataPublica, SuperficiePublica } from "./publico";
+
+type Props = { searchParams: Promise<SearchParamsNext> };
+
+export async function generateMetadata({ searchParams }: Props) {
+  const ctx = await tenantDelPedido();
+  if (ctx?.superficie !== "publico") return {};
+  return metadataPublica(ctx.tenantId, "/", consultaDe(await searchParams));
+}
 
 // "/" es dos cosas según el host:
 //  - app.<raiz>: selector de bandas del usuario (con sesión).
 //  - host de banda: home del sitio público (anónimo; no lee sesión).
-export default async function Inicio({ searchParams }: { searchParams: Promise<SearchParamsNext> }) {
+export default async function Inicio({ searchParams }: Props) {
   const ctx = await tenantDelPedido();
   if (ctx?.superficie === "publico") {
     return <SuperficiePublica tenantId={ctx.tenantId} path="/" consulta={consultaDe(await searchParams)} />;

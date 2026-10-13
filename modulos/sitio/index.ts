@@ -6,7 +6,7 @@ import { Identidad } from "./panel/identidad";
 import { PrensaPanel } from "./panel/prensa";
 import { Resumen } from "./panel/resumen";
 import { VistaPreviaHome, VistaPreviaPrensa } from "./panel/vista-previa";
-import { HomePublica, MarcoPublicoSitio, PrensaPublica } from "./publico";
+import { HomePublica, MarcoPublicoSitio, metadatosDelSitio, metadatosPrensa, PrensaPublica } from "./publico";
 
 const VER = "sitio.contenido.ver";
 
@@ -27,7 +27,7 @@ const sitio: Modulo = {
   ],
   rutasPublicas: [
     { ruta: "/", componente: HomePublica },
-    { ruta: "/prensa", componente: PrensaPublica },
+    { ruta: "/prensa", componente: PrensaPublica, metadatos: metadatosPrensa },
   ],
   navegacion: [
     { etiqueta: "Sitio", href: "/sitio", permiso: VER, orden: 10 },
@@ -35,6 +35,7 @@ const sitio: Modulo = {
     { etiqueta: "Press kit", href: "/prensa", publica: true, orden: 20 },
   ],
   marcoPublico: MarcoPublicoSitio,
+  metadatosPublicos: metadatosDelSitio,
 };
 
 export default sitio;

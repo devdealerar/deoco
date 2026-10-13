@@ -159,14 +159,27 @@ secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ay
 - Segmentos dinámicos: `/tienda/[producto]` → `params.producto`. Las rutas fijas ganan.
 - Parámetros de consulta: las dos superficies reciben `consulta` (`URLSearchParams`):
   `?estado=aprobado` → `consulta.get("estado")`; repetidos con `consulta.getAll(...)`.
-- Rutas del núcleo, prohibidas: `/`, `/pago`, `/archivos`, `/dominios` y `/credenciales` en el panel; `/ingresar`, `/api`, `/b`, `/archivos` y `/admin` en el sitio.
+- Rutas del núcleo, prohibidas: `/`, `/pago`, `/archivos`, `/dominios` y `/credenciales` en el panel;
+  `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos` y `/clave` en el sitio.
 - Las páginas públicas no leen sesión: es la superficie `"publico"`.
 - Pantallas del panel: usá el kit `@/ui` (componentes oficiales de Untitled UI): `Tarjeta`,
   `Campo`, `AreaTexto`, `Selector`, `Casilla`, `CampoArchivo`, `Boton`, `Insignia` y
   `Formulario`. Ver "Formularios del panel".
 - `marcoPublico`: el componente que envuelve TODAS las páginas públicas (cabecera,
   pestañas, identidad de la banda). Lo aporta un solo módulo (hoy `sitio`); si está
-  apagado, el núcleo usa un marco neutro. Recibe `{ tenantId, pestanas, path, children }`.
+  apagado, el núcleo usa un marco neutro. Recibe `{ tenantId, pestanas, path, cabecera, children }`.
+- `cabeceraPublica`: un elemento que un módulo pone en la cabecera del sitio, junto a las
+  pestañas (el carrito de la tienda). Uno solo en todo el registro, como el marco; recibe
+  `{ tenantId, path }` y el marco lo muestra tal cual (`cabecera`). Hoy lo ocupa el módulo
+  de prueba, que solo existe en desarrollo: la tienda lo reemplaza.
+- Título y vista previa (pestaña del navegador, al compartir en redes):
+  - Cada ruta pública puede declarar `metadatos: (props) => ({ titulo, descripcion, imagen })`.
+    El título queda `"<titulo> · <banda>"`.
+  - `metadatosPublicos(tenantId)` (un solo módulo; hoy `sitio`) da el nombre de la banda y la
+    descripción e imagen de cualquier página que no declare las suyas.
+  - Sin nada de eso, el título es el nombre de la banda. Nunca "Deoco".
+  - `imagen`: una URL absoluta o `urlArchivo(...)` de un archivo **público** (PNG/JPG/WebP;
+    las redes no muestran SVG).
 - `navegacion`: `publica: true` es una pestaña del sitio; si no, una entrada del menú del
   panel, que se oculta si el usuario no tiene `permiso`. `orden`: menor va primero.
   `href` tiene que ser una ruta declarada por el mismo módulo.
@@ -251,6 +264,46 @@ que recibirlo una:
 - Preferí "dejar en estado X" a "sumar 1".
 - Un error sin atrapar marca el evento como FALLIDO para tu módulo, con el mensaje; no
   afecta a los demás suscriptos ni a quien lo emitió.
+
+### Avisos repetidos: `emitir(..., { unica })`
+
+Si el evento nace de algo que puede llegar dos veces (un aviso de pasarela que se reintenta),
+pasale una clave de idempotencia: el mismo `nombre` + `unica` en la banda se guarda **una
+sola vez**. El segundo `emitir` devuelve `{ id, repetido: true }` y no crea otro evento.
+
+```ts
+await emitir("pedido.pagado", tenantId, { pagoId }, undefined, { unica: `mp:pago:${pagoId}` });
+```
+
+Funciona también con `{ tx }`: el repetido no aborta la transacción.
+
+## 6 bis. Avisos externos (webhooks)
+
+Para que una pasarela avise "este pago se acreditó", el módulo declara un endpoint que no es
+página:
+
+```ts
+avisos: [{ ruta: "/mercadopago", manejador: avisoMercadoPago }], // POST por defecto; `metodos: ["GET", "POST"]` si hace falta
+```
+
+- La URL es de la **plataforma**, no del host de la banda (no depende del dominio propio):
+  `https://app.deoco.com/avisos/<tenantId>/<id del módulo><ruta>`. Armala con
+  `urlAviso(tenantId, modulo, "/mercadopago")` (`@/nucleo/avisos`) y dásela a la pasarela
+  (p. ej. `notification_url` al crear el cobro).
+- El núcleo resuelve la banda: 404 si no existe, está archivada o tiene el módulo apagado;
+  405 si el método no está declarado; 413 si el cuerpo pasa de 1 MB.
+- El manejador recibe `{ tenantId, metodo, params, consulta, cabeceras, cuerpo, texto(), json() }`.
+  `cuerpo` es el **crudo**, byte por byte: con eso se verifica la firma.
+- **La firma la verifica el módulo** (es el que conoce la pasarela), con la credencial de la
+  banda (`leerSecreto`). Sin firma válida, respondé 401 y no hagas nada.
+- **Respondé rápido.** El manejador verifica, emite y vuelve; el trabajo pesado va por el bus:
+  `emitir(..., { unica: <id del pago> })`.
+- **Tiene que ser idempotente, como los manejadores de eventos**: la pasarela reintenta y
+  puede mandar el mismo aviso varias veces. Recibirlo dos veces tiene que dar lo mismo que
+  recibirlo una (para eso, `unica`).
+- Devolvé `{ estado?, cuerpo? }` (por defecto 200 "ok"). Si el manejador tira un error, la
+  respuesta es 500 (la pasarela reintenta) y al log va solo el mensaje, nunca el cuerpo.
+- Ejemplo completo: `modulos/prueba/aviso.ts` (firma HMAC con la credencial de la banda).
 
 ## 7. Encendido
 

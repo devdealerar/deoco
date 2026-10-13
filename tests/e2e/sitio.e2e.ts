@@ -358,15 +358,72 @@ describe("navegación pública: la pestaña de otro módulo entra sola en el mar
       // Es el marco del sitio (no el neutro): pestaña activa marcada por el sitio, pie de la banda.
       expect(await page.locator('nav[aria-label="Sitio"] a[aria-current="page"]').textContent()).toBe("Prueba");
       expect(await page.locator("footer").textContent()).toContain("©");
+      // El elemento de cabecera del módulo (el lugar del carrito) va dentro del marco del sitio.
+      expect(await page.locator("header [data-cabecera] [data-testid=cabecera-prueba]").textContent()).toBe("Carrito (0)");
+      expect(await page.getByTestId("cabecera-prueba").getAttribute("data-path")).toBe("/prueba");
 
       await apagarModulo(e.staff.id, e.a.id, "prueba");
       await page.goto(sitio("banda-a"));
       expect(await pestanas()).toEqual(["Home", "Press kit"]);
+      expect(await page.getByTestId("cabecera-prueba").count()).toBe(0);
       // La otra banda nunca la tuvo.
       await page.goto(sitio("banda-b"));
       expect(await pestanas()).toEqual(["Home", "Press kit"]);
     } finally {
       await dueno.moduloTenant.deleteMany({ where: { moduloId: "prueba" } });
+    }
+  });
+});
+
+describe("título y vista previa: la cara pública es de la banda, nunca de Deoco", () => {
+  const meta = (page: Page, prop: string) =>
+    page.locator(`meta[property="${prop}"], meta[name="${prop}"]`).first().getAttribute("content");
+
+  it("home: nombre de la banda, bio corta e imagen de su identidad; press kit: su título", async () => {
+    const { page } = await logueado("multi@x.com");
+    await page.goto(panel("banda-a", "/identidad"));
+    await enviar(
+      page,
+      "Identidad visual",
+      async (f) =>
+        f.locator('input[name="logo"]').setInputFiles({
+          name: "logo.png",
+          mimeType: "image/png",
+          buffer: await sharp({ create: { width: 400, height: 200, channels: 3, background: "#111" } }).png().toBuffer(),
+        }),
+      "Guardar",
+    );
+    await publicar(page, "banda-a");
+
+    const v = (await anonimo()).page;
+    await v.goto(sitio("banda-a"));
+    expect(await v.title()).toBe("Banda A");
+    expect(await meta(v, "description")).toBe("Bio nueva sin publicar."); // publicar llevó la bio que estaba en borrador
+    expect(await meta(v, "og:site_name")).toBe("Banda A");
+    const imagen = (await meta(v, "og:image"))!;
+    expect(imagen).toMatch(new RegExp(`^${sitio("banda-a")}/archivos/[0-9a-f-]{36}/logo\\.png\\?v=web$`));
+    expect(await meta(v, "twitter:card")).toBe("summary_large_image");
+    const r = await v.goto(imagen);
+    expect([r!.status(), r!.headers()["content-type"]]).toEqual([200, "image/webp"]);
+
+    await v.goto(`${sitio("banda-a")}/prensa`);
+    expect(await v.title()).toBe("Press kit · Banda A");
+    expect(await meta(v, "og:title")).toBe("Press kit · Banda A");
+    expect(await meta(v, "description")).toMatch(/^Párrafo 1: la banda tocó en todos lad.{150,}…$/); // la bio larga, resumida
+  });
+
+  it("sin nada declarado (módulo de prueba) y en el 404: el nombre de la banda", async () => {
+    const { apagarModulo } = await import("@/nucleo/modulos/encendido");
+    await prenderModulo(e.staff.id, e.b.id, "prueba");
+    try {
+      const v = (await anonimo()).page;
+      await v.goto(`${sitio("banda-b")}/prueba`);
+      expect(await v.title()).toBe("Banda B");
+      await v.goto(`${sitio("banda-b")}/no-existe`);
+      expect(await v.title()).toBe("Banda B");
+      expect(await v.content()).not.toMatch(/<title>[^<]*Deoco/);
+    } finally {
+      await apagarModulo(e.staff.id, e.b.id, "prueba");
     }
   });
 });

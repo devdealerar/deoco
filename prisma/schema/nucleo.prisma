@@ -133,9 +133,13 @@ model Evento {
   /// Al reprocesar: solo estos suscriptos (los que fallaron). Vacío = todos.
   soloPara    String[]     @default([])
   procesadoEn DateTime?
+  /// Idempotencia: el mismo (banda, nombre, claveUnica) se guarda una sola vez (p. ej. el id
+  /// del pago en un aviso de pasarela repetido). Null = sin control.
+  claveUnica  String?
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   usuario     Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
+  @@unique([tenantId, nombre, claveUnica])
   @@index([tenantId, nombre])
   @@index([tenantId, estado, secuencia])
   @@map("evento")
