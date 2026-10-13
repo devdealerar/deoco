@@ -169,8 +169,8 @@ describe("pestañas públicas de módulos nuevos (tienda, ticketera) junto a las
   // ruta y su pestaña. El sitio es el real, sin tocar.
   const pagina = { componente: nada };
   const tienda = mod("tienda-falsa", {
-    rutasPublicas: [{ ...pagina, ruta: "/tienda" }, { ...pagina, ruta: "/tienda/[producto]" }],
-    navegacion: [{ etiqueta: "Tienda", href: "/tienda", publica: true, orden: 30 }],
+    rutasPublicas: [{ ...pagina, ruta: "/merch" }, { ...pagina, ruta: "/merch/[producto]" }],
+    navegacion: [{ etiqueta: "Merch", href: "/merch", publica: true, orden: 30 }],
   });
   const ticketera = mod("ticketera-falsa", {
     rutasPublicas: [{ ...pagina, ruta: "/fechas" }],
@@ -183,13 +183,13 @@ describe("pestañas públicas de módulos nuevos (tienda, ticketera) junto a las
     const sitio = reg.marcoPublico!.moduloId;
     const pestanas = (prendidos: string[]) => pestanasSitio(reg, new Set([sitio, ...prendidos])).map((p) => p.etiqueta);
     expect(pestanas([])).toEqual(["Home", "Press kit"]);
-    expect(pestanas(["tienda-falsa"])).toEqual(["Home", "Press kit", "Tienda"]);
-    expect(pestanas(["tienda-falsa", "ticketera-falsa"])).toEqual(["Home", "Fechas", "Press kit", "Tienda"]);
+    expect(pestanas(["tienda-falsa"])).toEqual(["Home", "Press kit", "Merch"]);
+    expect(pestanas(["tienda-falsa", "ticketera-falsa"])).toEqual(["Home", "Fechas", "Press kit", "Merch"]);
   });
 
   it("sus rutas (también las dinámicas) quedan bajo el marco del sitio", () => {
     const reg = crearRegistro([...reales, tienda]);
-    expect(reg.rutaPublica("/tienda/remera-negra")).toMatchObject({ moduloId: "tienda-falsa", params: { producto: "remera-negra" } });
+    expect(reg.rutaPublica("/merch/remera-negra")).toMatchObject({ moduloId: "tienda-falsa", params: { producto: "remera-negra" } });
     expect(reg.marcoPublico?.moduloId).not.toBe("tienda-falsa");
   });
 });

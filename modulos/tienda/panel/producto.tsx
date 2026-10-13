@@ -32,7 +32,7 @@ async function Campos({ tenantId, base, producto }: { tenantId: string; base: Ba
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <Campo name="nombre" etiqueta="Nombre" defaultValue={producto?.nombre ?? base.nombre} maxLength={80} required />
-        <Campo name="precio" etiqueta="Precio de venta ($)" defaultValue={producto ? pesosParaCampo(producto.precio) : undefined} ayuda="Lo que paga el fan, envío incluido." required />
+        <Campo name="precio" etiqueta="Precio de venta ($)" defaultValue={producto ? pesosParaCampo(producto.precio) : undefined} ayuda="Lo que paga el fan por el producto." required />
       </div>
       <AreaTexto name="descripcion" etiqueta="Descripción" defaultValue={producto?.descripcion ?? base.descripcion} rows={3} maxLength={1000} />
       {(base.opciones as Opcion[]).map((o, i) => (

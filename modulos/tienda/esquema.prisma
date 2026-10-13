@@ -85,6 +85,7 @@ model TiendaDiseno {
 
   productos TiendaProducto[]
 
+  @@unique([tenantId, id])
   @@index([tenantId])
   @@map("tienda_diseno")
 }
@@ -96,7 +97,8 @@ model TiendaProducto {
   productoBaseId String   @db.Uuid
   productoBase   TiendaProductoBase @relation(fields: [productoBaseId], references: [id], onDelete: Restrict)
   disenoId       String   @db.Uuid
-  diseno         TiendaDiseno @relation(fields: [disenoId], references: [id], onDelete: Restrict)
+  /// Clave foránea compuesta (banda, diseño): la base no deja usar un diseño de otra banda.
+  diseno         TiendaDiseno @relation(fields: [tenantId, disenoId], references: [tenantId, id], onDelete: Restrict)
   nombre         String
   descripcion    String   @default("")
   /// Precio al fan, envío incluido (centavos).
@@ -113,6 +115,7 @@ model TiendaProducto {
 
   items TiendaPedidoItem[]
 
+  @@unique([tenantId, id])
   @@index([tenantId, publicado])
   @@map("tienda_producto")
 }
@@ -123,35 +126,58 @@ enum TiendaEstadoPedido {
   CANCELADO
 }
 
+/// Pedido de un fan. Se crea PENDIENTE al confirmar el checkout, con su copia de precios.
 model TiendaPedido {
-  id       String             @id @default(uuid()) @db.Uuid
-  tenantId String             @db.Uuid
-  estado   TiendaEstadoPedido @default(PENDIENTE)
-  creadoEn DateTime           @default(now())
-  pagadoEn DateTime?
+  id        String             @id @default(uuid()) @db.Uuid
+  tenantId  String             @db.Uuid
+  estado    TiendaEstadoPedido @default(PENDIENTE)
+  /// Datos del fan (no hay cuenta de fan: viven en el pedido).
+  nombre    String
+  email     String
+  telefono  String
+  calle     String
+  numero    String
+  piso      String             @default("")
+  ciudad    String
+  provincia String
+  codigoPostal String
+  /// Preparado para envío por zonas (sin uso todavía).
+  zonaEnvio String?
+  /// Copias al crearse (centavos): suma de precios, suma de envíos y total.
+  subtotal  Int
+  envio     Int
+  total     Int
+  creadoEn  DateTime           @default(now())
+  pagadoEn  DateTime?
 
   items TiendaPedidoItem[]
 
+  @@unique([tenantId, id])
   @@index([tenantId, estado])
   @@map("tienda_pedido")
 }
 
-/// Un renglón del pedido. Al pagarse guarda SU copia de costo de producción, envío y proveedor:
-/// cambiar el catálogo después no cambia lo que ya se vendió.
+/// Un renglón del pedido. Precio y envío al fan: copias al crearse el pedido. Costo de
+/// producción, envío del proveedor y proveedor: copias al pagarse (cambiar el catálogo después
+/// no cambia lo vendido).
 model TiendaPedidoItem {
   id              String   @id @default(uuid()) @db.Uuid
   tenantId        String   @db.Uuid
   pedidoId        String   @db.Uuid
-  pedido          TiendaPedido @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  /// Claves foráneas compuestas (banda, …): la base no deja mezclar bandas en un pedido.
+  pedido          TiendaPedido @relation(fields: [tenantId, pedidoId], references: [tenantId, id], onDelete: Cascade)
   productoId      String   @db.Uuid
-  producto        TiendaProducto @relation(fields: [productoId], references: [id], onDelete: Restrict)
+  producto        TiendaProducto @relation(fields: [tenantId, productoId], references: [tenantId, id], onDelete: Restrict)
   productoBaseId  String   @db.Uuid
   productoBase    TiendaProductoBase @relation(fields: [productoBaseId], references: [id], onDelete: Restrict)
+  /// Nombre del producto al comprarse (para el resumen y los mails).
+  nombreProducto  String
   /// Selección: { "Talle": "M", "Color": "Negro" }
   variante        Json
   cantidad        Int
-  /// Precio al fan por unidad (envío incluido), al momento de la compra.
+  /// Lo que paga el fan por unidad, al crearse el pedido.
   precioUnitario  Int
+  envioUnitario   Int
   /// Copias fijadas al pagarse (null mientras el pedido no está pagado).
   costoProduccion Int?
   costoEnvio      Int?

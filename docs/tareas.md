@@ -12,8 +12,8 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
 | --- | --- | --- |
 | 1 | Correo del núcleo, `conStaff()`, `rutasAdmin`, `urlFirmada()` | ✅ hecha |
 | 2 | Catálogo base y proveedores, desde el back office | ✅ hecha |
-| 3 | Panel de la banda: diseños, productos, precios y margen | ✅ hecha (a revisar) |
-| 4 | Tienda pública: catálogo, carrito, checkout | pendiente |
+| 3 | Panel de la banda: diseños, productos, precios y margen | ✅ hecha |
+| 4 | Tienda pública: catálogo, carrito, checkout | ✅ hecha (a revisar) |
 | 5 | Pago con Mercado Pago, aviso y deuda con el proveedor | pendiente |
 | 6 | Mails: confirmación al fan y orden al proveedor | pendiente |
 
@@ -49,6 +49,23 @@ Proveedor por producto base, con uno por defecto. Foto propia o la del producto 
     que el margen no descuenta la comisión de la pasarela.
   - Permisos: `tienda.producto.ver` (todos los roles) y `tienda.producto.editar` (TITULAR,
     EDITOR, COMERCIAL), exigido también en el servidor.
+- Parte 4 (sitio público, `/tienda`):
+  - Catálogo y ficha (variantes, cantidad; sin variante elegida no agrega). Pestaña "Tienda"
+    (orden 30) y el carrito como `cabeceraPublica` (sale el ejemplo del módulo de prueba).
+  - Carrito en el `localStorage` del sitio de la banda; guarda qué y cuánto. Cada vez que
+    cambia, y al confirmar, el servidor revisa todo (precio, publicado, variante) y avisa si
+    un precio cambió. Una respuesta vieja de revisión no se muestra.
+  - Checkout: datos del fan, dirección (24 provincias, CP de 4 dígitos o CPA), resumen. El
+    pedido nace PENDIENTE con su copia de precio y envío por renglón y sus totales.
+  - Total = suma de precios + suma de envíos (envío por unidad). Ojo: tres remeras pagan tres
+    envíos (ver pregunta abierta).
+  - Aislamiento: además de buscar el producto bajo RLS, claves foráneas compuestas
+    (tenantId, productoId) / (tenantId, pedidoId) / (tenantId, disenoId): la base rechaza
+    mezclar bandas aunque se salteen las validaciones (incluso con el rol dueño).
+  - Sin credenciales: el fan ve "la tienda no está recibiendo pedidos" (no puede agregar ni
+    confirmar) y la banda ve un aviso en su panel con el link a Credenciales (titular).
+  - Pasarelas: `modulos/tienda/pasarelas/` (interfaz + Mercado Pago, por ahora solo las
+    credenciales; el cobro en la parte 5).
 - `conStaff`: la auditoría se inserta sin RETURNING (la política deja insertar, no leer).
 - Pendiente anotado: barrido de correos y eventos pendientes al arrancar (hoy salen con el
   siguiente de la misma banda o al reintentar).
@@ -380,4 +397,6 @@ Las cinco pruebas originales pasan:
 
 ## Preguntas abiertas
 
-- (ninguna)
+- Tienda · envío: hoy el fan paga precio + envío y el margen (parte 3) resta el envío: el envío
+  se estaría descontando dos veces. ¿El precio incluye el envío o el fan lo paga aparte?
+- Tienda · envío con varias unidades: se suma un envío por unidad (3 remeras = 3 envíos).

@@ -4,7 +4,7 @@ import type { Modulo } from "@/nucleo/modulos/contrato";
 import { AdminPrueba } from "./admin";
 import { avisoDePago } from "./aviso";
 import { PaginaPanel } from "./panel";
-import { CabeceraPrueba, PaginaPublica } from "./publica";
+import { PaginaPublica } from "./publica";
 
 // Suscripto de ejemplo, lento a propósito: demuestra que quien emite no lo espera.
 // Idempotente: no hace nada que no pueda repetirse.
@@ -24,8 +24,6 @@ const prueba: Modulo = {
   rutasPublicas: [{ ruta: "/prueba", componente: PaginaPublica }],
   // Pantalla en el back office (solo staff): /admin/m/prueba
   rutasAdmin: [{ ruta: "/", componente: AdminPrueba }],
-  // El lugar del carrito en la cabecera del sitio (uno solo; ver publica.tsx).
-  cabeceraPublica: CabeceraPrueba,
   navegacion: [
     { etiqueta: "Prueba", href: "/prueba", permiso: "prueba.contenido.ver", orden: 900 },
     { etiqueta: "Prueba", href: "/prueba", publica: true, orden: 900 },

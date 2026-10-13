@@ -54,8 +54,6 @@ describe("prueba 1: prendido, aparece y sus rutas responden", () => {
     const r = await page.goto(`${sitio("banda-a")}/prueba`);
     expect(r!.status()).toBe(200);
     expect(await page.getByTestId("modulo-prueba-publica").isVisible()).toBe(true);
-    // Sin el sitio, el marco neutro también lleva el elemento de cabecera del módulo.
-    expect(await page.locator("header [data-testid=cabecera-prueba]").textContent()).toBe("Carrito (0)");
   });
 });
 

@@ -57,6 +57,17 @@ afterAll(async () => {
   await dueno.$disconnect();
 });
 
+const FAN = {
+  nombre: "Fan",
+  email: "fan@x.com",
+  telefono: "341 555-1234",
+  calle: "Córdoba",
+  numero: "1234",
+  ciudad: "Rosario",
+  provincia: "Santa Fe",
+  codigoPostal: "2000",
+};
+
 /** Una banda que vende el producto base: producto + pedido con un renglón. */
 async function venta(tenantId: string, productoBaseId: string) {
   return conTenant(tenantId, async (tx) => {
@@ -66,9 +77,9 @@ async function venta(tenantId: string, productoBaseId: string) {
     const producto = await tx.tiendaProducto.create({
       data: { tenantId, productoBaseId, disenoId: diseno.id, nombre: "Remera Los Satélites", precio: 2500000, publicado: true },
     });
-    const pedido = await tx.tiendaPedido.create({ data: { tenantId } });
+    const pedido = await tx.tiendaPedido.create({ data: { tenantId, ...FAN, subtotal: 5000000, envio: 700000, total: 5700000 } });
     await tx.tiendaPedidoItem.create({
-      data: { tenantId, pedidoId: pedido.id, productoId: producto.id, productoBaseId, variante: { Talle: "M" }, cantidad: 2, precioUnitario: 2500000 },
+      data: { tenantId, pedidoId: pedido.id, productoId: producto.id, productoBaseId, nombreProducto: "Remera Los Satélites", variante: { Talle: "M" }, cantidad: 2, precioUnitario: 2500000, envioUnitario: 350000 },
     });
     return { producto, pedido };
   });

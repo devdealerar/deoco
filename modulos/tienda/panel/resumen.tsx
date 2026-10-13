@@ -2,15 +2,31 @@ import Link from "next/link";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { Insignia, Tabla } from "@/ui";
 import { formatearPesos } from "../dinero";
+import tienda from "../index";
+import { pasarelaLista } from "../pasarelas";
 import { listarProductos, margen } from "../productos";
 import { Encabezado, puedeEditar as puedeEditarEn } from "./comun";
 
 /** Panel · Tienda: los productos de la banda, con su precio y su margen. */
-export async function ResumenTienda({ tenantId, slug }: PropsRutaPanel) {
-  const [productos, puedeEditar] = [await listarProductos(tenantId), await puedeEditarEn(slug)];
+export async function ResumenTienda({ tenantId, slug, acceso }: PropsRutaPanel) {
+  const [productos, puedeEditar, pasarela] = [await listarProductos(tenantId), await puedeEditarEn(slug), await pasarelaLista(tienda, tenantId)];
   return (
     <div className="flex flex-col gap-6">
       <Encabezado slug={slug} actual="" puedeEditar={puedeEditar} />
+      {!pasarela.lista && (
+        <div role="alert" data-tienda-sin-pasarela className="rounded-xl bg-error-primary p-4 text-md text-error-primary ring-1 ring-error_subtle ring-inset">
+          <strong>Tu tienda no puede vender todavía.</strong> Los fans ven &quot;la tienda no está recibiendo pedidos&quot;. Falta cargar{" "}
+          {pasarela.faltan.join(", ")} en{" "}
+          {acceso.rol === "TITULAR" ? (
+            <Link href={`/b/${slug}/credenciales`} className="font-semibold underline">
+              Credenciales
+            </Link>
+          ) : (
+            "Credenciales (lo carga el titular de la banda)"
+          )}
+          . El cobro va a tu cuenta de {pasarela.pasarela.nombre}: Deoco no toca la plata.
+        </div>
+      )}
       <p className="text-md text-tertiary">
         Merch bajo demanda: no hace falta stock. El fan te paga a vos, un proveedor produce y envía cada pedido.{" "}
         <strong className="text-secondary">Deoco no se lleva nada de la venta.</strong>

@@ -213,8 +213,8 @@ secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ay
   apagado, el núcleo usa un marco neutro. Recibe `{ tenantId, pestanas, path, cabecera, children }`.
 - `cabeceraPublica`: un elemento que un módulo pone en la cabecera del sitio, junto a las
   pestañas (el carrito de la tienda). Uno solo en todo el registro, como el marco; recibe
-  `{ tenantId, path }` y el marco lo muestra tal cual (`cabecera`). Hoy lo ocupa el módulo
-  de prueba, que solo existe en desarrollo: la tienda lo reemplaza.
+  `{ tenantId, path }` y el marco lo muestra tal cual (`cabecera`). Lo ocupa la tienda (el
+  carrito con su contador).
 - Título y vista previa (pestaña del navegador, al compartir en redes):
   - Cada ruta pública puede declarar `metadatos: (props) => ({ titulo, descripcion, imagen })`.
     El título queda `"<titulo> · <banda>"`.

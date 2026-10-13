@@ -358,14 +358,10 @@ describe("navegación pública: la pestaña de otro módulo entra sola en el mar
       // Es el marco del sitio (no el neutro): pestaña activa marcada por el sitio, pie de la banda.
       expect(await page.locator('nav[aria-label="Sitio"] a[aria-current="page"]').textContent()).toBe("Prueba");
       expect(await page.locator("footer").textContent()).toContain("©");
-      // El elemento de cabecera del módulo (el lugar del carrito) va dentro del marco del sitio.
-      expect(await page.locator("header [data-cabecera] [data-testid=cabecera-prueba]").textContent()).toBe("Carrito (0)");
-      expect(await page.getByTestId("cabecera-prueba").getAttribute("data-path")).toBe("/prueba");
 
       await apagarModulo(e.staff.id, e.a.id, "prueba");
       await page.goto(sitio("banda-a"));
       expect(await pestanas()).toEqual(["Home", "Press kit"]);
-      expect(await page.getByTestId("cabecera-prueba").count()).toBe(0);
       // La otra banda nunca la tuvo.
       await page.goto(sitio("banda-b"));
       expect(await pestanas()).toEqual(["Home", "Press kit"]);

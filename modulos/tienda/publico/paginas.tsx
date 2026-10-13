@@ -1,0 +1,161 @@
+/* eslint-disable @next/next/no-img-element -- fotos propias ya optimizadas (versión web) */
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { conTenant } from "@/nucleo/db/con-tenant";
+import type { MetadatosPagina, PropsRutaPublica } from "@/nucleo/modulos/contrato";
+import type { Opcion } from "../catalogo";
+import { formatearPesos } from "../dinero";
+import tienda from "../index";
+import { pasarelaLista } from "../pasarelas";
+import { describirVariante } from "../comun";
+import { productosPublicados } from "../productos";
+import { Agregar } from "./agregar";
+import { Carrito } from "./carrito";
+import { Checkout } from "./checkout";
+import { c } from "./estilo";
+import { fotoDeProducto, urlFoto } from "./foto";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function Pagina({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div className={`mx-auto flex max-w-5xl flex-col gap-8 px-5 py-12 ${c.texto}`}>
+      <h1 className="text-3xl font-black tracking-tight uppercase">{titulo}</h1>
+      {children}
+    </div>
+  );
+}
+
+function NoDisponible() {
+  return (
+    <p role="note" className={c.aviso} data-tienda-no-disponible>
+      La tienda no está recibiendo pedidos en este momento. Volvé pronto.
+    </p>
+  );
+}
+
+/** /tienda: productos publicados de la banda. */
+export async function CatalogoPublico({ tenantId }: PropsRutaPublica) {
+  const [productos, { lista }] = [await productosPublicados(tenantId), await pasarelaLista(tienda, tenantId)];
+  return (
+    <Pagina titulo="Tienda">
+      {!lista && <NoDisponible />}
+      {productos.length === 0 ? (
+        <p className={c.suave}>Todavía no hay productos.</p>
+      ) : (
+        <ul className="grid grid-cols-2 gap-6 md:grid-cols-3">
+          {productos.map((p) => {
+            const foto = urlFoto(fotoDeProducto(p));
+            return (
+              <li key={p.id} data-producto={p.nombre}>
+                <Link href={`/tienda/${p.id}`} className="group flex flex-col gap-3">
+                  {foto ? (
+                    <img src={foto} alt={p.nombre} loading="lazy" className={`aspect-square w-full rounded-xl object-cover ${c.superficie}`} />
+                  ) : (
+                    <div className={`aspect-square w-full rounded-xl ${c.superficie}`} />
+                  )}
+                  <div>
+                    <div className="font-bold group-hover:underline">{p.nombre}</div>
+                    <div className={`tabular-nums ${c.suave}`} data-precio>
+                      {formatearPesos(p.precio)}
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Pagina>
+  );
+}
+
+async function publicado(tenantId: string, id: string) {
+  if (!UUID.test(id)) return null;
+  return conTenant(tenantId, (tx) => tx.tiendaProducto.findFirst({ where: { id, publicado: true }, include: { productoBase: true } }));
+}
+
+/** /tienda/<id>: ficha. Borrador o de otra banda: no existe. */
+export async function FichaProducto({ tenantId, params }: PropsRutaPublica) {
+  const p = await publicado(tenantId, params.producto);
+  if (!p) notFound();
+  const { lista } = await pasarelaLista(tienda, tenantId);
+  const fotos = [
+    p.fotoArchivoId && p.fotoNombre ? urlFoto({ id: p.fotoArchivoId, nombre: p.fotoNombre, plataforma: false }) : null,
+    p.productoBase.fotoArchivoId && p.productoBase.fotoNombre
+      ? urlFoto({ id: p.productoBase.fotoArchivoId, nombre: p.productoBase.fotoNombre, plataforma: true })
+      : null,
+  ].filter((x): x is string => !!x);
+  return (
+    <div className={`mx-auto grid max-w-5xl gap-10 px-5 py-12 md:grid-cols-2 ${c.texto}`}>
+      <div className="flex flex-col gap-3">
+        {fotos.length ? (
+          fotos.map((f) => <img key={f} src={f} alt={p.nombre} className={`aspect-square w-full rounded-xl object-cover ${c.superficie}`} />)
+        ) : (
+          <div className={`aspect-square w-full rounded-xl ${c.superficie}`} />
+        )}
+      </div>
+      <div className="flex flex-col gap-6">
+        <Link href="/tienda" className={`text-sm font-bold ${c.suave}`}>
+          ← Tienda
+        </Link>
+        <h1 className="text-3xl font-black tracking-tight">{p.nombre}</h1>
+        <div className="text-2xl font-bold tabular-nums" data-precio>
+          {formatearPesos(p.precio)} <span className={`text-sm font-normal ${c.suave}`}>+ envío {formatearPesos(p.productoBase.costoEnvio)}</span>
+        </div>
+        {p.descripcion && <p className={`whitespace-pre-line ${c.suave}`}>{p.descripcion}</p>}
+        {!lista && <NoDisponible />}
+        <Agregar producto={{ id: p.id, nombre: p.nombre, precio: p.precio, variantes: p.variantes as Opcion[] }} disponible={lista} />
+      </div>
+    </div>
+  );
+}
+
+export async function metadatosFicha({ tenantId, params }: PropsRutaPublica): Promise<MetadatosPagina> {
+  const p = await publicado(tenantId, params.producto);
+  if (!p) return {};
+  return { titulo: p.nombre, descripcion: p.descripcion || undefined, imagen: urlFoto(fotoDeProducto(p)) ?? undefined };
+}
+
+export function CarritoPublico(_: PropsRutaPublica) {
+  return (
+    <Pagina titulo="Carrito">
+      <Carrito />
+    </Pagina>
+  );
+}
+
+export function CheckoutPublico(_: PropsRutaPublica) {
+  return (
+    <Pagina titulo="Checkout">
+      <Checkout />
+    </Pagina>
+  );
+}
+
+/** /tienda/pedido/<id>: pedido recibido. Sin datos personales del fan (el id no es un secreto fuerte). */
+export async function PedidoPublico({ tenantId, params }: PropsRutaPublica) {
+  if (!UUID.test(params.id)) notFound();
+  const pedido = await conTenant(tenantId, (tx) => tx.tiendaPedido.findUnique({ where: { id: params.id }, include: { items: true } }));
+  if (!pedido) notFound();
+  return (
+    <Pagina titulo="Pedido recibido">
+      <p data-estado-pedido={pedido.estado}>
+        {pedido.estado === "PENDIENTE" ? "Recibimos tu pedido. Falta el pago." : pedido.estado === "PAGADO" ? "¡Pago recibido! Gracias." : "Este pedido se canceló."}
+      </p>
+      <ul className={`divide-y ${c.linea}`}>
+        {pedido.items.map((i) => (
+          <li key={i.id} className="flex justify-between py-2">
+            <span>
+              {i.nombreProducto} × {i.cantidad} <span className={c.suave}>{describirVariante(i.variante as Record<string, string>)}</span>
+            </span>
+            <span className="tabular-nums">{formatearPesos(i.precioUnitario * i.cantidad)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-lg font-black tabular-nums" data-total>
+        Total {formatearPesos(pedido.total)} <span className={`text-sm font-normal ${c.suave}`}>(envío {formatearPesos(pedido.envio)})</span>
+      </p>
+    </Pagina>
+  );
+}
