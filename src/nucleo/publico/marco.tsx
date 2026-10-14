@@ -1,5 +1,5 @@
-// Lo que rodea a toda página pública de una banda: las pestañas de los módulos prendidos y el
-// elemento de cabecera (si un módulo prendido lo aporta). Lo usa la superficie pública y lo
+// Lo que rodea a toda página pública de una banda: las pestañas de los módulos prendidos y los
+// elementos de cabecera que aportan (en fila, por `orden`). Lo usa la superficie pública y lo
 // puede usar la vista previa del módulo que aporta el marco, para mostrar exactamente lo mismo.
 import type { ReactNode } from "react";
 import { registro as registroGlobal } from "@/nucleo/modulos";
@@ -17,6 +17,15 @@ export type ElementosDelMarco = {
 /** Pestañas y cabecera de la banda para `path` (una ruta pública: "/", "/prensa"…). */
 export async function elementosDelMarco(tenantId: string, path: string, reg: Registro = registroGlobal()): Promise<ElementosDelMarco> {
   const prendidos = await modulosPrendidos(tenantId, reg);
-  const Cabecera = reg.cabeceraPublica && prendidos.has(reg.cabeceraPublica.moduloId) ? reg.cabeceraPublica.componente : null;
-  return { prendidos, pestanas: pestanasSitio(reg, prendidos), cabecera: Cabecera ? <Cabecera tenantId={tenantId} path={path} /> : null };
+  const cabeceras = reg.cabecerasPublicas.filter((c) => prendidos.has(c.moduloId));
+  const cabecera = cabeceras.length ? (
+    <span className="flex items-center gap-2">
+      {cabeceras.map(({ moduloId, componente: Cabecera }) => (
+        <span key={moduloId} data-cabecera-modulo={moduloId}>
+          <Cabecera tenantId={tenantId} path={path} />
+        </span>
+      ))}
+    </span>
+  ) : null;
+  return { prendidos, pestanas: pestanasSitio(reg, prendidos), cabecera };
 }

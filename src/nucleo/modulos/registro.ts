@@ -55,8 +55,8 @@ export type Registro = {
   suscriptos(nombre: string): readonly Suscripto[];
   /** El marco del sitio público, si algún módulo lo aporta (a lo sumo uno). */
   marcoPublico?: { moduloId: string; componente: MarcoPublico };
-  /** Elemento de cabecera del sitio público, si algún módulo lo aporta (a lo sumo uno). */
-  cabeceraPublica?: { moduloId: string; componente: CabeceraPublica };
+  /** Elementos de cabecera del sitio público, ordenados por `orden` (y por id, si empatan). */
+  cabecerasPublicas: { moduloId: string; componente: CabeceraPublica; orden: number }[];
   /** Metadatos del sitio público, si algún módulo los aporta (a lo sumo uno). */
   metadatosPublicos?: { moduloId: string; fn: NonNullable<Modulo["metadatosPublicos"]> };
   /** Consulta ofrecida con ese id (`<modulo>.<nombre>`). */
@@ -131,7 +131,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   const suscriptos = new Map<string, Suscripto[]>();
   let marcoPublico: Registro["marcoPublico"];
   let metadatosPublicos: Registro["metadatosPublicos"];
-  let cabeceraPublica: Registro["cabeceraPublica"];
+  const cabecerasPublicas: Registro["cabecerasPublicas"] = [];
   const avisos = new Map<string, (path: string) => RutaEncontrada<unknown> | undefined>();
   const admin = new Map<string, (path: string) => RutaEncontrada<PropsRutaAdmin> | undefined>();
   const externas = new Map<string, (path: string) => RutaEncontrada<PropsRutaExterna> | undefined>();
@@ -303,10 +303,8 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       marcoPublico = { moduloId: m.id, componente: m.marcoPublico };
     }
     if (m.cabeceraPublica) {
-      if (cabeceraPublica) {
-        throw new ErrorRegistro(m.id, `cabeceraPublica: ya la aporta "${cabeceraPublica.moduloId}" (solo puede haber una)`);
-      }
-      cabeceraPublica = { moduloId: m.id, componente: m.cabeceraPublica };
+      if (!Number.isFinite(m.cabeceraPublica.orden)) throw new ErrorRegistro(m.id, "cabeceraPublica: falta orden");
+      cabecerasPublicas.push({ moduloId: m.id, ...m.cabeceraPublica });
     }
     if (m.metadatosPublicos) {
       if (metadatosPublicos) {
@@ -349,7 +347,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     suscriptos: (nombre) => suscriptos.get(nombre) ?? [],
     marcoPublico,
     metadatosPublicos,
-    cabeceraPublica,
+    cabecerasPublicas: cabecerasPublicas.sort((a, b) => a.orden - b.orden || a.moduloId.localeCompare(b.moduloId)),
     consulta: (id) => consultas.get(id),
   };
 }

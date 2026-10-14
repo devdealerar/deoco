@@ -108,13 +108,13 @@ export type PropsMarcoPublico = {
   pestanas: { etiqueta: string; href: string }[];
   /** Ruta pública actual (para marcar la pestaña activa). */
   path: string;
-  /** Elemento que un módulo aporta a la cabecera (p. ej. el carrito); null si no hay. */
+  /** Lo que los módulos prendidos aportan a la cabecera (p. ej. el carrito), en fila; null si nada. */
   cabecera: ReactNode;
   children: ReactNode;
 };
 export type MarcoPublico = (props: PropsMarcoPublico) => ReactNode | Promise<ReactNode>;
 
-/** Elemento de cabecera del sitio público (el carrito de la tienda). Lo aporta un solo módulo. */
+/** Elemento de cabecera del sitio público (p. ej. un carrito). Cada módulo puede aportar uno. */
 export type PropsCabeceraPublica = { tenantId: string; path: string };
 export type CabeceraPublica = (props: PropsCabeceraPublica) => ReactNode | Promise<ReactNode>;
 
@@ -223,8 +223,11 @@ export type Modulo = {
   eventosEscucha?: { evento: string; manejador: (e: Evento) => Promise<void> }[];
   /** Marco del sitio público (a lo sumo un módulo lo aporta). */
   marcoPublico?: MarcoPublico;
-  /** Elemento en la cabecera del sitio público, junto a las pestañas (a lo sumo un módulo). */
-  cabeceraPublica?: CabeceraPublica;
+  /**
+   * Elemento en la cabecera del sitio público, junto a las pestañas. Uno por módulo; los de los
+   * módulos prendidos van en fila por `orden` (menor primero, como la navegación).
+   */
+  cabeceraPublica?: { componente: CabeceraPublica; orden: number };
   /**
    * Metadatos de todo el sitio público de la banda (a lo sumo un módulo): `titulo` es el
    * nombre con el que se muestra la banda; descripción e imagen, los de cualquier página

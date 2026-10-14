@@ -168,7 +168,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - `metadatos` por ruta pública + `metadatosPublicos` (un módulo) → `resolverMetadatos`
   (`src/nucleo/modulos/metadatos.ts`). Fallback: nombre de la banda, nunca "Deoco" (también
   en el layout y el 404 de los hosts de banda).
-- `cabeceraPublica` (un módulo): elemento en la cabecera del marco (el carrito).
+- `cabeceraPublica: { componente, orden }` (uno por módulo): elementos en la cabecera del marco,
+  en fila por `orden` (el carrito de la tienda, 10).
 
 ## Archivos
 

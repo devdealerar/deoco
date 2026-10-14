@@ -218,10 +218,10 @@ secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ay
 - `marcoPublico`: el componente que envuelve TODAS las páginas públicas (cabecera,
   pestañas, identidad de la banda). Lo aporta un solo módulo (hoy `sitio`); si está
   apagado, el núcleo usa un marco neutro. Recibe `{ tenantId, pestanas, path, cabecera, children }`.
-- `cabeceraPublica`: un elemento que un módulo pone en la cabecera del sitio, junto a las
-  pestañas (el carrito de la tienda). Uno solo en todo el registro, como el marco; recibe
-  `{ tenantId, path }` y el marco lo muestra tal cual (`cabecera`). Lo ocupa la tienda (el
-  carrito con su contador).
+- `cabeceraPublica: { componente, orden }`: un elemento que el módulo pone en la cabecera del
+  sitio, junto a las pestañas (el carrito de la tienda, orden 10). Uno por módulo; los de los
+  módulos prendidos van en fila por `orden` (menor primero). El componente recibe
+  `{ tenantId, path }`; el marco recibe la fila ya armada (`cabecera`).
 - Título y vista previa (pestaña del navegador, al compartir en redes):
   - Cada ruta pública puede declarar `metadatos: (props) => ({ titulo, descripcion, imagen })`.
     El título queda `"<titulo> · <banda>"`.

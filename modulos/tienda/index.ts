@@ -62,7 +62,7 @@ const tienda: Modulo = {
     { ruta: "/tienda/pedido/[id]", componente: PedidoPublico, metadatos: () => ({ titulo: "Pedido" }) },
     { ruta: "/tienda/[producto]", componente: FichaProducto, metadatos: metadatosFicha },
   ],
-  cabeceraPublica: ContadorCarrito,
+  cabeceraPublica: { componente: ContadorCarrito, orden: 10 },
   // Panel del proveedor (cuenta externa: la da el staff), en app.<raiz>/portal/tienda.
   // La referencia de la cuenta es el id del proveedor.
   cuentasExternas: { etiqueta: "Panel de proveedor" },

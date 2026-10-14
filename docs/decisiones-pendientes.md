@@ -251,10 +251,8 @@ dé (hoy, ver el resumen del sitio): el rol existe, pero no abre nada.
 
 ### 2. `cabeceraPublica` y `cobros` con forma de tienda
 
-- **`cabeceraPublica`**: la aporta **un solo módulo** (el registro rechaza un segundo). Se
-  pensó para el carrito. Si mañana la ticketera quisiera "Mis entradas" en la cabecera, choca
-  con la tienda. Arreglo: que sea una lista ordenada (`orden`, como la navegación), cada módulo
-  aporta un elemento y el marco los pone en fila. Chico (registro + marco + una prueba).
+- ~~**`cabeceraPublica`**: la aportaba **un solo módulo**~~ → resuelto en G5: uno por módulo,
+  en fila por `orden` (`{ componente, orden }`; la tienda, 10).
 - **`cobros`**: el `Cobro` que recibe `crearCobro` tiene `items` + `extras` (los extras son los
   envíos de la tienda) y un `comprador` con nombre y email. Para entradas sirve (un ítem, sin
   extras), para una suscripción o una seña no. El aviso está fijo en `/pago/[pasarela]` (uno por

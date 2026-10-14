@@ -21,6 +21,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | G3 | Arreglos · bloque 3: registro del pago en el núcleo, responder-a, duplicados | ✅ hecha |
 | G3b | Formularios del panel: `accionesDelPanel` + `edicion` en el contrato | ✅ hecha |
 | G4 | Anotaciones (roles, cabecera/cobros, `pagos`, tablas que crecen), barrido sin archivadas, lista de verificación | ✅ hecha |
+| G5 | `cabeceraPublica` en lista: uno por módulo, en fila por `orden` | ✅ hecha |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
@@ -144,6 +145,12 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   dominios de bandas ARCHIVADAS (migración `20261101100000_barrido_sin_archivadas`; las
   SUSPENDIDAS sí). El barrido deja una línea en el log al arrancar y en cada vuelta que hace
   algo. Lista para el día del despliegue: `docs/verificacion-despliegue.md`.
+
+- G5, cabecera pública: el contrato pasa a `cabeceraPublica: { componente, orden }` y el registro
+  junta todas (`cabecerasPublicas`, por `orden` y por id si empatan) en vez de rechazar una
+  segunda. `elementosDelMarco` pone en fila las de los módulos prendidos (cada una en
+  `<span data-cabecera-modulo>`); los marcos siguen recibiendo un solo `cabecera`. La tienda
+  queda con orden 10. Pruebas en `tests/modulos.test.ts` (orden, desempate, solo prendidos).
 
 ## Paso 4 · Módulo de tienda
 

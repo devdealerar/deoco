@@ -207,12 +207,31 @@ describe("parámetros de consulta para los módulos", () => {
 });
 
 describe("cabecera del sitio público y pestaña activa", () => {
-  it("un solo módulo aporta el elemento de cabecera, como el marco", () => {
-    const cabecera = () => null;
-    expect(crearRegistro([mod("a", { cabeceraPublica: cabecera })]).cabeceraPublica?.moduloId).toBe("a");
-    expect(() => crearRegistro([mod("a", { cabeceraPublica: cabecera }), mod("b", { cabeceraPublica: cabecera })])).toThrow(
-      /cabeceraPublica: ya la aporta "a"/,
+  it("cada módulo puede aportar un elemento de cabecera; van por `orden` (y por id si empatan)", () => {
+    const reg = crearRegistro([
+      mod("c", { cabeceraPublica: { componente: nada, orden: 20 } }),
+      mod("b", { cabeceraPublica: { componente: nada, orden: 10 } }),
+      mod("a", { cabeceraPublica: { componente: nada, orden: 20 } }),
+      mod("d"),
+    ]);
+    expect(reg.cabecerasPublicas.map((c) => c.moduloId)).toEqual(["b", "a", "c"]);
+    expect(() => crearRegistro([mod("a", { cabeceraPublica: { componente: nada, orden: Number.NaN } })])).toThrow(/cabeceraPublica: falta orden/);
+  });
+
+  it("el marco pone en fila solo las de los módulos prendidos de la banda", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { elementosDelMarco } = await import("@/nucleo/publico/marco");
+    const reg = crearRegistro([
+      mod("carrito", { cabeceraPublica: { componente: () => "Carrito", orden: 10 } }),
+      mod("entradas", { cabeceraPublica: { componente: ({ path }) => `Entradas en ${path}`, orden: 20 } }),
+      mod("apagado", { cabeceraPublica: { componente: () => "No", orden: 5 } }),
+    ]);
+    await dueno.moduloTenant.createMany({ data: [{ tenantId: e.a.id, moduloId: "entradas" }, { tenantId: e.a.id, moduloId: "carrito" }] });
+    const html = (cab: unknown) => renderToStaticMarkup(cab as React.ReactElement);
+    expect(html((await elementosDelMarco(e.a.id, "/fechas", reg)).cabecera)).toBe(
+      '<span class="flex items-center gap-2"><span data-cabecera-modulo="carrito">Carrito</span><span data-cabecera-modulo="entradas">Entradas en /fechas</span></span>',
     );
+    expect((await elementosDelMarco(e.b.id, "/", reg)).cabecera).toBeNull(); // B no tiene ninguno prendido
   });
 
   it("la pestaña activa se decide por segmento, no por prefijo", async () => {
