@@ -53,7 +53,9 @@ export async function captura(page: Page, nombre: string) {
   if (!dir) return;
   mkdirSync(dir, { recursive: true });
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.screenshot({ path: path.join(dir, `${nombre}.png`), fullPage: true });
+  // caret "initial": por defecto Playwright oculta el cursor de texto poniendo un style en
+  // cada campo; si la página todavía no hidrató, React lo ve como un error de hidratación.
+  await page.screenshot({ path: path.join(dir, `${nombre}.png`), fullPage: true, caret: "initial" });
 }
 
 /**

@@ -125,7 +125,8 @@ enum EstadoEvento {
   FALLIDO
 }
 
-/// Bitácora del bus de eventos (src/nucleo/eventos).
+/// Bitácora del bus de eventos (src/nucleo/eventos). Índices parciales (en las migraciones, Prisma
+/// no los declara): `evento_pendiente` (barrido) y `evento_fallido` (fallidos del back office).
 model Evento {
   id          String       @id @default(uuid()) @db.Uuid
   /// Orden de emisión: los eventos de una banda se procesan por este número.

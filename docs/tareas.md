@@ -24,6 +24,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | G5 | `cabeceraPublica` en lista: uno por módulo, en fila por `orden` | ✅ hecha |
 | H1 | UI hecha a mano → `@/ui` (avisos, tarjetas, pestañas, botones, color) + prueba que lo vigila | ✅ hecha |
 | H2 | Back office: bandas, usuarios y eventos paginados en la base, filtro y orden en la URL | ✅ hecha |
+| H3 | `db:migrate:test` sin dotenv-cli, índice de fallidos, error de hidratación de las capturas | ✅ hecha |
 
 - H1: `@/ui` suma `Pestanas` (oficial `tabs`), `Boton href`, `CampoColor`, `Aviso` con tono
   `info` (`role="note"`) y sin título, `Tarjeta` con `imagen`/`junto`/`acciones`.
@@ -34,6 +35,12 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   con la suma de `archivo` para ordenar por espacio; usuarios y eventos con Prisma. `Tabla` con
   `orden` + `paginacion` (base oficial de `pagination`) y `Filtros` (GET, sin parámetros
   vacíos). Pruebas: `tests/backoffice-listados.test.ts`, `tests/e2e/admin.e2e.ts` (listados largos).
+- H3: `scripts/con-entorno.mjs` corre un comando con un .env que PISA el entorno (lo usa
+  `db:migrate:test`; `dotenv-cli` fuera: su comando `dotenv` chocaba con el de `dotenv`). Índice
+  parcial `evento_fallido` (fecha, id) WHERE FALLIDO: contar fallidos ya no recorre `evento`.
+  El "1 Issue" de Next en identidad del sitio era de las capturas: `page.screenshot` oculta el
+  cursor con un style en los campos y, antes de hidratar, React lo reporta. `captura()` usa
+  `caret: "initial"`; la app no tenía el error.
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
   se toman en la base (`evento.tomadoEn`) antes de entregarse; uno tomado por otro proceso no

@@ -252,6 +252,7 @@ falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va a mano
   y navega con Chromium (`/opt/pw-browsers/chromium`, o la ruta en `CHROMIUM`)
 - `npm run test:carga` — carga por HTTP contra un build de producción (:3300); lento, aparte
 - `npm run typecheck` · `npm run lint`
+- `npm run db:migrate:test` — migraciones en la base de pruebas (`.env.test` pisa el entorno: `scripts/con-entorno.mjs`)
 - `npm run db:migrar` — migraciones de desarrollo (descubre módulos + `prisma migrate dev`, rol dueño)
 
 ## Base local
