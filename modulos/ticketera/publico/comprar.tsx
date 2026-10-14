@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { comprarAccion, type EstadoCompra } from "./acciones";
 import { c } from "@/nucleo/publico/estilo";
 
@@ -12,10 +12,6 @@ export function Comprar({ tipos, maximo }: { tipos: Tipo[]; maximo: number }) {
   const [tipoId, setTipoId] = useState(tipos[0]?.id ?? "");
   const [cantidad, setCantidad] = useState(1);
   const tope = Math.min(maximo, tipos.find((t) => t.id === tipoId)?.disponibles ?? 0);
-
-  useEffect(() => {
-    if (estado.redireccion) window.location.assign(estado.redireccion); // a la pasarela de la banda
-  }, [estado.redireccion]);
 
   return (
     <form action={enviar} className="flex flex-col gap-6" data-comprar>

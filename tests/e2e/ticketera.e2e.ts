@@ -177,4 +177,24 @@ describe("ticketera", () => {
     expect(await previa.getByRole("link", { name: "Entradas" }).getAttribute("href")).toBe(`${SITIO}/fechas/${showId}`);
     await dueno.sitioFecha.deleteMany({ where: { tenantId: e.a.id } });
   });
+
+  it("comprar las últimas entradas lleva a pagar (la página se rehace como agotada, pero el fan va a la pasarela)", async () => {
+    const ultimo = await crearEvento(e.a.id, {
+      nombre: "Último lugar", fecha: new Date(Date.now() + 25 * 86400_000), lugar: "Club", ciudad: "Rosario", direccion: "", descripcion: "",
+    });
+    await crearTipo(e.a.id, ultimo, { nombre: "Única", precio: 800000, cupo: 1, ventaDesde: null, ventaHasta: null });
+    await publicarEvento(e.a.id, ultimo, true);
+    const { page } = await anonimo();
+    await page.goto(`${SITIO}/fechas/${ultimo}`);
+    const f = page.locator("form[data-comprar]");
+    await page.waitForFunction(() => document.querySelector("form[data-comprar] select[name=cantidad]") !== null);
+    await page.waitForLoadState("networkidle"); // hidratado: si no, el formulario se envía sin JavaScript
+    await f.locator("input[name=nombre]").fill("Última Fan");
+    await f.locator("input[name=email]").fill("ultima@fan.com");
+    await f.locator('input[name="asistente-0-nombre"]').fill("Última Fan");
+    await f.locator('input[name="asistente-0-documento"]').fill("32000111");
+    await f.getByRole("button", { name: "Ir a pagar" }).click();
+    await page.waitForURL(new RegExp(`^${mp.base}/checkout\\?pref=`));
+    expect(await page.locator("[data-pasarela]").textContent()).toBe("Pagá con Mercado Pago");
+  });
 });

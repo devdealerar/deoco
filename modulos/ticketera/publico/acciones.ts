@@ -1,13 +1,18 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { recordarAcceso } from "@/nucleo/publico/acceso";
 import { origenDelPedido } from "@/nucleo/publico/origen";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { compraConToken, intentarComprar } from "../compras";
 
-export type EstadoCompra = { error?: string; redireccion?: string };
+export type EstadoCompra = { error?: string };
 
-/** Comprar: reserva las entradas y manda al fan a la pasarela de la banda. */
+/**
+ * Comprar: reserva las entradas y manda al fan a la pasarela de la banda. La redirección la
+ * hace el servidor: si la compra se lleva las últimas entradas, la página se rehace como
+ * "agotada" (la cookie de acceso la refresca) y el formulario ya no está para redirigir.
+ */
 export async function comprarAccion(
   _: EstadoCompra,
   fd: FormData,
@@ -42,7 +47,7 @@ export async function comprarAccion(
   if (!r.ok) return { error: r.error };
   // Este navegador queda con acceso a las entradas: al volver de la pasarela las ve.
   await recordarAcceso(`entradas-${r.compraId}`, r.token);
-  return { redireccion: r.redireccion };
+  redirect(r.redireccion);
 }
 
 /** Canjea el token del link del mail por el acceso en este navegador. */

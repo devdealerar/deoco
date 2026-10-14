@@ -117,6 +117,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 
 - Shows, tipos con cupo (CHECK en la base), compra con `@/nucleo/pagos`, entradas nominadas
   con QR (mail con `adjuntos` cid:), puerta (`/b/<slug>/puerta`, rol PUERTA). Pestaña "Fechas".
+  La compra redirige a la pasarela desde el servidor (`redirect()` en `comprarAccion`): con las
+  últimas entradas la página se rehace como "agotada" y un efecto del formulario no correría.
   El sitio lee sus fechas con la consulta `ticketera.proximas-fechas`.
 
 ## Cobros (`src/nucleo/pagos`)

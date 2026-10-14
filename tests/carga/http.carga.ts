@@ -21,13 +21,15 @@ let showId = "";
 let tipoId = "";
 
 function pedir(metodo: "GET" | "POST", ruta: string, cabeceras: Record<string, string> = {}, cuerpo?: Buffer) {
-  return new Promise<{ estado: number; texto: string; ms: number }>((ok, mal) => {
+  return new Promise<{ estado: number; texto: string; ms: number; redireccion?: string }>((ok, mal) => {
     const inicio = Date.now();
     const r = request({ host: "127.0.0.1", port: PUERTO, path: ruta, method: metodo, headers: { host: HOST, ...cabeceras } }, (res) => {
       let d = "";
       res.setEncoding("utf8");
       res.on("data", (c) => (d += c));
-      res.on("end", () => ok({ estado: res.statusCode!, texto: d, ms: Date.now() - inicio }));
+      // Una server action que hace redirect() responde con la URL en esta cabecera.
+      const redireccion = res.headers["x-action-redirect"];
+      res.on("end", () => ok({ estado: res.statusCode!, texto: d, ms: Date.now() - inicio, redireccion: typeof redireccion === "string" ? redireccion : undefined }));
     });
     r.on("error", mal);
     r.end(cuerpo);
@@ -96,7 +98,7 @@ describe(`apertura de venta por HTTP (producción): ${FANS} fans, ${CUPO} lugare
     const r = await Promise.all(
       cuerpos.map((c) => pedir("POST", `/fechas/${showId}`, { "next-action": accion, "content-type": c.tipo, accept: "text/x-component" }, c.datos)),
     );
-    const redirecciones = r.filter((x) => x.texto.includes('"redireccion"'));
+    const redirecciones = r.filter((x) => x.redireccion?.includes("/checkout?pref="));
     // React codifica `undefined` como "$undefined": eso no es un mensaje.
     const errores = r
       .map((x) => x.texto.match(/"error":"((?:[^"\\]|\\.)*)"/)?.[1])
@@ -106,7 +108,7 @@ describe(`apertura de venta por HTTP (producción): ${FANS} fans, ${CUPO} lugare
       `[carga http] POST compra ×${FANS}: HTTP ${JSON.stringify(Object.fromEntries(r.reduce((m, x) => m.set(x.estado, (m.get(x.estado) ?? 0) + 1), new Map<number, number>())))}, ` +
         `${redirecciones.length} a pagar, mensajes: ${[...mensajes].join(" | ")}, p95 ${p95(r.map((x) => x.ms))} ms`,
     );
-    expect(r.every((x) => x.estado === 200)).toBe(true);
+    expect(r.every((x) => x.estado === 200 || (x.estado === 303 && x.redireccion))).toBe(true);
     expect(redirecciones).toHaveLength(CUPO);
     expect(redirecciones.length + errores.length).toBe(FANS); // cada fan recibió una respuesta legible
     expect([...mensajes].every((m) => m === '"General" está agotada.' || m.startsWith("Hay mucha gente comprando"))).toBe(true);

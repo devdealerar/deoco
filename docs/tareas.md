@@ -25,6 +25,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | H1 | UI hecha a mano → `@/ui` (avisos, tarjetas, pestañas, botones, color) + prueba que lo vigila | ✅ hecha |
 | H2 | Back office: bandas, usuarios y eventos paginados en la base, filtro y orden en la URL | ✅ hecha |
 | H3 | `db:migrate:test` sin dotenv-cli, índice de fallidos, error de hidratación de las capturas | ✅ hecha |
+| H4 | Ensayo de despliegue con la imagen de producción; `/ingresar` con `@/ui`; compra de las últimas entradas | ✅ hecha |
 
 - H1: `@/ui` suma `Pestanas` (oficial `tabs`), `Boton href`, `CampoColor`, `Aviso` con tono
   `info` (`role="note"`) y sin título, `Tarjeta` con `imagen`/`junto`/`acciones`.
@@ -35,6 +36,12 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   con la suma de `archivo` para ordenar por espacio; usuarios y eventos con Prisma. `Tabla` con
   `orden` + `paginacion` (base oficial de `pagination`) y `Filtros` (GET, sin parámetros
   vacíos). Pruebas: `tests/backoffice-listados.test.ts`, `tests/e2e/admin.e2e.ts` (listados largos).
+- H4: ensayo completo con la imagen Docker detrás de Traefik (`docs/despliegue.md`, "Qué se
+  verificó"). Bug encontrado: comprar las **últimas** entradas no llevaba a pagar (la cookie de
+  acceso refresca la página, que pasa a "agotada" y desmonta el formulario que redirigía): ahora
+  redirige `comprarAccion` con `redirect()`; prueba en `tests/e2e/ticketera.e2e.ts`. `/ingresar`
+  con el kit (sale de las excepciones de `tests/ui-propia.test.ts`). `crear-staff.mjs` muestra el
+  dominio real.
 - H3: `scripts/con-entorno.mjs` corre un comando con un .env que PISA el entorno (lo usa
   `db:migrate:test`; `dotenv-cli` fuera: su comando `dotenv` chocaba con el de `dotenv`). Índice
   parcial `evento_fallido` (fecha, id) WHERE FALLIDO: contar fallidos ya no recorre `evento`.

@@ -24,7 +24,6 @@ const EXCEPCIONES: Record<string, string> = {
   "modulos/ticketera/panel/puerta-cliente.tsx":
     "Puerta: pantalla a medida para un celular en el venue (botones enormes, resultado a pantalla completa).",
   "src/app/error.tsx": "Error global: lo comparten el panel y el sitio público, con estilo neutro.",
-  "src/app/ingresar/page.tsx": "Ingreso: pantalla de la plataforma todavía sin diseño (HTML sin estilos).",
 };
 
 const REGLAS: { usar: string; marca: RegExp }[] = [

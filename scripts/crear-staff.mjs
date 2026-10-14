@@ -34,7 +34,7 @@ try {
      RETURNING (xmax = 0) AS nuevo`,
     [email, nombre, await hash(clave)],
   );
-  console.log(`${r.rows[0].nuevo ? "Creado" : "Actualizado"}: ${email.toLowerCase()} es staff. Entrá en https://app.<dominio>/admin`);
+  console.log(`${r.rows[0].nuevo ? "Creado" : "Actualizado"}: ${email.toLowerCase()} es staff. Entrá en https://app.${process.env.DEOCO_DOMINIO_RAIZ ?? "<dominio>"}/admin`);
 } finally {
   await db.end();
 }

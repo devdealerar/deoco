@@ -154,6 +154,14 @@ barrido, carga): **`docs/verificacion-despliegue.md`**.
 | Formularios del panel fallan con error genérico | logs de la app (`Server Action`, `origin`) | el proxy reescribe `Host`/`Origin`; Traefik por defecto no lo hace |
 | Subir una foto grande falla | mensaje en el formulario o logs | más de 25 MB (límite de Deoco); si es menor, un límite de cuerpo en el proxy |
 
+Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo funcionó igual):
+
+- `prisma:warn Prisma failed to detect the libssl/openssl version…` al migrar: la imagen slim
+  no trae el binario `openssl`; las migraciones corren igual (Prisma 7 no carga OpenSSL).
+- `DeprecationWarning: Calling client.query() when the client is already executing a query…`:
+  viene de adentro de Prisma (consultas en paralelo en una transacción). Solo importa si se
+  sube `pg` a la versión 9: no hacerlo hasta que Prisma lo resuelva (`package.json` fija `^8`).
+
 ## Variables de entorno (referencia)
 
 | Variable | Obligatoria | Para qué |
@@ -248,7 +256,33 @@ naranja de Cloudflare en `deoco.com`, definí `DEOCO_IP_PUBLICA` con la IP del V
 
 ## Qué se verificó antes de este despliegue
 
-En el entorno de desarrollo, sin Docker, sobre un Postgres **nuevo y vacío**:
+**Ensayo con la imagen de producción** (octubre 2026): la imagen del `Dockerfile` construida con
+Docker, `scripts/arrancar.sh`, un Postgres 16 **nuevo** preparado con `preparar-base.sql` y
+Traefik adelante con HTTPS (dominio `deoco.test`, certificado autofirmado):
+
+- Arranque sano: las 39 migraciones aplicadas sobre la base vacía, las cuatro líneas de arriba.
+  Al reiniciar: `No pending migrations to apply`.
+- Arranque que falla a la vista: sin `DATABASE_URL_ADMIN`, con el volumen de solo lectura y con
+  `DATABASE_URL` en el rol dueño (las dos líneas de la verificación de la app).
+- La imagen final no trae herramientas de desarrollo ni el módulo de prueba en el build.
+- `crear-staff.mjs` en el contenedor; login del staff y del titular con la cookie
+  `__Host-deoco.sesion` (`Secure`, `HttpOnly`, solo `app.`); alta de banda, prender Sitio, Tienda
+  y Ticketera, clave temporal → cambio de clave.
+- Sitio: bio, foto de celular (4032×3024), publicar, sitio público por HTTPS sin cookies.
+- Tienda: proveedor y producto base desde `/admin`, credenciales de cobro, "Probar conexión",
+  diseño, producto publicado, compra del fan, vuelta "Estamos confirmando", aviso sin firma → 401,
+  aviso firmado (HMAC como Mercado Pago) → pagado, mails al fan y al proveedor por SMTP.
+- Entradas: show con cupo 2, compra de las dos, QR, tercer intento "agotada", mail con los QR
+  embebidos (`cid:`); puerta con el rol PUERTA: válida, "YA ENTRÓ", código inventado.
+- Barrido: con el SMTP caído el mail queda FALLIDO (reintento a los 2 min); con el SMTP bueno,
+  `[barrido] pendientes de 1 banda(s)` y sale.
+- Archivar la banda: sitio y panel 404.
+
+Lo que el ensayo **no** cubre (va en `verificacion-despliegue.md`): Mercado Pago de verdad (se
+usó el falso de las pruebas, por `DEOCO_MERCADOPAGO_API`), mails reales (Resend), el
+certificado de Let's Encrypt, la cámara de un celular y la carga en el VPS.
+
+Antes, en el entorno de desarrollo, sin Docker, sobre un Postgres **nuevo y vacío**:
 
 - `npm ci` + `next build` **sin ninguna variable de base**, `npm prune --omit=dev`; la salida
   del build no contiene nada del módulo de prueba.
@@ -262,6 +296,5 @@ En el entorno de desarrollo, sin Docker, sobre un Postgres **nuevo y vacío**:
   11 MB, publicar, sitio público por HTTPS sin cookies.
 - `scripts/crear-staff.mjs` contra una base real.
 
-**No verificado**: la construcción de la imagen Docker (desde el entorno de desarrollo no se
-puede bajar `node:22`) y la emisión del certificado comodín en Easypanel. Las dos se ven en el
-primer despliegue: logs de build y candado del navegador.
+**No verificado**: la emisión del certificado comodín en Easypanel. Se ve en el primer
+despliegue, en el candado del navegador.
