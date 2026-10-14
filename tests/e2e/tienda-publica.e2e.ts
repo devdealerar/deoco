@@ -161,6 +161,12 @@ describe("tienda pública", () => {
     await page.goto(`${SITIO}/tienda/pedido/${pedido.id}?resultado=exito`);
     expect(await page.locator("[data-titulo-estado]").textContent()).toBe("Estamos confirmando tu pago");
     await page.locator("header [data-carrito='0']").waitFor(); // el carrito se vació
+    // La pasarela no recibió el token del pedido; otro navegador sin el link del mail solo ve el estado.
+    expect(JSON.stringify(mp.preferencias[0].cuerpo)).not.toContain(pedido.token);
+    const ajeno = (await anonimo()).page;
+    await ajeno.goto(`${SITIO}/tienda/pedido/${pedido.id}`);
+    await ajeno.locator("[data-sin-acceso]").waitFor();
+    expect(await ajeno.locator("[data-total]").count()).toBe(0);
 
     // Prueba 2 (pago): llega el aviso de Mercado Pago (a la plataforma) → PAGADO; repetido, nada.
     mp.pagos.set("777", { status: "approved", external_reference: pedido.id, transaction_amount: 68500, currency_id: "ARS", token: TOKEN_A });

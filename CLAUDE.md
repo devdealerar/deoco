@@ -214,11 +214,20 @@ módulos y que el build sea de producción (`generadoPara`), y si algo falla el 
 falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va a mano
 (`CLAVE=… node scripts/crear-staff.mjs <email> "<nombre>"` en la consola de la app); el resto, desde `/admin`.
 
+## Público: errores, acceso y carga
+
+- Ningún error técnico al público: `mensajeParaElPublico()` (`src/nucleo/publico/errores.ts`) y
+  `src/app/error.tsx`. Pool y tiempos: `src/nucleo/db/config.ts` (`DEOCO_DB_CONEXIONES`).
+- Acceso sin cuenta a algo privado (entradas, pedido): cookie del sitio de la banda
+  (`recordarAcceso`/`accesoRecordado`) + link del mail con el token después de "#" (`CanjearLink`).
+  Nunca un token en una URL que vea un tercero.
+
 ## Comandos
 
 - `npm test` — pruebas, contra la base de `.env.test` (ver `.env.test.example`)
 - `npm run test:e2e` — punta a punta: levanta `next dev` en :3200 sobre la base de pruebas
   y navega con Chromium (`/opt/pw-browsers/chromium`, o la ruta en `CHROMIUM`)
+- `npm run test:carga` — carga por HTTP contra un build de producción (:3300); lento, aparte
 - `npm run typecheck` · `npm run lint`
 - `npm run db:migrar` — migraciones de desarrollo (descubre módulos + `prisma migrate dev`, rol dueño)
 

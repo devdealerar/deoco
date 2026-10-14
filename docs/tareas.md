@@ -15,6 +15,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | D | Módulo ticketera | ✅ hecha |
 | E | Revisión final | ✅ hecha (`docs/resumen-trabajo-largo.md`) |
 | F | Vista previa del sitio = sitio público (fechas de la ticketera, pestañas, cabecera) | ✅ hecha |
+| G1 | Arreglos · bloque 1: apertura de venta (pool, transacciones, errores, carga) y token fuera de la URL | ✅ hecha |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
@@ -56,6 +57,21 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   pestañas de todos los módulos prendidos (las de otros módulos llevan al sitio de verdad) y
   la cabecera. Núcleo: `elementosDelMarco()` (`src/nucleo/publico/marco.tsx`), que también usa
   la superficie pública: una sola fuente para las dos.
+- G1, apertura de venta:
+  - Pool de 40 conexiones (`DEOCO_DB_CONEXIONES`), esperar conexión 10 s, transacción 15 s
+    (`src/nucleo/db/config.ts`; el back office, 5).
+  - Transacciones por página pública: de 6-10 a 3-6. Una lectura por pedido de módulos prendidos
+    y nombre de la banda (`bandaBasica`), credenciales de cobro, show y producto (`cache`), y el
+    proxy resuelve el host en una consulta (`resolver_banda_por_host`).
+  - Ningún error técnico al fan: `src/nucleo/publico/errores.ts` ("agotada" o "hay mucha gente
+    comprando, probá de nuevo"), `src/app/error.tsx` para lo que se escape.
+  - Carga: `tests/carga/compras.test.ts` (400 compras a la vez por 25 lugares; 300 de 1 a 4 por 40;
+    base saturada) y `npm run test:carga` (HTTP contra el build de producción: 300 fans cargan el
+    show y compran a la vez por 30 lugares).
+- G1, token: fuera de la URL de vuelta de la pasarela. Al comprar, cookie httpOnly en el sitio de
+  la banda; en el mail, link con el token después de "#" (nunca llega a un servidor), que la página
+  canjea por la cookie (`src/nucleo/publico/acceso.ts`, `canjear-link.tsx`). Sin acceso, solo el
+  estado. El pedido de la tienda también tiene token ahora.
 
 ## Paso 4 · Módulo de tienda
 

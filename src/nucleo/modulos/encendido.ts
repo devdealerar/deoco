@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/nucleo/db/cliente";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "./index";
@@ -9,9 +10,26 @@ import type { Registro } from "./registro";
  * está en el código no prende nada.
  */
 export async function modulosPrendidos(tenantId: string, reg: Registro = registroGlobal()): Promise<Set<string>> {
-  const filas = await conTenant(tenantId, (tx) => tx.moduloTenant.findMany({ select: { moduloId: true } }));
-  return new Set(filas.map((f) => f.moduloId).filter((id) => reg.modulo(id)));
+  const ids = await idsPrendidos(tenantId);
+  return new Set(ids.filter((id) => reg.modulo(id)));
 }
+
+/**
+ * Una sola lectura por pedido (la piden el marco, los metadatos, las consultas, los cobros…).
+ * Fuera de un pedido de Next (scripts, pruebas) `cache` no guarda: se lee cada vez.
+ */
+const idsPrendidos = async (tenantId: string) => (await bandaBasica(tenantId)).prendidos;
+
+/**
+ * Lo que casi todo pedido necesita de la banda, en UNA transacción y una vez por pedido: sus
+ * módulos prendidos y su nombre (marco, metadatos, consultas, cobros…).
+ */
+export const bandaBasica = cache(async (tenantId: string): Promise<{ nombre: string | null; prendidos: string[] }> =>
+  conTenant(tenantId, async (tx) => ({
+    nombre: (await tx.tenant.findUnique({ where: { id: tenantId }, select: { nombre: true } }))?.nombre ?? null,
+    prendidos: (await tx.moduloTenant.findMany({ select: { moduloId: true } })).map((f) => f.moduloId),
+  })),
+);
 
 export class ErrorModulo extends Error {
   constructor(mensaje: string) {

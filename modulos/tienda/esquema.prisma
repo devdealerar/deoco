@@ -169,6 +169,8 @@ model TiendaPedido {
   estadoCobro   String?
   /// Por qué quedó EN_REVISION (monto o moneda distintos).
   observacion   String?
+  /// Secreto para ver el pedido y pagarlo (cookie del navegador que compró o link del mail).
+  token         String
 
   items       TiendaPedidoItem[]
   deudas      TiendaDeuda[]

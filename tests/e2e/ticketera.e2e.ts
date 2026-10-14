@@ -82,16 +82,17 @@ describe("ticketera", () => {
 
     const compra = await dueno.ticketeraCompra.findFirstOrThrow();
     expect(compra).toMatchObject({ estado: "RESERVADA", cantidad: 2, total: 3000000, email: "lucia@fan.com" });
-    // Vuelve antes del aviso: "confirmando".
-    await page.goto(`${SITIO}/fechas/compra/${compra.id}?t=${compra.token}&resultado=exito`);
+    // La pasarela no recibió el token de las entradas.
+    expect(JSON.stringify(mp.preferencias[0].cuerpo)).not.toContain(compra.token);
+    // Vuelve antes del aviso (como lo devuelve la pasarela, sin token): "confirmando".
+    await page.goto(`${SITIO}/fechas/compra/${compra.id}?resultado=exito`);
     expect(await page.locator("[data-estado-compra]").textContent()).toContain("Estamos confirmando tu pago");
-    // Sin el token, la página no existe.
-    expect((await page.goto(`${SITIO}/fechas/compra/${compra.id}`))!.status()).toBe(404);
 
     mp.pagos.set("901", { status: "approved", external_reference: compra.id, transaction_amount: 30000, currency_id: "ARS", token: TOKEN_A });
     const r = await postear("app.lvh.me", `/avisos/${e.a.id}/ticketera/pago/mercadopago`, JSON.stringify({ type: "payment", data: { id: "901" } }));
     expect(JSON.parse(r)).toEqual({ resultado: "pagada" });
-    await page.goto(`${SITIO}/fechas/compra/${compra.id}?t=${compra.token}`);
+    // Este navegador compró: la cookie le da acceso, sin token en la URL.
+    await page.goto(`${SITIO}/fechas/compra/${compra.id}?resultado=exito`);
     const entradas = page.locator("[data-entrada]");
     expect(await entradas.count()).toBe(2);
     expect(await entradas.first().locator("svg").count()).toBe(1);
@@ -101,6 +102,25 @@ describe("ticketera", () => {
     for (let i = 0; i < 40 && !(await dueno.correo.findFirst({ where: { moduloId: "ticketera" } })); i++) await new Promise((r) => setTimeout(r, 250));
     const mail = await dueno.correo.findFirstOrThrow({ where: { moduloId: "ticketera" } });
     expect([mail.para, (mail.adjuntos as unknown[]).length]).toEqual(["lucia@fan.com", 2]);
+
+    // Otro navegador: sin acceso solo ve el estado; con el link del mail (#token) ve las entradas
+    // y el token desaparece de la barra de direcciones.
+    const otro = (await anonimo()).page;
+    await otro.goto(`${SITIO}/fechas/compra/${compra.id}`);
+    expect(await otro.locator("[data-estado-compra]").textContent()).toContain("abrí el link de ese mail");
+    expect(await otro.locator("[data-entrada]").count()).toBe(0);
+    const link = mail.texto.match(/https?:\/\/\S+#[0-9a-f]+/)![0];
+    expect(link).toBe(`${SITIO}/fechas/compra/${compra.id}#${compra.token}`);
+    const delMail = (await anonimo()).page; // el link del mail abre una pestaña nueva
+    await delMail.goto(link);
+    await delMail.locator("[data-entrada]").first().waitFor();
+    expect(await delMail.locator("[data-entrada]").count()).toBe(2);
+    expect(delMail.url()).toBe(`${SITIO}/fechas/compra/${compra.id}`);
+    // Un token falso no da acceso.
+    const intruso = (await anonimo()).page;
+    await intruso.goto(`${SITIO}/fechas/compra/${compra.id}#${"0".repeat(32)}`);
+    await intruso.waitForTimeout(1500);
+    expect(await intruso.locator("[data-entrada]").count()).toBe(0);
 
     // Puerta, en el celular, con el rol PUERTA.
     const [primera] = await dueno.ticketeraEntrada.findMany({ orderBy: { nombre: "asc" } });

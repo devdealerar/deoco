@@ -117,7 +117,9 @@ describe("compra y cupo", () => {
       items: [{ title: "Gira Satélite · General", quantity: 2, unit_price: 15000, currency_id: "ARS" }],
       notification_url: expect.stringMatching(new RegExp(`/avisos/${e.a.id}/ticketera/pago/mercadopago$`)),
     });
-    expect((pref.cuerpo as { back_urls: { success: string } }).back_urls.success).toBe(`${ORIGEN}/fechas/compra/${r.compraId}?t=${r.token}&resultado=exito`);
+    // La pasarela guarda estas direcciones: sin el token de las entradas.
+    expect((pref.cuerpo as { back_urls: { success: string } }).back_urls.success).toBe(`${ORIGEN}/fechas/compra/${r.compraId}?resultado=exito`);
+    expect(JSON.stringify(pref.cuerpo)).not.toContain(r.token);
     expect((await dueno.ticketeraTipo.findUniqueOrThrow({ where: { id: tipoId } })).ocupadas).toBe(2);
   });
 
@@ -180,7 +182,8 @@ describe("pago: entradas nominadas, QR por mail y página para verlas", () => {
     expect(m.adjuntos!.map((a) => [a.cid, a.tipo])).toEqual(entradas.map((x) => [`qr-${x.codigo}`, "image/png"]));
     expect(m.adjuntos![0].contenido.subarray(1, 4).toString()).toBe("PNG");
     for (const x of entradas) expect(m.html).toContain(`src="cid:qr-${x.codigo}"`);
-    expect(m.texto).toContain(`/fechas/compra/${c.compraId}?t=${c.token}`);
+    // En el mail, el token va después de "#": nunca llega a un servidor.
+    expect(m.texto).toContain(`/fechas/compra/${c.compraId}#${c.token}`);
     // Aviso repetido: nada nuevo.
     const total = (await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } })).total;
     expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "p-1", estado: "aprobado", estadoPasarela: "approved", referencia: c.compraId, monto: total, moneda: "ARS" })).toBe("ya-pagada");

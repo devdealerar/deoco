@@ -30,16 +30,12 @@ async function cargar(id: string | null): Promise<TenantResuelto | null> {
   );
 }
 
-/** Sitio público: `labanda.deoco.com` o el dominio propio. Solo dominios verificados. */
+/** Sitio público: `labanda.deoco.com` o el dominio propio. Solo dominios verificados. Una consulta. */
 export async function resolverTenantPorHost(host: string): Promise<TenantResuelto | null> {
-  const id = await idPor("host", host);
-  if (!id) return null;
-  return conTenant(id, async (tx) => {
-    const t = await tx.tenant.findUnique({ where: { id }, select: { id: true, slug: true, estado: true } });
-    if (!t) return null;
-    const principal = await tx.dominio.findFirst({ where: { esPrincipal: true }, select: { dominio: true } });
-    return { ...t, principal: principal?.dominio ?? null };
-  });
+  if (!host) return null;
+  const [fila] = await prisma.$queryRaw<TenantResuelto[]>`
+    SELECT id, slug, estado, principal FROM resolver_banda_por_host(${host})`;
+  return fila ?? null;
 }
 
 /** Panel: `app.deoco.com/b/<slug>/...`. */

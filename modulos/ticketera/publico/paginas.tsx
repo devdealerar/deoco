@@ -4,11 +4,14 @@ import { notFound } from "next/navigation";
 import { urlArchivo } from "@/nucleo/archivos";
 import type { MetadatosPagina, PropsRutaPublica } from "@/nucleo/modulos/contrato";
 import { pasarelaLista } from "@/nucleo/pagos";
-import { compraConToken, MAXIMO_POR_COMPRA } from "../compras";
+import { accesoRecordado } from "@/nucleo/publico/acceso";
+import { CanjearLink } from "@/nucleo/publico/canjear-link";
+import { compraConToken, estadoDeCompra, MAXIMO_POR_COMPRA } from "../compras";
 import { qrSvg } from "../correos";
 import { FECHA_LARGA, formatearPesos } from "../dinero";
-import { desdeAhora, evento as leerEvento, eventos } from "../eventos";
+import { desdeAhora, eventoPublicado, eventos } from "../eventos";
 import ticketera from "../index";
+import { canjearEntradasAccion } from "./acciones";
 import { Comprar } from "./comprar";
 import { c } from "./estilo";
 import { Refrescar } from "./refrescar";
@@ -59,7 +62,7 @@ export async function FechasPublicas({ tenantId }: PropsRutaPublica) {
 
 /** /fechas/<id>: el show y la compra. Borrador o de otra banda: no existe. */
 export async function EventoPublico({ tenantId, params }: PropsRutaPublica) {
-  const e = await leerEvento(tenantId, params.id, { soloPublicados: true });
+  const e = await eventoPublicado(tenantId, params.id);
   if (!e) notFound();
   const { lista } = await pasarelaLista(ticketera, tenantId);
   const aLaVenta = e.tipos.filter((t) => t.venta === "abierta");
@@ -112,15 +115,19 @@ export async function EventoPublico({ tenantId, params }: PropsRutaPublica) {
 }
 
 export async function metadatosEvento({ tenantId, params }: PropsRutaPublica): Promise<MetadatosPagina> {
-  const e = await leerEvento(tenantId, params.id, { soloPublicados: true });
+  const e = await eventoPublicado(tenantId, params.id);
   if (!e) return {};
   return { titulo: e.nombre, descripcion: `${FECHA_LARGA.format(e.fecha)} · ${e.lugar}, ${e.ciudad}`, imagen: e.foto ? foto(e.foto) : undefined };
 }
 
-/** /fechas/compra/<id>?t=<token>: el estado de la compra y, pagada, las entradas con su QR. */
+/**
+ * /fechas/compra/<id>: el estado de la compra y, con acceso (la cookie de este navegador o el
+ * link del mail), las entradas con su QR. Sin acceso, solo el estado: el id no es un secreto.
+ */
 export async function CompraPublica({ tenantId, params, consulta }: PropsRutaPublica) {
-  const compra = await compraConToken(tenantId, params.id, consulta.get("t"));
-  if (!compra) notFound();
+  const token = await accesoRecordado(`entradas-${params.id}`);
+  const compra = token ? await compraConToken(tenantId, params.id, token) : null;
+  if (!compra) return <CompraSinAcceso tenantId={tenantId} id={params.id} resultado={consulta.get("resultado")} />;
   const resultado = consulta.get("resultado");
   const esperando = compra.estado === "RESERVADA" && (resultado === "exito" || compra.estadoCobro === "approved" || resultado === "pendiente");
   const qrs = await Promise.all(compra.entradas.map(async (e) => ({ ...e, svg: await qrSvg(e.codigo) })));
@@ -166,6 +173,36 @@ export async function CompraPublica({ tenantId, params, consulta }: PropsRutaPub
           ))}
         </ul>
       )}
+    </Pagina>
+  );
+}
+
+/** Sin acceso a las entradas (otro navegador, o el link del mail todavía no canjeado). */
+async function CompraSinAcceso({ tenantId, id, resultado }: { tenantId: string; id: string; resultado: string | null }) {
+  const compra = await estadoDeCompra(tenantId, id);
+  if (!compra) notFound();
+  const esperando = compra.estado === "RESERVADA" && (resultado === "exito" || resultado === "pendiente" || compra.estadoCobro === "approved");
+  return (
+    <Pagina titulo="Tus entradas">
+      <CanjearLink canjear={canjearEntradasAccion.bind(null, id)} />
+      <div className="flex flex-col gap-1">
+        <p className="text-xl font-black">{compra.evento.nombre}</p>
+        <p className={c.suave}>
+          {FECHA_LARGA.format(compra.evento.fecha)} · {compra.evento.lugar}, {compra.evento.ciudad}
+        </p>
+      </div>
+      <p className="font-bold" data-estado-compra={compra.estado}>
+        {compra.estado === "PAGADA"
+          ? "Pago recibido. Te mandamos las entradas por mail: abrí el link de ese mail para verlas acá."
+          : esperando
+            ? "Estamos confirmando tu pago. Cuando se acredite, te llegan las entradas por mail."
+            : compra.estado === "VENCIDA"
+              ? "La reserva venció sin pago."
+              : compra.estado === "EN_REVISION"
+                ? "Recibimos un pago que hay que revisar. La banda te contacta."
+                : "Esta compra está esperando el pago."}
+      </p>
+      {esperando && <Refrescar />}
     </Pagina>
   );
 }

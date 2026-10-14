@@ -3,9 +3,8 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { conTenant } from "@/nucleo/db/con-tenant";
 import { registro } from "@/nucleo/modulos";
-import { resolverMetadatos } from "@/nucleo/modulos/metadatos";
+import { nombreDeBanda, resolverMetadatos } from "@/nucleo/modulos/metadatos";
 import { elementosDelMarco } from "@/nucleo/publico/marco";
 
 /** Origen del pedido (`https://labanda.com`): base de las URLs absolutas de la vista previa. */
@@ -79,9 +78,7 @@ async function MarcoNeutro({
   cabecera: ReactNode;
   children: ReactNode;
 }) {
-  const tenant = await conTenant(tenantId, (tx) =>
-    tx.tenant.findUnique({ where: { id: tenantId }, select: { nombre: true } }),
-  );
+  const tenant = await nombreDeBanda(tenantId);
   return (
     <div className="mx-auto max-w-3xl p-6">
       <header className="flex flex-wrap items-center gap-6 border-b pb-4">

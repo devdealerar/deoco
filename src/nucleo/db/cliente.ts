@@ -1,12 +1,16 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { configPool, OPCIONES_TRANSACCION } from "./config";
 
 // Conexión de la aplicación: rol deoco_app, sujeto a RLS.
 // Nunca apuntar DATABASE_URL a un rol dueño de tablas ni a un superusuario.
 function crearCliente() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("Falta DATABASE_URL");
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+  return new PrismaClient({
+    adapter: new PrismaPg({ connectionString: url, ...configPool() }),
+    transactionOptions: OPCIONES_TRANSACCION,
+  });
 }
 
 const global_ = globalThis as unknown as { deocoPrisma?: PrismaClient };

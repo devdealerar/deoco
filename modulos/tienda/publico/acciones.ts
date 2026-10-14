@@ -1,8 +1,11 @@
 "use server";
 
 import { headers } from "next/headers";
+import { accesoRecordado, recordarAcceso } from "@/nucleo/publico/acceso";
+import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import tienda from "../index";
+import { tieneAcceso } from "../acceso";
 import { crearPedido, ErrorCompra, leerCarrito, revisarCarrito, type Revision } from "../pedidos";
 import { iniciarCobro } from "../pagos";
 import { ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
@@ -19,8 +22,13 @@ export type EstadoCarrito = Revision & { disponible: boolean };
 /** Revisa el carrito del navegador contra la base: precios de ahora, publicado, variantes. */
 export async function revisarAccion(crudo: unknown): Promise<EstadoCarrito> {
   const tenantId = await banda();
-  const [revision, { lista }] = [await revisarCarrito(tenantId, leerCarrito(crudo)), await pasarelaLista(tienda, tenantId)];
-  return { ...revision, disponible: lista };
+  try {
+    const [revision, { lista }] = [await revisarCarrito(tenantId, leerCarrito(crudo)), await pasarelaLista(tienda, tenantId)];
+    return { ...revision, disponible: lista };
+  } catch (e) {
+    // Sin revisión no se puede seguir: el fan ve la frase, no el error.
+    return { lineas: [], problemas: [mensajeParaElPublico(e, "tienda: carrito")], subtotal: 0, envio: 0, envios: [], total: 0, disponible: false };
+  }
 }
 
 export type EstadoCheckout = { problemas?: string[]; pedidoId?: string; redireccion?: string };
@@ -54,6 +62,8 @@ export async function confirmarAccion(_: EstadoCheckout, fd: FormData): Promise<
       provincia: campo("provincia"),
       codigoPostal: campo("codigoPostal"),
     });
+    // Este navegador queda con acceso al pedido: al volver de la pasarela lo ve y puede pagarlo.
+    await recordarAcceso(`pedido-${pedido.id}`, pedido.token);
     try {
       // El fan va directo a la pasarela de la banda, con el cobro creado con SUS credenciales.
       return { pedidoId: pedido.id, redireccion: await iniciarCobro(tienda, tenantId, pedido.id, await origen()) };
@@ -64,17 +74,28 @@ export async function confirmarAccion(_: EstadoCheckout, fd: FormData): Promise<
   } catch (e) {
     if (e instanceof ErrorCompra) return { problemas: e.problemas };
     if (e instanceof ErrorPasarela) return { problemas: [e.message] };
-    throw e;
+    return { problemas: [mensajeParaElPublico(e, "tienda: checkout")] };
   }
 }
 
 /** Reintentar el pago de un pedido PENDIENTE (desde su página). */
 export async function pagarAccion(pedidoId: string): Promise<{ redireccion?: string; error?: string }> {
   const tenantId = await banda();
+  if (!(await tieneAcceso(tenantId, pedidoId, await accesoRecordado(`pedido-${pedidoId}`)))) {
+    return { error: "Para pagar este pedido, abrí el link que te mandamos por mail." };
+  }
   try {
     return { redireccion: await iniciarCobro(tienda, tenantId, pedidoId, await origen()) };
   } catch (e) {
     if (e instanceof ErrorPasarela) return { error: "No pudimos conectar con la pasarela de pago. Probá de nuevo en un rato." };
-    throw e;
+    return { error: mensajeParaElPublico(e, "tienda: pagar") };
   }
+}
+
+/** Canjea el token del link del mail por el acceso en este navegador. */
+export async function canjearPedidoAccion(pedidoId: string, token: string): Promise<boolean> {
+  const tenantId = await banda();
+  if (!(await tieneAcceso(tenantId, pedidoId, token))) return false;
+  await recordarAcceso(`pedido-${pedidoId}`, token);
+  return true;
 }

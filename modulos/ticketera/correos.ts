@@ -23,7 +23,8 @@ export async function alPagarseCompra(evento: Evento) {
   });
   if (!datos || datos.c.estado !== "PAGADA") return;
   const { c, banda, dominio } = datos;
-  const url = dominio ? `${sitio(dominio)}/fechas/compra/${c.id}?t=${c.token}` : null;
+  // El token va después de "#": el navegador nunca lo manda a un servidor (ni en Referer ni en logs).
+  const url = dominio ? `${sitio(dominio)}/fechas/compra/${c.id}#${c.token}` : null;
   const cuando = FECHA_LARGA.format(c.evento.fecha);
   const adjuntos = await Promise.all(
     c.entradas.map(async (e) => ({ nombre: `entrada-${e.codigo}.png`, tipo: "image/png", cid: `qr-${e.codigo}`, contenido: await qrPng(e.codigo) })),

@@ -1,8 +1,7 @@
 // Título y vista previa de las páginas públicas. El sitio público es la cara de la banda:
 // sin nada declarado, el título es el nombre de la banda, nunca "Deoco".
-import { conTenant } from "@/nucleo/db/con-tenant";
 import type { MetadatosPagina } from "./contrato";
-import { modulosPrendidos } from "./encendido";
+import { bandaBasica, modulosPrendidos } from "./encendido";
 import { registro as registroGlobal } from "./index";
 import type { Registro } from "./registro";
 
@@ -27,6 +26,9 @@ async function seguro(moduloId: string, fn: () => MetadatosPagina | Promise<Meta
   }
 }
 
+/** Nombre de la banda: una lectura por pedido (metadatos y marco). */
+export const nombreDeBanda = async (tenantId: string) => ({ nombre: (await bandaBasica(tenantId)).nombre ?? undefined });
+
 export async function resolverMetadatos(
   tenantId: string,
   path: string,
@@ -35,7 +37,7 @@ export async function resolverMetadatos(
 ): Promise<MetadatosResueltos> {
   const [prendidos, tenant] = [
     await modulosPrendidos(tenantId, reg),
-    await conTenant(tenantId, (tx) => tx.tenant.findUnique({ where: { id: tenantId }, select: { nombre: true } })),
+    await nombreDeBanda(tenantId),
   ];
   const delSitio =
     reg.metadatosPublicos && prendidos.has(reg.metadatosPublicos.moduloId)

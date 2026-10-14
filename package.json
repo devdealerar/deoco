@@ -20,7 +20,8 @@
     "pretest:e2e": "node scripts/descubrir-modulos.mjs",
     "pretypecheck": "node scripts/descubrir-modulos.mjs",
     "db:migrar": "node scripts/descubrir-modulos.mjs && prisma migrate dev",
-    "db:demo": "node scripts/descubrir-modulos.mjs && tsx prisma/semilla-demo.ts"
+    "db:demo": "node scripts/descubrir-modulos.mjs && tsx prisma/semilla-demo.ts",
+    "test:carga": "node scripts/descubrir-modulos.mjs && vitest run --config vitest.carga.config.mts"
   },
   "dependencies": {
     "@fontsource/fraunces": "^5.3.0",

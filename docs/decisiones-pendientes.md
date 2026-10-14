@@ -133,3 +133,25 @@ y por qué. Si alguna no va, se cambia.
     (genérico, hasta 30 y 1 MB). Los servicios de correo bloquean imágenes `data:`.
 13. **Shows a la vista hasta 6 h después de empezar** (la noche del show sigue en Fechas y en la
     puerta).
+
+## G1 · Apertura de venta y token
+
+1. **Pool 40, esperar 10 s, transacción 15 s.** Postgres trae 100 conexiones: 40 de la app + 5 del
+   back office dejan lugar para migraciones, consola y las reservadas. Una compra son transacciones
+   de milisegundos: 40 alcanzan para miles por segundo. Esperar 10 s (no 2) porque en un pico es
+   mejor que el fan espere a que reciba un error. Se cambia con `DEOCO_DB_CONEXIONES`.
+2. **Caché por pedido** (`cache` de React) solo para lecturas: módulos prendidos + nombre de la
+   banda, credenciales de cobro, y en el sitio el show y el producto. El panel lee sin caché el
+   show (después de guardar, se ve lo nuevo).
+3. **Lo que no es "agotada" ni un dato mal cargado** se muestra como "Hay mucha gente comprando en
+   este momento. Probá de nuevo en unos segundos." (si es carga) o "No pudimos completar la
+   operación…" (si no). El detalle va al log.
+4. **Acceso a entradas y pedidos con una cookie del sitio de la banda** (httpOnly, un año, solo ese
+   sitio) + link del mail con el token después de "#". Elegí esto antes que "la vuelta del pago
+   no muestra nada": quien compró ve sus entradas al volver de la pasarela, en el mismo navegador,
+   sin que el token pase por un tercero. Es la única cookie de los sitios públicos y no es una
+   sesión: da acceso a esa compra y nada más.
+5. **La prueba de carga por HTTP** (`npm run test:carga`) no corre con `npm test`: incluye un
+   `next build`. En este contenedor, 300 cargas a la vez de la página del show dan p95 ≈ 5 s
+   (CPU del contenedor, no la base); en el servidor de verdad hay que medirlo (lista de
+   verificación).

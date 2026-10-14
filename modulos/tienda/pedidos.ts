@@ -2,6 +2,7 @@
 // decide nada: al revisarlo y al confirmar, todo se recalcula contra la base de la banda
 // (precio, que siga publicado, que la variante exista). El pedido nace PENDIENTE con su copia
 // de precios y envíos.
+import { randomBytes } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { Modulo } from "@/nucleo/modulos/contrato";
@@ -201,6 +202,7 @@ export async function crearPedido(tienda: Modulo, tenantId: string, lineas: Line
         envio: revision.envio,
         envios: revision.envios as unknown as Prisma.InputJsonValue,
         total: revision.total,
+        token: randomBytes(32).toString("hex"),
       },
     });
     for (const l of revision.lineas) {

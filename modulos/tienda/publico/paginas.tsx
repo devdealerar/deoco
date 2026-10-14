@@ -1,5 +1,10 @@
 /* eslint-disable @next/next/no-img-element -- fotos propias ya optimizadas (versión web) */
 import Link from "next/link";
+import { accesoRecordado } from "@/nucleo/publico/acceso";
+import { CanjearLink } from "@/nucleo/publico/canjear-link";
+import { tieneAcceso } from "../acceso";
+import { canjearPedidoAccion } from "./acciones";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { MetadatosPagina, PropsRutaPublica } from "@/nucleo/modulos/contrato";
@@ -73,10 +78,11 @@ export async function CatalogoPublico({ tenantId }: PropsRutaPublica) {
   );
 }
 
-async function publicado(tenantId: string, id: string) {
+/** Una lectura por pedido (la piden los metadatos y la ficha). Solo lectura pública. */
+const publicado = cache(async (tenantId: string, id: string) => {
   if (!UUID.test(id)) return null;
   return conTenant(tenantId, (tx) => tx.tiendaProducto.findFirst({ where: { id, publicado: true }, include: { productoBase: true } }));
-}
+});
 
 /** /tienda/<id>: ficha. Borrador o de otra banda: no existe. */
 export async function FichaProducto({ tenantId, params }: PropsRutaPublica) {
@@ -136,15 +142,36 @@ export function CheckoutPublico(_: PropsRutaPublica) {
   );
 }
 
-/** /tienda/pedido/<id>: en qué anda el pedido. Sin datos personales del fan (el id no es un secreto fuerte). */
+/**
+ * /tienda/pedido/<id>: en qué anda el pedido. El detalle y "pagar", solo con acceso (la cookie del
+ * navegador que compró o el link del mail); sin acceso, solo el estado: el id no es un secreto.
+ */
 export async function PedidoPublico({ tenantId, params, consulta }: PropsRutaPublica) {
   if (!UUID.test(params.id)) notFound();
   const pedido = await conTenant(tenantId, (tx) => tx.tiendaPedido.findUnique({ where: { id: params.id }, include: { items: true } }));
   if (!pedido) notFound();
+  const conAcceso = await tieneAcceso(tenantId, pedido.id, await accesoRecordado(`pedido-${pedido.id}`));
   const resultado = consulta.get("resultado");
   const estado = estadoParaFan(pedido, resultado);
   const esperandoAcreditacion = pedido.estado === "PENDIENTE" && (resultado === "exito" || pedido.estadoCobro === "approved");
-  const puedePagar = pedido.estado === "PENDIENTE" && !esperandoAcreditacion;
+  const puedePagar = conAcceso && pedido.estado === "PENDIENTE" && !esperandoAcreditacion;
+  if (!conAcceso) {
+    return (
+      <Pagina titulo="Tu pedido">
+        <CanjearLink canjear={canjearPedidoAccion.bind(null, pedido.id)} />
+        <div className="flex flex-col gap-2" data-estado-pedido={pedido.estado}>
+          <p className="text-xl font-black" data-titulo-estado>
+            {estado.titulo}
+          </p>
+          <p className={c.suave}>{estado.detalle}</p>
+          <p className={c.suave} data-sin-acceso>
+            Para ver el detalle de tu pedido, abrí el link que te mandamos por mail.
+          </p>
+        </div>
+        {esperandoAcreditacion && <Refrescar />}
+      </Pagina>
+    );
+  }
   return (
     <Pagina titulo="Tu pedido">
       <div className="flex flex-col gap-2" data-estado-pedido={pedido.estado}>

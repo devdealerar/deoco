@@ -7,6 +7,7 @@
 //   - pasarelaLista(modulo, tenantId): ¿la banda puede cobrar?
 //   - crearCobro(modulo, tenantId, cobro): adónde mandar al comprador.
 //   - cobroDelAviso(modulo, aviso): del aviso, el cobro CONSULTADO a la API (fuente de verdad).
+import { cache } from "react";
 import { urlAviso } from "@/nucleo/avisos";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
@@ -41,12 +42,16 @@ function exigirCobrador(modulo: Modulo, reg: Registro) {
 }
 
 /** Credenciales de la banda para esa pasarela (solo las cargadas). Nunca salen del núcleo. */
-async function credencialesDe(tenantId: string, pasarela: Pasarela): Promise<Record<string, string>> {
+const credencialesDe = (tenantId: string, pasarela: Pasarela) => credencialesPorId(tenantId, pasarela.id);
+
+/** Una lectura por pedido (la piden la página, el formulario y el cobro). */
+const credencialesPorId = cache(async (tenantId: string, pasarelaId: string): Promise<Record<string, string>> => {
+  const pasarela = pasarelaDe(pasarelaId)!;
   const filas = await conTenant(tenantId, (tx) =>
     tx.secreto.findMany({ where: { moduloId: ID_COBROS, clave: { in: pasarela.credenciales.map((c) => c.clave) } } }),
   );
   return Object.fromEntries(filas.map((f) => [f.clave, descifrar(f.cifrado, contextoSecreto(tenantId, ID_COBROS, f.clave))]));
-}
+});
 
 /**
  * ¿La banda puede cobrar con este módulo? El módulo prendido y su pasarela (hoy, Mercado Pago)

@@ -43,7 +43,8 @@ const celda = "padding:6px 0;border-bottom:1px solid #e7e5e4;vertical-align:top"
 
 export function correoAlFan({ pedido, banda, dominio }: Datos, contacto: Contacto) {
   const envios = pedido.envios as { monto: number; productos: string[] }[];
-  const url = dominio ? `${sitio(dominio)}/tienda/pedido/${pedido.id}` : null;
+  // El token va después de "#": el navegador nunca lo manda a un servidor (ni en Referer ni en logs).
+  const url = dominio ? `${sitio(dominio)}/tienda/pedido/${pedido.id}#${pedido.token}` : null;
   const [linea1, linea2] = direccion(pedido);
   const renglones = pedido.items.map((i) => ({
     nombre: i.nombreProducto,
@@ -198,7 +199,7 @@ export async function alDespacharseOrden(evento: Evento) {
   if (!datos) return;
   const { orden, pedido, items, otras, faltan, banda, dominio } = datos;
   const contacto = await contactoDeTienda(evento.tenantId);
-  const url = dominio ? `${sitio(dominio)}/tienda/pedido/${pedido.id}` : null;
+  const url = dominio ? `${sitio(dominio)}/tienda/pedido/${pedido.id}#${pedido.token}` : null;
   const renglones = items.map((i) => {
     const variante = describirVariante(i.variante as Record<string, string>);
     return `${i.nombreProducto} × ${i.cantidad}${variante ? ` (${variante})` : ""}`;

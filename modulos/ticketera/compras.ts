@@ -9,6 +9,7 @@ import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { emitir } from "@/nucleo/eventos/bus";
 import { type CobroConsultado, crearCobro, ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
+import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { ErrorTicketera, esUuid } from "./eventos";
 import ticketera from "./index";
 
@@ -79,8 +80,11 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
     if (quedan < d.cantidad) {
       throw new ErrorTicketera(quedan === 0 ? `"${tipo.nombre}" está agotada.` : `De "${tipo.nombre}" quedan ${quedan}.`);
     }
-    // Si dos llegan juntas, la base corta igual (CHECK ocupadas <= cupo).
-    await sumarOcupadas(tx, tipo.id, d.cantidad);
+    // Si dos llegan juntas, la base corta igual (CHECK ocupadas <= cupo): para el fan, agotada.
+    await sumarOcupadas(tx, tipo.id, d.cantidad).catch((e) => {
+      if (String(e?.message).includes("ticketera_tipo_cupo")) throw new ErrorTicketera(`"${tipo.nombre}" está agotada.`);
+      throw e;
+    });
     return tx.ticketeraCompra.create({
       data: {
         tenantId,
@@ -99,7 +103,8 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
     });
   });
 
-  const volver = (r: string) => `${origen}/fechas/compra/${compra.id}?t=${compra.token}&resultado=${r}`;
+  // Sin el token: la pasarela guarda estas direcciones. Al volver, la página lo lee de la cookie.
+  const volver = (r: string) => `${origen}/fechas/compra/${compra.id}?resultado=${r}`;
   try {
     const cobro = await crearCobro(ticketera, tenantId, {
       referencia: compra.id,
@@ -122,6 +127,24 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
     });
     if (e instanceof ErrorPasarela) throw new ErrorTicketera("No pudimos conectar con la pasarela de pago. Probá de nuevo en un rato.");
     throw e;
+  }
+}
+
+/**
+ * Lo que corre la compra desde el sitio: nunca tira. Al fan le llega "agotada", "quedan N", un
+ * dato a corregir o "hay mucha gente comprando, probá de nuevo"; jamás un error técnico.
+ */
+export async function intentarComprar(
+  tenantId: string,
+  datos: DatosCompra,
+  origen: string,
+  ahora = new Date(),
+): Promise<{ ok: true; compraId: string; token: string; redireccion: string } | { ok: false; error: string }> {
+  try {
+    return { ok: true, ...(await comprar(tenantId, datos, origen, ahora)) };
+  } catch (e) {
+    if (e instanceof ErrorTicketera) return { ok: false, error: e.message };
+    return { ok: false, error: mensajeParaElPublico(e, "ticketera: compra") };
   }
 }
 
@@ -193,7 +216,18 @@ export async function registrarPago(tenantId: string, pasarelaId: string, cobro:
   });
 }
 
-/** La compra para la página del fan, solo con el token del link. */
+/** Lo mínimo de una compra sin su token (al volver de la pasarela en otro navegador): el estado. */
+export async function estadoDeCompra(tenantId: string, id: string) {
+  if (!esUuid(id)) return null;
+  return conTenant(tenantId, (tx) =>
+    tx.ticketeraCompra.findUnique({
+      where: { id },
+      select: { estado: true, estadoCobro: true, evento: { select: { nombre: true, fecha: true, lugar: true, ciudad: true } } },
+    }),
+  );
+}
+
+/** La compra para la página del fan, solo con su token (de la cookie o del link del mail). */
 export async function compraConToken(tenantId: string, id: string, token: string | null) {
   if (!esUuid(id) || !token) return null;
   const c = await conTenant(tenantId, (tx) =>

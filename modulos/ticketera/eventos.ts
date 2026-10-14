@@ -1,5 +1,6 @@
 // Shows y tipos de entrada (panel de la banda) y lo que se ve de ellos (sitio y consulta).
 import { borrarArchivos, ErrorArchivo, guardarArchivo, marcarPublicos } from "@/nucleo/archivos";
+import { cache } from "react";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 
 export class ErrorTicketera extends Error {}
@@ -195,6 +196,12 @@ export async function evento(tenantId: string, id: string, opciones: { soloPubli
   if (!esUuid(id)) return null;
   return (await eventos(tenantId, { ...opciones, ids: [id] }))[0] ?? null;
 }
+
+/**
+ * Un show publicado, para el sitio: una lectura por pedido (la piden los metadatos y la
+ * página). Solo para lectura pública: el panel lee sin caché (después de guardar, lo nuevo).
+ */
+export const eventoPublicado = cache((tenantId: string, id: string) => evento(tenantId, id, { soloPublicados: true }));
 
 /** Los shows se muestran hasta 6 h después de empezar (la noche del show sigue a la vista). */
 export const desdeAhora = (ahora = new Date()) => new Date(ahora.getTime() - 6 * 3600_000);
