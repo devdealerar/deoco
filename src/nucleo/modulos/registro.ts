@@ -1,3 +1,4 @@
+import { type DefinicionRol, FORMA_ROL, ROLES_NUCLEO } from "@/nucleo/acceso/roles";
 import { problemaNombreEvento } from "@/nucleo/eventos/nombre";
 import type {
   CabeceraPublica,
@@ -74,7 +75,12 @@ export type Registro = {
   avisoPlataforma(moduloId: string, path: string): AvisoPlataformaEncontrado | undefined;
   /** Tareas periódicas de todos los módulos. */
   tareasPeriodicas: readonly { moduloId: string; definicion: DefinicionTareaPeriodica }[];
+  /** Roles: los del núcleo (sin módulos) y los que declaran los módulos (con quién los declara). */
+  roles: readonly RolRegistrado[];
+  rol(clave: string): RolRegistrado | undefined;
 };
+
+export type RolRegistrado = DefinicionRol & { moduloIds: string[] };
 
 export class ErrorRegistro extends Error {
   constructor(moduloId: string, detalle: string) {
@@ -156,6 +162,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   const avisosPlataforma = new Map<string, (path: string) => RutaEncontrada<unknown> | undefined>();
   const definicionesPlataforma = new Map<RutaModulo<unknown>, DefinicionAvisoPlataforma>();
   const tareasPeriodicas: Registro["tareasPeriodicas"][number][] = [];
+  const roles = new Map<string, RolRegistrado>(ROLES_NUCLEO.map((r) => [r.clave, { ...r, moduloIds: [] }]));
 
   for (const m of modulos) {
     if (!ID.test(m.id)) throw new ErrorRegistro(m.id, "id inválido (minúsculas, números y guiones)");
@@ -163,6 +170,16 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     if (ID_RESERVADOS.includes(m.id)) throw new ErrorRegistro(m.id, "id reservado por el núcleo");
     if (m.dependencias?.includes(m.id)) throw new ErrorRegistro(m.id, "no puede depender de sí mismo");
     porId.set(m.id, m);
+
+    for (const r of m.roles ?? []) {
+      if (!FORMA_ROL.test(r.clave)) throw new ErrorRegistro(m.id, `rol "${r.clave}": MAYÚSCULAS y guiones bajos (2 a 30)`);
+      if (ROLES_NUCLEO.some((n) => n.clave === r.clave)) throw new ErrorRegistro(m.id, `rol "${r.clave}": es del núcleo`);
+      if (!r.etiqueta.trim()) throw new ErrorRegistro(m.id, `rol "${r.clave}": falta la etiqueta`);
+      const previo = roles.get(r.clave);
+      // El mismo nombre es el mismo rol (con la etiqueta del primero que lo declara).
+      if (previo) previo.moduloIds.push(m.id);
+      else roles.set(r.clave, { ...r, moduloIds: [m.id] });
+    }
 
     for (const p of m.permisos) {
       if (!CLAVE_PERMISO.test(p.clave)) {
@@ -397,7 +414,15 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     }
   }
 
+  // Un permiso solo puede dárselo a roles que existen (del núcleo o de algún módulo del build).
+  for (const p of permisos.values()) {
+    const falta = p.rolesPorDefecto.find((r) => !roles.has(r));
+    if (falta) throw new ErrorRegistro(p.moduloId, `permiso "${p.clave}": el rol "${falta}" no existe (ni del núcleo ni de un módulo)`);
+  }
+
   return {
+    roles: [...roles.values()],
+    rol: (clave) => roles.get(clave),
     modulos: [...porId.values()],
     modulo: (id) => porId.get(id),
     permiso: (clave) => permisos.get(clave),

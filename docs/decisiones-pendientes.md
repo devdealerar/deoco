@@ -113,6 +113,25 @@ y por qué. Si alguna no va, se cambia.
    si está publicado o tiene cambios sin publicar. Pendientes: sitio sin publicar, cobro sin
    conectar, pagos para revisar, sin productos publicados, elegir plan en la prueba, cuota impaga.
 
+## P4 · Endurecimiento
+
+1. **Limpieza de correos** (una vez por día, desde el barrido, en tandas de 5.000): solo lo
+   ENVIADO. A los `DEOCO_CORREO_DIAS_ADJUNTOS` (7) se vacían los adjuntos, a los
+   `DEOCO_CORREO_DIAS_CUERPO` (90) el html y el texto (quedan para quién, asunto, fecha y
+   estado), a los `DEOCO_CORREO_DIAS_BORRAR` (365) se borra la fila. PENDIENTE, ENVIANDO y FALLIDO
+   no se tocan nunca (un FALLIDO "se resuelve" cuando se reenvía y pasa a ENVIADO). Un plazo
+   inválido usa el de por defecto, y nunca uno es menor que el anterior. `evento` no se limpia
+   (no se pidió; sigue en la lista de "tablas que crecen").
+2. **Roles a los módulos**: se hizo (no rompía más de lo que arreglaba). `membresia.rol` pasó de
+   enum a texto con forma (`^[A-Z][A-Z_]{1,29}$`, CHECK en la base); qué roles existen lo valida
+   el registro (al arrancar: todo `rolesPorDefecto` nombra uno que existe) y el back office (al
+   asignar). PUERTA lo declara la ticketera; COMERCIAL, tienda y ticketera (mismo nombre, mismo
+   rol). **Cambio de comportamiento**: un PUERTA en una banda sin la ticketera ya no ve el
+   resumen de la tienda ni del sitio (su rol no está vigente). Es lo que pedía la anotación ("un
+   rol sin módulo no da permisos"); antes "veía" por un rol que no tenía sentido ahí.
+3. El staff puede asignar un rol cuyo módulo está apagado (se ve "(módulo apagado)"): sirve para
+   dejar armado el equipo antes de prender la ticketera.
+
 ## A1 · Barrido de pendientes
 
 1. **Cada cuánto**: al arrancar y cada 60 s (`DEOCO_BARRIDO_SEGUNDOS`, mínimo 5). Barato: una
@@ -333,6 +352,8 @@ y por qué. Si alguna no va, se cambia.
 ## Bloque 4 · Anotado, sin arreglar
 
 ### 1. Roles PUERTA y COMERCIAL en el núcleo
+
+> **Hecho en P4** (ver "P4 · Endurecimiento"). Queda como registro de lo que se analizó.
 
 **Dónde están.** `enum Rol` de `prisma/schema/nucleo.prisma` (TITULAR, EDITOR, COMERCIAL,
 PUERTA, LECTURA), las listas de roles del back office (`src/app/admin/bandas/[slug]/page.tsx`,

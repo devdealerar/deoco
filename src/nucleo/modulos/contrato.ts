@@ -1,10 +1,11 @@
 // Contrato de módulos. Es lo único que un módulo importa del núcleo (además de
 // conTenant y los helpers de acceso). Un módulo nunca importa código de otro.
 import type { ReactNode } from "react";
-import type { Prisma, Rol } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import type { AccesoPanel } from "@/nucleo/acceso/panel";
+import type { DefinicionRol, Rol } from "@/nucleo/acceso/roles";
 
-export type { Rol };
+export type { DefinicionRol, Rol };
 
 /**
  * Permiso con forma `modulo.recurso.accion`.
@@ -270,6 +271,12 @@ export type Modulo = {
   id: string;
   nombre: string;
   permisos: DefinicionPermiso[];
+  /**
+   * Roles de negocio que trae el módulo (PUERTA, COMERCIAL…), además de los del núcleo
+   * (TITULAR, EDITOR, LECTURA). Dos módulos pueden declarar el mismo: es el mismo rol. Un rol
+   * cuyos módulos están todos apagados para la banda no da ningún permiso.
+   */
+  roles?: DefinicionRol[];
   rutasPanel?: RutaModulo<PropsRutaPanel>[];
   rutasPublicas?: RutaModulo<PropsRutaPublica>[];
   /** Pantallas del back office (solo staff), en /admin/m/<id><ruta>. */

@@ -9,6 +9,7 @@
 // "toman" con un update condicional antes de procesarse.
 import { prisma } from "@/nucleo/db/cliente";
 import { CORREO_COLGADO_MS, retomarCorreos } from "@/nucleo/correo";
+import { limpiarCorreos } from "@/nucleo/correo/limpieza";
 import { revisarDominios, type ConsultaDns } from "@/nucleo/dominios";
 import { retomarEventos } from "@/nucleo/eventos/bus";
 import { registro as registroGlobal } from "@/nucleo/modulos";
@@ -56,8 +57,21 @@ export async function barrer(opciones: { ahora?: Date; dns?: ConsultaDns } = {})
     return { revisados: 0, noApuntan: 0 };
   });
   const tareas = await correrTareas(ahora);
+  // Una vez por día (en este proceso): la limpieza de correos enviados.
+  if (ahora.getTime() - ultimaLimpieza >= 86_400_000) {
+    ultimaLimpieza = ahora.getTime();
+    const l = await limpiarCorreos(ahora).catch((e) => {
+      console.error("[barrido] limpieza de correos:", e);
+      return null;
+    });
+    if (l && (l.adjuntos || l.cuerpos || l.borrados)) {
+      console.log(`[barrido] correos: ${l.adjuntos} sin adjuntos, ${l.cuerpos} sin cuerpo, ${l.borrados} borrados`);
+    }
+  }
   return { bandas: bandas.length, dominios, tareas };
 }
+
+let ultimaLimpieza = 0;
 
 let corriendo = false;
 let reloj: NodeJS.Timeout | undefined;

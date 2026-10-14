@@ -16,6 +16,11 @@ const VALIDAR = "ticketera.puerta.validar";
 const ticketera: Modulo = {
   id: "ticketera",
   nombre: "Entradas",
+  // Roles de negocio de la ticketera: quien valida en la puerta, y quien maneja la venta.
+  roles: [
+    { clave: "PUERTA", etiqueta: "Puerta", descripcion: "Valida entradas en la puerta del show." },
+    { clave: "COMERCIAL", etiqueta: "Comercial", descripcion: "Maneja precios y ventas." },
+  ],
   permisos: [
     { clave: VER, rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL", "LECTURA"] },
     { clave: "ticketera.eventos.editar", rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL"] },

@@ -8,7 +8,7 @@ export type ItemNavegacion = { etiqueta: string; href: string; moduloId: string 
 export function menuPanel(reg: Registro, prendidos: Set<string>, acceso: Acceso, slug: string): ItemNavegacion[] {
   return reg.navegacion
     .filter((n) => !n.publica && !n.admin && !n.externa && prendidos.has(n.moduloId))
-    .filter((n) => !n.permiso || accesoTienePermiso(acceso, reg.permiso(n.permiso)))
+    .filter((n) => !n.permiso || accesoTienePermiso(acceso, reg.permiso(n.permiso), prendidos, reg))
     .map((n) => ({ etiqueta: n.etiqueta, href: `/b/${slug}${n.href}`, moduloId: n.moduloId }));
 }
 

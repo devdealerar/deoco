@@ -31,6 +31,8 @@ const VER = "tienda.producto.ver";
 const tienda: Modulo = {
   id: "tienda",
   nombre: "Tienda",
+  // Rol de negocio de la tienda (el mismo que el de la ticketera: es el mismo rol).
+  roles: [{ clave: "COMERCIAL", etiqueta: "Comercial", descripcion: "Maneja precios y ventas." }],
   permisos: [
     { clave: VER, rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL", "PUERTA", "LECTURA"] },
     // Productos y precios: el responsable comercial es el que fija precios.

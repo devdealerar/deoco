@@ -1,3 +1,4 @@
+import { registro } from "@/nucleo/modulos";
 import { problemaDeSubdominio } from "@/nucleo/tenant/reservados";
 import { Prisma, type EstadoTenant } from "@/generated/prisma/client";
 import { claveTemporal } from "@/nucleo/auth/clave-temporal";
@@ -180,7 +181,7 @@ export async function detalleBanda(slug: string) {
     },
   });
   if (!banda) return null;
-  const orden = ["TITULAR", "EDITOR", "COMERCIAL", "PUERTA", "LECTURA"];
+  const orden = registro().roles.map((r) => r.clave);
   banda.membresias.sort((a, b) => orden.indexOf(a.rol) - orden.indexOf(b.rol) || a.usuario.email.localeCompare(b.usuario.email));
   return banda;
 }
@@ -231,12 +232,10 @@ export async function marcarPrincipal(staffId: string, tenantId: string, dominio
 
 // ── miembros ───────────────────────────────────────────────────────────────
 
-const ROLES = ["TITULAR", "EDITOR", "COMERCIAL", "PUERTA", "LECTURA"] as const;
-type Rol = (typeof ROLES)[number];
-
-function rolValido(rol: string): Rol {
-  if (!ROLES.includes(rol as Rol)) throw new ErrorFormulario("Elegí un rol.");
-  return rol as Rol;
+/** Un rol que existe: del núcleo o declarado por un módulo de este build. */
+function rolValido(rol: string): string {
+  if (!registro().rol(rol)) throw new ErrorFormulario("Elegí un rol.");
+  return rol;
 }
 
 /** Bloquea la fila de la banda: dos cambios de miembros a la vez no la dejan sin titular. */

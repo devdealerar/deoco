@@ -1,4 +1,5 @@
-import type { EstadoTenant, Rol } from "@/generated/prisma/client";
+import type { EstadoTenant } from "@/generated/prisma/client";
+import type { Rol } from "./roles";
 import { prisma } from "@/nucleo/db/cliente";
 
 export type BandaVisible = {

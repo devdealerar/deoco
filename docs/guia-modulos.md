@@ -165,6 +165,11 @@ después de responder. Validá direcciones con `esEmail` (la misma regla que el 
 
 ## 4. Permisos
 
+Roles: el núcleo trae TITULAR, EDITOR y LECTURA. Un rol de negocio lo declara el módulo que lo
+usa: `roles: [{ clave: "PUERTA", etiqueta: "Puerta", descripcion }]` (MAYÚSCULAS; el mismo nombre
+en dos módulos es el mismo rol). `rolesPorDefecto` solo puede nombrar roles que existen. Un rol
+de módulo no da permisos en una banda donde ninguno de sus módulos está prendido.
+
 - Formato `<id>.recurso.accion`. Un módulo solo declara permisos con su propio prefijo.
 - `rolesPorDefecto` dice qué roles lo traen. El staff de Deoco los pasa todos, salvo los
   `exclusivoTitular`.

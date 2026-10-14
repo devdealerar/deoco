@@ -41,6 +41,9 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - Rol por pedido: sesión + tenant del proxy → `membresia` (`src/nucleo/acceso/resolver.ts`).
 - En páginas y rutas del panel: `accesoPanel()`, `exigirPermiso()`, `exigirTitular()`,
   `puedeEnPedido()` (`src/nucleo/acceso/panel.ts`). Fuera del pedido: `puede(usuarioId, tenantId, permiso)`.
+- Roles: TITULAR, EDITOR, LECTURA del núcleo (`src/nucleo/acceso/roles.ts`); los demás los declara
+  un módulo (`roles`; PUERTA ticketera, COMERCIAL tienda+ticketera). `membresia.rol` es texto; un
+  rol cuyos módulos están apagados no da permisos (`rolVigente`).
 - Permisos: los declara cada módulo en su contrato. `exclusivoTitular` = ni otro rol
   ni el staff (pasarela de cobro). La excepción del staff está en `src/nucleo/permisos/puede.ts`.
   Un permiso de un módulo apagado para la banda es siempre false.
@@ -173,6 +176,9 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - `emitir(..., { unica })`: idempotencia por (banda, nombre, clave) — `evento.claveUnica`.
 
 ## Correo, staff en módulos y links firmados
+
+- Limpieza diaria (barrido, `src/nucleo/correo/limpieza.ts`): solo ENVIADO; adjuntos 7 d, cuerpo
+  90 d, fila 365 d (`DEOCO_CORREO_DIAS_*`).
 
 - Correo (`src/nucleo/correo`): `enviarCorreo(contrato, tenantId, correo, { tx?, unica? })` (sin
   `responderA`, responde al titular de la banda; con

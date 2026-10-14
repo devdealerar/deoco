@@ -25,7 +25,6 @@ const ESTADOS = [
   { valor: "SUSPENDIDO", texto: "Suspendido (panel cerrado salvo pago; sitio sigue)" },
   { valor: "ARCHIVADO", texto: "Archivado (panel y sitio dejan de responder)" },
 ];
-const ROLES = ["TITULAR", "EDITOR", "COMERCIAL", "PUERTA", "LECTURA"].map((r) => ({ valor: r, texto: r }));
 const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
 
 export default async function Banda({ params }: { params: Promise<{ slug: string }> }) {
@@ -35,6 +34,12 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
   if (!banda) notFound();
   const id = banda.id;
   const prendidos = new Set(banda.modulos.map((m) => m.moduloId));
+  // Roles: los del núcleo y los de los módulos del build. Uno cuyo módulo está apagado para la
+  // banda se puede asignar, pero no da permisos hasta que se prenda.
+  const ROLES = registro().roles.map((r) => ({
+    valor: r.clave,
+    texto: r.moduloIds.length && !r.moduloIds.some((m) => prendidos.has(m)) ? `${r.clave} (módulo apagado)` : r.clave,
+  }));
   const enLinea = { puedeEditar: true, enLinea: true, variante: "secundario" as const };
 
   return (

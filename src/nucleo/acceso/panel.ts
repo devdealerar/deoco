@@ -69,8 +69,9 @@ export const prendidosDelPedido = cache(modulosPrendidos);
 /** Igual que puede(), pero con el acceso y los módulos ya resueltos en este pedido. */
 async function tienePermiso(acceso: AccesoPanel, permiso: string): Promise<boolean> {
   const def = registro().permiso(permiso);
-  if (!def || !(await prendidosDelPedido(acceso.tenantId)).has(def.moduloId)) return false;
-  return accesoTienePermiso(acceso, def);
+  const prendidos = await prendidosDelPedido(acceso.tenantId);
+  if (!def || !prendidos.has(def.moduloId)) return false;
+  return accesoTienePermiso(acceso, def, prendidos);
 }
 
 /** 403 si el usuario no tiene `permiso` en la banda del pedido (o su módulo está apagado). */

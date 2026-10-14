@@ -87,6 +87,11 @@ El núcleo no define permisos de negocio: define el mecanismo. Cada módulo decl
 | Solo lectura | Mira todo | No modifica nada |
 | Staff Deoco | Alta de bandas, soporte, administración | La pasarela de cobro de una banda |
 
+> Implementación (trabajo largo P4): Titular, Editor y Solo lectura son del núcleo. Responsable
+> comercial (`COMERCIAL`) y Puerta (`PUERTA`) los declaran los módulos que los usan (tienda y
+> ticketera; ticketera) con `roles` en su contrato. Un rol de módulo no da permisos en una banda
+> que no tiene prendido ninguno de sus módulos.
+
 Dos actores que no son usuarios de gestión y no entran al panel: el **fan**, que compra, y el **proveedor**, que produce y envía el merch. Cada uno tendrá su propio acceso acotado cuando lleguen esos módulos.
 
 Regla: la conexión de la pasarela de cobro la toca solo el titular. Ni el staff de Deoco puede, y queda registrado quién la cambió.

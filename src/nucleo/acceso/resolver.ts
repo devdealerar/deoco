@@ -1,4 +1,4 @@
-import type { Rol } from "@/generated/prisma/client";
+import type { Rol } from "./roles";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { usuarioPropio } from "./usuario";
 

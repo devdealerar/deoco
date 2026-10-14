@@ -12,13 +12,6 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Rol {
-  TITULAR
-  EDITOR
-  COMERCIAL
-  PUERTA
-  LECTURA
-}
 
 // ACTIVO y MOROSO: todo funciona (MOROSO avisa al titular).
 // SUSPENDIDO: panel 403 salvo rutas de pago (solo titular); sitio público normal.
@@ -78,7 +71,8 @@ model Membresia {
   id        String  @id @default(uuid()) @db.Uuid
   usuarioId String  @db.Uuid
   tenantId  String  @db.Uuid
-  rol       Rol
+  /// TITULAR, EDITOR, LECTURA (núcleo) o uno que declare un módulo (PUERTA, COMERCIAL…).
+  rol       String
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
