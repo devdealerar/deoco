@@ -5,9 +5,8 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { registro } from "@/nucleo/modulos";
-import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import { resolverMetadatos } from "@/nucleo/modulos/metadatos";
-import { pestanasSitio } from "@/nucleo/modulos/navegacion";
+import { elementosDelMarco } from "@/nucleo/publico/marco";
 
 /** Origen del pedido (`https://labanda.com`): base de las URLs absolutas de la vista previa. */
 async function origen(): Promise<URL> {
@@ -44,18 +43,14 @@ export async function SuperficiePublica({
   consulta: URLSearchParams;
 }) {
   const reg = registro();
-  const prendidos = await modulosPrendidos(tenantId, reg);
+  const { prendidos, pestanas: items, cabecera } = await elementosDelMarco(tenantId, path, reg);
   const encontrada = reg.rutaPublica(path);
   const visible = encontrada && prendidos.has(encontrada.moduloId) ? encontrada : undefined;
   if (!visible && path !== "/") notFound();
 
-  const items = pestanasSitio(reg, prendidos);
   const pestanas = items.map(({ etiqueta, href }) => ({ etiqueta, href }));
   const Componente = visible?.ruta.componente;
   const contenido = Componente ? <Componente tenantId={tenantId} params={visible.params} consulta={consulta} /> : null;
-
-  const Cabecera = reg.cabeceraPublica && prendidos.has(reg.cabeceraPublica.moduloId) ? reg.cabeceraPublica.componente : null;
-  const cabecera = Cabecera ? <Cabecera tenantId={tenantId} path={path} /> : null;
 
   const marco = reg.marcoPublico && prendidos.has(reg.marcoPublico.moduloId) ? reg.marcoPublico.componente : null;
   if (marco) {

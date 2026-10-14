@@ -14,6 +14,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | C | Panel del proveedor | ✅ hecha |
 | D | Módulo ticketera | ✅ hecha |
 | E | Revisión final | ✅ hecha (`docs/resumen-trabajo-largo.md`) |
+| F | Vista previa del sitio = sitio público (fechas de la ticketera, pestañas, cabecera) | ✅ hecha |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
@@ -51,6 +52,10 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   - El sitio muestra las fechas de la ticketera por la consulta `ticketera.proximas-fechas`;
     apagada, las cargadas a mano.
   - Pruebas: `tests/ticketera.test.ts`, `tests/e2e/ticketera.e2e.ts`.
+- F: la vista previa del sitio arma lo mismo que el público: fechas por la misma consulta,
+  pestañas de todos los módulos prendidos (las de otros módulos llevan al sitio de verdad) y
+  la cabecera. Núcleo: `elementosDelMarco()` (`src/nucleo/publico/marco.tsx`), que también usa
+  la superficie pública: una sola fuente para las dos.
 
 ## Paso 4 · Módulo de tienda
 

@@ -37,6 +37,7 @@ beforeAll(async () => {
   await dueno.correo.deleteMany();
   await dueno.secreto.deleteMany();
   await prenderModulo(e.staff.id, e.a.id, "ticketera");
+  await prenderModulo(e.staff.id, e.a.id, "sitio");
   await guardarSecreto(e.multi.id, e.a.id, "pagos", "mercadopago_access_token", TOKEN_A);
   // El rol PUERTA: solo valida.
   const puerta = await dueno.usuario.findUniqueOrThrow({ where: { email: "ajeno@x.com" } });
@@ -53,7 +54,7 @@ afterAll(async () => {
   await cerrarNavegador();
   await mp.cerrar();
   await dueno.membresia.deleteMany({ where: { rol: "PUERTA" } });
-  await dueno.moduloTenant.deleteMany({ where: { moduloId: "ticketera" } });
+  await dueno.moduloTenant.deleteMany({ where: { moduloId: { in: ["ticketera", "sitio"] } } });
   await dueno.$disconnect();
 });
 
@@ -136,5 +137,24 @@ describe("ticketera", () => {
     await banda.goto(`${APP}/b/banda-a/entradas/${showId}`);
     const tipo = banda.locator('tr:has([data-tipo="General"])');
     expect([await tipo.locator("[data-vendidas]").textContent(), await tipo.locator("[data-disponibles]").textContent()]).toEqual(["2", "98"]);
+  });
+
+  it("la vista previa del sitio muestra lo mismo que el público: pestañas de los módulos y fechas de la ticketera", async () => {
+    await dueno.sitioFecha.create({ data: { tenantId: e.a.id, fecha: new Date("2030-01-01"), lugar: "Cargada a mano", ciudad: "Rosario" } });
+    const { page } = await logueado("multi@x.com");
+    await page.goto(`${APP}/b/banda-a/sitio/vista-previa`);
+    const previa = page.getByTestId("vista-previa");
+    const pestanas = await previa.locator('nav[aria-label="Sitio"] a').evaluateAll((as) => as.map((a) => [a.textContent, (a as HTMLAnchorElement).getAttribute("href")]));
+    expect(pestanas).toEqual([
+      ["Home", "/b/banda-a/sitio/vista-previa"],
+      ["Fechas", `${SITIO}/fechas`],
+      ["Press kit", "/b/banda-a/sitio/vista-previa/prensa"],
+    ]);
+    // Con la ticketera prendida, sus shows (como en el sitio), no los cargados a mano.
+    const texto = (await previa.textContent()) ?? "";
+    expect(texto).toContain("La Trastienda");
+    expect(texto).not.toContain("Cargada a mano");
+    expect(await previa.getByRole("link", { name: "Entradas" }).getAttribute("href")).toBe(`${SITIO}/fechas/${showId}`);
+    await dueno.sitioFecha.deleteMany({ where: { tenantId: e.a.id } });
   });
 });
