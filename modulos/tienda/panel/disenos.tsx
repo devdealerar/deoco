@@ -46,9 +46,13 @@ export async function DisenosTienda({ tenantId, slug }: PropsRutaPanel) {
       {disenos.map((d) => {
         const medida = medidaDeDiseno(d);
         return (
-          <section key={d.id} data-diseno={d.nombre} className="flex flex-col gap-3 rounded-xl bg-primary p-6 shadow-xs ring-1 ring-secondary ring-inset">
-            <div className="flex items-center gap-4">
-              {d.conVistaPrevia ? (
+          <Tarjeta
+            key={d.id}
+            data-diseno={d.nombre}
+            titulo={d.nombre}
+            descripcion={describirMedida(medida)}
+            imagen={
+              d.conVistaPrevia ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={urlArchivo({ id: d.archivoId, nombre: d.archivoNombre }, { variante: "web", panelSlug: slug })}
@@ -57,12 +61,9 @@ export async function DisenosTienda({ tenantId, slug }: PropsRutaPanel) {
                 />
               ) : (
                 <div className="flex size-16 items-center justify-center rounded-lg bg-secondary text-xs font-bold text-tertiary">PDF</div>
-              )}
-              <div>
-                <h2 className="font-semibold text-primary">{d.nombre}</h2>
-                <p className="text-sm text-tertiary">{describirMedida(medida)}</p>
-              </div>
-            </div>
+              )
+            }
+          >
             <ul className="flex flex-col gap-1 text-sm">
               {bases.map((b) => {
                 const problemas = problemasDeImpresion(medida, b);
@@ -74,7 +75,7 @@ export async function DisenosTienda({ tenantId, slug }: PropsRutaPanel) {
                 );
               })}
             </ul>
-          </section>
+          </Tarjeta>
         );
       })}
     </div>

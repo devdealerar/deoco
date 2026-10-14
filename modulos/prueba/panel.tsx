@@ -1,5 +1,6 @@
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { leerSecreto } from "@/nucleo/secretos";
+import { Boton } from "@/ui";
 import { emitirVerificacion } from "./acciones";
 import prueba from "./index";
 
@@ -13,7 +14,7 @@ export async function PaginaPanel({ tenantId, acceso, slug, consulta }: PropsRut
       <p data-testid="token">{token ? `token cargado (${token.length} caracteres)` : "sin token"}</p>
       <p data-testid="eco">{consulta.getAll("eco").join(",")}</p>
       <form action={emitirVerificacion.bind(null, slug)}>
-        <button type="submit">Emitir evento de prueba</button>
+        <Boton type="submit">Emitir evento de prueba</Boton>
       </form>
     </main>
   );

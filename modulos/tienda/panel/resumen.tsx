@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { puedeEnPedido } from "@/nucleo/acceso/panel";
-import { Campo, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
+import { Aviso, Boton, Campo, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
 import { contactoDeTienda } from "../contacto";
 import { formatearPesos } from "@/nucleo/dinero";
 import tienda from "../index";
@@ -22,8 +22,8 @@ export async function ResumenTienda({ tenantId, slug, acceso }: PropsRutaPanel) 
     <div className="flex flex-col gap-6">
       <Encabezado slug={slug} actual="" puedeEditar={puedeEditar} />
       {!pasarela.lista && (
-        <div role="alert" data-tienda-sin-pasarela className="rounded-xl bg-error-primary p-4 text-md text-error-primary ring-1 ring-error_subtle ring-inset">
-          <strong>Tu tienda no puede vender todavía.</strong> Los fans ven &quot;la tienda no está recibiendo pedidos&quot;. Falta cargar{" "}
+        <Aviso tono="error" titulo="Tu tienda no puede vender todavía." data-tienda-sin-pasarela>
+          Los fans ven &quot;la tienda no está recibiendo pedidos&quot;. Falta cargar{" "}
           {pasarela.faltan.join(", ")} en{" "}
           {acceso.rol === "TITULAR" ? (
             <Link href={`/b/${slug}/credenciales`} className="font-semibold underline">
@@ -33,7 +33,7 @@ export async function ResumenTienda({ tenantId, slug, acceso }: PropsRutaPanel) 
             "Credenciales (lo carga el titular de la banda)"
           )}
           . El cobro va a tu cuenta de {pasarela.pasarela.nombre}: Deoco no toca la plata.
-        </div>
+        </Aviso>
       )}
       {pasarela.lista && (await puedeEnPedido("tienda.pasarela.conectar", `/b/${slug}/tienda`)) && (
         <Tarjeta titulo={`Cobro con ${pasarela.pasarela.nombre}`} descripcion="Los pagos de los fans entran directo a tu cuenta. Probá que sea la tuya.">
@@ -48,9 +48,7 @@ export async function ResumenTienda({ tenantId, slug, acceso }: PropsRutaPanel) 
         titulo="Productos"
         acciones={
           puedeEditar ? (
-            <Link href={`/b/${slug}/tienda/productos/nuevo`} className="rounded-lg bg-brand-solid px-3.5 py-2 text-sm font-semibold text-white hover:bg-brand-solid_hover">
-              Nuevo producto
-            </Link>
+            <Boton href={`/b/${slug}/tienda/productos/nuevo`}>Nuevo producto</Boton>
           ) : undefined
         }
         columnas={[

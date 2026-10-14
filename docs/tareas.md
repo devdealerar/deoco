@@ -22,7 +22,18 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | G3b | Formularios del panel: `accionesDelPanel` + `edicion` en el contrato | ✅ hecha |
 | G4 | Anotaciones (roles, cabecera/cobros, `pagos`, tablas que crecen), barrido sin archivadas, lista de verificación | ✅ hecha |
 | G5 | `cabeceraPublica` en lista: uno por módulo, en fila por `orden` | ✅ hecha |
+| H1 | UI hecha a mano → `@/ui` (avisos, tarjetas, pestañas, botones, color) + prueba que lo vigila | ✅ hecha |
+| H2 | Back office: bandas, usuarios y eventos paginados en la base, filtro y orden en la URL | ✅ hecha |
 
+- H1: `@/ui` suma `Pestanas` (oficial `tabs`), `Boton href`, `CampoColor`, `Aviso` con tono
+  `info` (`role="note"`) y sin título, `Tarjeta` con `imagen`/`junto`/`acciones`.
+  `tests/ui-propia.test.ts`: marcas de cada componente fuera de `src/ui` (sin el sitio público);
+  excepciones con motivo: puerta, error global, `/ingresar`. Capturas antes/después con
+  `CAPTURAS=<dir> npm run test:e2e` (`captura()` en `tests/e2e/navegador.ts`).
+- H2: `src/app/admin/_servidor/listado.ts` (página, orden, `literal()` para LIKE). Bandas: SQL
+  con la suma de `archivo` para ordenar por espacio; usuarios y eventos con Prisma. `Tabla` con
+  `orden` + `paginacion` (base oficial de `pagination`) y `Filtros` (GET, sin parámetros
+  vacíos). Pruebas: `tests/backoffice-listados.test.ts`, `tests/e2e/admin.e2e.ts` (listados largos).
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
   se toman en la base (`evento.tomadoEn`) antes de entregarse; uno tomado por otro proceso no

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { puedeEnPedido } from "@/nucleo/acceso/panel";
+import { Aviso, Pestanas } from "@/ui";
 
 export const SECCIONES = [
   { href: "", etiqueta: "Resumen" },
@@ -19,30 +19,16 @@ export function Encabezado({ slug, actual, puedeEditar }: { slug: string; actual
       <h1 className="text-display-xs font-semibold text-primary">Sitio</h1>
       <p className="mt-1 text-md text-tertiary">Home y press kit. Lo que editás acá es un borrador hasta que lo publicás.</p>
       {!puedeEditar && (
-        <p role="note" className="mt-4 rounded-lg bg-secondary px-4 py-3 text-sm text-secondary">
-          Tu rol puede ver el sitio, pero no editarlo.
-        </p>
+        <div className="mt-4">
+          <Aviso tono="info">Tu rol puede ver el sitio, pero no editarlo.</Aviso>
+        </div>
       )}
-      <nav aria-label="Secciones del sitio" className="mt-6 border-b border-secondary">
-        <ul className="-mb-px flex gap-4 overflow-x-auto">
-          {SECCIONES.map((s) => {
-            const activa = actual === s.href;
-            return (
-              <li key={s.href}>
-                <Link
-                  href={`${base}${s.href}`}
-                  aria-current={activa ? "page" : undefined}
-                  className={`block border-b-2 px-1 pb-3 text-sm font-semibold whitespace-nowrap ${
-                    activa ? "border-brand text-brand-secondary" : "border-transparent text-quaternary hover:text-secondary"
-                  }`}
-                >
-                  {s.etiqueta}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      <div className="mt-6">
+        <Pestanas
+          etiqueta="Secciones del sitio"
+          pestanas={SECCIONES.map((s) => ({ href: `${base}${s.href}`, texto: s.etiqueta, actual: actual === s.href }))}
+        />
+      </div>
     </header>
   );
 }

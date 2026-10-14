@@ -12,7 +12,7 @@ import { registrarPago } from "../../modulos/tienda/pagos";
 import { crearPedido } from "../../modulos/tienda/pedidos";
 import { crearProducto, publicarProducto, subirDiseno } from "../../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "../apoyo";
-import { APP, abrirNavegador, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado } from "./navegador";
+import { APP, abrirNavegador, captura, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado } from "./navegador";
 
 /** GET al servidor de pruebas por 127.0.0.1, con el Host del link (lvh.me no resuelve sin DNS). */
 function estadoDe(link: string) {
@@ -101,6 +101,7 @@ describe("panel del proveedor", () => {
     await Promise.all([p.waitForURL(`${APP}/portal/tienda`), formClave.getByRole("button", { name: "Guardar clave" }).click()]);
     const numero = pedidoId.slice(0, 8).toUpperCase();
     expect(await p.locator(`[data-orden="${numero}"]`).count()).toBe(1);
+    await captura(p, "proveedor-ordenes");
     // Nunca un panel de banda.
     expect((await p.goto(`${APP}/b/banda-a`))!.status()).toBe(403);
     expect((await p.goto(`${APP}/admin`))!.status()).toBe(404);
@@ -129,6 +130,7 @@ describe("panel del proveedor", () => {
     await p.goto(`${APP}/portal/tienda/cuenta`);
     const cuenta = p.locator('[data-cuenta="Banda A"]');
     expect(await cuenta.locator("[data-pendiente]").textContent()).toMatch(/21\.500/);
+    await captura(p, "proveedor-cuenta");
     const saldar = cuenta.locator("form[data-hidratado]");
     await saldar.getByText(`Orden #${numero}`).click();
     await saldar.locator('input[name="nota"]').fill("transferencia");

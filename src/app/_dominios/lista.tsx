@@ -24,28 +24,25 @@ export function ListaDominios({
   return (
     <div className="flex flex-col gap-6">
       {dominios.map((d) => (
-        <section
+        <Tarjeta
           key={d.id}
           data-dominio={d.dominio}
-          className="flex flex-col gap-4 rounded-xl bg-primary p-6 shadow-xs ring-1 ring-secondary ring-inset"
-        >
-          <header className="flex flex-wrap items-center gap-3">
-            <h2 className="text-lg font-semibold break-all text-primary">{d.dominio}</h2>
-            {d.esPrincipal && <Insignia color="marca">Principal</Insignia>}
-            {d.dePlataforma && <Insignia>Subdominio de Deoco</Insignia>}
-            {d.noApunta ? (
-              <Insignia color="error">No apunta a Deoco</Insignia>
-            ) : d.verificado ? (
-              !d.dePlataforma && <Insignia color="exito">Verificado</Insignia>
-            ) : (
-              <Insignia color="advertencia">Sin verificar</Insignia>
-            )}
-            <div className="ml-auto">
-              {d.verificado && !d.esPrincipal && (
-                <Formulario {...enLinea} accion={principal(d.id)} etiqueta="Usar como principal" />
+          titulo={d.dominio}
+          junto={
+            <>
+              {d.esPrincipal && <Insignia color="marca">Principal</Insignia>}
+              {d.dePlataforma && <Insignia>Subdominio de Deoco</Insignia>}
+              {d.noApunta ? (
+                <Insignia color="error">No apunta a Deoco</Insignia>
+              ) : d.verificado ? (
+                !d.dePlataforma && <Insignia color="exito">Verificado</Insignia>
+              ) : (
+                <Insignia color="advertencia">Sin verificar</Insignia>
               )}
-            </div>
-          </header>
+            </>
+          }
+          acciones={d.verificado && !d.esPrincipal && <Formulario {...enLinea} accion={principal(d.id)} etiqueta="Usar como principal" />}
+        >
 
           {d.verificado && !d.esPrincipal && (
             <p className="text-sm text-tertiary">
@@ -117,7 +114,7 @@ export function ListaDominios({
               </Formulario>
             </div>
           )}
-        </section>
+        </Tarjeta>
       ))}
 
       <Tarjeta titulo="Agregar dominio propio" descripcion="Un dominio que ya tenga la banda, p. ej. labanda.com o www.labanda.com.">

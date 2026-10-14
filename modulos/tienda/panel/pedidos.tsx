@@ -1,6 +1,6 @@
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
-import { Insignia, Tabla, Tarjeta } from "@/ui";
+import { Aviso, Insignia, Tabla, Tarjeta } from "@/ui";
 import { describirVariante } from "../comun";
 import { formatearPesos } from "@/nucleo/dinero";
 import { ESTADO_PANEL } from "../estados";
@@ -27,16 +27,15 @@ export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
     <div className="flex flex-col gap-6">
       <Encabezado slug={slug} actual="/pedidos" puedeEditar={puedeEditar} />
       {pedidos.some((p) => p.pagosExtra.length > 0) && (
-        <p role="alert" data-aviso-duplicados className="rounded-xl bg-error-primary p-4 text-md text-error-primary ring-1 ring-error_subtle ring-inset">
-          <strong>Hay pagos duplicados.</strong> Un fan pagó dos veces el mismo pedido. Devolvé el pago extra desde tu cuenta de la
-          pasarela. Deoco no devuelve nada: solo te avisa.
-        </p>
+        <Aviso tono="error" titulo="Hay pagos duplicados." data-aviso-duplicados>
+          Un fan pagó dos veces el mismo pedido. Devolvé el pago extra desde tu cuenta de la pasarela. Deoco no devuelve nada: solo te
+          avisa.
+        </Aviso>
       )}
       {pedidos.some((p) => p.estado === "EN_REVISION") && (
-        <p role="alert" className="rounded-xl bg-error-primary p-4 text-md text-error-primary ring-1 ring-error_subtle ring-inset">
-          Hay pagos a revisar: la pasarela aprobó un monto que no coincide con el pedido. Revisalo en tu cuenta de la pasarela antes
-          de despachar.
-        </p>
+        <Aviso tono="error" titulo="Hay pagos a revisar.">
+          La pasarela aprobó un monto que no coincide con el pedido. Revisalo en tu cuenta de la pasarela antes de despachar.
+        </Aviso>
       )}
       <Tabla
         titulo="Pedidos"

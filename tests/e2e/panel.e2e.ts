@@ -2,6 +2,7 @@ import { decode } from "next-auth/jwt";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { CONTRASENA, dueno, escenarioAcceso } from "../apoyo";
 import {
+  captura,
   APP,
   abrirNavegador,
   anonimo,
@@ -131,6 +132,7 @@ describe("prueba 7: banda SUSPENDIDO", () => {
     const titular = (await logueado("multi@x.com")).page;
     await titular.goto(`${APP}/b/banda-a`);
     expect(await titular.getByTestId("aviso-mora").textContent()).toMatch(/cuota pendiente/);
+    await captura(titular, "panel-mora");
     expect((await titular.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(200);
 
     const editor = (await logueado("editor-a@x.com")).page;

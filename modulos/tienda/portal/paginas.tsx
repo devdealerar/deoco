@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { PropsRutaExterna } from "@/nucleo/modulos/contrato";
-import { Campo, Casilla, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
+import { Campo, Casilla, Formulario, Insignia, Pestanas, Tabla, Tarjeta } from "@/ui";
 import { formatearPesos } from "@/nucleo/dinero";
 import { cuentaCorriente, type EstadoOrden, ordenDelProveedor, ordenesDelProveedor } from "../proveedor";
 import { despacharAccion, saldarAccion } from "./acciones";
@@ -31,18 +31,10 @@ export async function PortalOrdenes({ usuarioId, consulta }: PropsRutaExterna) {
         <h1 className="text-display-xs font-semibold text-primary">Órdenes de producción</h1>
         <p className="mt-1 text-md text-tertiary">Lo que te encargaron las bandas en Deoco. Abrí una para ver qué producir, el archivo y adónde enviarla.</p>
       </header>
-      <nav aria-label="Filtro" className="flex gap-2">
-        {pestanas.map(([valor, etiqueta]) => (
-          <Link
-            key={valor}
-            href={valor ? `${BASE}?estado=${valor}` : BASE}
-            aria-current={actual === valor ? "page" : undefined}
-            className={`rounded-md px-3 py-2 text-sm font-semibold ${actual === valor ? "bg-primary text-primary ring-1 ring-secondary" : "text-tertiary hover:text-secondary"}`}
-          >
-            {etiqueta}
-          </Link>
-        ))}
-      </nav>
+      <Pestanas
+        etiqueta="Filtro"
+        pestanas={pestanas.map(([valor, etiqueta]) => ({ href: valor ? `${BASE}?estado=${valor}` : BASE, texto: etiqueta, actual: actual === valor }))}
+      />
       {ordenes.length === 0 ? (
         <Tarjeta titulo={estado === "EN_PRODUCCION" ? "No hay nada para producir" : "No hay órdenes"}>
           <p className="text-tertiary">Cuando una banda venda algo que hacés vos, la orden aparece acá y te llega por mail.</p>
@@ -115,7 +107,7 @@ export async function PortalOrden({ usuarioId, params }: PropsRutaExterna) {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-sm text-tertiary">
+        <p className="text-sm text-tertiary">
           El link del archivo se arma nuevo cada vez que abrís esta orden y vale 3 días. Si el del mail venció, usá este.
         </p>
       </Tarjeta>
@@ -189,16 +181,19 @@ export async function PortalCuenta({ usuarioId }: PropsRutaExterna) {
       {cuentas.map((c) => {
         const pendientes = c.deudas.filter((d) => !d.saldadaEn);
         return (
-          <section key={c.tenantId} data-cuenta={c.banda} className="flex flex-col gap-4 rounded-xl bg-primary p-6 shadow-xs ring-1 ring-secondary ring-inset">
-            <header className="flex flex-wrap items-baseline justify-between gap-4">
-              <h2 className="text-lg font-semibold text-primary">{c.banda}</h2>
+          <Tarjeta
+            key={c.tenantId}
+            data-cuenta={c.banda}
+            titulo={c.banda}
+            acciones={
               <div className="text-right">
                 <div className="text-lg font-semibold tabular-nums" data-pendiente>
                   {formatearPesos(c.pendiente)}
                 </div>
                 <div className="text-sm text-tertiary">pendiente{c.saldado > 0 && ` · ${formatearPesos(c.saldado)} saldado`}</div>
               </div>
-            </header>
+            }
+          >
             {pendientes.length > 0 && (
               <Formulario accion={saldarAccion.bind(null, c.tenantId)} puedeEditar etiqueta="Marcar saldadas">
                 <ul className="flex flex-col gap-2">
@@ -229,7 +224,7 @@ export async function PortalCuenta({ usuarioId }: PropsRutaExterna) {
                 </ul>
               </details>
             )}
-          </section>
+          </Tarjeta>
         );
       })}
     </div>

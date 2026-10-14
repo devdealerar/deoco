@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { dueno, escenarioAcceso } from "../apoyo";
-import { APP, abrirNavegador, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado } from "./navegador";
+import { APP, abrirNavegador, captura, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado } from "./navegador";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
 
@@ -54,6 +54,7 @@ describe("dominio propio desde el panel de la banda", () => {
     expect((await dueno.dominio.findFirstOrThrow({ where: { dominio: "lossatelites.com.ar" } })).verificado).toBe(false);
     // Sin verificar no se ofrece como principal.
     expect(await tarjeta.getByRole("button", { name: "Usar como principal" }).count()).toBe(0);
+    await captura(page, "dominios");
   });
 
   it("verificado pero sin HTTPS: el botón explica que falta el certificado y no lo marca", async () => {

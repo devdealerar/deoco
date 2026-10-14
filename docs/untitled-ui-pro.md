@@ -30,16 +30,13 @@ reemplaza**.
 | `Tarjeta` | — | Se queda. No hay tarjeta en PRO; `section-headers` es solo el encabezado con borde inferior, no el contenedor. |
 | `CampoArchivo` | `file-upload-base`, `file-upload-menu`, `image-picker`, `FileTrigger` | Se queda. Ninguno pone `name` en el `<input type="file">` (`FileTrigger` filtra las props con `filterDOMProps`, que descarta `name`). Además suben archivo por archivo con callbacks, no por el formulario. |
 | `Copiable` | — | Se queda. No hay equivalente. |
-| `Tabla` | `pagination` | Sin cambio por ahora. El `Table` oficial (el que ya usamos) ya permite ordenar (`allowsSorting`, `onSortChange`). La paginación PRO es de cliente (`onPageChange`). Para el back office que crece hace falta paginar y filtrar en el servidor (hoy bandas y usuarios se traen enteros). Eso es una funcionalidad nueva: falta definirla en la spec. |
+| `Tabla` | `pagination`, `tabs` | Se usan las dos (octubre 2026). `Tabla` ordena con el `Table` oficial y pagina con la base de `pagination` (`Pagination.Root`, `Item`, flechas con el `Button` oficial), con textos en castellano y cada página como enlace. `Pestanas` usa `tabs`. La consulta va siempre contra la base (back office: bandas, usuarios y eventos fallidos, 50 por página). |
 | Pantalla de puerta | `metrics` | Se queda. Las métricas PRO son de tablero (tendencia, variación). La puerta necesita números grandes y botones enormes para un celular en un venue. |
 
-## UI hecha a mano fuera de `@/ui` (no son PRO, para ordenar aparte)
+## UI hecha a mano fuera de `@/ui`
 
-- Alertas con clases sueltas en vez de `Aviso`: `modulos/tienda/panel/resumen.tsx` (sin
-  pasarela), `pedidos.tsx` (duplicados, a revisar), `comun.tsx` (margen negativo).
-- Pestañas a mano: `modulos/tienda/panel/comun.tsx` (`Encabezado`) y el filtro de
-  `modulos/tienda/portal/paginas.tsx`. Las `tabs` oficiales son de react-aria y cambiarían la
-  navegación por links de Next.
-- Tarjetas a mano (mismas clases que `Tarjeta`): `src/app/_dominios/lista.tsx`,
-  `modulos/tienda/panel/{comun,disenos}.tsx`, `modulos/tienda/portal/paginas.tsx`.
-- Links con forma de botón: `src/app/admin/page.tsx`, `modulos/tienda/panel/resumen.tsx`.
+Resuelto (octubre 2026): alertas → `Aviso`, tarjetas → `Tarjeta`, pestañas → `Pestanas`,
+enlaces con forma de botón → `Boton href`, color → `CampoColor`. `tests/ui-propia.test.ts`
+falla si una pantalla vuelve a armar alguno a mano. Quedan como excepción, con su motivo en la
+prueba: la pantalla de puerta, el error global (compartido con el sitio público) y `/ingresar`
+(todavía sin diseño).

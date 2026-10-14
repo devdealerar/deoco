@@ -1,19 +1,10 @@
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
-import { CampoArchivo, Casilla, Formulario, Selector, Tarjeta } from "@/ui";
+import { CampoArchivo, CampoColor, Casilla, Formulario, Selector, Tarjeta } from "@/ui";
 import { guardarIdentidad } from "../acciones";
 import { leerBorrador } from "../contenido";
 import { FUENTES } from "../vista/estilo";
 import { Encabezado, Miniatura, puedeEditar as puedeEditarEn } from "./comun";
-
-function Color({ nombre, etiqueta, valor }: { nombre: string; etiqueta: string; valor: string }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-secondary">{etiqueta}</span>
-      <input type="color" name={nombre} defaultValue={valor} className="h-11 w-24 cursor-pointer rounded-lg ring-1 ring-primary" />
-    </label>
-  );
-}
 
 export async function Identidad({ tenantId, slug }: PropsRutaPanel) {
   const [c, puedeEditar] = await Promise.all([conTenant(tenantId, (tx) => leerBorrador(tx, tenantId)), puedeEditarEn(slug)]);
@@ -46,8 +37,8 @@ export async function Identidad({ tenantId, slug }: PropsRutaPanel) {
             </div>
           </div>
           <div className="flex flex-wrap gap-6">
-            <Color nombre="colorAcento" etiqueta="Color de acento" valor={identidad.colorAcento} />
-            <Color nombre="colorFondo" etiqueta="Color de fondo" valor={identidad.colorFondo ?? "#111111"} />
+            <CampoColor name="colorAcento" etiqueta="Color de acento" defaultValue={identidad.colorAcento} />
+            <CampoColor name="colorFondo" etiqueta="Color de fondo" defaultValue={identidad.colorFondo ?? "#111111"} />
           </div>
           <Selector
             name="tipografia"

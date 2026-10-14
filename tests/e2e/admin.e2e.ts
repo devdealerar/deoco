@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import type { Page } from "playwright-core";
 import { prisma } from "@/nucleo/db/cliente";
 import { dueno, escenarioAcceso } from "../apoyo";
-import { APP, abrirNavegador, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado, sitio } from "./navegador";
+import { APP, abrirNavegador, captura, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado, sitio } from "./navegador";
 
 beforeAll(async () => {
   const e = await escenarioAcceso();
@@ -44,6 +45,9 @@ describe("listado de bandas", () => {
     expect(a).toContain("banda-a.lvh.me");
     expect(a).toMatch(/de 1\.0 GB/);
     await expect(filas.filter({ hasText: "Banda B" }).count()).resolves.toBe(1);
+    await captura(page, "admin-bandas");
+    await page.goto(`${APP}/admin/usuarios`);
+    await captura(page, "admin-usuarios");
   });
 });
 
@@ -192,11 +196,96 @@ describe("prueba 9 (pantalla): eventos fallidos", () => {
     await page.goto(`${APP}/admin/eventos`);
     const fila = page.getByRole("row").filter({ has: page.locator(`[data-evento="${ev.id}"]`) });
     expect(await fila.textContent()).toContain("prueba: el servicio no respondió");
+    await captura(page, "admin-eventos");
     const form = fila.locator("form[data-hidratado]");
     await form.waitFor();
     await form.getByRole("button", { name: "Reprocesar" }).click();
     await page.waitForFunction((id) => !document.querySelector(`[data-evento="${id}"]`), ev.id, { timeout: 20_000 });
     expect(await dueno.evento.findUniqueOrThrow({ where: { id: ev.id } })).toMatchObject({ estado: "PROCESADO", intentos: 2 });
     expect(await dueno.auditoria.count({ where: { accion: "evento.reprocesado", detalle: { equals: { eventoId: ev.id } } } })).toBe(1);
+  });
+});
+
+describe("listados largos: paginados en el servidor, con filtro y orden en la URL", () => {
+  const LOTES = 63;
+  beforeAll(async () => {
+    await dueno.tenant.createMany({
+      data: Array.from({ length: LOTES }, (_, i) => ({
+        nombre: `Lote ${String(i + 1).padStart(2, "0")}`,
+        slug: `lote-${String(i + 1).padStart(2, "0")}`,
+        estado: i % 3 === 0 ? ("MOROSO" as const) : ("ACTIVO" as const),
+        creadoEn: new Date(Date.UTC(2025, 0, 1, 0, i)),
+      })),
+    });
+  });
+  afterAll(async () => {
+    await dueno.tenant.deleteMany({ where: { slug: { startsWith: "lote-" } } });
+  });
+  const slugs = (page: Page) => page.locator("[data-slug]").evaluateAll((xs) => xs.map((x) => x.getAttribute("data-slug")));
+
+  it("bandas: 50 por página, filtro y orden en la URL; el link compartido muestra lo mismo", async () => {
+    const total = await dueno.tenant.count();
+    const { page } = await logueado("staff@deoco.com");
+    await page.goto(`${APP}/admin`);
+    expect(await slugs(page)).toHaveLength(50);
+    await captura(page, "admin-bandas-pagina-1");
+    await Promise.all([page.waitForURL(`${APP}/admin?pagina=2`), page.getByRole("link", { name: "Siguiente" }).click()]);
+    expect(await slugs(page)).toHaveLength(total - 50);
+    expect(await page.getByRole("link", { name: "Página 1" }).getAttribute("href")).toBe("/admin");
+
+    // Filtrar vuelve a la página 1 y no deja parámetros vacíos.
+    const filtros = page.locator("form[data-filtros]");
+    await filtros.getByLabel("Buscar").fill("lote 0");
+    await filtros.locator('select[name="estado"]').selectOption("MOROSO");
+    await Promise.all([page.waitForURL(`${APP}/admin?q=lote+0&estado=MOROSO`), filtros.getByRole("button", { name: "Filtrar" }).click()]);
+    expect(await slugs(page)).toEqual(["lote-07", "lote-04", "lote-01"]);
+
+    // Ordenar por nombre conserva el filtro.
+    await Promise.all([page.waitForURL(/orden=nombre&dir=asc/), page.getByRole("columnheader").filter({ hasText: "Banda" }).click()]);
+    expect(new URL(page.url()).searchParams.get("q")).toBe("lote 0");
+    expect(await slugs(page)).toEqual(["lote-01", "lote-04", "lote-07"]);
+    await captura(page, "admin-bandas-filtradas");
+
+    // Otra persona del staff abre el mismo link: ve lo mismo.
+    const compartido = page.url();
+    const otra = (await logueado("staff@deoco.com")).page;
+    await otra.goto(compartido);
+    expect(await slugs(otra)).toEqual(["lote-01", "lote-04", "lote-07"]);
+    expect(await otra.locator("form[data-filtros]").getByLabel("Buscar").inputValue()).toBe("lote 0");
+
+    // Limpiar: todo de nuevo, campos vacíos.
+    await Promise.all([page.waitForURL(`${APP}/admin`), filtros.getByRole("link", { name: "Limpiar" }).click()]);
+    expect(await slugs(page)).toHaveLength(50);
+    expect(await page.locator("form[data-filtros]").getByLabel("Buscar").inputValue()).toBe("");
+  });
+
+  it("usuarios: solo staff; eventos: por banda y por nombre", async () => {
+    const { page } = await logueado("staff@deoco.com");
+    await page.goto(`${APP}/admin/usuarios`);
+    const filtros = page.locator("form[data-filtros]");
+    await filtros.getByText("Solo staff").click();
+    await Promise.all([page.waitForURL(`${APP}/admin/usuarios?staff=on`), filtros.getByRole("button", { name: "Filtrar" }).click()]);
+    expect(await page.locator("[data-email]").evaluateAll((xs) => xs.map((x) => x.getAttribute("data-email")))).toEqual(["staff@deoco.com"]);
+    await captura(page, "admin-usuarios-staff");
+
+    const [a, b] = await Promise.all(["banda-a", "banda-b"].map((slug) => dueno.tenant.findUniqueOrThrow({ where: { slug } })));
+    const fallo = { payload: {}, estado: "FALLIDO" as const, intentos: 1, fallos: [] };
+    await dueno.evento.createMany({
+      data: [
+        ...Array.from({ length: 52 }, () => ({ ...fallo, tenantId: a.id, nombre: "prueba.verificada" })),
+        { ...fallo, tenantId: b.id, nombre: "prueba.verificada" },
+        { ...fallo, tenantId: b.id, nombre: "otro.evento" },
+      ],
+    });
+    try {
+      await page.goto(`${APP}/admin/eventos`);
+      expect(await page.locator("[data-evento]").count()).toBe(50);
+      await page.goto(`${APP}/admin/eventos?banda=banda-b&evento=otro.evento`);
+      expect(await page.locator("[data-evento]").count()).toBe(1);
+      expect(await page.locator('select[name="evento"]').inputValue()).toBe("otro.evento");
+      await captura(page, "admin-eventos-filtrados");
+    } finally {
+      await dueno.evento.deleteMany({ where: { estado: "FALLIDO" } });
+    }
   });
 });

@@ -8,7 +8,7 @@ import { type ComoStaff, crearProductoBase, crearProveedor, leerOpciones } from 
 import { actualizarProducto, crearProducto, publicarProducto, subirDiseno } from "../../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "../apoyo";
 import { MercadoPagoFalso } from "../mercadopago-falso";
-import { APP, abrirNavegador, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado, sitio } from "./navegador";
+import { APP, abrirNavegador, captura, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado, sitio } from "./navegador";
 import { PUERTO, PUERTO_MP } from "./servidor";
 
 const mp = new MercadoPagoFalso();
@@ -185,6 +185,7 @@ describe("tienda pública", () => {
     await panel.goto(`${APP}/b/banda-a/tienda/deuda`);
     // Sur: 2 × 9.000 + 4.500 de producción + 3.500 de envío = 26.000
     expect(await plano(panel.locator('[data-deuda="Sur"] [data-pendiente]'))).toBe("$ 26.000");
+    await captura(panel, "tienda-deuda");
     // Y el titular prueba la conexión: a nombre de quién cobra.
     await panel.goto(`${APP}/b/banda-a/tienda`);
     const probar = panel.locator("section", { has: panel.getByRole("heading", { name: "Cobro con Mercado Pago" }) }).locator("form[data-hidratado]");
@@ -213,6 +214,7 @@ describe("tienda pública", () => {
     await panel.goto(`${APP}/b/banda-a/tienda/pedidos`);
     expect(await plano(panel.locator("[data-aviso-duplicados]"))).toContain("Un fan pagó dos veces el mismo pedido");
     expect(await plano(panel.locator('[data-pago-duplicado="778"]'))).toContain("Pago duplicado: $ 68.500 (pago 778 en Mercado Pago)");
+    await captura(panel, "tienda-pedidos-duplicado");
     expect(await dueno.correo.count()).toBe(2); // ni mails ni deuda de más
 
     // El staff la ve en el back office, por banda y por proveedor.
@@ -307,6 +309,7 @@ describe("tienda pública", () => {
       expect(await plano(aviso)).toContain("Tu tienda no puede vender todavía.");
       expect(await plano(aviso)).toContain("Falta cargar Mercado Pago · Access token en Credenciales");
       expect(await aviso.getByRole("link", { name: "Credenciales" }).getAttribute("href")).toBe("/b/banda-a/credenciales");
+      await captura(panel, "tienda-sin-pasarela");
     } finally {
       await TOKEN();
     }

@@ -1,4 +1,6 @@
-import { type Browser, type BrowserContext, chromium } from "playwright-core";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+import { type Browser, type BrowserContext, type Page, chromium } from "playwright-core";
 import { CONTRASENA, dueno } from "../apoyo";
 import { PUERTO } from "./servidor";
 
@@ -39,6 +41,19 @@ export async function logueado(email: string) {
   await page.fill('input[name="contrasena"]', CONTRASENA);
   await Promise.all([page.waitForURL(`${APP}/`), page.click('button[type="submit"]')]);
   return { ctx, page };
+}
+
+/**
+ * Captura de pantalla completa en `$CAPTURAS/<nombre>.png`, solo si la variable está
+ * definida (`CAPTURAS=dir npm run test:e2e`). Sirve para comparar la UI antes y después
+ * de un cambio: las pruebas dejan cada pantalla en el estado que importa.
+ */
+export async function captura(page: Page, nombre: string) {
+  const dir = process.env.CAPTURAS;
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.screenshot({ path: path.join(dir, `${nombre}.png`), fullPage: true });
 }
 
 /**

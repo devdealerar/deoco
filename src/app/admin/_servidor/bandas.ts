@@ -13,6 +13,7 @@ import { dominioRaiz } from "@/nucleo/tenant/hosts";
 import { ErrorFormulario } from "@/ui/servidor";
 import { auditar } from "./auditoria";
 import { dbAdmin, type TxAdmin } from "./db";
+import { type Direccion, POR_PAGINA, contiene, desde, paginado } from "./listado";
 
 export type FilaBanda = {
   id: string;
@@ -26,28 +27,63 @@ export type FilaBanda = {
   creadoEn: Date;
 };
 
-/** Todas las bandas, con su estado, módulos prendidos y espacio usado. */
-export async function listarBandas(): Promise<FilaBanda[]> {
+export const ESTADOS_BANDA: EstadoTenant[] = ["ACTIVO", "MOROSO", "SUSPENDIDO", "ARCHIVADO"];
+export const ORDENES_BANDA = ["alta", "nombre", "espacio"] as const;
+export type FiltroBandas = {
+  /** Contiene, en el nombre o el slug. */
+  buscar?: string;
+  estado?: EstadoTenant;
+  orden: { columna: (typeof ORDENES_BANDA)[number]; direccion: Direccion };
+  pagina: number;
+};
+
+const COLUMNA_BANDA = { alta: Prisma.sql`t."creadoEn"`, nombre: Prisma.sql`t.nombre`, espacio: Prisma.sql`usado` };
+
+/**
+ * Una página de bandas, con su estado, módulos prendidos y espacio usado. Filtra, ordena
+ * (también por espacio, que es una suma de `archivo`) y pagina en la base.
+ */
+export async function listarBandas(f: FiltroBandas): Promise<{ filas: FilaBanda[]; pagina: number; paginas: number; total: number }> {
   const db = dbAdmin();
-  const [bandas, uso] = await Promise.all([
-    db.tenant.findMany({
-      orderBy: { nombre: "asc" },
-      include: { dominios: { where: { esPrincipal: true }, select: { dominio: true } }, modulos: { select: { moduloId: true } } },
-    }),
-    db.archivo.groupBy({ by: ["tenantId"], _sum: { bytes: true } }),
-  ]);
-  const usado = new Map(uso.map((u) => [u.tenantId, u._sum.bytes ?? BigInt(0)]));
-  return bandas.map((b) => ({
-    id: b.id,
-    nombre: b.nombre,
-    slug: b.slug,
-    estado: b.estado,
-    dominio: b.dominios[0]?.dominio ?? null,
-    modulos: b.modulos.map((m) => m.moduloId).sort(),
-    usado: usado.get(b.id) ?? BigInt(0),
-    limite: b.limiteAlmacenamiento,
-    creadoEn: b.creadoEn,
-  }));
+  const condiciones = [Prisma.sql`TRUE`];
+  if (f.estado) condiciones.push(Prisma.sql`t.estado = ${f.estado}::"EstadoTenant"`);
+  if (f.buscar) condiciones.push(Prisma.sql`(t.nombre ILIKE ${contiene(f.buscar)} OR t.slug ILIKE ${contiene(f.buscar)})`);
+  const donde = Prisma.join(condiciones, " AND ");
+
+  const [{ total }] = await db.$queryRaw<{ total: bigint }[]>`SELECT count(*) AS total FROM "tenant" t WHERE ${donde}`;
+  const p = paginado(Number(total), f.pagina);
+  const direccion = f.orden.direccion === "asc" ? Prisma.sql`ASC` : Prisma.sql`DESC`;
+  const pagina = await db.$queryRaw<{ id: string; usado: bigint }[]>`
+    SELECT t.id, COALESCE(u.usado, 0)::bigint AS usado
+    FROM "tenant" t
+    LEFT JOIN (SELECT "tenantId", sum(bytes) AS usado FROM "archivo" GROUP BY "tenantId") u ON u."tenantId" = t.id
+    WHERE ${donde}
+    ORDER BY ${COLUMNA_BANDA[f.orden.columna]} ${direccion}, t.id ${direccion}
+    LIMIT ${POR_PAGINA} OFFSET ${desde(p.pagina)}`;
+
+  const bandas = await db.tenant.findMany({
+    where: { id: { in: pagina.map((b) => b.id) } },
+    include: { dominios: { where: { esPrincipal: true }, select: { dominio: true } }, modulos: { select: { moduloId: true } } },
+  });
+  const porId = new Map(bandas.map((b) => [b.id, b]));
+  const filas = pagina.flatMap(({ id, usado }) => {
+    const b = porId.get(id);
+    if (!b) return []; // borrada entre las dos consultas
+    return [
+      {
+        id: b.id,
+        nombre: b.nombre,
+        slug: b.slug,
+        estado: b.estado,
+        dominio: b.dominios[0]?.dominio ?? null,
+        modulos: b.modulos.map((m) => m.moduloId).sort(),
+        usado,
+        limite: b.limiteAlmacenamiento,
+        creadoEn: b.creadoEn,
+      },
+    ];
+  });
+  return { filas, ...p };
 }
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -141,11 +177,9 @@ export async function detalleBanda(slug: string) {
   return banda;
 }
 
-const ESTADOS: EstadoTenant[] = ["ACTIVO", "MOROSO", "SUSPENDIDO", "ARCHIVADO"];
-
 /** Cambia el estado. ARCHIVADO apaga panel y sitio: exige confirmación explícita. */
 export async function cambiarEstado(staffId: string, tenantId: string, estado: string, confirmado: boolean) {
-  if (!ESTADOS.includes(estado as EstadoTenant)) throw new ErrorFormulario("Elegí un estado.");
+  if (!ESTADOS_BANDA.includes(estado as EstadoTenant)) throw new ErrorFormulario("Elegí un estado.");
   if (estado === "ARCHIVADO" && !confirmado) {
     throw new ErrorFormulario("Para archivar, confirmá que el panel y el sitio de la banda van a dejar de responder.");
   }

@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/nucleo/db/cliente";
 import { prenderModulo } from "@/nucleo/modulos/encendido";
 import { dueno, escenarioAcceso } from "../apoyo";
-import { APP, abrirNavegador, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado, sitio } from "./navegador";
+import { APP, abrirNavegador, captura, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado, sitio } from "./navegador";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
 
@@ -176,10 +176,13 @@ describe("prueba 4: sin sitio.contenido.editar se ve el panel pero no se guarda"
     const r = await page.goto(panel("banda-b", "/home"));
     expect(r!.status()).toBe(200);
     expect(await page.getByRole("note").textContent()).toMatch(/puede ver el sitio, pero no editarlo/);
+    await captura(page, "sitio-home-lectura");
     expect(await page.locator("textarea").inputValue()).toBe("Folk de cámara desde Bariloche.");
     expect(await page.getByRole("button", { name: "Guardar" }).isDisabled()).toBe(true);
     await page.goto(panel("banda-b"));
     expect(await page.getByRole("button", { name: "Publicar cambios" }).isDisabled()).toBe(true);
+    await page.goto(panel("banda-b", "/identidad"));
+    await captura(page, "sitio-identidad-lectura");
 
     // Forzando el formulario (como haría alguien desde la consola), el servidor dice que no.
     await page.goto(panel("banda-b", "/home"));

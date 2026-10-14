@@ -183,8 +183,10 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 ## Panel y sitio público
 
 - Panel: componentes oficiales de Untitled UI (`src/components/`, `untitledui add`) detrás de
-  `@/ui` (`src/ui/`, ver su README). Las pantallas importan solo de `@/ui`. Propios: `CampoArchivo`
-  y `Tarjeta`. En este entorno la CLI necesita `NODE_USE_ENV_PROXY=1`;
+  `@/ui` (`src/ui/`, ver su README). Las pantallas importan solo de `@/ui` y no arman a mano lo
+  que el kit tiene (`tests/ui-propia.test.ts`). Propios: `CampoArchivo`, `Tarjeta`, `Aviso`,
+  `Copiable`, `CampoColor`. Listados largos: `Tabla` con `orden`/`paginacion` + `Filtros`, todo
+  en la URL y resuelto en la base. En este entorno la CLI necesita `NODE_USE_ENV_PROXY=1`;
   PRO con `--license "$UNTITLEDUI_LICENSE"` (`docs/untitled-ui-pro.md`).
 - Sitio público: estilo propio de cada banda (marco del módulo sitio, `marcoPublico`).
 - Demo: `npm run db:demo` (Los Satélites y Niebla Norte, usuarios `titular@demo.com`,
@@ -219,7 +221,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   misma transacción (`auditar()`); para lo que corre en el núcleo (módulos, reproceso) se pasa
   `registrar` y va en la transacción del núcleo. Accesos del staff a un panel: `registrarAccesoStaff()`.
 - Pantallas: bandas (listado, alta, detalle: estado, módulos, dominios, miembros), usuarios,
-  eventos fallidos. ARCHIVADO pide confirmación. Una banda nunca queda sin titular.
+  eventos fallidos. Los tres listados: 50 por página, filtro/orden/página en la URL, consulta
+  paginada en la base (`src/app/admin/_servidor/listado.ts`). ARCHIVADO pide confirmación. Una banda nunca queda sin titular.
 - Claves temporales (alta, invitación): `usuario.claveTemporal`; `usuarioActivo()` manda a
   `/clave` hasta cambiarla. `/clave` también es el cambio normal de clave.
 

@@ -1,11 +1,12 @@
+import { Boton } from "@/ui";
 import { salir } from "./ingresar/acciones";
 
 export function BotonSalir() {
   return (
     <form action={salir}>
-      <button type="submit" className="text-sm font-semibold text-tertiary hover:text-secondary">
+      <Boton type="submit" variante="enlaceGris">
         Salir
-      </button>
+      </Boton>
     </form>
   );
 }

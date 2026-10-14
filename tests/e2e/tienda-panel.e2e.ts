@@ -6,7 +6,7 @@ import { prenderModulo } from "@/nucleo/modulos/encendido";
 import { type ComoStaff, crearProductoBase, crearProveedor, leerOpciones } from "../../modulos/tienda/catalogo";
 import { crearProducto, subirDiseno } from "../../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "../apoyo";
-import { APP, abrirNavegador, cerrarContextos, cerrarNavegador, logueado } from "./navegador";
+import { APP, captura, abrirNavegador, cerrarContextos, cerrarNavegador, logueado } from "./navegador";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
 let remeraId = "";
@@ -60,7 +60,7 @@ describe("panel de la tienda", () => {
     await page.goto(`${APP}/b/banda-a`);
     await page.click('nav[aria-label="Panel"] a:text("Tienda")');
     await page.waitForURL(`${APP}/b/banda-a/tienda`);
-    await page.click('nav[aria-label="Tienda"] a:text("Diseños")');
+    await page.click('nav[aria-label="Tienda"] a:has-text("Diseños")');
     await page.waitForURL(`${APP}/b/banda-a/tienda/disenos`);
     expect(await page.locator("[data-especificaciones]").textContent()).toContain("Remera · PNG · 4200×4800 px a 300 dpi (35,6×40,6 cm)");
 
@@ -80,6 +80,7 @@ describe("panel de la tienda", () => {
     await diseno.waitFor();
     expect(await diseno.textContent()).toContain("PNG de 4200×4800 px · 300 dpi");
     expect(await diseno.locator('[data-compatible="Remera"]').count()).toBe(1);
+    await captura(page, "tienda-disenos");
   });
 
   it("pruebas 2, 3 y 4: crea un producto (borrador), ve el margen, lo publica; a pérdida avisa y guarda", async () => {
@@ -121,6 +122,9 @@ describe("panel de la tienda", () => {
     await page.locator("[data-margen-negativo]").waitFor();
     expect((await page.locator("[data-valor-margen]").textContent())!.replace(/\s/g, " ")).toBe("-$ 2.500 · -38,5%");
     expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: producto.id } })).precio).toBe(650000);
+    await captura(page, "tienda-producto-a-perdida");
+    await page.goto(`${APP}/b/banda-a/tienda`);
+    await captura(page, "tienda-productos");
   });
 
   it("prueba 6: LECTURA ve la tienda pero no guarda (ni forzando el formulario)", async () => {

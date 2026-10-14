@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { puedeEnPedido } from "@/nucleo/acceso/panel";
-import { Insignia } from "@/ui";
+import { Aviso, Insignia, Pestanas, Tarjeta } from "@/ui";
 import type { Margen } from "../productos";
 import { formatearPesos } from "@/nucleo/dinero";
 
@@ -28,18 +27,10 @@ export function Encabezado({
         <h1 className="text-display-xs font-semibold text-primary">Tienda</h1>
         {!puedeEditar && <Insignia>Solo lectura</Insignia>}
       </div>
-      <nav aria-label="Tienda" className="flex gap-1 text-sm font-semibold">
-        {pestanas.map(([ruta, etiqueta]) => (
-          <Link
-            key={ruta}
-            href={`/b/${slug}/tienda${ruta}`}
-            aria-current={actual === ruta ? "page" : undefined}
-            className={`rounded-md px-3 py-2 ${actual === ruta ? "bg-primary_hover text-primary" : "text-tertiary hover:text-secondary"}`}
-          >
-            {etiqueta}
-          </Link>
-        ))}
-      </nav>
+      <Pestanas
+        etiqueta="Tienda"
+        pestanas={pestanas.map(([ruta, etiqueta]) => ({ href: `/b/${slug}/tienda${ruta}`, texto: etiqueta, actual: actual === ruta }))}
+      />
     </header>
   );
 }
@@ -51,8 +42,7 @@ export function PanelMargen({ m, envio }: { m: Margen; envio: number }) {
     ["Costo de producción", `− ${formatearPesos(m.costoProduccion)}`],
   ];
   return (
-    <section data-margen className="flex flex-col gap-4 rounded-xl bg-primary p-6 shadow-xs ring-1 ring-secondary ring-inset">
-      <h2 className="text-lg font-semibold text-primary">Precio y margen</h2>
+    <Tarjeta titulo="Precio y margen" data-margen>
       <dl className="flex flex-col gap-2 text-md">
         {filas.map(([k, v]) => (
           <div key={k} className="flex justify-between gap-4">
@@ -68,10 +58,9 @@ export function PanelMargen({ m, envio }: { m: Margen; envio: number }) {
         </div>
       </dl>
       {m.negativo && (
-        <p role="alert" data-margen-negativo className="rounded-lg bg-error-primary p-4 text-md font-semibold text-error-primary ring-1 ring-error_subtle ring-inset">
-          Con este precio perdés {formatearPesos(-m.margen)} por cada venta. Podés guardarlo igual (por ejemplo, para una fecha
-          especial), pero cada venta te cuesta plata.
-        </p>
+        <Aviso tono="error" titulo={`Con este precio perdés ${formatearPesos(-m.margen)} por cada venta.`} data-margen-negativo>
+          Podés guardarlo igual (por ejemplo, para una fecha especial), pero cada venta te cuesta plata.
+        </Aviso>
       )}
       <p className="text-sm text-tertiary" data-envio-aparte>
         El envío ({formatearPesos(envio)}) lo paga el fan aparte (uno por paquete) y es para el proveedor: no entra en tu margen.
@@ -80,6 +69,6 @@ export function PanelMargen({ m, envio }: { m: Margen; envio: number }) {
         El margen es lo que le queda a la banda. <strong className="text-secondary">Deoco no se lleva nada de la venta</strong>: el fan te
         paga a vos, en tu pasarela de pago. No incluye la comisión que cobra la pasarela.
       </p>
-    </section>
+    </Tarjeta>
   );
 }
