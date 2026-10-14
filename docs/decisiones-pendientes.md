@@ -129,7 +129,30 @@ y por qué. Si alguna no va, se cambia.
    rol). **Cambio de comportamiento**: un PUERTA en una banda sin la ticketera ya no ve el
    resumen de la tienda ni del sitio (su rol no está vigente). Es lo que pedía la anotación ("un
    rol sin módulo no da permisos"); antes "veía" por un rol que no tenía sentido ahí.
-3. El staff puede asignar un rol cuyo módulo está apagado (se ve "(módulo apagado)"): sirve para
+4. **Carga de toda la plataforma** (`tests/carga/plataforma.carga.ts`, `npm run test:carga`):
+   build de producción, 30 bandas con sitio publicado, tienda y ticketera, mezcla de sitio (home,
+   fechas, tienda, prensa) y panel con sesión (inicio, plan y pago, tienda), 600 pedidos por
+   escalón, en este contenedor (4 núcleos; app, Postgres y el cliente de la prueba en la misma
+   máquina). Tres corridas, mismos números:
+
+   | a la vez | pedidos/s | p50 | p95 | errores |
+   | --- | --- | --- | --- | --- |
+   | 10 | 55 | 135 ms | 344 ms | 0 |
+   | 25 | 61 | 297 ms | 722 ms | 0 |
+   | 50 | 67 | 541 ms | 1,3 s | 0 |
+   | 100 | 66 | 1,1 s | 2,6 s | 0 |
+   | 200 | 63 | 2,4 s | 5,3 s | 0 |
+   | 400 | 67 | 4,6 s | 8,6 s | 0 |
+
+   **El techo es ~65 pedidos por segundo por proceso de la app**, y lo pone la CPU de Node (un
+   hilo al 100 %; Postgres queda en ~40 % de un núcleo). De a uno, cada página tarda 15–45 ms
+   (el inicio del panel, el más caro: una consulta por módulo). Pasado el techo nada se rompe:
+   ningún error en ningún escalón, solo cola (a 100 simultáneos el p95 ya pasa 2 s). Para más:
+   más réplicas de la app en Easypanel (lo que hay en memoria por proceso —freno por IP de la
+   autogestión, última corrida de las tareas— está pensado para eso: las tareas son idempotentes
+   y lo que no debe correr dos veces se "toma" en la base). La apertura de venta tiene su propia
+   prueba (`compras.test.ts`, `http.carga.ts`) y no cambió.
+5. El staff puede asignar un rol cuyo módulo está apagado (se ve "(módulo apagado)"): sirve para
    dejar armado el equipo antes de prender la ticketera.
 
 ## A1 · Barrido de pendientes

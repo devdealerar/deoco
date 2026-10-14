@@ -9,7 +9,7 @@ Decisiones: `docs/decisiones-pendientes.md` (sección P).
 | P1 | Módulo comercial: planes, límites, cuota mensual (Mercado Pago de Deoco), estados automáticos, prueba, back office | ✅ hecha |
 | P2 | Autogestión del alta (registro con email verificado, banda con subdominio, prueba o plan) | ✅ hecha |
 | P3 | Inicio del panel: un bloque por módulo (consulta `inicio`) + "Para hacer" | ✅ hecha |
-| P4 | Endurecimiento (limpieza de correos, roles, carga) | pendiente |
+| P4 | Endurecimiento: limpieza de correos, roles PUERTA/COMERCIAL a los módulos, carga de toda la plataforma (techo ~65 pedidos/s por proceso) | ✅ hecha |
 | P5 | Repaso final | pendiente |
 
 - P1 núcleo: `@/nucleo/cuenta` (gestor de cuenta: estado, módulos, topes `limite_banda`, espacio;
