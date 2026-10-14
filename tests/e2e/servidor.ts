@@ -79,16 +79,20 @@ async function precalentar() {
     [`${slug}.lvh.me`, "/no-existe"],
     [`${slug}.lvh.me`, "/archivos/00000000-0000-0000-0000-000000000000/x"],
   ];
+  const rotas: string[] = [];
   try {
     for (const [host, ruta] of pedidos) {
       const estado = await pedir(host, ruta);
-      if (estado >= 500) console.warn(`e2e: precalentar ${host}${ruta} → ${estado}`);
+      if (estado >= 500) rotas.push(`${host}${ruta} → ${estado}`);
     }
   } finally {
     // Cada archivo de pruebas empieza vaciando la base (limpiar()); esto es por prolijidad.
     await borrar().catch(() => {});
     await dueno.$disconnect();
   }
+  // Un 500 acá es que la app no carga (un error al compilar o al importar): todas las pruebas
+  // fallarían por tiempo, de a 30 s cada una. Mejor cortar ya, con el motivo (E2E_LOG=1).
+  if (rotas.length) throw new Error(`La app responde 500 antes de empezar (E2E_LOG=1 muestra el error):\n${rotas.join("\n")}`);
 }
 
 /** Levanta next dev contra la base de pruebas (el env ya viene de .env.test). */
@@ -100,7 +104,12 @@ export async function setup() {
   });
   await esperar(`http://127.0.0.1:${PUERTO}/ingresar`, "app.lvh.me");
   const inicio = Date.now();
-  await precalentar();
+  try {
+    await precalentar();
+  } catch (e) {
+    await teardown(); // si setup falla, vitest no llama a teardown: que no quede next dev colgado
+    throw e;
+  }
   console.log(`e2e: rutas compiladas en ${((Date.now() - inicio) / 1000).toFixed(1)} s`);
 }
 

@@ -17,6 +17,8 @@ const sitio: Modulo = {
     { clave: "sitio.contenido.editar", rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL"] },
     { clave: VER, rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL", "PUERTA", "LECTURA"] },
   ],
+  // Formularios del panel del sitio (accionesDelPanel): todo lo que se guarda va al borrador.
+  edicion: { permiso: "sitio.contenido.editar", ruta: "/sitio", sinPermiso: "Tu rol no puede editar el sitio.", guardado: "Guardado en el borrador." },
   rutasPanel: [
     { ruta: "/sitio", permiso: VER, componente: Resumen },
     { ruta: "/sitio/identidad", permiso: VER, componente: Identidad },

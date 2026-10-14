@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { accionesDelPanel } from "@/nucleo/acceso/acciones";
 import { accesoPanel, puedeEnPedido } from "@/nucleo/acceso/panel";
+import ticketera from "../index";
 import type { EstadoFormulario } from "@/ui";
 import { archivo, ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
 import { leerPesos } from "@/nucleo/dinero";
@@ -22,23 +23,10 @@ import {
 } from "../eventos";
 import { type ResultadoValidacion, type ResumenPuerta, resumenPuerta, validarEntrada } from "../puerta";
 
-const EDITAR = "ticketera.eventos.editar";
 const VALIDAR = "ticketera.puerta.validar";
 
-/** Toda acción de shows: exige `ticketera.eventos.editar` y traduce errores a mensajes. */
-async function conEdicion(slug: string, fn: (tenantId: string) => Promise<string | void>): Promise<EstadoFormulario> {
-  const volver = `/b/${slug}/entradas`;
-  const acceso = await accesoPanel(volver);
-  if (!(await puedeEnPedido(EDITAR, volver))) return { error: "Tu rol no puede editar los shows." };
-  try {
-    const ok = await fn(acceso.tenantId);
-    revalidatePath(volver, "layout");
-    return { ok: ok ?? "Guardado." };
-  } catch (e) {
-    if (e instanceof ErrorTicketera || e instanceof ErrorFormulario) return { error: e.message };
-    throw e;
-  }
-}
+/** Toda acción de shows: `edicion` del contrato (ticketera.eventos.editar). */
+const conEdicion = accionesDelPanel(() => ticketera, [ErrorTicketera, ErrorFormulario]);
 
 function datosEvento(fd: FormData): DatosEvento {
   const fecha = leerFechaHora(texto(fd, "fecha", 20));
@@ -77,7 +65,7 @@ function datosTipo(fd: FormData): DatosTipo {
 
 export async function crearEventoAccion(slug: string, _: EstadoFormulario, fd: FormData): Promise<EstadoFormulario> {
   let id = "";
-  const r = await conEdicion(slug, async (tenantId) => {
+  const r = await conEdicion(slug, async ({ tenantId }) => {
     id = await crearEvento(tenantId, datosEvento(fd));
   });
   if (r.error) return r;
@@ -85,7 +73,7 @@ export async function crearEventoAccion(slug: string, _: EstadoFormulario, fd: F
 }
 
 export async function actualizarEventoAccion(slug: string, id: string, _: EstadoFormulario, fd: FormData) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     await actualizarEvento(tenantId, id, datosEvento(fd));
     const f = archivo(fd, "foto");
     if (f) await cambiarFoto(tenantId, id, { nombre: f.name, datos: Buffer.from(await f.arrayBuffer()) });
@@ -94,7 +82,7 @@ export async function actualizarEventoAccion(slug: string, id: string, _: Estado
 }
 
 export async function publicarAccion(slug: string, id: string, publicado: boolean, _: EstadoFormulario) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     await publicarEvento(tenantId, id, publicado);
     return publicado ? "Publicado: ya se ve en Fechas." : "Pasó a borrador.";
   });
@@ -102,27 +90,27 @@ export async function publicarAccion(slug: string, id: string, publicado: boolea
 
 export async function borrarEventoAccion(slug: string, id: string, _: EstadoFormulario, fd: FormData): Promise<EstadoFormulario> {
   if (fd.get("confirmar") !== "on") return { error: "Para borrar el show, confirmalo." };
-  const r = await conEdicion(slug, (tenantId) => borrarEvento(tenantId, id));
+  const r = await conEdicion(slug, ({ tenantId }) => borrarEvento(tenantId, id));
   if (r.error) return r;
   redirect(`/b/${slug}/entradas`);
 }
 
 export async function crearTipoAccion(slug: string, eventoId: string, _: EstadoFormulario, fd: FormData) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     await crearTipo(tenantId, eventoId, datosTipo(fd));
     return "Tipo de entrada agregado.";
   });
 }
 
 export async function actualizarTipoAccion(slug: string, tipoId: string, _: EstadoFormulario, fd: FormData) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     await actualizarTipo(tenantId, tipoId, datosTipo(fd));
     return "Guardado.";
   });
 }
 
 export async function borrarTipoAccion(slug: string, tipoId: string, _: EstadoFormulario) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     await borrarTipo(tenantId, tipoId);
     return "Tipo borrado.";
   });

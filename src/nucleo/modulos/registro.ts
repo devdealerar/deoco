@@ -165,6 +165,14 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       }
     };
 
+    if (m.edicion) {
+      if (!m.edicion.permiso) throw new ErrorRegistro(m.id, "edicion: falta el permiso");
+      permisoPropio(m.edicion.permiso, "edicion");
+      if (!(m.rutasPanel ?? []).some((r) => r.ruta === m.edicion!.ruta)) {
+        throw new ErrorRegistro(m.id, `edicion: "${m.edicion.ruta}" no es una ruta de panel del módulo`);
+      }
+      if (!m.edicion.sinPermiso.trim()) throw new ErrorRegistro(m.id, "edicion: falta el mensaje para quien no tiene el permiso");
+    }
     for (const r of m.rutasPanel ?? []) {
       validarRuta(m, r.ruta, RESERVADAS_PANEL);
       permisoPropio(r.permiso, `ruta de panel "${r.ruta}"`);

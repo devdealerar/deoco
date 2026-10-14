@@ -286,6 +286,24 @@ describe("el registro valida el contrato al arrancar", () => {
       [mod("a", { navegacion: [{ etiqueta: "A", href: "/a", orden: 1 }] })],
       /no es una ruta de panel del módulo/,
     ],
+    [
+      "edicion con un permiso mal escrito",
+      [mod("a", { permisos: [{ clave: "a.contenido.editar", rolesPorDefecto: [] }], rutasPanel: [{ ruta: "/a", componente: nada }], edicion: { permiso: "a.contenido.edtar", ruta: "/a", sinPermiso: "No." } })],
+      /edicion: el permiso "a.contenido.edtar" no lo declara este módulo/,
+    ],
+    [
+      "edicion con el permiso de otro módulo",
+      [
+        mod("a", { permisos: [{ clave: "a.x.editar", rolesPorDefecto: [] }] }),
+        mod("b", { rutasPanel: [{ ruta: "/b", componente: nada }], edicion: { permiso: "a.x.editar", ruta: "/b", sinPermiso: "No." } }),
+      ],
+      /no lo declara este módulo/,
+    ],
+    [
+      "edicion que refresca una pantalla que no es suya",
+      [mod("a", { permisos: [{ clave: "a.x.editar", rolesPorDefecto: [] }], edicion: { permiso: "a.x.editar", ruta: "/otra", sinPermiso: "No." } })],
+      /edicion: "\/otra" no es una ruta de panel del módulo/,
+    ],
   ];
   it.each(casos)("%s", (_, modulos, error) => {
     expect(() => crearRegistro(modulos)).toThrow(error);
@@ -372,3 +390,29 @@ describe("un módulo nunca importa código de otro (ni lo que es solo del núcle
     expect(usos).toEqual([]);
   });
 });
+
+describe("los permisos que un módulo escribe en su código existen", () => {
+  it("todo \"<modulo>.<recurso>.<accion>\" en el código de un módulo está declarado en su contrato", () => {
+    // Un permiso mal escrito en exigirPermiso/puedeEnPedido no falla en ningún lado: da false
+    // y la pantalla dice "sin permiso". Acá se ve antes. (El de `edicion` lo valida el registro.)
+    const reg = registro();
+    const ids = new Set(reg.modulos.map((m) => m.id));
+    const archivos = (dir: string): string[] =>
+      readdirSync(dir).flatMap((f) => {
+        const p = path.join(dir, f);
+        return statSync(p).isDirectory() ? archivos(p) : /\.tsx?$/.test(f) ? [p] : [];
+      });
+    const malos: string[] = [];
+    let vistos = 0;
+    for (const f of archivos("modulos")) {
+      for (const [, clave, id] of readFileSync(f, "utf8").matchAll(/["'`](([a-z][a-z0-9-]*)\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*)["'`]/g)) {
+        if (!ids.has(id)) continue;
+        vistos++;
+        if (reg.permiso(clave)?.moduloId !== id) malos.push(`${path.relative(".", f)}: "${clave}"`);
+      }
+    }
+    expect(malos).toEqual([]);
+    expect(vistos).toBeGreaterThan(5); // que la búsqueda encuentre algo
+  });
+});
+

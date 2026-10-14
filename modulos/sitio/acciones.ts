@@ -1,34 +1,15 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-import { accesoPanel, puedeEnPedido } from "@/nucleo/acceso/panel";
+import { accionesDelPanel } from "@/nucleo/acceso/acciones";
 import { ErrorArchivo, guardarArchivo, type TipoArchivo, type Variante } from "@/nucleo/archivos";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import type { EstadoFormulario } from "@/ui";
 import { archivo as archivoDe, color, email, ErrorFormulario, obligatorio, texto, url } from "@/ui/servidor";
 import { liberarArchivo, MODULO, publicar as publicarContenido } from "./contenido";
+import sitio from "./index";
 
-type Contexto = { tenantId: string; usuarioId: string };
-
-/**
- * Envoltorio de todas las acciones: exige `sitio.contenido.editar` (además de lo que
- * muestre la interfaz), traduce errores esperables a mensajes y refresca el panel.
- */
-async function conEdicion(slug: string, fn: (c: Contexto) => Promise<string | void>): Promise<EstadoFormulario> {
-  const volver = `/b/${slug}/sitio`;
-  const acceso = await accesoPanel(volver);
-  if (!(await puedeEnPedido("sitio.contenido.editar", volver))) {
-    return { error: "Tu rol no puede editar el sitio." };
-  }
-  try {
-    const ok = await fn({ tenantId: acceso.tenantId, usuarioId: acceso.usuarioId });
-    revalidatePath(volver, "layout");
-    return { ok: ok ?? "Guardado en el borrador." };
-  } catch (e) {
-    if (e instanceof ErrorArchivo || e instanceof ErrorFormulario) return { error: e.message };
-    throw e;
-  }
-}
+/** Toda acción del sitio: `edicion` del contrato (sitio.contenido.editar); lo guardado va al borrador. */
+const conEdicion = accionesDelPanel(() => sitio, [ErrorArchivo, ErrorFormulario]);
 
 const IMAGEN: TipoArchivo[] = ["jpeg", "png", "webp"];
 const MB = 1024 * 1024;

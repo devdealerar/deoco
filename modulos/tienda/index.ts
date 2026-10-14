@@ -36,6 +36,8 @@ const tienda: Modulo = {
     // Probar la conexión con la cuenta de cobro: solo el titular (ni otro rol ni el staff).
     { clave: "tienda.pasarela.conectar", rolesPorDefecto: ["TITULAR"], exclusivoTitular: true },
   ],
+  // Formularios del panel de la tienda (accionesDelPanel).
+  edicion: { permiso: "tienda.producto.editar", ruta: "/tienda", sinPermiso: "Tu rol no puede editar la tienda." },
   rutasPanel: [
     { ruta: "/tienda", permiso: VER, componente: ResumenTienda },
     { ruta: "/tienda/disenos", permiso: VER, componente: DisenosTienda },

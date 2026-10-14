@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { accesoPanel, exigirPermiso, puedeEnPedido } from "@/nucleo/acceso/panel";
+import { accionesDelPanel } from "@/nucleo/acceso/acciones";
+import { exigirPermiso } from "@/nucleo/acceso/panel";
 import { prisma } from "@/nucleo/db/cliente";
 import type { EstadoFormulario } from "@/ui";
 import { archivo, ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
@@ -24,27 +24,8 @@ import {
   subirDiseno,
 } from "../productos";
 
-const EDITAR = "tienda.producto.editar";
-
-/**
- * Toda acción del panel de la tienda: exige `tienda.producto.editar` (además de lo que muestre
- * la pantalla) y traduce los errores esperables a mensajes.
- */
-async function conEdicion(slug: string, fn: (tenantId: string) => Promise<string | void>): Promise<EstadoFormulario> {
-  const volver = `/b/${slug}/tienda`;
-  const acceso = await accesoPanel(volver);
-  if (!(await puedeEnPedido(EDITAR, volver))) return { error: "Tu rol no puede editar la tienda." };
-  try {
-    const ok = await fn(acceso.tenantId);
-    revalidatePath(volver, "layout");
-    return { ok: ok ?? "Guardado." };
-  } catch (e) {
-    if (e instanceof ErrorTienda || e instanceof ErrorImpresion || e instanceof ErrorArchivo || e instanceof ErrorFormulario || e instanceof ErrorContacto) {
-      return { error: e.message };
-    }
-    throw e;
-  }
-}
+/** Toda acción del panel de la tienda: `edicion` del contrato (tienda.producto.editar). */
+const conEdicion = accionesDelPanel(() => tienda, [ErrorTienda, ErrorImpresion, ErrorArchivo, ErrorFormulario, ErrorContacto]);
 
 async function subido(fd: FormData, campo: string) {
   const f = archivo(fd, campo);
@@ -52,7 +33,7 @@ async function subido(fd: FormData, campo: string) {
 }
 
 export async function subirDisenoAccion(slug: string, _: EstadoFormulario, fd: FormData) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     const a = await subido(fd, "archivo");
     if (!a) throw new ErrorFormulario("Elegí el archivo de impresión (PNG de alta o PDF).");
     const d = await subirDiseno(tenantId, texto(fd, "nombre", 80), a, texto(fd, "paraBaseId", 40) || null);
@@ -84,7 +65,7 @@ const avisoMargen = (precio: number, base: { costoProduccion: number }) => {
 
 export async function crearProductoAccion(slug: string, productoBaseId: string, _: EstadoFormulario, fd: FormData) {
   let id = "";
-  const r = await conEdicion(slug, async (tenantId) => {
+  const r = await conEdicion(slug, async ({ tenantId }) => {
     const base = await prisma.tiendaProductoBase.findUnique({ where: { id: productoBaseId } });
     if (!base) throw new ErrorTienda("Ese producto base no existe.");
     const p = await crearProducto(tenantId, productoBaseId, datosProducto(fd, base.opciones as Opcion[]), await subido(fd, "foto"));
@@ -95,7 +76,7 @@ export async function crearProductoAccion(slug: string, productoBaseId: string, 
 }
 
 export async function actualizarProductoAccion(slug: string, id: string, _: EstadoFormulario, fd: FormData) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     const actual = await productoDe(tenantId, id);
     const datos = datosProducto(fd, actual.productoBase.opciones as Opcion[]);
     await actualizarProducto(tenantId, id, datos, await subido(fd, "foto"), fd.get("quitarFoto") === "on");
@@ -104,7 +85,7 @@ export async function actualizarProductoAccion(slug: string, id: string, _: Esta
 }
 
 export async function publicarAccion(slug: string, id: string, publicado: boolean, _: EstadoFormulario) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     await publicarProducto(tenantId, id, publicado);
     return publicado ? "Publicado: ya se ve en la tienda." : "Pasó a borrador: ya no se ve en la tienda.";
   });
@@ -126,7 +107,7 @@ export async function probarConexionAccion(slug: string, _: EstadoFormulario): P
 
 /** Contacto de la tienda: responder-a del mail al fan y contacto en la orden al proveedor. */
 export async function contactoAccion(slug: string, _: EstadoFormulario, fd: FormData) {
-  return conEdicion(slug, async (tenantId) => {
+  return conEdicion(slug, async ({ tenantId }) => {
     await guardarContacto(tenantId, { nombre: texto(fd, "nombre", 120), email: texto(fd, "email", 200), telefono: texto(fd, "telefono", 40) });
     return "Contacto guardado.";
   });

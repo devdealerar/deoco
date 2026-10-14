@@ -171,6 +171,9 @@ después de responder. Validá direcciones con `esEmail` (la misma regla que el 
 - Si el módulo está apagado para la banda, todos sus permisos dan false.
 - En páginas y acciones: `exigirPermiso(permiso, volver)`, `puedeEnPedido(permiso, volver)`
   (`src/nucleo/acceso/panel.ts`). Fuera de un pedido: `puede(usuarioId, tenantId, permiso)`.
+- Formularios del panel: `edicion` en el contrato + `accionesDelPanel` (sección 5).
+- Todo `"<id>.recurso.accion"` escrito en el código del módulo tiene que estar declarado en su
+  contrato (`tests/modulos.test.ts` lo revisa): uno mal escrito daría false sin avisar.
 
 ### Credenciales de la banda (secretos)
 
@@ -236,23 +239,30 @@ secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ay
 Todo formulario de un módulo usa `<Formulario>` de `@/ui` y una server action que
 **devuelve** el resultado en vez de tirar:
 
+```ts
+// index.ts (contrato): el permiso, la pantalla que se refresca y qué ve quien no puede.
+// El registro lo valida al arrancar: un permiso mal escrito no arranca.
+edicion: { permiso: "<id>.contenido.editar", ruta: "/<modulo>", sinPermiso: "Tu rol no puede editar esto." },
+```
+
 ```tsx
 // acciones.ts ("use server")
+import { accionesDelPanel } from "@/nucleo/acceso/acciones";
 import type { EstadoFormulario } from "@/ui";
 import { ErrorFormulario, email, texto } from "@/ui/servidor";
+import miModulo from "./index";
+
+// Permiso → acción → refrescar la pantalla. Los errores de la lista se muestran tal cual.
+// El contrato va con () =>: este archivo lo importan las pantallas, que importa index.ts.
+const conEdicion = accionesDelPanel(() => miModulo, [ErrorFormulario, MiError]);
 
 export async function guardarContacto(slug: string, _: EstadoFormulario, fd: FormData): Promise<EstadoFormulario> {
-  // 1. permiso (exigirPermiso / puedeEnPedido) → si no, return { error: "..." }
-  try {
+  return conEdicion(slug, async ({ tenantId }) => {
     const nombre = texto(fd, "nombre", 120);
     const correo = email(fd, "email");          // tira ErrorFormulario si es inválido
-    // 2. guardar con conTenant(...)
-    revalidatePath(`/b/${slug}/<modulo>`, "layout");
-    return { ok: "Guardado." };
-  } catch (e) {
-    if (e instanceof ErrorFormulario) return { error: e.message };
-    throw e;
-  }
+    await conTenant(tenantId, (tx) => /* guardar */);
+    return "Guardado.";                          // opcional: si no, "Guardado." o `edicion.guardado`
+  });
 }
 
 // pantalla

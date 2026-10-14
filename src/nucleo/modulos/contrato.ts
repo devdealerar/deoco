@@ -247,6 +247,12 @@ export type Modulo = {
    * una vez, en Credenciales → Cobros. Exige un aviso en "/pago/[pasarela]".
    */
   cobros?: boolean;
+  /**
+   * Formularios del panel (`accionesDelPanel`, `@/nucleo/acceso/acciones`): el permiso que
+   * exigen, la pantalla del panel que refrescan al guardar y lo que ve quien no tiene el permiso.
+   * El registro lo valida al arrancar: el permiso es de este módulo y la ruta, una de las suyas.
+   */
+  edicion?: { permiso: string; ruta: string; sinPermiso: string; guardado?: string };
   /** Consultas que ofrece a otros módulos (ver DefinicionConsulta). */
   consultas?: DefinicionConsulta[];
   /** Ids de módulos que tienen que estar prendidos para prender este. */
