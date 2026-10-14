@@ -148,9 +148,10 @@ y por qué. Si alguna no va, se cambia.
    hilo al 100 %; Postgres queda en ~40 % de un núcleo). De a uno, cada página tarda 15–45 ms
    (el inicio del panel, el más caro: una consulta por módulo). Pasado el techo nada se rompe:
    ningún error en ningún escalón, solo cola (a 100 simultáneos el p95 ya pasa 2 s). Para más:
-   más réplicas de la app en Easypanel (lo que hay en memoria por proceso —freno por IP de la
-   autogestión, última corrida de las tareas— está pensado para eso: las tareas son idempotentes
-   y lo que no debe correr dos veces se "toma" en la base). La apertura de venta tiene su propia
+   más CPU primero; más réplicas de la app después, revisando antes el bus de eventos (el orden
+   por banda lo cuida una cola en memoria de cada proceso, `src/nucleo/eventos/bus.ts`). Lo demás
+   que vive en memoria aguanta varias réplicas: el freno por IP de la autogestión cuenta por
+   proceso, las tareas periódicas son idempotentes, y evento y correo se "toman" en la base. La apertura de venta tiene su propia
    prueba (`compras.test.ts`, `http.carga.ts`) y no cambió.
 5. El staff puede asignar un rol cuyo módulo está apagado (se ve "(módulo apagado)"): sirve para
    dejar armado el equipo antes de prender la ticketera.

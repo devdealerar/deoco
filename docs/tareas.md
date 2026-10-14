@@ -2,6 +2,7 @@
 
 ## Trabajo largo · Planes, cuotas y autogestión
 
+Resumen y lo que hay que configurar: `docs/resumen-planes-cuotas.md`.
 Decisiones: `docs/decisiones-pendientes.md` (sección P).
 
 | # | Parte | Estado |
@@ -10,7 +11,7 @@ Decisiones: `docs/decisiones-pendientes.md` (sección P).
 | P2 | Autogestión del alta (registro con email verificado, banda con subdominio, prueba o plan) | ✅ hecha |
 | P3 | Inicio del panel: un bloque por módulo (consulta `inicio`) + "Para hacer" | ✅ hecha |
 | P4 | Endurecimiento: limpieza de correos, roles PUERTA/COMERCIAL a los módulos, carga de toda la plataforma (techo ~65 pedidos/s por proceso) | ✅ hecha |
-| P5 | Repaso final | pendiente |
+| P5 | Repaso final: todo en verde, ensayo con la imagen (alta sola → plan → cuota → venta → mora → suspensión → pago), capturas, docs | ✅ hecha (`docs/resumen-planes-cuotas.md`) |
 
 - P1 núcleo: `@/nucleo/cuenta` (gestor de cuenta: estado, módulos, topes `limite_banda`, espacio;
   `exigirLimite` con bloqueo; `catalogoDeCuenta`), `avisosPlataforma`

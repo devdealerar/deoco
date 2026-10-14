@@ -15,10 +15,9 @@ export async function inicioComercial(tenantId: string) {
   const activa = cuenta.suscripcionEstado === "activa";
   const datos = [
     { etiqueta: "Plan", valor: enPrueba ? `${plan.nombre} (prueba)` : plan.nombre },
-    {
-      etiqueta: enPrueba ? "Prueba hasta" : "Pagado hasta",
-      valor: cuenta.moraDesde ? "Pago pendiente" : enPrueba ? dia(cuenta.pruebaHasta!) : cuenta.pagoHasta ? dia(cuenta.pagoHasta) : "—",
-    },
+    cuenta.moraDesde
+      ? { etiqueta: "Cuota", valor: `Pendiente desde el ${dia(cuenta.moraDesde)}` }
+      : { etiqueta: enPrueba ? "Prueba hasta" : "Pagado hasta", valor: enPrueba ? dia(cuenta.pruebaHasta!) : cuenta.pagoHasta ? dia(cuenta.pagoHasta) : "—" },
     { etiqueta: "Espacio", valor: `${formatearBytes(uso.usado)} de ${formatearBytes(uso.limite)}` },
   ];
   const pendientes = [];

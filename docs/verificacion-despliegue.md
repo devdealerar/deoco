@@ -254,7 +254,9 @@ candado, **Usar como principal**.
 ## 10. Carga en el VPS
 
 Para comparar con lo medido acá (`npm run test:carga`): 300 pedidos simultáneos a la página de
-un show → **p95 ≈ 5 s** en el contenedor de desarrollo (limitado por CPU, no por la base).
+un show → **p95 ≈ 5 s** en el contenedor de desarrollo (limitado por CPU, no por la base). Toda
+la plataforma mezclada (sitio, tienda, fechas, panel): **~65 pedidos/s por proceso**, p95 < 2 s
+hasta 50 a la vez (`docs/decisiones-pendientes.md`, P4).
 
 **Qué hago.** Desde **otra máquina** (no desde el VPS: el que mide le sacaría CPU al servidor), con el show
 del punto 6 (con cupo, publicado):
@@ -292,5 +294,48 @@ SELECT estado, count(*) FROM evento GROUP BY 1;
 acumulándose.
 
 **Si falla.** `FALLIDO` acumulándose: mirar `error` (correo) o `fallos` (evento) y reprocesar
-desde `/admin` → Eventos fallidos. Si `correo` crece rápido, aplicar la limpieza propuesta en
-`docs/decisiones-pendientes.md` (bloque 4, "Tablas que solo crecen").
+desde `/admin` → Eventos fallidos. `correo` ya se limpia solo una vez por día (adjuntos a los 7
+días, cuerpo a los 90, fila al año: `DEOCO_CORREO_DIAS_*`); en los logs, una línea
+`[barrido] correos: …` cuando toca algo. Si igual crece rápido, bajar esos plazos.
+
+## 12. La cuota de Deoco con Mercado Pago de verdad
+
+Lo que el ensayo hizo con el Mercado Pago falso: los campos de `/preapproval` y
+`/authorized_payments` se leen a la defensiva y hay que confirmarlos con la cuenta real.
+
+**Qué hago.**
+1. En `/admin/m/comercial/planes`, poner temporalmente el precio de Esencial en **$ 100** (el
+   mínimo que acepte Mercado Pago para suscripciones).
+2. Con un email tuyo, alta sola en `https://app.deoco.com/registro` → mail → link → ingresar →
+   crear banda eligiendo **Esencial**. Te lleva a Mercado Pago (cuenta de **Deoco**): pagá con
+   una tarjeta tuya (o con un usuario de prueba de esa aplicación).
+3. Al volver a "Plan y pago": forma de pago "Mercado Pago · <tarjeta>", plan Esencial.
+4. En Mercado Pago (cuenta de Deoco) → Suscripciones: está la de la banda, con la referencia =
+   id de la banda. Webhooks → historial: avisos `subscription_preapproval` respondidos **200**.
+5. Cuando llegue el primer cobro (el primer día después de la prueba de 14 días; para no esperar,
+   repetir con `diasPrueba` en 0 en Planes → Plazos): aviso `subscription_authorized_payment`
+   200, y en `/admin/m/comercial/bandas/<id>` un cobro "aprobado" y "Pagado hasta" un mes más.
+6. "Cancelar la suscripción" en Plan y pago → en Mercado Pago queda cancelada.
+7. Volver el precio de Esencial al real.
+
+**Qué tiene que pasar.** Todo lo de arriba, y en los logs ninguna línea `[comercial]` de error.
+
+**Si falla.**
+- Al elegir el plan: "No pudimos conectar con Mercado Pago" → `DEOCO_CUOTA_MP_TOKEN` (token de
+  producción de la aplicación de Deoco) y el log `[comercial] pasarela de la cuota`.
+- Avisos 401: `DEOCO_CUOTA_MP_SECRETO_AVISOS` no es la clave secreta de esa aplicación.
+- El cobro llega pero la cuenta no cambia: mirar la respuesta de
+  `GET https://api.mercadopago.com/authorized_payments/<id>` con el token de Deoco y comparar con
+  lo que lee `src/nucleo/pagos/mercadopago.ts` (`suscripciones.consultarCobro`): `preapproval_id`,
+  `payment.status`, `transaction_amount`.
+
+## 13. Alta sola con mails de verdad
+
+**Qué hago.** `https://app.deoco.com/registro` con una casilla Gmail y otra Outlook.
+
+**Qué tiene que pasar.** El mail "Confirmá tu email…" llega (no a spam), remitente "Deoco"; el
+link abre `/registro/verificar` y confirma; la banda nueva aparece en `/admin` con el filtro
+"Alta: Autogestión". Registrarse dos veces con el mismo email: la segunda vez llega "Ya tenés
+una cuenta en Deoco".
+
+**Si falla.** No llega: `DEOCO_CORREO=smtp` y el dominio verificado en Resend (punto 4).

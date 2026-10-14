@@ -280,6 +280,28 @@ naranja de Cloudflare en `deoco.com`, definí `DEOCO_IP_PUBLICA` con la IP del V
 
 ## Qué se verificó antes de este despliegue
 
+**Segundo ensayo con la imagen de producción** (planes, cuotas y autogestión): imagen nueva del
+`Dockerfile`, Postgres 16 **vacío** preparado con `preparar-base.sql`, Traefik con HTTPS
+(`deoco.test`), Mercado Pago y SMTP falsos:
+
+- Arranque sano: las 46 migraciones sobre la base vacía; módulos `comercial, sitio, ticketera,
+  tienda` (el de prueba, afuera); `crear-staff.mjs` en el contenedor.
+- El staff pone los precios en pesos (Planes); la URL de avisos de la cuota se ve ahí.
+- Alta sola: `/ingresar` → "Creá tu banda" → registro → **sin usuario hasta confirmar** → mail por
+  SMTP con el link (token después de "#") → confirmar → ingresar → crear banda "Los del Ensayo"
+  eligiendo **Premium** → pasarela de **Deoco** (token del entorno, referencia = la banda, primer
+  cobro al terminar la prueba) → vuelve a Plan y pago con Premium y "Mercado Pago · Visa"; el menú
+  ya tiene Entradas; el sitio responde en su subdominio.
+- Cuota: aviso sin firma → 401; cobro aprobado firmado → "Pagado hasta" un mes, el cobro en
+  `comercial_cobro`; nada en las tablas de ventas ni en `secreto`.
+- Vender: sitio publicado; credenciales de cobro **de la banda** (otra cuenta); proveedor y producto
+  base del staff; producto publicado; compra del fan → pagado; show con cupo 2 → entradas con QR,
+  tercer intento "agotada". Mails al fan, al proveedor y con QR (`cid:`).
+- Mora: cobro rechazado → MOROSO, aviso en el panel, mail "no pudimos cobrar la cuota". Diez días
+  después (reinicio: la tarea corre al arrancar) → SUSPENDIDO, mail; panel 403 salvo Plan y pago;
+  sitio público y tienda 200. Cobro aprobado → ACTIVO al instante, panel 200.
+- Capturas: `docs/capturas/20-…` a `27-…`.
+
 **Ensayo con la imagen de producción** (octubre 2026): la imagen del `Dockerfile` construida con
 Docker, `scripts/arrancar.sh`, un Postgres 16 **nuevo** preparado con `preparar-base.sql` y
 Traefik adelante con HTTPS (dominio `deoco.test`, certificado autofirmado):
