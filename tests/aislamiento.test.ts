@@ -177,3 +177,38 @@ describe("tablas de módulos", () => {
     await expect(prisma.$executeRawUnsafe(`SELECT deoco_aislar_tabla('sitio_fecha')`)).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("migraciones: el módulo toca lo suyo, el núcleo lo suyo", () => {
+  /**
+   * Tablas que una migración CAMBIA (crear, alterar, índices, políticas, permisos, disparadores,
+   * insertar, actualizar, borrar). Leer otra tabla (un JOIN para copiar un dato) no cuenta.
+   */
+  function tablasQueCambia(sql: string): string[] {
+    const limpio = sql.replace(/--[^\n]*/g, "").replace(/ON (UPDATE|DELETE) (CASCADE|RESTRICT|SET NULL|NO ACTION)/gi, "");
+    const patron =
+      /(?:ALTER TABLE|CREATE TABLE|CREATE (?:UNIQUE )?INDEX\s+"?\w*"?\s+ON|(?:CREATE|DROP) POLICY(?: IF EXISTS)?\s+\w+\s+ON|GRANT[^;]*?\bON(?: TABLE)?|CREATE TRIGGER[^;]*?\bON|INSERT INTO|^\s*UPDATE|DELETE FROM|deoco_aislar_tabla\(|deoco_tabla_global\()\s*'?"?([A-Za-z_]+)"?/gim;
+    const ignorar = new Set(["function", "schema", "all", "tables", "sequence", "sequences"]);
+    return [...new Set([...limpio.matchAll(patron)].map((m) => m[1]).filter((t) => !ignorar.has(t.toLowerCase())))];
+  }
+
+  it("una migración que crea o cambia tablas de un módulo no cambia tablas del núcleo (ni de otro módulo)", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { registro } = await import("@/nucleo/modulos");
+    const prefijos = registro().modulos.map((m) => `${m.id.replace(/-/g, "_")}_`);
+    const deModulo = (t: string) => prefijos.find((p) => t.startsWith(p));
+    const problemas: string[] = [];
+    for (const dir of readdirSync("prisma/migrations").filter((d) => /^\d{14}_/.test(d))) {
+      const tablas = tablasQueCambia(readFileSync(`prisma/migrations/${dir}/migration.sql`, "utf8"));
+      const modulos = new Set(tablas.map(deModulo).filter(Boolean));
+      if (modulos.size === 0) continue; // del núcleo
+      const ajenas = tablas.filter((t) => !deModulo(t) || modulos.size > 1);
+      if (ajenas.length) problemas.push(`${dir}: ${ajenas.join(", ")}`);
+    }
+    expect(problemas).toEqual([]);
+  });
+
+  it("el detector ve una política del núcleo puesta desde una migración de módulo", () => {
+    expect(tablasQueCambia(`CREATE TABLE "tienda_x" (id int);\nCREATE POLICY p ON "tenant" FOR SELECT USING (true);`)).toEqual(["tienda_x", "tenant"]);
+    expect(tablasQueCambia(`ALTER TABLE "tienda_x" ADD CONSTRAINT f FOREIGN KEY (a) REFERENCES "tenant"("id") ON UPDATE CASCADE;`)).toEqual(["tienda_x"]);
+  });
+});

@@ -340,4 +340,14 @@ describe("un módulo nunca importa código de otro (ni lo que es solo del núcle
     }
     expect(problemas).toEqual([]);
   });
+
+  it("ningún módulo abre transacciones de banda a mano (transaccionDeBanda es solo del núcleo)", () => {
+    const usos: string[] = [];
+    for (const id of readdirSync("modulos").filter((d) => statSync(path.join("modulos", d)).isDirectory())) {
+      for (const f of archivos(path.resolve("modulos", id)).filter((x) => /\.(ts|tsx)$/.test(x))) {
+        if (readFileSync(f, "utf8").includes("transaccionDeBanda")) usos.push(path.relative(".", f));
+      }
+    }
+    expect(usos).toEqual([]);
+  });
 });

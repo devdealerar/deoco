@@ -255,6 +255,11 @@ model TiendaOrden {
   proveedor     TiendaProveedor   @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
   /// Nombre de la banda al pagarse (el proveedor no lee la tabla de bandas).
   bandaNombre   String
+  /// Contacto de la banda al pagarse (el proveedor no lee miembros de la banda): el de la tienda
+  /// o, si no cargó uno, el mail de un titular.
+  contactoNombre   String @default("")
+  contactoEmail    String @default("")
+  contactoTelefono String @default("")
   estado        TiendaEstadoOrden @default(EN_PRODUCCION)
   /// Número de seguimiento del envío (opcional), lo carga el proveedor al despachar.
   seguimiento   String?

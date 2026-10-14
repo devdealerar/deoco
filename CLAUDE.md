@@ -100,6 +100,11 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   `cuenta_externa` (usuario, módulo, referencia; global, la escribe el staff). Lectura entre
   bandas con `conCuentaExterna()` + políticas SELECT del módulo con `app_referencia_externa('<id>')`.
   Lo usa la tienda: panel del proveedor (órdenes, despacho, cuenta corriente).
+- Escribir en una banda como cuenta externa: `conCuentaExternaEnBanda()`. No fija la banda: solo
+  alcanza lo que nombran políticas con `app_externo_tenant()`; el módulo decide con
+  `<id>_externo_banda(uuid)` / `<id>_externo_archivo(uuid)` y limita columnas con disparadores.
+  `tests/tienda-proveedor.test.ts` recorre todas las tablas desde esa transacción.
+- Una migración de módulo no cambia tablas del núcleo (`tests/aislamiento.test.ts`).
 
 ## Ticketera (`modulos/ticketera`)
 

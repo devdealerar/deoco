@@ -155,3 +155,22 @@ y por qué. Si alguna no va, se cambia.
    `next build`. En este contenedor, 300 cargas a la vez de la página del show dan p95 ≈ 5 s
    (CPU del contenedor, no la base); en el servidor de verdad hay que medirlo (lista de
    verificación).
+
+## G2 · Aislamiento del proveedor y migraciones
+
+1. **Cuenta externa en una banda** sin abrir la banda: variables propias (`app.externo_*`) y
+   políticas que la nombran. Lo que no tiene política para ese contexto, no existe.
+2. **El módulo decide con funciones SQL de nombre fijo** (`<id>_externo_banda`,
+   `<id>_externo_archivo`) que el núcleo llama sin conocerlo. Sin la función, no.
+3. **Columnas por disparador**: Postgres no restringe columnas por contexto en una política;
+   el disparador compara la fila sin las columnas permitidas.
+4. **El estado del pedido lo mueve la base** (disparador SECURITY DEFINER, como dueña): así el
+   proveedor no necesita escribir pedidos.
+5. **El contacto de la banda en la orden es una copia al pagarse** (como `bandaNombre`). Si la
+   banda carga un contacto después, se ve el nuevo (la tienda lo deja leer); si no, la copia.
+6. **La migración vieja de `tenant` no se borra**: puede estar aplicada en producción y Prisma
+   compara checksums. La del núcleo la reemplaza (borra la política y la crea con dueño claro).
+7. **AGUJERO ENCONTRADO, sin arreglar:** `usuario` no tiene RLS. Cualquier transacción de la app
+   (del núcleo, de un módulo, la del proveedor) puede borrar o cambiar cualquier usuario, incluido
+   `esStaff`. Está anotado como excepción con nombre en la prueba. Arreglarlo toca login, cambio
+   de clave y altas: a decidir.

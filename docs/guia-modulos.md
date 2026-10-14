@@ -442,8 +442,15 @@ navegacion: [{ etiqueta: "Órdenes", href: "/", externa: true, orden: 10 }],
     USING ("proveedorId"::text = app_referencia_externa('tienda'));
   ```
 
-- Para **escribir** (despachar, saldar): `conTenant` de la banda de esa fila, con la
-  referencia en el `WHERE` (así va atómico con `emitir({ tx })` y la auditoría de la banda).
+- Para **escribir** (despachar, saldar): `conCuentaExternaEnBanda(usuarioId, modulo, tenantId, fn)`.
+  No abre la banda: solo llega a lo que tu migración habilita para ese contexto:
+  - `CREATE POLICY … FOR UPDATE USING ("<ref>"::text = app_referencia_externa('<id>') AND "tenantId" = app_externo_tenant())`.
+  - Un disparador BEFORE UPDATE que deja cambiar solo las columnas que correspondan.
+  - `<id>_externo_banda(uuid)`: ¿tiene algo suyo en esa banda? Si no, no entra.
+  - `<id>_externo_archivo(uuid)`: ¿qué archivos puede firmar con `urlFirmada(..., { tx })`?
+  - Emitir eventos y auditar (con `createMany`) a su nombre ya lo deja el núcleo.
+  Ejemplo: la migración `tienda_proveedor_escribe_en_la_base`. Nunca uses `conTenant` para la
+  cuenta externa: le abre la banda entera.
 - Elegí las columnas a mano: RLS filtra filas, no columnas (el proveedor no ve montos de venta).
 - Ejemplo completo: `modulos/tienda/proveedor.ts` y `modulos/tienda/portal/`.
 

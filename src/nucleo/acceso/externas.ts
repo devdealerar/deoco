@@ -11,7 +11,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { claveTemporal } from "@/nucleo/auth/clave-temporal";
 import { hashearContrasena } from "@/nucleo/auth/contrasena";
 import { prisma } from "@/nucleo/db/cliente";
-import type { TxTenant } from "@/nucleo/db/con-tenant";
+import { transaccionDeBanda, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
@@ -74,6 +74,41 @@ export async function conCuentaExterna<T>(
     await tx.$executeRaw`SELECT set_config('app.externo_modulo', ${modulo.id}, true), set_config('app.externo_ref', ${cuenta.referencia}, true)`;
     return fn(tx, cuenta.referencia);
   });
+}
+
+/**
+ * Corre `fn` en una banda, como la cuenta externa: NO abre la banda. La transacción solo alcanza
+ * lo que las políticas nombran para este contexto (`app_externo_tenant()`): en el módulo, sus
+ * filas y columnas (p. ej. despachar su orden); en el núcleo, emitir eventos y auditar a su
+ * nombre, y leer los archivos que el módulo permita. Si la cuenta no tiene nada en esa banda
+ * (`<modulo>_externo_banda`), no entra. La reconocen `emitir({ tx })`, `alConfirmar` y
+ * `urlFirmada(..., { tx })`.
+ */
+export async function conCuentaExternaEnBanda<T>(
+  usuarioId: string,
+  modulo: Modulo,
+  tenantId: string,
+  fn: (tx: TxTenant, referencia: string) => Promise<T>,
+  reg: Registro = registroGlobal(),
+): Promise<T> {
+  conCuentas(modulo, reg);
+  let referencia = "";
+  return transaccionDeBanda(
+    tenantId,
+    async (tx) => {
+      const cuenta = await tx.cuentaExterna.findUnique({
+        where: { usuarioId_moduloId: { usuarioId, moduloId: modulo.id } },
+        select: { referencia: true },
+      });
+      if (!cuenta) throw new ErrorCuentaExterna("Este usuario no tiene cuenta externa en este módulo.");
+      referencia = cuenta.referencia;
+      await tx.$executeRaw`SELECT set_config('app.externo_modulo', ${modulo.id}, true), set_config('app.externo_ref', ${referencia}, true),
+        set_config('app.externo_usuario', ${usuarioId}, true), set_config('app.externo_tenant', ${tenantId}, true)`;
+      const [{ permite }] = await tx.$queryRaw<{ permite: boolean }[]>`SELECT app_externo_permite('banda', ${tenantId}::uuid) AS permite`;
+      if (!permite) throw new ErrorCuentaExterna("Esta cuenta no tiene nada en esa banda.");
+    },
+    (tx) => fn(tx, referencia),
+  );
 }
 
 export type CuentaExternaVista = { id: string; email: string; nombre: string; claveTemporal: boolean; creadoEn: Date };

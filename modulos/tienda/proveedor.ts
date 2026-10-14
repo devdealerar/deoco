@@ -2,21 +2,22 @@
 // bandas, el despacho y su cuenta corriente con cada banda.
 // - Lectura: conCuentaExterna() → las políticas `proveedor_lee` dejan ver SOLO lo suyo, en
 //   cualquier banda. Nunca montos de venta: se eligen las columnas a mano.
-// - Escritura (despachar, saldar): en la banda de la orden (conTenant), con el proveedor en el
-//   WHERE: atómico con el evento y la auditoría de la banda.
+// - Escritura (despachar, saldar) y links de archivos: conCuentaExternaEnBanda(). No abre la
+//   banda: la base solo deja tocar SUS órdenes y deudas, y solo las columnas de despachar y de
+//   saldar (políticas y disparadores de la migración "tienda_proveedor_escribe_en_la_base").
+//   Aunque este código se equivoque de filtro, la base no deja pasar nada más.
 import {
   conCuentaExterna,
+  conCuentaExternaEnBanda,
   crearCuentaExterna,
   cuentasDeReferencia,
   ErrorCuentaExterna,
   quitarCuentaExterna,
 } from "@/nucleo/acceso/externas";
 import { urlFirmada } from "@/nucleo/archivos/firmados";
-import { conTenant } from "@/nucleo/db/con-tenant";
 import { emitir } from "@/nucleo/eventos/bus";
 import type { ComoStaff } from "./catalogo";
 import { describirVariante } from "./comun";
-import { contactoDeTienda } from "./contacto";
 import { describirEspecificacion } from "./impresion";
 import tienda from "./index";
 
@@ -103,19 +104,26 @@ export async function ordenDelProveedor(usuarioId: string, ordenId: string, ahor
       },
       orderBy: { nombreProducto: "asc" },
     });
-    return { orden, pedido, items };
+    // El contacto que la banda cargó en la tienda; si no, el que se copió en la orden al pagarse.
+    const config = await tx.tiendaConfig.findUnique({ where: { tenantId: orden.tenantId } });
+    return { orden, pedido, items, config };
   });
   if (!leida) return null;
-  const { orden, pedido, items } = leida;
-  // Un link nuevo por archivo cada vez que se abre: si el del mail venció, acá hay otro.
+  const { orden, pedido, items, config } = leida;
+  // Un link nuevo por archivo cada vez que se abre: si el del mail venció, acá hay otro. Se firma
+  // con lo que la cuenta ve en la banda: solo los diseños de sus renglones.
   const links = new Map<string, string>();
-  for (const i of items) {
-    const { archivoId } = i.producto.diseno;
-    if (!links.has(archivoId)) {
-      links.set(archivoId, await urlFirmada(tienda, orden.tenantId, archivoId, { validoPorSegundos: VALIDEZ_LINK_PANEL, ahora }));
+  await conCuentaExternaEnBanda(usuarioId, tienda, orden.tenantId, async (tx) => {
+    for (const i of items) {
+      const { archivoId } = i.producto.diseno;
+      if (!links.has(archivoId)) {
+        links.set(archivoId, await urlFirmada(tienda, orden.tenantId, archivoId, { validoPorSegundos: VALIDEZ_LINK_PANEL, ahora, tx }));
+      }
     }
-  }
-  const contacto = await contactoDeTienda(orden.tenantId);
+  });
+  const contacto = config?.contactoEmail
+    ? { nombre: config.contactoNombre || orden.bandaNombre, email: config.contactoEmail, telefono: config.contactoTelefono }
+    : { nombre: orden.contactoNombre || orden.bandaNombre, email: orden.contactoEmail, telefono: orden.contactoTelefono };
   return {
     id: orden.id,
     tenantId: orden.tenantId,
@@ -154,8 +162,8 @@ async function deLaCuenta<T extends { tenantId: string }>(usuarioId: string, lee
 
 /**
  * Marca la orden despachada (con número de seguimiento opcional). Si era la última orden del
- * pedido sin despachar, el pedido pasa a DESPACHADO. Emite `orden.despachada`: el fan recibe
- * un mail con el seguimiento. Una orden ya despachada no se vuelve a despachar.
+ * pedido sin despachar, la base pasa el pedido a DESPACHADO. Emite `orden.despachada`: el fan
+ * recibe un mail con el seguimiento. Una orden ya despachada no se vuelve a despachar.
  */
 export async function despacharOrden(usuarioId: string, ordenId: string, seguimientoCrudo: string) {
   const seguimiento = seguimientoCrudo.trim().replace(/\s+/g, " ");
@@ -164,18 +172,15 @@ export async function despacharOrden(usuarioId: string, ordenId: string, seguimi
   const { filas, proveedorId } = await deLaCuenta(usuarioId, (tx) => tx.tiendaOrden.findMany({ where: { id: ordenId } }));
   const [orden] = filas;
   if (!orden) throw new ErrorProveedor("Esa orden no existe.");
-  await conTenant(orden.tenantId, async (tx) => {
+  await conCuentaExternaEnBanda(usuarioId, tienda, orden.tenantId, async (tx) => {
     const { count } = await tx.tiendaOrden.updateMany({
       where: { id: ordenId, proveedorId, estado: "EN_PRODUCCION" },
       data: { estado: "DESPACHADO", seguimiento: seguimiento || null, despachadoEn: new Date(), despachadoPor: usuarioId },
     });
     if (count === 0) throw new ErrorProveedor("Esa orden ya estaba despachada.");
-    const faltan = await tx.tiendaOrden.count({ where: { pedidoId: orden.pedidoId, estado: "EN_PRODUCCION" } });
-    if (faltan === 0) {
-      await tx.tiendaPedido.updateMany({ where: { id: orden.pedidoId, estado: "PAGADO" }, data: { estado: "DESPACHADO" } });
-    }
-    await tx.auditoria.create({
-      data: { usuarioId, tenantId: orden.tenantId, accion: "tienda.orden_despachada", detalle: { ordenId, seguimiento: seguimiento || null } },
+    // createMany: sin RETURNING (la cuenta externa escribe auditoría, no la lee).
+    await tx.auditoria.createMany({
+      data: [{ usuarioId, tenantId: orden.tenantId, accion: "tienda.orden_despachada", detalle: { ordenId, seguimiento: seguimiento || null } }],
     });
     await emitir("orden.despachada", orden.tenantId, { ordenId }, usuarioId, { tx, unica: `orden:${ordenId}` });
   });
@@ -224,13 +229,13 @@ export async function saldarDeudas(usuarioId: string, tenantId: string, deudaIds
     tx.tiendaDeuda.findMany({ where: { id: { in: ids }, tenantId }, select: { id: true, tenantId: true } }),
   );
   if (filas.length !== ids.length) throw new ErrorProveedor("Alguna de esas deudas no es tuya con esta banda.");
-  return conTenant(tenantId, async (tx) => {
+  return conCuentaExternaEnBanda(usuarioId, tienda, tenantId, async (tx) => {
     const { count } = await tx.tiendaDeuda.updateMany({
       where: { id: { in: ids }, proveedorId, saldadaEn: null },
       data: { saldadaEn: new Date(), saldadaPor: usuarioId, notaSaldo: nota || null },
     });
     if (count) {
-      await tx.auditoria.create({ data: { usuarioId, tenantId, accion: "tienda.deuda_saldada", detalle: { deudas: ids, nota } } });
+      await tx.auditoria.createMany({ data: [{ usuarioId, tenantId, accion: "tienda.deuda_saldada", detalle: { deudas: ids, nota } }] });
     }
     return count;
   });

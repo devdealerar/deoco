@@ -3,7 +3,7 @@
 //   https://app.<raiz>/descargas/<tenantId>/<archivoId>/<nombre>?vence=<epoch>&firma=<hmac>
 // La firma cubre banda + archivo + vencimiento: cambiar cualquiera la invalida.
 import { createHmac, hkdfSync, timingSafeEqual } from "node:crypto";
-import { conTenant } from "@/nucleo/db/con-tenant";
+import { conTenant, tenantDeTransaccion, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
@@ -32,15 +32,17 @@ export async function urlFirmada(
   modulo: Modulo,
   tenantId: string,
   archivoId: string,
-  opciones: { validoPorSegundos?: number; ahora?: Date } = {},
+  opciones: { validoPorSegundos?: number; ahora?: Date; tx?: TxTenant } = {},
   reg: Registro = registroGlobal(),
 ): Promise<string> {
   if (reg.modulo(modulo.id) !== modulo) throw new ErrorFirma(`"${modulo.id}" no es un módulo registrado.`);
   const validez = opciones.validoPorSegundos ?? 7 * DIA;
   if (!(validez > 0 && validez <= VALIDEZ_MAXIMA)) throw new ErrorFirma("La validez va de 1 segundo a 30 días.");
-  const archivo = await conTenant(tenantId, (tx) =>
-    tx.archivo.findUnique({ where: { id: archivoId }, select: { nombre: true, moduloId: true } }),
-  );
+  // Con `tx` (de la misma banda), el archivo se busca con lo que esa transacción puede ver: una
+  // cuenta externa en la banda solo firma los archivos que su módulo le deja ver.
+  const leer = (tx: TxTenant) => tx.archivo.findUnique({ where: { id: archivoId }, select: { nombre: true, moduloId: true } });
+  if (opciones.tx && tenantDeTransaccion(opciones.tx) !== tenantId) throw new ErrorFirma("La transacción es de otra banda.");
+  const archivo = opciones.tx ? await leer(opciones.tx) : await conTenant(tenantId, leer);
   if (!archivo || archivo.moduloId !== modulo.id) throw new ErrorFirma("Ese archivo no es de este módulo en esta banda.");
   const vence = Math.floor((opciones.ahora ?? new Date()).getTime() / 1000) + Math.floor(validez);
   const q = new URLSearchParams({ vence: String(vence), firma: firmar(tenantId, archivoId, vence) });

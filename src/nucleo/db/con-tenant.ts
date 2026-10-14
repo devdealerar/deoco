@@ -15,10 +15,23 @@ const abiertas = new WeakMap<TxTenant, { tenantId: string; alConfirmar: (() => v
  * se filtra a otro pedido que reuse la misma conexión del pool.
  */
 export async function conTenant<T>(tenantId: string, fn: (tx: TxTenant) => Promise<T>): Promise<T> {
+  return transaccionDeBanda(tenantId, (tx) => tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`, fn);
+}
+
+/**
+ * SOLO PARA EL NÚCLEO. Transacción "de una banda" (la reconocen `emitir({ tx })`, `alConfirmar`,
+ * `urlFirmada({ tx })`) con lo que `preparar` fije: conTenant fija la banda entera; una cuenta
+ * externa en una banda fija solo su acceso acotado (`conCuentaExternaEnBanda`).
+ */
+export async function transaccionDeBanda<T>(
+  tenantId: string,
+  preparar: (tx: TxTenant) => Promise<unknown>,
+  fn: (tx: TxTenant) => Promise<T>,
+): Promise<T> {
   if (!UUID.test(tenantId)) throw new Error(`tenantId inválido: ${tenantId}`);
   const alConfirmar: (() => void)[] = [];
   const resultado = await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+    await preparar(tx);
     abiertas.set(tx, { tenantId, alConfirmar });
     return fn(tx);
   });

@@ -16,6 +16,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | E | Revisión final | ✅ hecha (`docs/resumen-trabajo-largo.md`) |
 | F | Vista previa del sitio = sitio público (fechas de la ticketera, pestañas, cabecera) | ✅ hecha |
 | G1 | Arreglos · bloque 1: apertura de venta (pool, transacciones, errores, carga) y token fuera de la URL | ✅ hecha |
+| G2 | Arreglos · bloque 2: el proveedor escribe con la base como límite; política de `tenant` al núcleo | ✅ hecha |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
@@ -72,6 +73,19 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   la banda; en el mail, link con el token después de "#" (nunca llega a un servidor), que la página
   canjea por la cookie (`src/nucleo/publico/acceso.ts`, `canjear-link.tsx`). Sin acceso, solo el
   estado. El pedido de la tienda también tiene token ahora.
+- G2, el proveedor: `conCuentaExternaEnBanda()` (núcleo, genérico): transacción en una banda que
+  NO fija `app.tenant_id` sino `app.externo_tenant`. Solo alcanza lo que una política nombra:
+  - Núcleo: emitir eventos y auditar a su nombre, leer los archivos que el módulo permita.
+  - El módulo decide con `<id>_externo_banda(uuid)` y `<id>_externo_archivo(uuid)` (hook
+    genérico `app_externo_permite`, sin nombrar módulos).
+  - Tienda: UPDATE solo de sus órdenes y deudas, y disparadores que dejan cambiar solo las
+    columnas de despachar y de saldar. El pedido pasa a DESPACHADO por un disparador de la base.
+  - Contacto de la banda copiado en la orden al pagarse (el proveedor no lee miembros).
+  - Pruebas: catálogo de políticas de escritura y recorrido de todas las tablas desde la
+    transacción del proveedor (`tests/tienda-proveedor.test.ts`).
+- G2, `tenant`: la política de lectura del staff pasa a una migración del núcleo
+  (`20261029090000_nucleo_staff_lee_tenant`). Prueba: una migración que cambia tablas de un
+  módulo no cambia tablas del núcleo ni de otro módulo (`tests/aislamiento.test.ts`).
 
 ## Paso 4 · Módulo de tienda
 

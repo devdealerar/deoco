@@ -1,8 +1,8 @@
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { conCuentaExterna, crearCuentaExterna, portalesDe } from "@/nucleo/acceso/externas";
+import { conCuentaExterna, conCuentaExternaEnBanda, crearCuentaExterna, portalesDe } from "@/nucleo/acceso/externas";
 import { conStaffComo } from "@/nucleo/acceso/staff";
-import { verificarFirma } from "@/nucleo/archivos/firmados";
+import { urlFirmada, verificarFirma } from "@/nucleo/archivos/firmados";
 import { bandejaDeSalida, esperarCorreos, vaciarBandeja } from "@/nucleo/correo";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
@@ -222,5 +222,126 @@ describe("cuenta corriente", () => {
     const deVinilo = (await cuentaCorriente(dePrensa))[0].deudas[0];
     await expect(saldarDeudas(delSur, e.a.id, [deVinilo.id], "")).rejects.toThrow(/no es tuya/);
     await expect(saldarDeudas(delSur, e.b.id, [cuentas[0].deudas[1].id], "")).rejects.toThrow(/no es tuya/);
+  });
+});
+
+describe("el alcance del proveedor lo pone la base, no el código", () => {
+  /** Corre `fn` como el proveedor Sur dentro de la banda A, y deshace todo al final. */
+  async function comoSurEnA<T>(fn: (tx: Parameters<Parameters<typeof conCuentaExternaEnBanda>[3]>[0]) => Promise<T>) {
+    let r: T | undefined;
+    await conCuentaExternaEnBanda(delSur, tienda, e.a.id, async (tx) => {
+      r = await fn(tx);
+      throw new Error("deshacer");
+    }).catch((x) => {
+      if (x.message !== "deshacer") throw x;
+    });
+    return r as T;
+  }
+  /** Una sentencia dentro de un savepoint: cuántas filas tocó, o el error de la base. */
+  async function probar(tx: { $executeRawUnsafe: (q: string) => Promise<number> }, sql: string): Promise<number | string> {
+    await tx.$executeRawUnsafe("SAVEPOINT prueba");
+    try {
+      const n = await tx.$executeRawUnsafe(sql);
+      await tx.$executeRawUnsafe("ROLLBACK TO SAVEPOINT prueba");
+      return n;
+    } catch (x) {
+      await tx.$executeRawUnsafe("ROLLBACK TO SAVEPOINT prueba");
+      return (x as Error).message.includes("row-level security") ? "rls" : "error";
+    }
+  }
+
+  it("ninguna política de escritura queda abierta para una cuenta externa salvo las nombradas", async () => {
+    // Toda política que deja escribir (INSERT/UPDATE/DELETE/ALL) depende de la banda fijada
+    // (conTenant), del staff (conStaff) o es una de estas, pensadas para la cuenta externa.
+    const PERMITIDAS = ["auditoria/externa_audita", "evento/externa_emite", "tienda_deuda/proveedor_actualiza", "tienda_orden/proveedor_actualiza"];
+    const politicas = await dueno.$queryRaw<{ tabla: string; nombre: string; cmd: string; condicion: string }[]>`
+      SELECT tablename AS tabla, policyname AS nombre, cmd, coalesce(qual, '') || ' ' || coalesce(with_check, '') AS condicion
+      FROM pg_policies WHERE schemaname = 'public' AND cmd <> 'SELECT'`;
+    const abiertas = politicas.filter(
+      (p) => !/app_tenant_id\(\)|app_es_staff\(\)/.test(p.condicion) && !PERMITIDAS.includes(`${p.tabla}/${p.nombre}`),
+    );
+    expect(abiertas.map((p) => `${p.tabla}/${p.nombre} (${p.cmd}): ${p.condicion}`)).toEqual([]);
+    // Y las nombradas, solo en la banda fijada para la cuenta externa.
+    for (const p of politicas.filter((x) => PERMITIDAS.includes(`${x.tabla}/${x.nombre}`))) expect(p.condicion).toContain("app_externo_tenant()");
+  });
+
+  it("dentro de una banda, no puede borrar ni modificar nada de ninguna tabla salvo sus órdenes y deudas", async () => {
+    await pedidoPagado(e.a.id, "alc-1");
+    await pedidoPagado(e.b.id, "alc-2");
+    const tablas = (await dueno.$queryRaw<{ t: string; c: string }[]>`
+      SELECT t.tablename AS t, (SELECT a.attname FROM pg_attribute a WHERE a.attrelid = ('public."' || t.tablename || '"')::regclass AND a.attnum = 1) AS c
+      FROM pg_tables t WHERE t.schemaname = 'public' AND t.tablename <> '_prisma_migrations' ORDER BY 1`).filter((x) => x.c);
+    const resultado = await comoSurEnA(async (tx) => {
+      const r: Record<string, { borrar: number | string; tocar: number | string }> = {};
+      for (const { t, c } of tablas) {
+        r[t] = {
+          borrar: await probar(tx, `DELETE FROM "${t}"`),
+          tocar: await probar(tx, `UPDATE "${t}" SET "${c}" = "${c}"`),
+        };
+      }
+      return r;
+    });
+    // AGUJERO CONOCIDO, a decidir: `usuario` no tiene RLS (identidad global), así que cualquier
+    // transacción de la app (esta incluida) puede escribirla. Anotado; no es de la banda.
+    const AGUJEROS_CONOCIDOS = ["usuario"];
+    for (const [tabla, { borrar, tocar }] of Object.entries(resultado)) {
+      if (AGUJEROS_CONOCIDOS.includes(tabla)) continue;
+      expect(borrar, `${tabla}: borrar`).not.toSatisfy((x: number | string) => typeof x === "number" && x > 0);
+      // Un UPDATE "sin cambios" en sus órdenes y deudas lo frena el disparador de columnas
+      // (solo se despacha o se salda): en ninguna tabla una fila queda tocada.
+      expect(tocar, `${tabla}: modificar`).not.toSatisfy((x: number | string) => typeof x === "number" && x > 0);
+    }
+    expect(resultado.tienda_orden.tocar).toBe("error"); // las ve (son suyas), pero no así
+  });
+
+  it("en sus propias filas: solo despachar y saldar, una vez; nada de otro proveedor ni de otra banda", async () => {
+    await pedidoPagado(e.a.id, "alc-3");
+    await pedidoPagado(e.b.id, "alc-4");
+    const suya = await dueno.tiendaOrden.findFirstOrThrow({ where: { tenantId: e.a.id, proveedorId: sur.id } });
+    const ajena = await dueno.tiendaOrden.findFirstOrThrow({ where: { tenantId: e.a.id, proveedorId: prensa.id } });
+    const deB = await dueno.tiendaOrden.findFirstOrThrow({ where: { tenantId: e.b.id, proveedorId: sur.id } });
+    const deuda = await dueno.tiendaDeuda.findFirstOrThrow({ where: { tenantId: e.a.id, proveedorId: sur.id } });
+    const pedido = await dueno.tiendaPedido.findFirstOrThrow({ where: { tenantId: e.a.id } });
+    const r = await comoSurEnA(async (tx) => ({
+      otraColumna: await probar(tx, `UPDATE tienda_orden SET "bandaNombre" = 'X' WHERE id = '${suya.id}'`),
+      sinDespacharASuNombre: await probar(tx, `UPDATE tienda_orden SET estado = 'DESPACHADO', "despachadoPor" = '${e.multi.id}' WHERE id = '${suya.id}'`),
+      despacharLaAjena: await probar(tx, `UPDATE tienda_orden SET estado = 'DESPACHADO', "despachadoPor" = '${delSur}' WHERE id = '${ajena.id}'`),
+      despacharLaDeB: await probar(tx, `UPDATE tienda_orden SET estado = 'DESPACHADO', "despachadoPor" = '${delSur}' WHERE id = '${deB.id}'`),
+      despacharLaSuya: await probar(tx, `UPDATE tienda_orden SET estado = 'DESPACHADO', "despachadoPor" = '${delSur}', seguimiento = 'AR1' WHERE id = '${suya.id}'`),
+      cambiarElMonto: await probar(tx, `UPDATE tienda_deuda SET total = 1 WHERE id = '${deuda.id}'`),
+      saldar: await probar(tx, `UPDATE tienda_deuda SET "saldadaEn" = now(), "saldadaPor" = '${delSur}' WHERE id = '${deuda.id}'`),
+      tocarElPedido: await probar(tx, `UPDATE tienda_pedido SET estado = 'CANCELADO' WHERE id = '${pedido.id}'`),
+      crearProducto: await probar(tx, `INSERT INTO tienda_config (id, "tenantId") VALUES (gen_random_uuid(), '${e.a.id}')`),
+      emitirEnB: await probar(tx, `INSERT INTO evento (id, nombre, "tenantId", payload, "usuarioId") VALUES (gen_random_uuid(), 'pedido.pagado', '${e.b.id}', '{}', '${delSur}')`),
+      emitirAOtroNombre: await probar(tx, `INSERT INTO evento (id, nombre, "tenantId", payload, "usuarioId") VALUES (gen_random_uuid(), 'pedido.pagado', '${e.a.id}', '{}', '${e.multi.id}')`),
+      auditarAOtroNombre: await probar(tx, `INSERT INTO auditoria (id, accion, "tenantId", "usuarioId", detalle) VALUES (gen_random_uuid(), 'x', '${e.a.id}', '${e.multi.id}', '{}')`),
+      leeMiembros: (await tx.membresia.count()) + (await tx.secreto.count()) + (await tx.correo.count()) + (await tx.tenant.count()),
+    }));
+    expect(r).toEqual({
+      otraColumna: "error",
+      sinDespacharASuNombre: "error",
+      despacharLaAjena: 0,
+      despacharLaDeB: 0,
+      despacharLaSuya: 1,
+      cambiarElMonto: "error",
+      saldar: 1,
+      tocarElPedido: 0,
+      crearProducto: "rls",
+      emitirEnB: "rls",
+      emitirAOtroNombre: "rls",
+      auditarAOtroNombre: "rls",
+      leeMiembros: 0,
+    });
+  });
+
+  it("no entra a una banda donde no tiene nada, y solo firma los diseños de sus renglones", async () => {
+    await pedidoPagado(e.a.id, "alc-5");
+    await expect(conCuentaExternaEnBanda(delSur, tienda, e.b.id, async () => 1)).rejects.toThrow(/no tiene nada en esa banda/);
+    const usado = await dueno.tiendaDiseno.findFirstOrThrow({ where: { tenantId: e.a.id } });
+    const suelto = await subirDiseno(e.a.id, "Sin usar", { nombre: "suelto.png", datos: await png(4200, 5000) });
+    const firmar = (archivoId: string) =>
+      conCuentaExternaEnBanda(delSur, tienda, e.a.id, (tx) => urlFirmada(tienda, e.a.id, archivoId, { tx }));
+    await expect(firmar(usado.archivoId)).resolves.toMatch(/\/descargas\//);
+    await expect(firmar(suelto.archivoId)).rejects.toThrow(/no es de este módulo en esta banda/);
   });
 });

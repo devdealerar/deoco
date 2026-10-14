@@ -110,10 +110,20 @@ export async function registrarDeudas(tx: TxTenant, tenantId: string, pedidoId: 
     data: [...porProveedor].map(([proveedorId, d]) => ({ tenantId, pedidoId, proveedorId, ...d, total: d.produccion + d.envio })),
     skipDuplicates: true,
   });
-  // Y la orden de producción de cada proveedor, que ve y despacha en su panel.
+  // Y la orden de producción de cada proveedor, que ve y despacha en su panel. Lleva copia del
+  // nombre y el contacto de la banda: el proveedor no lee la banda ni sus miembros.
   const { nombre: bandaNombre } = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { nombre: true } });
+  const config = await tx.tiendaConfig.findUnique({ where: { tenantId } });
+  const titular = config?.contactoEmail
+    ? null
+    : await tx.membresia.findFirst({ where: { rol: "TITULAR" }, orderBy: { id: "asc" }, select: { usuario: { select: { email: true } } } });
+  const contacto = {
+    contactoNombre: config?.contactoNombre || bandaNombre,
+    contactoEmail: config?.contactoEmail || titular?.usuario.email || "",
+    contactoTelefono: config?.contactoTelefono ?? "",
+  };
   await tx.tiendaOrden.createMany({
-    data: [...porProveedor.keys()].map((proveedorId) => ({ tenantId, pedidoId, proveedorId, bandaNombre })),
+    data: [...porProveedor.keys()].map((proveedorId) => ({ tenantId, pedidoId, proveedorId, bandaNombre, ...contacto })),
     skipDuplicates: true,
   });
 }
