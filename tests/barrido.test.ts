@@ -42,6 +42,16 @@ describe("barrido de eventos", () => {
     expect((await barrer({ dns: dnsVacio })).bandas).toBe(0); // nada más para retomar
   });
 
+  it("una banda ARCHIVADA no se barre (ni eventos ni correos); una SUSPENDIDA, sí", async () => {
+    await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
+    await dueno.tenant.update({ where: { id: b.id }, data: { estado: "SUSPENDIDO" } });
+    await correo(a.id);
+    expect((await barrer({ dns: dnsVacio })).bandas).toBe(1); // solo B
+    expect((await dueno.evento.findFirstOrThrow({ where: { tenantId: a.id } })).estado).toBe("PENDIENTE");
+    expect((await dueno.evento.findFirstOrThrow({ where: { tenantId: b.id } })).estado).toBe("PROCESADO");
+    expect((await dueno.correo.findFirstOrThrow({ where: { tenantId: a.id } })).estado).toBe("PENDIENTE");
+  });
+
   it("no entrega dos veces: vueltas en paralelo entregan cada evento una sola vez", async () => {
     await Promise.all([barrer({ dns: dnsVacio }), barrer({ dns: dnsVacio }), vuelta(), vuelta()]);
     await esperarEventos();
@@ -174,6 +184,14 @@ describe("revisión periódica de dominios propios", () => {
     const t2 = new Date(t1.getTime() + REVISAR_DOMINIOS_CADA_MS + 1000);
     await barrer({ ahora: t2, dns: dnsCon(["losbuenos.com", "otrabanda.com"]) });
     expect(await dominiosQueNoApuntan(a.id)).toEqual([]);
+  });
+
+  it("no revisa los dominios de una banda ARCHIVADA", async () => {
+    await propio(a.id, "losbuenos.com");
+    await propio(b.id, "otrabanda.com");
+    await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
+    expect((await barrer({ dns: dnsCon(["otrabanda.com"]) })).dominios).toEqual({ revisados: 1, noApuntan: 0 });
+    expect((await dueno.dominio.findFirstOrThrow({ where: { dominio: "losbuenos.com" } })).revisadoEn).toBeNull();
   });
 
   it("no revisa los sin verificar ni los subdominios de la plataforma, y sin IP no marca nada", async () => {

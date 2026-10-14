@@ -18,7 +18,9 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | G1 | Arreglos · bloque 1: apertura de venta (pool, transacciones, errores, carga) y token fuera de la URL | ✅ hecha |
 | G2 | Arreglos · bloque 2: el proveedor escribe con la base como límite; política de `tenant` al núcleo | ✅ hecha |
 | G2b | Arreglos · bloque 2b: `usuario` con RLS; prueba del sitio que se demoraba | ✅ hecha |
-| G3 | Arreglos · bloque 3: registro del pago en el núcleo, responder-a, duplicados | ✅ hecha (falta decidir `conEdicion`) |
+| G3 | Arreglos · bloque 3: registro del pago en el núcleo, responder-a, duplicados | ✅ hecha |
+| G3b | Formularios del panel: `accionesDelPanel` + `edicion` en el contrato | ✅ hecha |
+| G4 | Anotaciones (roles, cabecera/cobros, `pagos`, tablas que crecen), barrido sin archivadas, lista de verificación | ✅ hecha |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
@@ -127,6 +129,21 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   `@/nucleo/publico/refrescar`, `@/nucleo/publico/origen` (`origenDeBanda`, `origenDelPedido`;
   la URL estaba armada 4 veces, una con el puerto 3000 fijo, y el origen del pedido 3) y
   `esEmail` (6 copias; dos no limitaban el largo que el correo sí exige, una era más permisiva).
+
+- G3b, `conEdicion` (3 copias) → `accionesDelPanel(() => modulo, [errores])`
+  (`src/nucleo/acceso/acciones.ts`) con `edicion: { permiso, ruta, sinPermiso, guardado? }` en el
+  contrato: el registro valida al arrancar que el permiso sea del módulo y la ruta una de sus
+  pantallas. Además, `tests/modulos.test.ts` revisa que todo `"<id>.recurso.accion"` escrito
+  en el código de un módulo esté declarado (probado con uno mal escrito: falla).
+  - El contrato se pasa como `() => modulo`: la primera versión lo leía al cargar el archivo de
+    acciones y en `next dev` daba `Cannot access default export before initialization`
+    (importación circular index → pantallas → acciones → index). Las pruebas unitarias no lo
+    vieron (no cargan esos archivos); el e2e sí, pero cada prueba esperaba 30 s. Ahora el
+    precalentado del e2e corta en segundos si alguna ruta responde 500, con el motivo.
+- G4: anotaciones en `docs/decisiones-pendientes.md` (bloque 4). Barrido: no retoma ni revisa
+  dominios de bandas ARCHIVADAS (migración `20261101100000_barrido_sin_archivadas`; las
+  SUSPENDIDAS sí). El barrido deja una línea en el log al arrancar y en cada vuelta que hace
+  algo. Lista para el día del despliegue: `docs/verificacion-despliegue.md`.
 
 ## Paso 4 · Módulo de tienda
 

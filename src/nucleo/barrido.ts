@@ -40,7 +40,12 @@ export async function vuelta(): Promise<ResultadoBarrido | null> {
   if (corriendo) return null;
   corriendo = true;
   try {
-    return await barrer();
+    const r = await barrer();
+    // Solo cuando hizo algo: así los logs muestran que el barrido corre sin llenarse de líneas.
+    if (r.bandas || r.dominios.revisados) {
+      console.log(`[barrido] pendientes de ${r.bandas} banda(s) · dominios revisados: ${r.dominios.revisados}, sin apuntar: ${r.dominios.noApuntan}`);
+    }
+    return r;
   } catch (e) {
     console.error("[barrido] la vuelta falló:", e);
     return null;
@@ -57,6 +62,7 @@ export function segundosDeBarrido(env: Record<string, string | undefined> = proc
 /** Arranca el barrido: una vuelta ya y después cada `segundos`. No retiene el proceso. */
 export function iniciarBarrido(segundos = segundosDeBarrido()) {
   if (reloj) return;
+  console.log(`[deoco] barrido de pendientes: al arrancar y cada ${segundos} s`);
   void vuelta();
   reloj = setInterval(() => void vuelta(), segundos * 1000);
   reloj.unref();

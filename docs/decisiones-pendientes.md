@@ -200,7 +200,7 @@ y por qué. Si alguna no va, se cambia.
 3. **Responder-a por defecto, el titular.** Mejor un mail que le llega a la banda que uno que
    le llega a Deoco por olvido.
 4. **Quedó repetido a propósito:**
-   - `conEdicion` (sitio, tienda, ticketera): pendiente de decisión (lleva permisos).
+   - ~~`conEdicion`~~: unificado en G3b (`accionesDelPanel` + `edicion` en el contrato).
    - Los `Intl.DateTimeFormat` de cada pantalla: cada una elige cómo mostrar la fecha; la zona
      es siempre la misma y no hay lógica que pueda divergir.
    - El regex de UUID (13 copias): es un formato fijo, no una regla de negocio.
@@ -209,4 +209,95 @@ y por qué. Si alguna no va, se cambia.
    - `conPuerta` de la ticketera: otro permiso y otra forma de error (la puerta no es un formulario).
    - Las variables CSS del marco (`variables()` del sitio): las define el sitio, que es quien da
      el marco; el núcleo solo documenta los nombres y las lee con valor por defecto.
+
+## G3b · Formularios del panel
+
+1. **`edicion` va en el contrato, no en el archivo de acciones**: el archivo de acciones se
+   carga con el primer pedido que lo usa; el contrato, al arrancar. Así un permiso mal escrito
+   o de otro módulo hace que el servidor no arranque (`ErrorRegistro`), en vez de dar "sin
+   permiso" en silencio.
+2. **Uno por módulo.** Si un módulo necesita formularios con otro permiso (la puerta de la
+   ticketera), usa `exigirPermiso`/`puedeEnPedido` como antes; la prueba de permisos escritos
+   revisa que existan.
+
+## Bloque 4 · Anotado, sin arreglar
+
+### 1. Roles PUERTA y COMERCIAL en el núcleo
+
+**Dónde están.** `enum Rol` de `prisma/schema/nucleo.prisma` (TITULAR, EDITOR, COMERCIAL,
+PUERTA, LECTURA), las listas de roles del back office (`src/app/admin/bandas/[slug]/page.tsx`,
+`src/app/admin/_servidor/bandas.ts`) y la tabla de roles de la spec del núcleo
+(`docs/spec/00-especificacion-nucleo.md`). PUERTA solo tiene sentido con la ticketera;
+COMERCIAL, con la tienda o la ticketera. El núcleo los conoce aunque no conozca los módulos.
+
+**Por qué no molesta hoy.** Un rol no da nada por sí mismo: los permisos los declara cada módulo
+con `rolesPorDefecto`. Un PUERTA en una banda sin ticketera solo tiene lo que otro módulo le
+dé (hoy, ver el resumen del sitio): el rol existe, pero no abre nada.
+
+**Qué costaría sacarlos** (los roles pasan a ser datos que declaran los módulos):
+- Contrato: `roles: [{ clave, etiqueta, descripcion }]`; el núcleo se queda con TITULAR, EDITOR
+  y LECTURA (los de la spec que no son de negocio). Regla para un rol que declaran dos módulos
+  (COMERCIAL, tienda y ticketera): el mismo nombre es el mismo rol, con la etiqueta del primero.
+- Base: `membresia.rol` de enum a texto (migración con `ALTER TYPE … USING`), y una
+  comprobación al asignar (el back office valida contra el registro, no la base).
+- Registro: `rolesPorDefecto` solo puede nombrar roles del núcleo o declarados por algún módulo.
+- Back office: el selector de roles sale del registro. Una membresía con un rol cuyo módulo se
+  apagó o se quitó: se ve como "rol sin módulo" y no da permisos.
+- Cambiar la spec del núcleo (la tabla de roles).
+- Tamaño: ~15 archivos (contrato, registro, permisos, resolver, back office, tres módulos, las
+  pruebas de permisos y de módulos), una migración. Un día de trabajo con pruebas. No hay
+  datos que migrar más que el tipo de la columna.
+- **Cuándo:** cuando aparezca un módulo que necesite un rol nuevo. Antes, no paga.
+
+### 2. `cabeceraPublica` y `cobros` con forma de tienda
+
+- **`cabeceraPublica`**: la aporta **un solo módulo** (el registro rechaza un segundo). Se
+  pensó para el carrito. Si mañana la ticketera quisiera "Mis entradas" en la cabecera, choca
+  con la tienda. Arreglo: que sea una lista ordenada (`orden`, como la navegación), cada módulo
+  aporta un elemento y el marco los pone en fila. Chico (registro + marco + una prueba).
+- **`cobros`**: el `Cobro` que recibe `crearCobro` tiene `items` + `extras` (los extras son los
+  envíos de la tienda) y un `comprador` con nombre y email. Para entradas sirve (un ítem, sin
+  extras), para una suscripción o una seña no. El aviso está fijo en `/pago/[pasarela]` (uno por
+  módulo). Desde G3 la parte de **registrar** el pago ya es genérica (`CosaACobrar`); lo que
+  queda con forma de tienda es **crear** el cobro. Arreglo cuando haga falta: `extras` pasa a
+  ser "renglones sin cantidad" con nombre neutro, y un módulo podría declarar más de un tipo de
+  cobro con su propia ruta de aviso. No hay segundo caso hoy: no paga.
+
+### 3. `moduloId = "pagos"` reservado
+
+- Las credenciales de cobro son del núcleo, pero la tabla `secreto` está indexada por
+  `moduloId`: se guardan con `moduloId = "pagos"` (`ID_COBROS`, `src/nucleo/pagos/index.ts`), y
+  por eso el registro reserva los ids `pagos` y `nucleo` (`ID_RESERVADOS`). El cifrado está
+  atado a banda + `"pagos"` + clave (dato adicional de AES-GCM).
+- Costo de que quede así: ningún módulo se puede llamar `pagos`. Nada más.
+- Costo de cambiarlo: una columna `ambito` (`nucleo` | `modulo`) en `secreto`, y recifrar las
+  credenciales de cobro con el contexto nuevo (como `scripts/mover-credenciales-de-cobro.mjs`).
+  Una migración + un script de una vez + la prueba de secretos. **No lo haría**: el nombre
+  reservado es honesto y está validado.
+
+### 4. Tablas que solo crecen
+
+Hoy nada se borra. Las que crecen con el uso:
+
+| Tabla | Una fila por | Tamaño aprox. | Para qué se necesita después |
+| --- | --- | --- | --- |
+| `correo` | mail (compra, despacho, orden al proveedor) | 5–10 KB; **el de entradas, hasta ~30 KB** (cada QR es un PNG de ~1,6 KB, ~2,1 KB en base64, hasta 10 por compra, más el html) | reintentos (FALLIDO), soporte ("¿me llegó?") unos días |
+| `evento` | venta, pago, despacho… | ~0,5–1 KB | entrega y reproceso; la clave única (`claveUnica`) evita repetir durante los reintentos de la pasarela |
+| `auditoria` | acción del staff; acceso del staff a un panel (una cada 10 min) | ~0,5 KB | es la auditoría: **no se limpia** |
+| `cobro_duplicado` | pago de más | chica | la banda tiene que devolverlo: no se limpia |
+
+Con 10.000 compras de entradas, `correo` son ~300 MB, casi todo base64 de QR que ya salió.
+
+**Propuesta** (una tarea más del barrido, una vez por día, en tandas de 5.000 filas para no
+bloquear):
+1. `correo` ENVIADO hace más de **7 días**: vaciar `adjuntos` (`[]`). El QR se puede volver a
+   ver en la página de la compra; el mail ya salió.
+2. `correo` ENVIADO hace más de **90 días**: vaciar `html` y `texto` (quedan para quién, qué
+   asunto, cuándo y estado). Borrar la fila a los **365 días**.
+3. `evento` PROCESADO hace más de **90 días**: borrar. Es mucho más que la ventana en la que
+   la pasarela reintenta un aviso (días), así que la clave única ya no hace falta; y un aviso que
+   llegara igual no vuelve a cobrar nada (`registrarCobro` cambia el estado una sola vez).
+4. Nunca: lo FALLIDO o PENDIENTE (alguien tiene que mirarlo), `auditoria`, `cobro_duplicado`.
+5. Medirlo antes de decidir los plazos: `SELECT pg_size_pretty(pg_total_relation_size('correo'))`
+   una vez por mes los primeros meses (está en la lista de verificación).
 

@@ -33,10 +33,12 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
      cae** con el motivo en el log; nunca queda sirviendo errores.
 - Log de un arranque sano, en este orden:
   `Aplicando migraciones…` → `Levantando Deoco en el puerto 3000…` →
-  `[deoco] arranque verificado · módulos: sitio`.
+  `[deoco] arranque verificado · módulos: sitio, ticketera, tienda` →
+  `[deoco] barrido de pendientes: al arrancar y cada 60 s`.
 - **Barrido** (`src/nucleo/barrido.ts`): al arrancar y cada `DEOCO_BARRIDO_SEGUNDOS` (60) retoma
   eventos y correos que quedaron pendientes (un reinicio a mitad, un SMTP caído) y, cada 6 h,
-  revisa que los dominios propios verificados sigan apuntando al servidor. Un correo que falla
+  revisa que los dominios propios verificados sigan apuntando al servidor (nada de las bandas
+  archivadas). Cada vuelta que hace algo deja `[barrido] pendientes de N banda(s) …`. Un correo que falla
   se reintenta solo dos veces (a los 2 y a los 15 minutos); después queda FALLIDO, a mano.
 
 ## Lo que configurás vos, en orden
@@ -112,7 +114,7 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
     el resolver `cloudflare`. Ese único dominio cubre `app.deoco.com` y todas las bandas: la app
     distingue panel y sitios por el `Host`. No hace falta configurar `deoco.com` sola (si llega
     un pedido ahí, responde 404).
-12. **Deploy**. En los logs, las tres líneas de "arranque sano" de arriba.
+12. **Deploy**. En los logs, las cuatro líneas de "arranque sano" de arriba.
 
 ### E. Primer acceso
 
@@ -132,6 +134,9 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
     6. Sitio → cargar bio corta y una imagen (una foto de celular) → Publicar.
     7. `https://<slug>.deoco.com` → se ve publicado, con candado válido.
     8. En `/admin`, pasar la banda de prueba a Archivado (confirmando) → su sitio da 404.
+
+Después de la prueba de humo, la verificación completa (pagos reales de prueba, mails, puerta,
+barrido, carga): **`docs/verificacion-despliegue.md`**.
 
 ## Qué puede fallar en el primer despliegue y cómo te das cuenta
 
