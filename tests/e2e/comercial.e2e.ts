@@ -74,6 +74,20 @@ describe("plan y pago", () => {
     expect(await page.locator('nav a:text("Entradas")').count()).toBeGreaterThan(0);
   });
 
+  it("el inicio muestra la cuenta, cada módulo prendido y lo que falta; otro rol no ve la cuenta", async () => {
+    const { page } = await logueado("multi@x.com");
+    await page.goto(`${APP}/b/banda-a`);
+    await page.locator('[data-bloque="comercial"]').waitFor();
+    expect(await page.locator('[data-bloque="comercial"] [data-dato="Plan"]').textContent()).toBe("Premium (prueba)");
+    expect(await page.locator("[data-bloque]").evaluateAll((els) => els.map((x) => x.getAttribute("data-bloque")))).toEqual(["comercial", "sitio", "tienda", "ticketera"]);
+    expect(await page.locator('[data-testid="pendientes"]').textContent()).toContain("Tu sitio todavía no está publicado");
+    await captura(page, "inicio");
+    const editor = await logueado("editor-a@x.com");
+    await editor.page.goto(`${APP}/b/banda-a`);
+    await editor.page.locator('[data-bloque="sitio"]').waitFor();
+    expect(await editor.page.locator('[data-bloque="comercial"]').count()).toBe(0);
+  });
+
   it("un cobro rechazado: aviso de mora en el panel; suspendida: solo Plan y pago, el sitio sigue online", async () => {
     const cuenta = await dueno.comercialCuenta.findUniqueOrThrow({ where: { tenantId: e.a.id } });
     expect(await avisoCuota("subscription_authorized_payment", mp.cobrar(cuenta.suscripcionId!, false))).toBe(200);

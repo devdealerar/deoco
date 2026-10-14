@@ -158,6 +158,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   `consultar(tenantId, "<id>.<nombre>", params, { vacio, interpretar })` (`src/nucleo/consultas`).
   Módulo apagado, inexistente, error o demora → `vacio`. Respuesta JSON, copiada.
 
+- Inicio del panel: consulta `inicio` de cada módulo → bloque (`src/nucleo/inicio`).
+
 ## Parámetros de consulta
 
 - Las rutas de módulos (panel y públicas) reciben `consulta: URLSearchParams`.

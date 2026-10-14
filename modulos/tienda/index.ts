@@ -1,6 +1,7 @@
 // Módulo tienda: merch bajo demanda. La banda vende con su diseño sobre productos del
 // catálogo base; el fan le paga a la banda en SU pasarela; un proveedor produce y envía.
 // El dinero nunca pasa por Deoco.
+import { inicioTienda } from "./inicio";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { AdminCatalogo } from "./admin/catalogo";
 import { AdminProductoBase } from "./admin/producto";
@@ -95,6 +96,8 @@ const tienda: Modulo = {
     { etiqueta: "Órdenes", href: "/", externa: true, orden: 10 },
     { etiqueta: "Cuenta corriente", href: "/cuenta", externa: true, orden: 20 },
   ],
+  // Bloque "Tienda" del inicio del panel.
+  consultas: [{ nombre: "inicio", responder: inicioTienda }],
   tablasGlobales: ["tienda_proveedor", "tienda_producto_base"],
 };
 

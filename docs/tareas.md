@@ -8,7 +8,7 @@ Decisiones: `docs/decisiones-pendientes.md` (sección P).
 | --- | --- | --- |
 | P1 | Módulo comercial: planes, límites, cuota mensual (Mercado Pago de Deoco), estados automáticos, prueba, back office | ✅ hecha |
 | P2 | Autogestión del alta (registro con email verificado, banda con subdominio, prueba o plan) | ✅ hecha |
-| P3 | Inicio del panel | pendiente |
+| P3 | Inicio del panel: un bloque por módulo (consulta `inicio`) + "Para hacer" | ✅ hecha |
 | P4 | Endurecimiento (limpieza de correos, roles, carga) | pendiente |
 | P5 | Repaso final | pendiente |
 
@@ -27,6 +27,9 @@ Decisiones: `docs/decisiones-pendientes.md` (sección P).
   `bandas_autogestionadas`), pantallas `/registro`, `/registro/verificar`, `/registro/banda`;
   `opcionesDeAlta` en el gestor; `/admin` filtra por alta. Pruebas: `tests/autogestion.test.ts`,
   `tests/e2e/autogestion.e2e.ts`.
+- P3: `src/nucleo/inicio` (`bloquesDeInicio`, `interpretarBloque`), `src/app/b/[slug]/page.tsx`;
+  `inicio.ts` en comercial, sitio, tienda y ticketera. Pruebas: `tests/inicio.test.ts`,
+  `tests/e2e/comercial.e2e.ts` (inicio).
 - Pruebas: `tests/comercial.test.ts` (las 8 pedidas y más), `tests/cuenta.test.ts` (núcleo),
   `tests/e2e/comercial.e2e.ts` (elegir plan → pasarela → vuelta; mora, suspensión, pago; staff).
 

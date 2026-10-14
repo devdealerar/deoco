@@ -9,6 +9,7 @@ import type { Modulo } from "@/nucleo/modulos/contrato";
 import { AdminCobros, AdminCuenta, AdminCuentas, AdminPlanes } from "./admin/pantallas";
 import { avisoDeCuota } from "./aviso";
 import { alCrearBanda, comoAmpliar, opcionesDeAlta, revisarVencimientos } from "./cuenta";
+import { inicioComercial } from "./inicio";
 import { PantallaPago } from "./panel/pago";
 
 const comercial: Modulo = {
@@ -37,6 +38,8 @@ const comercial: Modulo = {
     { etiqueta: "Planes", href: "/planes", admin: true, orden: 20 },
     { etiqueta: "Cuotas fallidas", href: "/cobros", admin: true, orden: 30 },
   ],
+  // Bloque "Tu cuenta" del inicio del panel.
+  consultas: [{ nombre: "inicio", responder: inicioComercial }],
   tablasGlobales: ["comercial_plan", "comercial_config"],
 };
 

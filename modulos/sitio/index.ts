@@ -1,5 +1,6 @@
 // Módulo sitio: home y press kit, el sitio público de la banda.
 // Borrador (tablas sitio_*) → publicar → sitio_publicacion (lo que ve el público).
+import { inicioSitio } from "./inicio";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { HomePanel } from "./panel/home";
 import { Identidad } from "./panel/identidad";
@@ -36,6 +37,8 @@ const sitio: Modulo = {
     { etiqueta: "Home", href: "/", publica: true, orden: 10 },
     { etiqueta: "Press kit", href: "/prensa", publica: true, orden: 20 },
   ],
+  // Bloque "Sitio" del inicio del panel.
+  consultas: [{ nombre: "inicio", responder: inicioSitio }],
   marcoPublico: MarcoPublicoSitio,
   metadatosPublicos: metadatosDelSitio,
 };

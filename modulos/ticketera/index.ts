@@ -1,5 +1,6 @@
 // Módulo ticketera: shows de la banda con entradas nominadas, cobradas con la pasarela de la
 // banda (núcleo: @/nucleo/pagos; el dinero nunca pasa por Deoco), y validación en la puerta.
+import { inicioTicketera } from "./inicio";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { avisoDePago } from "./aviso";
 import { alPagarseCompra } from "./correos";
@@ -46,7 +47,11 @@ const ticketera: Modulo = {
   // Al pagarse: mail con un QR por entrada (idempotente).
   eventosEscucha: [{ evento: "compra.pagada", manejador: alPagarseCompra }],
   // Para el sitio (y cualquier módulo): las próximas fechas publicadas. Forma en eventos.ts.
-  consultas: [{ nombre: "proximas-fechas", responder: proximasFechas }],
+  consultas: [
+    { nombre: "proximas-fechas", responder: proximasFechas },
+    // Bloque "Entradas" del inicio del panel.
+    { nombre: "inicio", responder: inicioTicketera },
+  ],
   // Tope de la cuenta (lo fija el plan): shows próximos publicados.
   limites: [{ clave: LIMITE_SHOWS, etiqueta: "shows publicados", usados: contarShowsPublicados, ajustar: ajustarShowsPublicados }],
 };

@@ -440,6 +440,14 @@ const fechas = await consultar(tenantId, "ticketera.proximas-fechas", { limite: 
   módulo: RLS sigue aislando. Solo lectura y rápida: para avisar que algo pasó, eventos.
 - Nombres: minúsculas, números y guiones. El registro rechaza nombres inválidos o repetidos.
 
+### Bloque en el inicio del panel
+
+Una consulta llamada `inicio` pone un bloque en `/b/<slug>`:
+`{ titulo, datos: [{ etiqueta, valor }], pendientes: [{ texto, href? }] }` (textos ya
+formateados, hasta 8 de cada uno; `href` relativo al panel, p. ej. `"/tienda/pedidos"`).
+Devolver `null` = sin bloque. Lo ve quien puede ver alguna entrada del menú del módulo. Sin
+gráficos: lo que la banda tiene que saber o hacer hoy.
+
 ## 6 quater. Cuentas externas (portal)
 
 Para gente que no es de una banda pero trabaja con el módulo (el proveedor de la tienda), el

@@ -97,6 +97,22 @@ y por qué. Si alguna no va, se cambia.
    de llegar al registro. Es lo único que se agrega a esa pantalla.
 8. **Sin `DEOCO_CORREO` no hay registro** (no se puede verificar el email): la pantalla lo dice.
 
+## P3 · Inicio del panel
+
+1. **Cómo se arma**: cada módulo que quiere un bloque ofrece la consulta `inicio` (la
+   convención es el nombre); el núcleo recorre los prendidos, la pide con `consultar()` (apagado,
+   error o demora → no hay bloque) y valida la forma. Así "ticketera apagada → no hay bloque" sale
+   solo, y el núcleo sigue sin nombrar módulos.
+2. **Quién ve qué**: un bloque, quien puede ver alguna entrada del menú de ese módulo; el de la
+   cuenta (plan, vencimiento, espacio), solo el titular, igual que Plan y pago.
+3. **"Para hacer" arriba**, juntando los pendientes de todos los bloques (el mismo texto una sola
+   vez: "Conectá tu cuenta de cobro" lo dicen tienda y ticketera).
+4. **Qué muestra cada uno** (lo pedido, nada más): cuenta = plan, prueba/pagado hasta, espacio;
+   tienda = pedidos del mes (pagados este mes, hora argentina), vendido en el mes, en producción
+   sin despachar, deuda con proveedores; entradas = próximo show, vendidas, disponibles; sitio =
+   si está publicado o tiene cambios sin publicar. Pendientes: sitio sin publicar, cobro sin
+   conectar, pagos para revisar, sin productos publicados, elegir plan en la prueba, cuota impaga.
+
 ## A1 · Barrido de pendientes
 
 1. **Cada cuánto**: al arrancar y cada 60 s (`DEOCO_BARRIDO_SEGUNDOS`, mínimo 5). Barato: una
