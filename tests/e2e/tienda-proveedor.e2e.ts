@@ -36,7 +36,7 @@ beforeAll(async () => {
   e = await escenarioAcceso();
   await dominiosDeDesarrollo(e.a, e.b);
   await dueno.correo.deleteMany();
-  for (const t of ["tiendaPagoExtra", "tiendaOrden", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
+  for (const t of ["tiendaOrden", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   await dueno.cuentaExterna.deleteMany();

@@ -6,18 +6,23 @@ import { formatearPesos } from "../dinero";
 import { ESTADO_PANEL } from "../estados";
 import { deudaDeBanda } from "../pagos";
 import { pasarelaDe } from "@/nucleo/pagos";
+import { cobrosDuplicados } from "@/nucleo/pagos/registro";
+import tienda from "../index";
 import { Encabezado, puedeEditar as puedeEditarEn } from "./comun";
 
 const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" });
 
 /** Panel · Pedidos: los de la banda y en qué anda cada uno. */
 export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
-  const [pedidos, puedeEditar] = [
+  const [filas, puedeEditar] = [
     await conTenant(tenantId, (tx) =>
-      tx.tiendaPedido.findMany({ orderBy: { creadoEn: "desc" }, take: 200, include: { items: true, pagosExtra: true, ordenes: { include: { proveedor: { select: { nombre: true } } } } } }),
+      tx.tiendaPedido.findMany({ orderBy: { creadoEn: "desc" }, take: 200, include: { items: true, ordenes: { include: { proveedor: { select: { nombre: true } } } } } }),
     ),
     await puedeEditarEn(slug),
   ];
+  // Pagos duplicados: los registra el núcleo (uno por cobro de más), por pedido.
+  const duplicados = await cobrosDuplicados(tienda, tenantId, filas.map((p) => p.id));
+  const pedidos = filas.map((p) => ({ ...p, pagosExtra: duplicados.filter((d) => d.referencia === p.id) }));
   return (
     <div className="flex flex-col gap-6">
       <Encabezado slug={slug} actual="/pedidos" puedeEditar={puedeEditar} />
@@ -75,7 +80,7 @@ export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
                 </span>
               )}
               {p.pagosExtra.map((x) => (
-                <span key={x.id} className="text-xs font-semibold text-error-primary" data-pago-duplicado={x.cobroId}>
+                <span key={x.cobroId} className="text-xs font-semibold text-error-primary" data-pago-duplicado={x.cobroId}>
                   Pago duplicado: {x.moneda === "ARS" ? formatearPesos(x.monto) : `${x.moneda} ${(x.monto / 100).toFixed(2)}`}{" "}
                   {`(pago ${x.cobroId} en ${pasarelaDe(x.pasarela)?.nombre ?? x.pasarela}).`} Tenés que devolverlo desde tu pasarela.{" "}
                   {pasarelaDe(x.pasarela)?.comoDevolver}

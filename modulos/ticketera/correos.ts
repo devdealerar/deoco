@@ -44,6 +44,7 @@ ${c.entradas
   )
   .join("\n")}
 ${url ? `<p>¿Perdiste este mail? Tus entradas están siempre en <a href="${h(url)}">${h(url)}</a> (no compartas ese link).</p>` : ""}
+<p>¿Alguna consulta? Respondé este mail: le llega a ${h(banda.nombre)}.</p>
 </div>`;
   const texto = [
     `Tus entradas para ${c.evento.nombre}`,
@@ -53,6 +54,8 @@ ${url ? `<p>¿Perdiste este mail? Tus entradas están siempre en <a href="${h(ur
     ...c.entradas.map((e) => `- ${e.nombre} (documento ${e.documento}) · ${c.tipo.nombre}: ${e.codigo}`),
     "",
     ...(url ? [`Tus entradas, siempre: ${url} (no compartas ese link)`] : []),
+    "",
+    `¿Alguna consulta? Respondé este mail: le llega a ${banda.nombre}.`,
   ].join("\n");
   await enviarCorreo(
     ticketera,

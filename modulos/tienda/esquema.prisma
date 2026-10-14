@@ -175,7 +175,6 @@ model TiendaPedido {
   items       TiendaPedidoItem[]
   deudas      TiendaDeuda[]
   ordenes     TiendaOrden[]
-  pagosExtra  TiendaPagoExtra[]
 
   @@unique([tenantId, id])
   @@index([tenantId, estado])
@@ -270,26 +269,6 @@ model TiendaOrden {
   @@unique([tenantId, pedidoId, proveedorId])
   @@index([proveedorId, estado])
   @@map("tienda_orden")
-}
-
-/// Un pago aprobado de más para un pedido que ya estaba pagado (el fan pagó dos veces). El
-/// pedido no cambia; la banda lo ve en su panel y lo devuelve desde su pasarela. Deoco no
-/// devuelve nada: solo avisa.
-model TiendaPagoExtra {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @db.Uuid
-  pedidoId  String   @db.Uuid
-  pedido    TiendaPedido @relation(fields: [tenantId, pedidoId], references: [tenantId, id], onDelete: Cascade)
-  pasarela  String
-  cobroId   String
-  /// Centavos.
-  monto     Int
-  moneda    String
-  creadoEn  DateTime @default(now())
-
-  @@unique([tenantId, pasarela, cobroId])
-  @@index([tenantId, pedidoId])
-  @@map("tienda_pago_extra")
 }
 
 /// Datos de la tienda de una banda: el contacto que ven el fan (responder-a) y el proveedor.

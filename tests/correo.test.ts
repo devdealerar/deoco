@@ -65,6 +65,14 @@ describe("enviarCorreo", () => {
     });
   });
 
+  it("sin responder-a, la respuesta le llega al titular de la banda (nunca a Deoco)", async () => {
+    const { id } = await enviarCorreo(tienda, a.id, { para: "fan@ejemplo.com", asunto: "Hola", html: "<p>Hola</p>", texto: "Hola" }, {}, reg);
+    await enviarCorreo(tienda, b.id, { para: "fan@ejemplo.com", asunto: "Hola", html: "<p>Hola</p>", texto: "Hola" }, {}, reg);
+    await esperarCorreos();
+    expect((await dueno.correo.findUniqueOrThrow({ where: { id } })).responderA).toBe("a@x.com");
+    expect(bandejaDeSalida().map((m) => m.responderA).sort()).toEqual(["a@x.com", "b@x.com"]);
+  });
+
   it("en la transacción de quien lo pide: si se revierte, no existe ni sale", async () => {
     await expect(
       conTenant(a.id, async (tx) => {

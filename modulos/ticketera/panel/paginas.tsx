@@ -5,7 +5,8 @@ import { puedeEnPedido } from "@/nucleo/acceso/panel";
 import { urlArchivo } from "@/nucleo/archivos";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
-import { pasarelaLista } from "@/nucleo/pagos";
+import { pasarelaDe, pasarelaLista } from "@/nucleo/pagos";
+import { cobrosDuplicados } from "@/nucleo/pagos/registro";
 import { AreaTexto, Aviso, Campo, CampoArchivo, Casilla, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
 import { FECHA_CORTA, fechaHoraParaCampo, formatearPesos, pesosParaCampo } from "../dinero";
 import { desdeAhora, evento as leerEvento, eventos, type TipoConVenta } from "../eventos";
@@ -105,7 +106,9 @@ export async function EventoPanel({ tenantId, slug, params }: PropsRutaPanel) {
   const compras = await conTenant(tenantId, (tx) =>
     tx.ticketeraCompra.findMany({ where: { eventoId: e.id, estado: { in: ["PAGADA", "EN_REVISION"] } }, include: { tipo: true }, orderBy: { creadoEn: "desc" }, take: 300 }),
   );
-  const enRevision = compras.filter((c) => c.estado === "EN_REVISION" || c.observacion);
+  // Pagos duplicados: los registra el núcleo (uno por cobro de más), por compra.
+  const duplicados = await cobrosDuplicados(ticketera, tenantId, compras.map((c) => c.id));
+  const enRevision = compras.filter((c) => c.estado === "EN_REVISION" || c.observacion || duplicados.some((d) => d.referencia === c.id));
   const enLinea = { puedeEditar: editar, enLinea: true, variante: "secundario" as const };
   return (
     <div className="flex flex-col gap-6" data-evento-panel={e.nombre}>
@@ -122,6 +125,15 @@ export async function EventoPanel({ tenantId, slug, params }: PropsRutaPanel) {
           {enRevision.map((c) => (
             <p key={c.id}>
               {c.nombre} ({c.email}): {c.observacion}
+              {duplicados
+                .filter((d) => d.referencia === c.id)
+                .map((d) => (
+                  <span key={d.cobroId} data-pago-duplicado={d.cobroId}>
+                    {" "}
+                    Pago duplicado: {d.moneda === "ARS" ? formatearPesos(d.monto) : `${d.moneda} ${(d.monto / 100).toFixed(2)}`}{" "}
+                    {`(pago ${d.cobroId} en ${pasarelaDe(d.pasarela)?.nombre ?? d.pasarela}).`} Devolvelo desde tu pasarela.
+                  </span>
+                ))}
             </p>
           ))}
           <p>Devolvé esos pagos desde tu cuenta de la pasarela: Deoco no devuelve nada, solo te avisa.</p>

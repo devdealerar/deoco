@@ -1,18 +1,17 @@
 // Pago con la pasarela de la banda y deuda con el proveedor.
 // La fuente de verdad del pago es la CONSULTA a la API de la pasarela, nunca el cuerpo del
-// aviso. Un pedido pasa a PAGADO una sola vez (cambio condicional), y en esa misma
-// transacción se copian los costos, se registra la deuda y se emite pedido.pagado.
+// aviso. Cómo se registra (duplicados, revisión, pagado una sola vez) es del núcleo
+// (registrarCobro); acá, qué es un pedido y qué pasa al pagarse.
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
-import { emitir } from "@/nucleo/eventos/bus";
 import { titularDeBanda } from "@/nucleo/personas";
 import type { Modulo } from "@/nucleo/modulos/contrato";
+import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/pagos/registro";
 import { fijarCostosDelPedido } from "./catalogo";
 import { tituloEnvio } from "./comun";
+import tienda from "./index";
 import type { EnvioDeProveedor } from "./pedidos";
 import { type CobroConsultado, crearCobro, ErrorPasarela } from "@/nucleo/pagos";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const MONEDA = "ARS";
 
 /**
  * Crea el cobro del pedido en la pasarela de la banda, con SUS credenciales, y devuelve adónde
@@ -36,58 +35,46 @@ export async function iniciarCobro(tienda: Modulo, tenantId: string, pedidoId: s
   return redireccion;
 }
 
-export type ResultadoPago =
-  | "pagado" // se marcó PAGADO ahora
-  | "ya-pagado" // ya estaba pagado con este mismo cobro (aviso repetido): no se hizo nada
-  | "duplicado" // otro cobro aprobado para un pedido ya pagado: se registra para que la banda lo devuelva
-  | "no-aprobado" // la pasarela todavía no lo aprueba (o lo rechazó)
-  | "en-revision" // aprobado pero no coincide con el pedido: no se marca pagado
-  | "ajeno"; // el cobro no es de un pedido de esta banda
+export type ResultadoPago = ResultadoCobro;
+
+/** Un pedido, como lo cobra el registro del núcleo (registrarCobro). */
+const pedidoACobrar: CosaACobrar = {
+  nombre: "el pedido",
+  async buscar(tx, id) {
+    const p = await tx.tiendaPedido.findUnique({ where: { id }, select: { estado: true, total: true, cobroId: true } });
+    if (!p) return null;
+    return { estado: p.estado === "PENDIENTE" ? "abierta" : p.estado === "EN_REVISION" ? "en-revision" : "pagada", total: p.total, cobroId: p.cobroId };
+  },
+  async anotarEstado(tx, id, estadoCobro) {
+    await tx.tiendaPedido.updateMany({ where: { id, estado: "PENDIENTE" }, data: { estadoCobro } });
+  },
+  async aRevision(tx, id, c) {
+    await tx.tiendaPedido.updateMany({
+      where: { id, estado: "PENDIENTE" },
+      data: { estado: "EN_REVISION", estadoCobro: c.estadoPasarela, cobroId: c.cobroId, pasarela: c.pasarela, observacion: c.observacion },
+    });
+  },
+  async marcarPagada(tx, id, c) {
+    const { count } = await tx.tiendaPedido.updateMany({
+      where: { id, estado: "PENDIENTE" },
+      data: { estado: "PAGADO", pagadoEn: new Date(), cobroId: c.cobroId, estadoCobro: c.estadoPasarela, pasarela: c.pasarela },
+    });
+    return count === 1;
+  },
+  async alPagarse(tx, id) {
+    const { tenantId } = await tx.tiendaPedido.findUniqueOrThrow({ where: { id }, select: { tenantId: true } });
+    await fijarCostosDelPedido(tx, id);
+    await registrarDeudas(tx, tenantId, id);
+  },
+  evento: (pedidoId) => ({ nombre: "pedido.pagado", payload: { pedidoId } }),
+};
 
 /**
- * Registra lo que dijo la API de la pasarela sobre un cobro. PENDIENTE → PAGADO solo si está
- * aprobado, el pedido es de ESTA banda (búsqueda bajo RLS) y monto y moneda coinciden.
+ * Registra lo que dijo la API de la pasarela sobre un cobro (la regla es la del núcleo). Al
+ * pagarse, en la misma transacción: copia de costos, deuda con cada proveedor y pedido.pagado.
  */
-export async function registrarPago(tenantId: string, pasarelaId: string, cobro: CobroConsultado): Promise<ResultadoPago> {
-  if (!cobro.referencia || !UUID.test(cobro.referencia)) return "ajeno";
-  const pedidoId = cobro.referencia;
-  return conTenant(tenantId, async (tx) => {
-    const pedido = await tx.tiendaPedido.findUnique({ where: { id: pedidoId } });
-    if (!pedido) return "ajeno";
-    if (pedido.estado !== "PENDIENTE") {
-      if (cobro.estado !== "aprobado" || cobro.cobroId === pedido.cobroId) return "ya-pagado";
-      // El fan pagó otra vez un pedido ya cerrado: el pedido no cambia ni se duplica la deuda,
-      // pero el pago extra queda registrado y la banda lo ve para devolverlo desde su pasarela.
-      await tx.tiendaPagoExtra.createMany({
-        data: [{ tenantId, pedidoId, pasarela: pasarelaId, cobroId: cobro.cobroId, monto: cobro.monto, moneda: cobro.moneda }],
-        skipDuplicates: true,
-      });
-      return "duplicado";
-    }
-
-    if (cobro.estado !== "aprobado") {
-      await tx.tiendaPedido.updateMany({ where: { id: pedidoId, estado: "PENDIENTE" }, data: { estadoCobro: cobro.estadoPasarela } });
-      return "no-aprobado";
-    }
-    if (cobro.monto !== pedido.total || cobro.moneda !== MONEDA) {
-      const observacion = `La pasarela aprobó ${cobro.moneda} ${(cobro.monto / 100).toFixed(2)} (cobro ${cobro.cobroId}) y el pedido es de ${MONEDA} ${(pedido.total / 100).toFixed(2)}.`;
-      await tx.tiendaPedido.updateMany({
-        where: { id: pedidoId, estado: "PENDIENTE" },
-        data: { estado: "EN_REVISION", estadoCobro: cobro.estadoPasarela, cobroId: cobro.cobroId, observacion },
-      });
-      return "en-revision";
-    }
-    // Cambio condicional: si dos avisos llegan a la vez, solo uno lo pasa a PAGADO.
-    const { count } = await tx.tiendaPedido.updateMany({
-      where: { id: pedidoId, estado: "PENDIENTE" },
-      data: { estado: "PAGADO", pagadoEn: new Date(), cobroId: cobro.cobroId, estadoCobro: cobro.estadoPasarela, pasarela: pasarelaId },
-    });
-    if (count === 0) return "ya-pagado";
-    await fijarCostosDelPedido(tx, pedidoId);
-    await registrarDeudas(tx, tenantId, pedidoId);
-    await emitir("pedido.pagado", tenantId, { pedidoId }, undefined, { tx, unica: `${pasarelaId}:${cobro.cobroId}` });
-    return "pagado";
-  });
+export function registrarPago(tenantId: string, pasarelaId: string, cobro: CobroConsultado): Promise<ResultadoPago> {
+  return registrarCobro(tienda, tenantId, pasarelaId, cobro, pedidoACobrar);
 }
 
 /**

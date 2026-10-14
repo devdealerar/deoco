@@ -61,6 +61,7 @@ beforeEach(async () => {
   }
   await dueno.evento.deleteMany();
   await dueno.correo.deleteMany();
+  await dueno.cobroDuplicado.deleteMany();
   vaciarBandeja();
   await dueno.secreto.deleteMany();
   await dueno.moduloTenant.deleteMany({ where: { moduloId: { in: ["ticketera", "sitio"] } } });
@@ -179,6 +180,8 @@ describe("pago: entradas nominadas, QR por mail y página para verlas", () => {
     expect(entradas.every((x) => /^[A-HJ-NP-Z2-9]{10}$/.test(x.codigo))).toBe(true);
     const [m] = bandejaDeSalida();
     expect(m).toMatchObject({ para: "lucia@fan.com", asunto: "Tus entradas · Gira Satélite · Banda A" });
+    // Quien responde le escribe a la banda (su titular), no a Deoco.
+    expect(["a@x.com", "multi@x.com"]).toContain(m.responderA);
     expect(m.adjuntos!.map((a) => [a.cid, a.tipo])).toEqual(entradas.map((x) => [`qr-${x.codigo}`, "image/png"]));
     expect(m.adjuntos![0].contenido.subarray(1, 4).toString()).toBe("PNG");
     for (const x of entradas) expect(m.html).toContain(`src="cid:qr-${x.codigo}"`);
@@ -189,6 +192,10 @@ describe("pago: entradas nominadas, QR por mail y página para verlas", () => {
     expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "p-1", estado: "aprobado", estadoPasarela: "approved", referencia: c.compraId, monto: total, moneda: "ARS" })).toBe("ya-pagada");
     // Otro pago aprobado de la misma compra: queda anotado para devolver.
     expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "p-2", estado: "aprobado", estadoPasarela: "approved", referencia: c.compraId, monto: total, moneda: "ARS" })).toBe("duplicado");
+    // Como en la tienda: una fila en cobro_duplicado (del núcleo), no texto en la observación.
+    expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "p-2", estado: "aprobado", estadoPasarela: "approved", referencia: c.compraId, monto: total, moneda: "ARS" })).toBe("duplicado");
+    expect((await dueno.cobroDuplicado.findMany()).map((x) => [x.moduloId, x.referencia, x.cobroId, x.monto, x.moneda])).toEqual([["ticketera", c.compraId, "p-2", total, "ARS"]]);
+    expect((await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } })).observacion).toBeNull();
     expect(await dueno.ticketeraEntrada.count()).toBe(2);
     // La página de las entradas: solo con el token.
     expect(await compraConToken(e.a.id, c.compraId, c.token)).toMatchObject({ estado: "PAGADA", entradas: [{}, {}] });

@@ -58,7 +58,7 @@ beforeAll(async () => {
   e = await escenarioAcceso();
   await dominiosDeDesarrollo(e.a, e.b);
   await dueno.correo.deleteMany();
-  for (const t of ["tiendaPagoExtra", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
+  for (const t of ["tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   const comoStaff: ComoStaff = (accion, fn) => conStaffComo(e.staff.id, accion, fn);

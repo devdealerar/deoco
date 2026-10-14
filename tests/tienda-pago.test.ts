@@ -82,7 +82,7 @@ beforeAll(async () => {
   e = await escenarioAcceso();
   titularB = (await dueno.usuario.findUniqueOrThrow({ where: { email: "b@x.com" } })).id;
   comoStaff = (accion, fn) => conStaffComo(e.staff.id, accion, fn);
-  for (const t of ["tiendaPagoExtra", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
+  for (const t of ["tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   sur = await crearProveedor(comoStaff, { nombre: "Estampados Sur", email: "ordenes@sur.com", contacto: "", formatos: ["png", "pdf"] });
@@ -93,12 +93,12 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   mp.limpiar();
-  for (const t of ["tiendaPagoExtra", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno"] as const) {
+  for (const t of ["tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   await dueno.evento.deleteMany();
   await dueno.correo.deleteMany();
-  await dueno.tiendaPagoExtra.deleteMany();
+  await dueno.cobroDuplicado.deleteMany();
   await dueno.tiendaConfig.deleteMany();
   vaciarBandeja();
   await dueno.secreto.deleteMany();
@@ -383,14 +383,15 @@ describe("prueba 6: pago duplicado", () => {
     expect(await (await avisoDePago(e.a.id, "9201")).json()).toEqual({ resultado: "duplicado" }); // repetido: una fila
     await esperarEventos();
     await esperarCorreos();
-    const extras = await conTenant(e.a.id, (tx) => tx.tiendaPagoExtra.findMany());
-    expect(extras.map((x) => [x.pedidoId, x.cobroId, x.monto, x.moneda, x.pasarela])).toEqual([[pedido.id, "9201", pedido.total, "ARS", "mercadopago"]]);
+    // Lo registra el núcleo (cobro_duplicado), como los de cualquier módulo que cobra.
+    const extras = await conTenant(e.a.id, (tx) => tx.cobroDuplicado.findMany());
+    expect(extras.map((x) => [x.moduloId, x.referencia, x.cobroId, x.monto, x.moneda, x.pasarela])).toEqual([["tienda", pedido.id, "9201", pedido.total, "ARS", "mercadopago"]]);
     expect(await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id } })).toMatchObject({ estado: "PAGADO", cobroId: "9200" });
     expect(await dueno.tiendaDeuda.count()).toBe(2);
     expect(await dueno.evento.count({ where: { nombre: "pedido.pagado" } })).toBe(1);
     expect(bandejaDeSalida()).toHaveLength(3);
     // Un pago que no está aprobado, para un pedido pagado, no se registra como extra.
     expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "9202", estado: "rechazado", estadoPasarela: "rejected", referencia: pedido.id, monto: 1, moneda: "ARS" })).toBe("ya-pagado");
-    expect(await dueno.tiendaPagoExtra.count()).toBe(1);
+    expect(await dueno.cobroDuplicado.count()).toBe(1);
   });
 });

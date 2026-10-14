@@ -6,6 +6,7 @@ import { alConfirmar, conTenant, tenantDeTransaccion, type TxTenant } from "@/nu
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
+import { titularDeBanda } from "@/nucleo/personas";
 import { remitente, transporte } from "./transporte";
 
 export { bandejaDeSalida, vaciarBandeja } from "./transporte";
@@ -18,7 +19,10 @@ export type Correo = {
   html: string;
   /** Versión en texto plano (la leen algunos clientes y los filtros de spam). */
   texto: string;
-  /** A quién le llega la respuesta (p. ej. el contacto de la banda). */
+  /**
+   * A quién le llega la respuesta (p. ej. el contacto que cargó la banda). Si no se dice, al
+   * titular de la banda: quien responde un mail de una banda nunca le escribe a Deoco.
+   */
   responderA?: string;
   /** Nombre del remitente; por defecto, el nombre de la banda. La dirección es la de Deoco. */
   nombreRemitente?: string;
@@ -160,7 +164,7 @@ export async function enviarCorreo(
       tenantId,
       moduloId: modulo.id,
       para: correo.para,
-      responderA: correo.responderA,
+      responderA: correo.responderA ?? (await titularDeBanda(t))?.email,
       nombreRemitente,
       asunto: correo.asunto,
       html: correo.html,

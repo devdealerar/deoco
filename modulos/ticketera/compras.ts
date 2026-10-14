@@ -7,15 +7,14 @@
 // banda. La fuente de verdad es la CONSULTA a la API, nunca el aviso.
 import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
-import { emitir } from "@/nucleo/eventos/bus";
 import { type CobroConsultado, crearCobro, ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
+import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/pagos/registro";
 import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { ErrorTicketera, esUuid } from "./eventos";
 import ticketera from "./index";
 
 export const RESERVA_MINUTOS = 20;
 export const MAXIMO_POR_COMPRA = 10;
-const MONEDA = "ARS";
 const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 const DOCUMENTO = /^[0-9A-Za-z.\- ]{5,20}$/;
 
@@ -154,66 +153,66 @@ const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 /** Código de la entrada (va en el QR y se tipea en la puerta): 10 caracteres sin 0/O/1/I. */
 export const nuevoCodigo = () => Array.from({ length: 10 }, () => ALFABETO[randomInt(ALFABETO.length)]).join("");
 
-export type ResultadoPago = "pagada" | "ya-pagada" | "duplicado" | "no-aprobado" | "en-revision" | "ajeno";
+export type ResultadoPago = "pagada" | "ya-pagada" | Exclude<ResultadoCobro, "pagado" | "ya-pagado">;
 
-/**
- * Lo que dijo la API de la pasarela sobre un cobro de esta banda. RESERVADA (o VENCIDA con
- * cupo todavía libre) → PAGADA una sola vez, con sus entradas nominadas, y emite
- * `compra.pagada` (mail con los QR). Monto o moneda distintos, o pago tardío sin cupo →
- * EN_REVISION (la banda lo devuelve desde su pasarela; Deoco no toca la plata).
- */
-export async function registrarPago(tenantId: string, pasarelaId: string, cobro: CobroConsultado): Promise<ResultadoPago> {
-  if (!cobro.referencia || !esUuid(cobro.referencia)) return "ajeno";
-  const compraId = cobro.referencia;
-  return conTenant(tenantId, async (tx) => {
-    const previa = await tx.ticketeraCompra.findUnique({ where: { id: compraId } });
-    if (!previa) return "ajeno";
-    await bloquearTipo(tx, previa.tipoId);
-    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id: compraId } }); // releída con el tipo bloqueado
-    const aprobado = cobro.estado === "aprobado";
-
-    if (c.estado === "PAGADA" || c.estado === "EN_REVISION") {
-      if (!aprobado || cobro.cobroId === c.cobroId || c.observacion?.includes(`cobro ${cobro.cobroId}`)) return c.estado === "PAGADA" ? "ya-pagada" : "en-revision";
-      const nota = `Pago duplicado: ${cobro.moneda} ${(cobro.monto / 100).toFixed(2)} (cobro ${cobro.cobroId}). Devolvelo desde tu pasarela.`;
-      await tx.ticketeraCompra.update({ where: { id: c.id }, data: { observacion: [c.observacion, nota].filter(Boolean).join(" ") } });
-      return "duplicado";
-    }
-    if (!aprobado) {
-      await tx.ticketeraCompra.update({ where: { id: c.id }, data: { estadoCobro: cobro.estadoPasarela } });
-      return "no-aprobado";
-    }
-    const enRevision = async (observacion: string) => {
-      if (c.estado === "RESERVADA") await sumarOcupadas(tx, c.tipoId, -c.cantidad); // no se queda con el lugar
-      await tx.ticketeraCompra.update({
-        where: { id: c.id },
-        data: { estado: "EN_REVISION", cobroId: cobro.cobroId, estadoCobro: cobro.estadoPasarela, pasarela: pasarelaId, observacion },
-      });
-      return "en-revision" as const;
-    };
-    if (cobro.monto !== c.total || cobro.moneda !== MONEDA) {
-      return enRevision(`La pasarela aprobó ${cobro.moneda} ${(cobro.monto / 100).toFixed(2)} (cobro ${cobro.cobroId}) y la compra es de ${MONEDA} ${(c.total / 100).toFixed(2)}.`);
-    }
-    if (c.estado === "VENCIDA") {
-      // Pagó después de que venció la reserva: entra si todavía hay lugar.
-      const t = (await bloquearTipo(tx, c.tipoId))!;
-      if (t.cupo - t.ocupadas < c.cantidad) {
-        return enRevision(`Pagó (cobro ${cobro.cobroId}) cuando la reserva ya había vencido y no queda cupo. Devolvé el pago desde tu pasarela.`);
-      }
-      await sumarOcupadas(tx, c.tipoId, c.cantidad);
-    }
-    const { count } = await tx.ticketeraCompra.updateMany({
-      where: { id: c.id, estado: c.estado },
-      data: { estado: "PAGADA", pagadaEn: new Date(), cobroId: cobro.cobroId, estadoCobro: cobro.estadoPasarela, pasarela: pasarelaId },
+/** Una compra de entradas, como la cobra el registro del núcleo (registrarCobro). */
+const compraACobrar: CosaACobrar = {
+  nombre: "la compra",
+  async buscar(tx, id) {
+    const previa = await tx.ticketeraCompra.findUnique({ where: { id }, select: { tipoId: true } });
+    if (!previa) return null;
+    await bloquearTipo(tx, previa.tipoId); // el cupo no se mueve mientras se registra
+    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } }); // releída con el tipo bloqueado
+    const estado = c.estado === "PAGADA" ? "pagada" : c.estado === "EN_REVISION" ? "en-revision" : "abierta";
+    return { estado, total: c.total, cobroId: c.cobroId };
+  },
+  async anotarEstado(tx, id, estadoCobro) {
+    await tx.ticketeraCompra.update({ where: { id }, data: { estadoCobro } });
+  },
+  // Pagó después de que venció la reserva: entra si todavía hay lugar (y lo vuelve a ocupar).
+  async antesDePagar(tx, id, cobroId) {
+    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } });
+    if (c.estado !== "VENCIDA") return null;
+    const t = (await bloquearTipo(tx, c.tipoId))!;
+    if (t.cupo - t.ocupadas < c.cantidad) return `Pagó (cobro ${cobroId}) cuando la reserva ya había vencido y no queda cupo. Devolvé el pago desde tu pasarela.`;
+    await sumarOcupadas(tx, c.tipoId, c.cantidad);
+    return null;
+  },
+  async aRevision(tx, id, cobro) {
+    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } });
+    if (c.estado === "RESERVADA") await sumarOcupadas(tx, c.tipoId, -c.cantidad); // no se queda con el lugar
+    await tx.ticketeraCompra.update({
+      where: { id },
+      data: { estado: "EN_REVISION", cobroId: cobro.cobroId, estadoCobro: cobro.estadoPasarela, pasarela: cobro.pasarela, observacion: cobro.observacion },
     });
-    if (count === 0) return "ya-pagada";
+  },
+  async marcarPagada(tx, id, cobro) {
+    const { count } = await tx.ticketeraCompra.updateMany({
+      where: { id, estado: { in: ["RESERVADA", "VENCIDA"] } },
+      data: { estado: "PAGADA", pagadaEn: new Date(), cobroId: cobro.cobroId, estadoCobro: cobro.estadoPasarela, pasarela: cobro.pasarela },
+    });
+    return count === 1;
+  },
+  async alPagarse(tx, id) {
+    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } });
     await tx.ticketeraEntrada.createMany({
       data: (c.asistentes as Asistente[]).map((a) => ({
-        tenantId, compraId: c.id, eventoId: c.eventoId, tipoId: c.tipoId, nombre: a.nombre, documento: a.documento, codigo: nuevoCodigo(),
+        tenantId: c.tenantId, compraId: c.id, eventoId: c.eventoId, tipoId: c.tipoId, nombre: a.nombre, documento: a.documento, codigo: nuevoCodigo(),
       })),
     });
-    await emitir("compra.pagada", tenantId, { compraId: c.id }, undefined, { tx, unica: `${pasarelaId}:${cobro.cobroId}` });
-    return "pagada";
-  });
+  },
+  evento: (compraId) => ({ nombre: "compra.pagada", payload: { compraId } }),
+};
+
+/**
+ * Lo que dijo la API de la pasarela sobre un cobro de esta banda (la regla es la del núcleo).
+ * RESERVADA (o VENCIDA con cupo todavía libre) → PAGADA una sola vez, con sus entradas
+ * nominadas, y emite `compra.pagada` (mail con los QR). Monto o moneda distintos, o pago tardío
+ * sin cupo → EN_REVISION (la banda lo devuelve desde su pasarela; Deoco no toca la plata).
+ */
+export async function registrarPago(tenantId: string, pasarelaId: string, cobro: CobroConsultado): Promise<ResultadoPago> {
+  const r = await registrarCobro(ticketera, tenantId, pasarelaId, cobro, compraACobrar);
+  return r === "pagado" ? "pagada" : r === "ya-pagado" ? "ya-pagada" : r;
 }
 
 /** Lo mínimo de una compra sin su token (al volver de la pasarela en otro navegador): el estado. */

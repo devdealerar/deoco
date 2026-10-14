@@ -64,6 +64,7 @@ model Tenant {
   archivos             Archivo[]
   secretos             Secreto[]
   correos              Correo[]
+  cobrosDuplicados     CobroDuplicado[]
 
   @@map("tenant")
 }
@@ -288,4 +289,26 @@ model CuentaExterna {
   @@unique([usuarioId, moduloId])
   @@index([moduloId, referencia])
   @@map("cuenta_externa")
+}
+
+/// Un pago aprobado de algo que ya estaba cobrado (el fan pagó dos veces). La cosa no cambia;
+/// la banda lo ve en el panel del módulo y lo devuelve desde su pasarela. Deoco no devuelve
+/// nada: solo avisa. Lo escribe registrarCobro() (src/nucleo/pagos/registro.ts), para todo
+/// módulo que cobra. `referencia`: lo que el módulo mandó a cobrar (no tiene FK: es del módulo).
+model CobroDuplicado {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  moduloId   String
+  referencia String
+  pasarela   String
+  cobroId    String
+  /// Centavos.
+  monto      Int
+  moneda     String
+  creadoEn   DateTime @default(now())
+
+  @@unique([tenantId, pasarela, cobroId])
+  @@index([tenantId, moduloId, referencia])
+  @@map("cobro_duplicado")
 }
