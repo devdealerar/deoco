@@ -8,7 +8,8 @@ import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { pasarelaDe, pasarelaLista } from "@/nucleo/pagos";
 import { cobrosDuplicados } from "@/nucleo/pagos/registro";
 import { AreaTexto, Aviso, Campo, CampoArchivo, Casilla, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
-import { FECHA_CORTA, fechaHoraParaCampo, formatearPesos, pesosParaCampo } from "../dinero";
+import { formatearPesos, pesosParaCampo } from "@/nucleo/dinero";
+import { FECHA_CORTA, fechaHoraParaCampo } from "@/nucleo/fechas";
 import { desdeAhora, evento as leerEvento, eventos, type TipoConVenta } from "../eventos";
 import ticketera from "../index";
 import {

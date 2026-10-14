@@ -9,7 +9,7 @@ import { notFound } from "next/navigation";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { MetadatosPagina, PropsRutaPublica } from "@/nucleo/modulos/contrato";
 import type { Opcion } from "../catalogo";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import tienda from "../index";
 import { pasarelaLista } from "@/nucleo/pagos";
 import { describirVariante } from "../comun";
@@ -18,10 +18,10 @@ import { Agregar } from "./agregar";
 import { Carrito } from "./carrito";
 import { Checkout } from "./checkout";
 import { estadoParaFan } from "../estados";
-import { c } from "./estilo";
+import { c } from "@/nucleo/publico/estilo";
 import { fotoDeProducto, urlFoto } from "./foto";
 import { Pagar } from "./pagar";
-import { Refrescar } from "./refrescar";
+import { Refrescar } from "@/nucleo/publico/refrescar";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

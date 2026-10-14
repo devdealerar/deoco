@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Opcion } from "../catalogo";
 import { agregarAlCarrito } from "./carrito-local";
-import { c } from "./estilo";
+import { c } from "@/nucleo/publico/estilo";
 
 /** Selección de variantes y "Agregar al carrito". Sin todas las opciones elegidas, no agrega. */
 export function Agregar({

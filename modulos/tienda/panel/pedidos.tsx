@@ -2,7 +2,7 @@ import { conTenant } from "@/nucleo/db/con-tenant";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { Insignia, Tabla, Tarjeta } from "@/ui";
 import { describirVariante } from "../comun";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import { ESTADO_PANEL } from "../estados";
 import { deudaDeBanda } from "../pagos";
 import { pasarelaDe } from "@/nucleo/pagos";

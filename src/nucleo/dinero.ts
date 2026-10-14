@@ -1,4 +1,4 @@
-// Dinero de la tienda: centavos (Int) por dentro, pesos argentinos por fuera.
+// Dinero: centavos (Int) por dentro, pesos argentinos por fuera. Solo pesos.
 
 const enteros = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 const conCentavos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2 });

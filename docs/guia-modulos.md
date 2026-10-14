@@ -152,7 +152,8 @@ const { id } = await guardarArchivo(tenantId, { nombre: f.name, datos }, {
 
 `enviarCorreo(suContrato, tenantId, { para, asunto, html, texto, responderA? }, { tx?, unica? })`
 (`@/nucleo/correo`). Sale a nombre de la banda desde la dirección de Deoco; `responderA`, el
-contacto de la banda. Vuelve enseguida y se envía después de responder.
+contacto de la banda (si no lo pasás, el titular: nunca Deoco). Vuelve enseguida y se envía
+después de responder. Validá direcciones con `esEmail` (la misma regla que el envío).
 
 - Con `tx` (de `conTenant`), el correo se confirma o se pierde con el dato.
 - Con `unica`, el mismo correo sale una sola vez aunque se pida de nuevo (un aviso repetido).
@@ -367,13 +368,27 @@ avisos: [{ ruta: "/pago/[pasarela]", metodos: ["POST", "GET"], manejador: avisoD
 - `crearCobro(modulo, tenantId, { referencia, items, extras, total, comprador, urls })` → adónde
   mandar al comprador. `referencia` es tu id (pedido, compra): vuelve en el cobro consultado.
 - En el aviso: `const r = await cobroDelAviso(modulo, aviso)`. Si trae `respuesta`, devolvela;
-  si trae `cobro`, es lo que dijo la **API** de la pasarela (nunca el cuerpo del aviso):
-  verificá que `cobro.referencia` sea tuya **en esta banda**, monto y moneda, y registralo con
-  un cambio condicional (dos avisos a la vez no lo registran dos veces).
+  si trae `cobro`, es lo que dijo la **API** de la pasarela (nunca el cuerpo del aviso).
+  Registralo con `registrarCobro(modulo, tenantId, r.pasarela, r.cobro, tuCosa)`
+  (`@/nucleo/pagos/registro`): la regla es del núcleo (referencia de esta banda, monto y moneda,
+  EN_REVISION, pago duplicado, pagado una sola vez, evento con clave única). Vos das `tuCosa`
+  (`CosaACobrar`): cómo buscarla, pasarla a revisión, marcarla pagada **con un cambio
+  condicional**, qué hacer al cobrarse y qué evento emitir. No escribas tu propia versión.
+- Pagos duplicados: los guarda el núcleo (`cobro_duplicado`). Para mostrarlos en tu panel:
+  `cobrosDuplicados(modulo, tenantId, referencias)`.
 - `probarConexion(modulo, tenantId)`: a nombre de quién cobra (para que el titular confirme).
 - Ejemplos: `modulos/tienda/pagos.ts` + `aviso.ts`, `modulos/ticketera/compras.ts` + `aviso.ts`.
+- Montos: centavos (Int). `formatearPesos`, `leerPesos`, `pesosParaCampo` de `@/nucleo/dinero`;
+  fechas en hora argentina, `@/nucleo/fechas`.
 - Cupos (entradas, stock): un contador en la fila con `CHECK (ocupadas <= cupo)` y la fila
   bloqueada (`SELECT … FOR UPDATE`) al reservar; ver `modulos/ticketera/compras.ts`.
+
+## 6 bis″. Lo común del sitio público
+
+- Links absolutos al sitio de la banda (mails, vista previa): `origenDeBanda(tenantId, { tx? })`;
+  la vuelta de la pasarela, `origenDelPedido()` (`@/nucleo/publico/origen`). No armes la URL a mano.
+- Clases que toman el estilo de la banda (variables del marco): `c` de `@/nucleo/publico/estilo`.
+- Página que espera un pago: `<Refrescar />` de `@/nucleo/publico/refrescar`.
 
 ## 6 ter. Consultas a otros módulos
 

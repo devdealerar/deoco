@@ -3,7 +3,7 @@ import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { puedeEnPedido } from "@/nucleo/acceso/panel";
 import { Campo, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
 import { contactoDeTienda } from "../contacto";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import tienda from "../index";
 import { pasarelaLista } from "@/nucleo/pagos";
 import { listarProductos, margen } from "../productos";

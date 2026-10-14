@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { accesoPanel, puedeEnPedido } from "@/nucleo/acceso/panel";
 import type { EstadoFormulario } from "@/ui";
 import { archivo, ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
-import { leerFechaHora, leerPesos } from "../dinero";
+import { leerPesos } from "@/nucleo/dinero";
+import { leerFechaHora } from "@/nucleo/fechas";
 import {
   actualizarEvento,
   actualizarTipo,

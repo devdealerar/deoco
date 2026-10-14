@@ -1,25 +1,18 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { registro } from "@/nucleo/modulos";
 import { nombreDeBanda, resolverMetadatos } from "@/nucleo/modulos/metadatos";
 import { elementosDelMarco } from "@/nucleo/publico/marco";
-
-/** Origen del pedido (`https://labanda.com`): base de las URLs absolutas de la vista previa. */
-async function origen(): Promise<URL> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto")?.split(",")[0].trim() || (process.env.NODE_ENV === "production" ? "https" : "http");
-  return new URL(`${proto}://${h.get("host")}`);
-}
+import { origenDelPedido } from "@/nucleo/publico/origen";
 
 /** <title>, descripción y Open Graph de una página pública: de la banda, nunca de Deoco. */
 export async function metadataPublica(tenantId: string, path: string, consulta: URLSearchParams): Promise<Metadata> {
   const m = await resolverMetadatos(tenantId, path, consulta);
   const imagenes = m.imagen ? [m.imagen] : undefined;
   return {
-    metadataBase: await origen(),
+    metadataBase: new URL(await origenDelPedido()), // base de las URLs absolutas de la vista previa
     title: { absolute: m.titulo },
     description: m.descripcion,
     openGraph: { type: "website", siteName: m.banda, title: m.titulo, description: m.descripcion, url: path, images: imagenes },

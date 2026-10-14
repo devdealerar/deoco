@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import { describirVariante } from "../comun";
 import { cambiarCantidad } from "./carrito-local";
-import { c } from "./estilo";
+import { c } from "@/nucleo/publico/estilo";
 import { Problemas, Resumen, useRevision } from "./revision";
 
 /** Página del carrito: lo del navegador, revisado contra el servidor. */

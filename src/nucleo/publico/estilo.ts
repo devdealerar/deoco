@@ -1,5 +1,7 @@
-// La tienda pública toma el estilo de la banda (variables del marco del sitio). Con el marco
-// neutro (sitio apagado) esas variables no existen: cada una trae su valor por defecto.
+// Clases para las páginas públicas de los módulos: toman el estilo de la
+// banda de las variables CSS del marco público (--fondo, --texto, --texto-suave, --linea,
+// --superficie, --acento, --sobre-acento, --fuente; las pone el marco del módulo que lo da).
+// Con el marco neutro esas variables no existen: cada una trae su valor por defecto.
 export const c = {
   texto: "text-[var(--texto,#1c1917)]",
   suave: "text-[var(--texto-suave,#57534e)]",

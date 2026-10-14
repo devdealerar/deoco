@@ -121,6 +121,11 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 - Pasarelas (hoy Mercado Pago) y credenciales de cobro de la banda: del núcleo (secreto con
   módulo `pagos`, Credenciales → Cobros). Módulos con `cobros: true` + aviso `/pago/[pasarela]`
   usan `pasarelaLista`, `crearCobro`, `cobroDelAviso`, `probarConexion`. Lo usan tienda y ticketera.
+- Registrar el pago: `registrarCobro(modulo, tenantId, pasarela, cobro, cosa)` (`src/nucleo/pagos/registro.ts`),
+  la única regla (revisión, duplicado, pagado una vez); el módulo da su `CosaACobrar`. Duplicados
+  en `cobro_duplicado` (núcleo, RLS), se leen con `cobrosDuplicados`.
+- Comunes del núcleo: `@/nucleo/dinero` (pesos), `@/nucleo/fechas` (hora argentina),
+  `@/nucleo/publico/{origen,estilo,refrescar}`, `esEmail` (`@/nucleo/correo/direccion`).
 
 ## Consultas entre módulos
 
@@ -142,7 +147,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 
 ## Correo, staff en módulos y links firmados
 
-- Correo (`src/nucleo/correo`): `enviarCorreo(contrato, tenantId, correo, { tx?, unica? })` (con
+- Correo (`src/nucleo/correo`): `enviarCorreo(contrato, tenantId, correo, { tx?, unica? })` (sin
+  `responderA`, responde al titular de la banda; con
   `adjuntos` opcionales, imágenes `cid:`) guarda
   en `correo` (RLS) y sale después de responder. Transporte por `DEOCO_CORREO` (`smtp` con
   `DEOCO_SMTP_URL`/`DEOCO_CORREO_REMITENTE`, `memoria` en desarrollo y pruebas).

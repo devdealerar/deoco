@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import { describirVariante, tituloEnvio } from "../comun";
 import { type EstadoCarrito, revisarAccion } from "./acciones";
 import { guardarCarrito, type LineaLocal, useCarrito } from "./carrito-local";
-import { c } from "./estilo";
+import { c } from "@/nucleo/publico/estilo";
 
 /**
  * Revisa el carrito del navegador contra el servidor cada vez que cambia. Lo que muestra

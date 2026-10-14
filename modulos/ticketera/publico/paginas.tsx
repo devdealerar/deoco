@@ -8,13 +8,14 @@ import { accesoRecordado } from "@/nucleo/publico/acceso";
 import { CanjearLink } from "@/nucleo/publico/canjear-link";
 import { compraConToken, estadoDeCompra, MAXIMO_POR_COMPRA } from "../compras";
 import { qrSvg } from "../correos";
-import { FECHA_LARGA, formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
+import { FECHA_LARGA } from "@/nucleo/fechas";
 import { desdeAhora, eventoPublicado, eventos } from "../eventos";
 import ticketera from "../index";
 import { canjearEntradasAccion } from "./acciones";
 import { Comprar } from "./comprar";
-import { c } from "./estilo";
-import { Refrescar } from "./refrescar";
+import { c } from "@/nucleo/publico/estilo";
+import { Refrescar } from "@/nucleo/publico/refrescar";
 
 function Pagina({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (

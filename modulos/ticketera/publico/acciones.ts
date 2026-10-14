@@ -1,7 +1,7 @@
 "use server";
 
-import { headers } from "next/headers";
 import { recordarAcceso } from "@/nucleo/publico/acceso";
+import { origenDelPedido } from "@/nucleo/publico/origen";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { compraConToken, intentarComprar } from "../compras";
 
@@ -15,10 +15,6 @@ export async function comprarAccion(
   const ctx = await tenantDelPedido();
   if (ctx?.superficie !== "publico")
     return { error: "Solo en el sitio de una banda." };
-  const h = await headers();
-  const proto =
-    h.get("x-forwarded-proto")?.split(",")[0].trim() ||
-    (process.env.NODE_ENV === "production" ? "https" : "http");
   const cantidad = Number(fd.get("cantidad"));
   const campo = (n: string) => String(fd.get(n) ?? "");
   const r = await intentarComprar(
@@ -41,7 +37,7 @@ export async function comprarAccion(
         }),
       ),
     },
-    `${proto}://${h.get("host")}`,
+    await origenDelPedido(),
   );
   if (!r.ok) return { error: r.error };
   // Este navegador queda con acceso a las entradas: al volver de la pasarela las ve.

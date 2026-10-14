@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { comprarAccion, type EstadoCompra } from "./acciones";
-import { c } from "./estilo";
+import { c } from "@/nucleo/publico/estilo";
 
 type Tipo = { id: string; nombre: string; precio: string; disponibles: number };
 

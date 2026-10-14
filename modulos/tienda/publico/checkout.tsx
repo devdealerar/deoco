@@ -5,7 +5,7 @@ import { useActionState, useEffect } from "react";
 import { PROVINCIAS } from "../comun";
 import { confirmarAccion, type EstadoCheckout } from "./acciones";
 import { guardarCarrito } from "./carrito-local";
-import { c } from "./estilo";
+import { c } from "@/nucleo/publico/estilo";
 import { Problemas, Resumen, useRevision } from "./revision";
 
 function Campo({ name, etiqueta, ...props }: { name: string; etiqueta: string } & React.InputHTMLAttributes<HTMLInputElement>) {

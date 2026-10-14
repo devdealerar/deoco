@@ -3,7 +3,7 @@ import type { PropsRutaAdmin } from "@/nucleo/modulos/contrato";
 import { urlArchivoPlataforma } from "@/nucleo/archivos/plataforma";
 import { Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
 import { listarProductosBase, listarProveedores } from "../catalogo";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import { crearProductoBaseAccion } from "./acciones";
 import { CamposProductoBase } from "./formulario";
 

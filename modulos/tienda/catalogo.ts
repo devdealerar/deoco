@@ -6,6 +6,7 @@ import type { ContextoStaff } from "@/nucleo/acceso/staff";
 import { borrarArchivoPlataforma, guardarArchivoPlataforma } from "@/nucleo/archivos/plataforma";
 import type { TxTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
+import { esEmail } from "@/nucleo/correo/direccion";
 
 export const MODULO = "tienda";
 
@@ -18,8 +19,6 @@ export const FORMATOS_IMPRESION = ["png", "pdf"] as const;
 export type FormatoImpresion = (typeof FORMATOS_IMPRESION)[number];
 
 export type Opcion = { nombre: string; valores: string[] };
-
-const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 
 function formatos(lista: string[], que: string): FormatoImpresion[] {
   const unicos = [...new Set(lista.map((f) => f.toLowerCase()))];
@@ -60,7 +59,7 @@ function validarProveedor(d: DatosProveedor) {
   const nombre = d.nombre.trim();
   if (!nombre) throw new ErrorCatalogo("Falta el nombre del proveedor.");
   const email = d.email.trim().toLowerCase();
-  if (!EMAIL.test(email)) throw new ErrorCatalogo(`"${d.email}" no es un mail válido (ahí llegan las órdenes).`);
+  if (!esEmail(email)) throw new ErrorCatalogo(`"${d.email}" no es un mail válido (ahí llegan las órdenes).`);
   return { nombre, email, contacto: d.contacto.trim(), formatos: formatos(d.formatos, "que acepte") };
 }
 

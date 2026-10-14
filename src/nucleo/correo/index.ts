@@ -7,8 +7,10 @@ import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
 import { titularDeBanda } from "@/nucleo/personas";
+import { esEmail } from "./direccion";
 import { remitente, transporte } from "./transporte";
 
+export { esEmail } from "./direccion";
 export { bandejaDeSalida, vaciarBandeja } from "./transporte";
 
 export class ErrorCorreo extends Error {}
@@ -33,12 +35,11 @@ export type Correo = {
 const TIPOS_ADJUNTO = ["image/png", "image/jpeg", "application/pdf", "text/calendar"];
 type AdjuntoGuardado = { nombre: string; tipo: string; cid?: string; base64: string };
 
-const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 const sinSaltos = (t: string) => /[\r\n]/.test(t);
 
 function validar(c: Correo) {
-  if (!EMAIL.test(c.para) || c.para.length > 254) throw new ErrorCorreo(`"${c.para}" no es una dirección de correo válida.`);
-  if (c.responderA !== undefined && (!EMAIL.test(c.responderA) || c.responderA.length > 254)) {
+  if (!esEmail(c.para)) throw new ErrorCorreo(`"${c.para}" no es una dirección de correo válida.`);
+  if (c.responderA !== undefined && !esEmail(c.responderA)) {
     throw new ErrorCorreo(`"${c.responderA}" no es una dirección válida para responder.`);
   }
   if (!c.asunto.trim() || c.asunto.length > 200 || sinSaltos(c.asunto)) throw new ErrorCorreo("Asunto vacío, muy largo o con saltos de línea.");

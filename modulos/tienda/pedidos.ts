@@ -9,6 +9,7 @@ import type { Modulo } from "@/nucleo/modulos/contrato";
 import { type Opcion, proveedorEfectivo } from "./catalogo";
 import { PROVINCIAS } from "./comun";
 import { pasarelaLista } from "@/nucleo/pagos";
+import { esEmail } from "@/nucleo/correo/direccion";
 
 export { describirVariante, PROVINCIAS } from "./comun";
 
@@ -171,7 +172,7 @@ export function validarDatosFan(d: DatosFan): { datos: DatosFan; problemas: stri
   };
   const p: string[] = [];
   if (!datos.nombre) p.push("Falta tu nombre.");
-  if (!/^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/.test(datos.email)) p.push("Revisá tu email: ahí te llega la confirmación.");
+  if (!esEmail(datos.email)) p.push("Revisá tu email: ahí te llega la confirmación.");
   if (!/^[+\d][\d\s()-]{5,}$/.test(datos.telefono)) p.push("Revisá tu teléfono.");
   if (!datos.calle) p.push("Falta la calle.");
   if (!datos.numero) p.push("Falta el número.");

@@ -16,7 +16,7 @@ import {
   marcarProveedorPorDefecto,
   proveedorEfectivo,
 } from "../modulos/tienda/catalogo";
-import { formatearPesos, leerPesos } from "../modulos/tienda/dinero";
+import { formatearPesos, leerPesos } from "@/nucleo/dinero";
 import { dueno, escenarioAcceso } from "./apoyo";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;

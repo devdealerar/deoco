@@ -1,5 +1,5 @@
 // Registro de un cobro consultado a la pasarela: la misma regla para todo módulo que cobra.
-// El núcleo no sabe qué se cobró (un pedido, una compra de entradas): eso lo resuelve el módulo
+// El núcleo no sabe qué se cobró (qué cosa es): eso lo resuelve el módulo
 // con las funciones de `CosaACobrar`. Acá vive lo que antes estaba copiado en cada módulo:
 //
 //   1. La referencia tiene que ser un id, y de una cosa de ESTA banda (búsqueda bajo RLS).
@@ -59,7 +59,7 @@ export type CosaACobrar = {
   aRevision(tx: TxTenant, referencia: string, cobro: DatosCobro & { observacion: string }): Promise<void>;
   /** Marcarla pagada SOLO si sigue abierta (cambio condicional). true si la marcó esta llamada. */
   marcarPagada(tx: TxTenant, referencia: string, cobro: DatosCobro): Promise<boolean>;
-  /** Lo que se hace al cobrarse, en la misma transacción (deuda, entradas…). */
+  /** Lo que se hace al cobrarse, en la misma transacción (lo que el módulo entrega). */
   alPagarse(tx: TxTenant, referencia: string): Promise<void>;
   /** El evento que se emite al cobrarse (uno por cobro). */
   evento(referencia: string): { nombre: string; payload: Prisma.InputJsonObject };

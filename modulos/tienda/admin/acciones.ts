@@ -18,7 +18,7 @@ import {
   listarProveedores,
   marcarProveedorPorDefecto,
 } from "../catalogo";
-import { leerPesos } from "../dinero";
+import { leerPesos } from "@/nucleo/dinero";
 import { darAccesoProveedor, ErrorProveedor, quitarAccesoProveedor } from "../proveedor";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
 

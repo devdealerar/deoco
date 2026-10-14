@@ -6,7 +6,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { AreaTexto, Campo, CampoArchivo, Casilla, Formulario, Insignia, Selector, Tarjeta } from "@/ui";
 import type { Opcion } from "../catalogo";
-import { formatearPesos, pesosParaCampo } from "../dinero";
+import { formatearPesos, pesosParaCampo } from "@/nucleo/dinero";
 import { describirEspecificacion, medidaDeDiseno, problemasDeImpresion } from "../impresion";
 import { ErrorTienda, listarDisenos, margen, productoDe } from "../productos";
 import { actualizarProductoAccion, crearProductoAccion, publicarAccion } from "./acciones";

@@ -18,6 +18,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | G1 | Arreglos · bloque 1: apertura de venta (pool, transacciones, errores, carga) y token fuera de la URL | ✅ hecha |
 | G2 | Arreglos · bloque 2: el proveedor escribe con la base como límite; política de `tenant` al núcleo | ✅ hecha |
 | G2b | Arreglos · bloque 2b: `usuario` con RLS; prueba del sitio que se demoraba | ✅ hecha |
+| G3 | Arreglos · bloque 3: registro del pago en el núcleo, responder-a, duplicados | ✅ hecha (falta decidir `conEdicion`) |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
@@ -106,6 +107,26 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
   cascada porque usan lo que carga la primera. Ahora `tests/e2e/servidor.ts` compila todas las
   rutas antes de la primera prueba (`precalentar`, ~40 s en frío), sin apuro; ninguna prueba
   mide compilación. Probado borrando la caché de Turbopack: 75/75.
+
+- G3, registro del pago: `registrarCobro()` (`src/nucleo/pagos/registro.ts`) es la única regla
+  (referencia de la banda, no aprobado, monto/moneda → EN_REVISION, duplicado, pagado una vez con
+  cambio condicional, evento con clave única). Tienda y ticketera dan su `CosaACobrar`.
+  - Ya habían divergido: la tienda guardaba el duplicado en una tabla; la ticketera, como texto en
+    `observacion`. Ahora los dos, en `cobro_duplicado` (núcleo, RLS). Migraciones: la tabla de la
+    tienda se copia y se borra; el texto de la ticketera se lee con una expresión y sale de la
+    observación. El núcleo da `deoco_importar_cobro_duplicado()` (solo migraciones) para no
+    escribir su tabla desde SQL de un módulo.
+  - Unificado también: un aviso repetido de algo EN_REVISION da "en-revision" (la tienda decía
+    "ya-pagado"); un duplicado repetido da "duplicado" (la ticketera decía "ya-pagada").
+  - Pruebas: las de los dos módulos siguen igual (salvo leer el duplicado de la tabla nueva) y
+    `tests/pagos-registro.test.ts` prueba la regla con un módulo falso.
+- G3, responder-a: el mail de entradas no lo tenía. Ahora `enviarCorreo` usa el titular de la
+  banda si el módulo no dice otro: ningún mail de banda le responde a Deoco. Revisados los demás
+  (tienda: los tres ya lo tenían).
+- G3, duplicados al núcleo: `@/nucleo/dinero`, `@/nucleo/fechas`, `@/nucleo/publico/estilo`,
+  `@/nucleo/publico/refrescar`, `@/nucleo/publico/origen` (`origenDeBanda`, `origenDelPedido`;
+  la URL estaba armada 4 veces, una con el puerto 3000 fijo, y el origen del pedido 3) y
+  `esEmail` (6 copias; dos no limitaban el largo que el correo sí exige, una era más permisiva).
 
 ## Paso 4 · Módulo de tienda
 

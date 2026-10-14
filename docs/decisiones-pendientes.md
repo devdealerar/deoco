@@ -190,3 +190,23 @@ y por qué. Si alguna no va, se cambia.
    tenga la conexión de la app puede pedir el hash de un email; es lo mismo que necesita el login
    y no da más que eso.
 
+## G3 · Lo duplicado
+
+1. **El registro del pago es del núcleo; qué se cobró, del módulo.** `CosaACobrar` son seis
+   funciones chicas; el orden de las comprobaciones y los duplicados no se pueden reescribir.
+2. **Pago duplicado: una tabla del núcleo** (`cobro_duplicado`), sin FK a la fila del módulo (el
+   núcleo no conoce sus tablas). Ninguna cosa cobrada se borra hoy; si un módulo empieza a borrar,
+   que limpie sus duplicados.
+3. **Responder-a por defecto, el titular.** Mejor un mail que le llega a la banda que uno que
+   le llega a Deoco por olvido.
+4. **Quedó repetido a propósito:**
+   - `conEdicion` (sitio, tienda, ticketera): pendiente de decisión (lleva permisos).
+   - Los `Intl.DateTimeFormat` de cada pantalla: cada una elige cómo mostrar la fecha; la zona
+     es siempre la misma y no hay lógica que pueda divergir.
+   - El regex de UUID (13 copias): es un formato fijo, no una regla de negocio.
+   - El estilo en línea de los mails (tienda y ticketera): es la cara de cada mail; si se
+     quiere una plantilla común de mails, es una decisión de diseño, no un arreglo.
+   - `conPuerta` de la ticketera: otro permiso y otra forma de error (la puerta no es un formulario).
+   - Las variables CSS del marco (`variables()` del sitio): las define el sitio, que es quien da
+     el marco; el núcleo solo documenta los nombres y las lee con valor por defecto.
+

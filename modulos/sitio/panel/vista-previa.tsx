@@ -5,7 +5,7 @@ import { elementosDelMarco } from "@/nucleo/publico/marco";
 import { type ContenidoSitio, leerBorrador } from "../contenido";
 import { conFechasVivas } from "../fechas";
 import sitio from "../index";
-import { origenPublico } from "../origen";
+import { origenDeBanda } from "@/nucleo/publico/origen";
 import type { Rutas } from "../vista/estilo";
 import { Home } from "../vista/home";
 import { MarcoBanda } from "../vista/marco";
@@ -22,7 +22,7 @@ function VistaPrevia(pagina: "home" | "prensa") {
     const [borrador, puedeEditar, origen] = await Promise.all([
       conTenant(tenantId, (tx) => leerBorrador(tx, tenantId)),
       puedeEditarEn(slug),
-      origenPublico(tenantId),
+      origenDeBanda(tenantId),
     ]);
     const base = `/b/${slug}/sitio/vista-previa`;
     const rutas: Rutas = {

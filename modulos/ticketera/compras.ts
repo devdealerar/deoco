@@ -12,10 +12,10 @@ import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/
 import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { ErrorTicketera, esUuid } from "./eventos";
 import ticketera from "./index";
+import { esEmail } from "@/nucleo/correo/direccion";
 
 export const RESERVA_MINUTOS = 20;
 export const MAXIMO_POR_COMPRA = 10;
-const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 const DOCUMENTO = /^[0-9A-Za-z.\- ]{5,20}$/;
 
 export type Asistente = { nombre: string; documento: string };
@@ -28,7 +28,7 @@ function validar(d: DatosCompra): DatosCompra {
   if (!esUuid(d.tipoId)) problemas.push("Elegí el tipo de entrada.");
   if (!Number.isInteger(d.cantidad) || d.cantidad < 1 || d.cantidad > MAXIMO_POR_COMPRA) problemas.push(`Podés comprar de 1 a ${MAXIMO_POR_COMPRA} entradas.`);
   if (nombre.length < 2 || nombre.length > 100) problemas.push("Completá tu nombre.");
-  if (!EMAIL.test(email) || email.length > 254) problemas.push("Revisá tu email: ahí te llegan las entradas.");
+  if (!esEmail(email)) problemas.push("Revisá tu email: ahí te llegan las entradas.");
   const asistentes = d.asistentes.map((a) => ({ nombre: a.nombre.trim().replace(/\s+/g, " "), documento: a.documento.trim().replace(/\s+/g, " ") }));
   if (asistentes.length !== d.cantidad) problemas.push("Cada entrada va a nombre de alguien: completá todas.");
   asistentes.forEach((a, i) => {

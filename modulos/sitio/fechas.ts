@@ -1,12 +1,11 @@
 // Próximas fechas del sitio: si la ticketera está prendida para la banda, las suyas (consulta
 // "ticketera.proximas-fechas", sin importar su código); si no, las cargadas a mano.
 import { consultar } from "@/nucleo/consultas";
+import { diaArgentino } from "@/nucleo/fechas";
 import type { ContenidoSitio } from "./contenido";
 
 type Fecha = ContenidoSitio["home"]["fechas"][number];
 
-/** Día en Argentina (UTC−3) de una fecha ISO. */
-const dia = (iso: string) => new Date(new Date(iso).getTime() - 3 * 3600_000).toISOString().slice(0, 10);
 
 function interpretar(r: unknown): Fecha[] {
   if (!Array.isArray(r)) throw new Error("se esperaba una lista");
@@ -16,7 +15,7 @@ function interpretar(r: unknown): Fecha[] {
       throw new Error("fecha con otra forma");
     }
     if (Number.isNaN(Date.parse(f.fecha)) || !f.url.startsWith("/")) throw new Error("fecha o link inválidos");
-    return { fecha: dia(f.fecha), lugar: f.lugar, ciudad: f.ciudad, link: f.url };
+    return { fecha: diaArgentino(f.fecha), lugar: f.lugar, ciudad: f.ciudad, link: f.url };
   });
 }
 

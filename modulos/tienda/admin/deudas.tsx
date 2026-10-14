@@ -1,7 +1,7 @@
 import { conStaff } from "@/nucleo/acceso/staff";
 import type { PropsRutaAdmin } from "@/nucleo/modulos/contrato";
 import { Tarjeta } from "@/ui";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import { deudaDeTodas } from "../pagos";
 
 /** Back office · Deuda con proveedores, por banda y por proveedor. Solo lectura (auditada). */

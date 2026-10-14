@@ -3,6 +3,8 @@
 // inválido), y el formulario conserva lo escrito cuando hay error.
 // Solo servidor: no importar desde componentes de cliente.
 
+import { esEmail } from "@/nucleo/correo/direccion";
+
 /** Dato inválido: su mensaje se muestra tal cual al usuario. */
 export class ErrorFormulario extends Error {}
 
@@ -44,7 +46,7 @@ export function url(fd: FormData, campo: string, obligatoria: boolean) {
 /** Email simple (algo@dominio.tld), o "" si está vacío. */
 export function email(fd: FormData, campo: string) {
   const v = texto(fd, campo, 200).toLowerCase();
-  if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) throw new ErrorFormulario(`"${v}" no es un email válido.`);
+  if (v && !esEmail(v)) throw new ErrorFormulario(`"${v}" no es un email válido.`);
   return v;
 }
 

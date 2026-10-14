@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatearBytes, usoAlmacenamiento } from "@/nucleo/archivos";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
+import { origenDeBanda } from "@/nucleo/publico/origen";
 import { Formulario, Insignia, Tarjeta } from "@/ui";
 import { publicar } from "../acciones";
 import { hayCambios, leerBorrador, leerPublicado } from "../contenido";
@@ -10,11 +11,11 @@ import { Encabezado, puedeEditar as puedeEditarEn } from "./comun";
 const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" });
 
 export async function Resumen({ tenantId, slug }: PropsRutaPanel) {
-  const [borrador, publicado, uso, dominio, puedeEditar] = await Promise.all([
+  const [borrador, publicado, uso, sitio, puedeEditar] = await Promise.all([
     conTenant(tenantId, (tx) => leerBorrador(tx, tenantId)),
     leerPublicado(tenantId),
     usoAlmacenamiento(tenantId),
-    conTenant(tenantId, (tx) => tx.dominio.findFirst({ orderBy: { esPrincipal: "desc" }, select: { dominio: true } })),
+    origenDeBanda(tenantId),
     puedeEditarEn(slug),
   ]);
   const cambios = hayCambios(borrador, publicado?.contenido ?? null);
@@ -42,9 +43,9 @@ export async function Resumen({ tenantId, slug }: PropsRutaPanel) {
           <Link href={`/b/${slug}/sitio/vista-previa`} className="text-sm font-semibold text-brand-secondary">
             Ver vista previa del borrador
           </Link>
-          {dominio && publicado && (
+          {sitio && publicado && (
             <a
-              href={`${process.env.NODE_ENV === "production" ? "https" : "http"}://${dominio.dominio}${process.env.NODE_ENV === "production" ? "" : ":3000"}/`}
+              href={`${sitio}/`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm font-semibold text-brand-secondary"

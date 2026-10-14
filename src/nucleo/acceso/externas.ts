@@ -17,6 +17,7 @@ import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { usuarioActivo } from "./panel";
+import { esEmail } from "@/nucleo/correo/direccion";
 
 export class ErrorCuentaExterna extends Error {}
 
@@ -125,8 +126,6 @@ export async function cuentasDeReferencia(tx: TxTenant, modulo: Modulo, referenc
     FROM cuentas_externas_de(${modulo.id}, ${referencia})`;
 }
 
-const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
-
 async function exigirStaff(tx: TxTenant) {
   const [{ es }] = await tx.$queryRaw<{ es: boolean }[]>`SELECT app_es_staff() AS es`;
   if (!es) throw new ErrorCuentaExterna("Las cuentas externas las da el staff (conStaff).");
@@ -146,7 +145,7 @@ export async function crearCuentaExterna(
   conCuentas(modulo, reg);
   await exigirStaff(tx);
   const email = datos.email.trim().toLowerCase();
-  if (!EMAIL.test(email) || email.length > 254) throw new ErrorCuentaExterna(`"${datos.email}" no es un email válido.`);
+  if (!esEmail(email)) throw new ErrorCuentaExterna(`"${datos.email}" no es un email válido.`);
   if (!datos.referencia) throw new ErrorCuentaExterna("Falta la referencia.");
   // `usuario` tiene RLS: el staff busca y da de alta por funciones acotadas (nunca un staff).
   const [existente] = await tx.$queryRaw<{ id: string; es_staff: boolean }[]>`SELECT id, es_staff FROM usuario_por_email_staff(${email})`;

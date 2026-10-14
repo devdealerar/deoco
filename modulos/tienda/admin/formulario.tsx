@@ -1,6 +1,6 @@
 import { AreaTexto, Campo, CampoArchivo, Casilla, Selector } from "@/ui";
 import { opcionesComoTexto, type Opcion } from "../catalogo";
-import { pesosParaCampo } from "../dinero";
+import { pesosParaCampo } from "@/nucleo/dinero";
 
 type Base = {
   nombre: string;

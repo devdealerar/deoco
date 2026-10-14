@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { PropsRutaExterna } from "@/nucleo/modulos/contrato";
 import { Campo, Casilla, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import { cuentaCorriente, type EstadoOrden, ordenDelProveedor, ordenesDelProveedor } from "../proveedor";
 import { despacharAccion, saldarAccion } from "./acciones";
 

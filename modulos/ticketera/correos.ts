@@ -3,14 +3,14 @@
 import QRCode from "qrcode";
 import { enviarCorreo, escaparHtml as h } from "@/nucleo/correo";
 import { conTenant } from "@/nucleo/db/con-tenant";
+import { origenDeBanda } from "@/nucleo/publico/origen";
 import type { Evento } from "@/nucleo/modulos/contrato";
-import { FECHA_LARGA } from "./dinero";
+import { FECHA_LARGA } from "@/nucleo/fechas";
 import ticketera from "./index";
 
 export const qrPng = (codigo: string) => QRCode.toBuffer(codigo, { type: "png", width: 320, margin: 2, errorCorrectionLevel: "M" });
 export const qrSvg = (codigo: string) => QRCode.toString(codigo, { type: "svg", margin: 2, errorCorrectionLevel: "M" });
 
-const sitio = (dominio: string) => (process.env.NODE_ENV === "production" ? `https://${dominio}` : `http://${dominio}:${process.env.PORT ?? 3000}`);
 const estilo = "font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1c1917;line-height:1.5;max-width:560px";
 
 export async function alPagarseCompra(evento: Evento) {
@@ -18,13 +18,13 @@ export async function alPagarseCompra(evento: Evento) {
   const datos = await conTenant(evento.tenantId, async (tx) => {
     const c = await tx.ticketeraCompra.findUnique({ where: { id: compraId }, include: { evento: true, tipo: true, entradas: { orderBy: { nombre: "asc" } } } });
     const banda = await tx.tenant.findUniqueOrThrow({ where: { id: evento.tenantId }, select: { nombre: true } });
-    const dominio = (await tx.dominio.findFirst({ where: { esPrincipal: true }, select: { dominio: true } }))?.dominio ?? null;
-    return c && { c, banda, dominio };
+    const sitio = await origenDeBanda(evento.tenantId, { tx });
+    return c && { c, banda, sitio };
   });
   if (!datos || datos.c.estado !== "PAGADA") return;
-  const { c, banda, dominio } = datos;
+  const { c, banda, sitio } = datos;
   // El token va después de "#": el navegador nunca lo manda a un servidor (ni en Referer ni en logs).
-  const url = dominio ? `${sitio(dominio)}/fechas/compra/${c.id}#${c.token}` : null;
+  const url = sitio ? `${sitio}/fechas/compra/${c.id}#${c.token}` : null;
   const cuando = FECHA_LARGA.format(c.evento.fecha);
   const adjuntos = await Promise.all(
     c.entradas.map(async (e) => ({ nombre: `entrada-${e.codigo}.png`, tipo: "image/png", cid: `qr-${e.codigo}`, contenido: await qrPng(e.codigo) })),

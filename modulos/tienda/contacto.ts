@@ -2,10 +2,9 @@
 // quién habla el proveedor. Lo carga la banda; si no, el mail del titular de la banda.
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { titularDeBanda } from "@/nucleo/personas";
+import { esEmail } from "@/nucleo/correo/direccion";
 
 export type Contacto = { nombre: string; email: string; telefono: string; cargado: boolean };
-
-const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
 
 export class ErrorContacto extends Error {}
 
@@ -23,7 +22,7 @@ export async function contactoDeTienda(tenantId: string): Promise<Contacto> {
 
 export async function guardarContacto(tenantId: string, d: { nombre: string; email: string; telefono: string }) {
   const email = d.email.trim().toLowerCase();
-  if (email && !EMAIL.test(email)) throw new ErrorContacto(`"${d.email}" no es un mail válido.`);
+  if (email && !esEmail(email)) throw new ErrorContacto(`"${d.email}" no es un mail válido.`);
   const datos = { contactoNombre: d.nombre.trim().slice(0, 120), contactoEmail: email, contactoTelefono: d.telefono.trim().slice(0, 40) };
   await conTenant(tenantId, (tx) => tx.tiendaConfig.upsert({ where: { tenantId }, create: { tenantId, ...datos }, update: datos }));
 }

@@ -4,11 +4,12 @@
 import { urlFirmada } from "@/nucleo/archivos/firmados";
 import { enviarCorreo, escaparHtml as h } from "@/nucleo/correo";
 import { conTenant } from "@/nucleo/db/con-tenant";
+import { origenDeBanda } from "@/nucleo/publico/origen";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
 import type { Evento } from "@/nucleo/modulos/contrato";
 import { describirVariante, tituloEnvio } from "./comun";
 import { type Contacto, contactoDeTienda } from "./contacto";
-import { formatearPesos } from "./dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 import { describirEspecificacion } from "./impresion";
 import tienda from "./index";
 
@@ -24,13 +25,10 @@ async function pedidoCompleto(tenantId: string, pedidoId: string) {
       include: { items: { include: { producto: { include: { diseno: true } }, productoBase: true }, orderBy: { nombreProducto: "asc" } } },
     }),
     banda: await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { nombre: true } }),
-    dominio: (await tx.dominio.findFirst({ where: { esPrincipal: true }, select: { dominio: true } }))?.dominio ?? null,
+    sitio: await origenDeBanda(tenantId, { tx }),
   }));
 }
 type Datos = Awaited<ReturnType<typeof pedidoCompleto>>;
-
-const sitio = (dominio: string) =>
-  process.env.NODE_ENV === "production" ? `https://${dominio}` : `http://${dominio}:${process.env.PORT ?? 3000}`;
 
 function direccion(p: Datos["pedido"]) {
   return [`${p.calle} ${p.numero}${p.piso ? `, ${p.piso}` : ""}`, `${p.ciudad}, ${p.provincia} (${p.codigoPostal})`];
@@ -41,10 +39,10 @@ const celda = "padding:6px 0;border-bottom:1px solid #e7e5e4;vertical-align:top"
 
 // ---------- Al fan ----------
 
-export function correoAlFan({ pedido, banda, dominio }: Datos, contacto: Contacto) {
+export function correoAlFan({ pedido, banda, sitio }: Datos, contacto: Contacto) {
   const envios = pedido.envios as { monto: number; productos: string[] }[];
   // El token va después de "#": el navegador nunca lo manda a un servidor (ni en Referer ni en logs).
-  const url = dominio ? `${sitio(dominio)}/tienda/pedido/${pedido.id}#${pedido.token}` : null;
+  const url = sitio ? `${sitio}/tienda/pedido/${pedido.id}#${pedido.token}` : null;
   const [linea1, linea2] = direccion(pedido);
   const renglones = pedido.items.map((i) => ({
     nombre: i.nombreProducto,
@@ -193,13 +191,13 @@ export async function alDespacharseOrden(evento: Evento) {
     const otras = await tx.tiendaOrden.count({ where: { pedidoId: orden.pedidoId, NOT: { id: orden.id } } });
     const faltan = await tx.tiendaOrden.count({ where: { pedidoId: orden.pedidoId, NOT: { id: orden.id }, estado: "EN_PRODUCCION" } });
     const banda = await tx.tenant.findUniqueOrThrow({ where: { id: evento.tenantId }, select: { nombre: true } });
-    const dominio = (await tx.dominio.findFirst({ where: { esPrincipal: true }, select: { dominio: true } }))?.dominio ?? null;
-    return { orden, pedido, items, otras, faltan, banda, dominio };
+    const sitio = await origenDeBanda(evento.tenantId, { tx });
+    return { orden, pedido, items, otras, faltan, banda, sitio };
   });
   if (!datos) return;
-  const { orden, pedido, items, otras, faltan, banda, dominio } = datos;
+  const { orden, pedido, items, otras, faltan, banda, sitio } = datos;
   const contacto = await contactoDeTienda(evento.tenantId);
-  const url = dominio ? `${sitio(dominio)}/tienda/pedido/${pedido.id}#${pedido.token}` : null;
+  const url = sitio ? `${sitio}/tienda/pedido/${pedido.id}#${pedido.token}` : null;
   const renglones = items.map((i) => {
     const variante = describirVariante(i.variante as Record<string, string>);
     return `${i.nombreProducto} × ${i.cantidad}${variante ? ` (${variante})` : ""}`;

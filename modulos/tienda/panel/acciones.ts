@@ -10,7 +10,7 @@ import type { Opcion } from "../catalogo";
 import { ErrorContacto, guardarContacto } from "../contacto";
 import tienda from "../index";
 import { ErrorPasarela, pasarelaLista, probarConexion } from "@/nucleo/pagos";
-import { leerPesos, formatearPesos } from "../dinero";
+import { formatearPesos, leerPesos } from "@/nucleo/dinero";
 import {
   actualizarProducto,
   crearProducto,

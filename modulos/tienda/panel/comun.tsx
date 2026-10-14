@@ -2,7 +2,7 @@ import Link from "next/link";
 import { puedeEnPedido } from "@/nucleo/acceso/panel";
 import { Insignia } from "@/ui";
 import type { Margen } from "../productos";
-import { formatearPesos } from "../dinero";
+import { formatearPesos } from "@/nucleo/dinero";
 
 export const puedeEditar = (slug: string) => puedeEnPedido("tienda.producto.editar", `/b/${slug}/tienda`);
 

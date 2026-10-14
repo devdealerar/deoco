@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { pagarAccion } from "./acciones";
-import { c } from "./estilo";
+import { c } from "@/nucleo/publico/estilo";
 
 /** Reintentar el pago de un pedido pendiente: crea un cobro nuevo y va a la pasarela. */
 export function Pagar({ pedidoId }: { pedidoId: string }) {

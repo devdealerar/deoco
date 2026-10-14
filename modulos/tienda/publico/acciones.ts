@@ -1,8 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { accesoRecordado, recordarAcceso } from "@/nucleo/publico/acceso";
 import { mensajeParaElPublico } from "@/nucleo/publico/errores";
+import { origenDelPedido } from "@/nucleo/publico/origen";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import tienda from "../index";
 import { tieneAcceso } from "../acceso";
@@ -33,13 +33,6 @@ export async function revisarAccion(crudo: unknown): Promise<EstadoCarrito> {
 
 export type EstadoCheckout = { problemas?: string[]; pedidoId?: string; redireccion?: string };
 
-/** El sitio de la banda tal como lo pidió el fan (para volver después de pagar). */
-async function origen(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto")?.split(",")[0].trim() || (process.env.NODE_ENV === "production" ? "https" : "http");
-  return `${proto}://${h.get("host")}`;
-}
-
 /** Confirma: revalida todo y crea el pedido PENDIENTE con su copia de precios. */
 export async function confirmarAccion(_: EstadoCheckout, fd: FormData): Promise<EstadoCheckout> {
   const tenantId = await banda();
@@ -66,7 +59,7 @@ export async function confirmarAccion(_: EstadoCheckout, fd: FormData): Promise<
     await recordarAcceso(`pedido-${pedido.id}`, pedido.token);
     try {
       // El fan va directo a la pasarela de la banda, con el cobro creado con SUS credenciales.
-      return { pedidoId: pedido.id, redireccion: await iniciarCobro(tienda, tenantId, pedido.id, await origen()) };
+      return { pedidoId: pedido.id, redireccion: await iniciarCobro(tienda, tenantId, pedido.id, await origenDelPedido()) };
     } catch (e) {
       console.error(`[tienda] no se pudo crear el cobro del pedido ${pedido.id}: ${e instanceof Error ? e.message : e}`);
       return { pedidoId: pedido.id }; // el pedido queda PENDIENTE; desde su página se puede reintentar
@@ -85,7 +78,7 @@ export async function pagarAccion(pedidoId: string): Promise<{ redireccion?: str
     return { error: "Para pagar este pedido, abrí el link que te mandamos por mail." };
   }
   try {
-    return { redireccion: await iniciarCobro(tienda, tenantId, pedidoId, await origen()) };
+    return { redireccion: await iniciarCobro(tienda, tenantId, pedidoId, await origenDelPedido()) };
   } catch (e) {
     if (e instanceof ErrorPasarela) return { error: "No pudimos conectar con la pasarela de pago. Probá de nuevo en un rato." };
     return { error: mensajeParaElPublico(e, "tienda: pagar") };

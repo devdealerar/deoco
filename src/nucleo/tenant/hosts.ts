@@ -21,3 +21,8 @@ export function origenPlataforma(): string {
     ? `https://app.${dominioRaiz()}`
     : `http://app.${dominioRaiz()}:${process.env.PORT ?? 3000}`;
 }
+
+/** Un dominio de banda → `https://<dominio>` en producción; `http://<dominio>:<puerto>` en desarrollo. */
+export function origenDeDominio(dominio: string): string {
+  return process.env.NODE_ENV === "production" ? `https://${dominio}` : `http://${dominio}:${process.env.PORT ?? 3000}`;
+}

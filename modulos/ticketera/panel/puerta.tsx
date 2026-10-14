@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { Tarjeta } from "@/ui";
-import { FECHA_CORTA } from "../dinero";
+import { FECHA_CORTA } from "@/nucleo/fechas";
 import { desdeAhora, evento as leerEvento, eventos } from "../eventos";
 import { resumenPuerta } from "../puerta";
 import { Puerta } from "./puerta-cliente";
