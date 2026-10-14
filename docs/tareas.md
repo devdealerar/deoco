@@ -561,17 +561,18 @@ Las cinco pruebas originales pasan:
 
 ## Queda abierto (fuera del paso 1 o sin definir)
 
-- **Tablas de módulos**: Prisma usa un solo esquema. Hay que definir dónde declara un
-  módulo sus modelos y migraciones (spec: "migraciones — sus propias tablas"). Necesario
-  antes del primer módulo con tablas.
-- **Back office**: la conexión aparte con un rol que ve todo (spec) no existe todavía.
-  Sin ella no hay listado global de eventos fallidos ni barrido de pendientes al arrancar.
+- ~~**Tablas de módulos**~~ → resuelto: `modulos/<id>/esquema.prisma` + migraciones con
+  `deoco_aislar_tabla` (Paso 4).
+- ~~**Back office**~~ → resuelto: rol `deoco_admin`, `/admin`, eventos fallidos, y el barrido (A1).
 - ~~**Eventos pendientes tras un reinicio**~~ → resuelto con el barrido (trabajo largo, A1).
 - ~~Emitir dentro de la transacción de quien emite~~ → resuelto en Paso 2 · Parte 0.
-- **Accesos del staff**: `registrarAccesoStaff()` no persiste. Tampoco hay registro de
-  quién cambia la pasarela (spec); llega con el módulo que tenga la pasarela.
-- **Una sola instancia**: el bus y el orden por banda viven en memoria del proceso.
+- ~~**Accesos del staff**~~ → resuelto: `registrarAccesoStaff()` escribe en `auditoria` (una fila
+  cada 10 min) y la carga de credenciales de cobro deja su fila (`src/nucleo/secretos/carga.ts`).
+- **Una sola instancia**: el bus y el orden por banda viven en memoria del proceso. Sigue abierto
+  (ver `docs/decisiones-pendientes.md`); no hace falta hasta que la carga pida más de una.
 - ~~**Dominio propio**: verificación DNS~~ → resuelto en "Mientras despliego" (el certificado lo emite Easypanel).
+- **Limpieza de `correo` y `evento`**: propuesta en `docs/decisiones-pendientes.md` (bloque 4),
+  a aplicar con los números del primer mes en producción.
 
 ## Preguntas abiertas
 
