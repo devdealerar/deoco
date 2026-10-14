@@ -25,5 +25,6 @@ Propios (sin equivalente oficial que sirva):
 
 `@/ui/servidor` (solo servidor): lectura y validación de formularios para server actions.
 
-Para sumar uno: `NODE_USE_ENV_PROXY=1 npx untitledui@latest add <componente> -y`
-(en este entorno la CLI necesita `NODE_USE_ENV_PROXY=1` para salir por el proxy).
+Para sumar uno: `NODE_USE_ENV_PROXY=1 npx untitledui@latest add <componente> -y --license "$UNTITLEDUI_LICENSE"`
+(en este entorno la CLI necesita `NODE_USE_ENV_PROXY=1` para salir por el proxy; `--license` da acceso
+a los PRO, ver `docs/untitled-ui-pro.md`).

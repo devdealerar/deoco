@@ -184,7 +184,8 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 
 - Panel: componentes oficiales de Untitled UI (`src/components/`, `untitledui add`) detrás de
   `@/ui` (`src/ui/`, ver su README). Las pantallas importan solo de `@/ui`. Propios: `CampoArchivo`
-  y `Tarjeta`. En este entorno la CLI necesita `NODE_USE_ENV_PROXY=1`.
+  y `Tarjeta`. En este entorno la CLI necesita `NODE_USE_ENV_PROXY=1`;
+  PRO con `--license "$UNTITLEDUI_LICENSE"` (`docs/untitled-ui-pro.md`).
 - Sitio público: estilo propio de cada banda (marco del módulo sitio, `marcoPublico`).
 - Demo: `npm run db:demo` (Los Satélites y Niebla Norte, usuarios `titular@demo.com`,
   `lectura@demo.com`, `staff@deoco.com`, clave `demo1234`).
