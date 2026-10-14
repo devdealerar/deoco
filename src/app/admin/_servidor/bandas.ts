@@ -9,6 +9,7 @@ import {
   quitarDominio as quitarDominioNucleo,
   verificarDominio as verificarDominioNucleo,
 } from "@/nucleo/dominios";
+import { bandaCreada } from "@/nucleo/cuenta";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
 import { ErrorFormulario } from "@/ui/servidor";
 import { auditar } from "./auditoria";
@@ -120,8 +121,9 @@ export async function altaBanda(staffId: string, datos: DatosAlta) {
   const email = datos.titularEmail.toLowerCase();
 
   const db = dbAdmin();
+  let alta: { tenantId: string; slug: string; dominio: string; titular: string; claveTemporal: string | null };
   try {
-    return await db.$transaction(async (tx) => {
+    alta = await db.$transaction(async (tx) => {
       if (await tx.tenant.findUnique({ where: { slug } })) throw new ErrorFormulario(`Ya existe una banda con el slug "${slug}".`);
       if (await tx.dominio.findFirst({ where: { dominio } })) throw new ErrorFormulario(`El dominio ${dominio} ya está en uso.`);
 
@@ -157,6 +159,10 @@ export async function altaBanda(staffId: string, datos: DatosAlta) {
     }
     throw e;
   }
+  // La banda ya existe: el gestor de cuenta (si hay) arranca su plan o su prueba. Si falla, la
+  // banda queda igual creada (el staff le asigna el plan a mano) y el error, en el log.
+  await bandaCreada(alta.tenantId, "staff").catch((e) => console.error(`[alta] gestor de cuenta para ${alta.slug}:`, e));
+  return alta;
 }
 
 // ── detalle y cambios de una banda ─────────────────────────────────────────

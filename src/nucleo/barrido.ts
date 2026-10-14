@@ -11,8 +11,34 @@ import { prisma } from "@/nucleo/db/cliente";
 import { CORREO_COLGADO_MS, retomarCorreos } from "@/nucleo/correo";
 import { revisarDominios, type ConsultaDns } from "@/nucleo/dominios";
 import { retomarEventos } from "@/nucleo/eventos/bus";
+import { registro as registroGlobal } from "@/nucleo/modulos";
+import type { Registro } from "@/nucleo/modulos/registro";
 
-export type ResultadoBarrido = { bandas: number; dominios: { revisados: number; noApuntan: number } };
+export type ResultadoBarrido = { bandas: number; dominios: { revisados: number; noApuntan: number }; tareas: string[] };
+
+/** Última vez que corrió cada tarea periódica (`<modulo>.<nombre>`), en este proceso. */
+const ultimaVez = new Map<string, number>();
+
+/**
+ * Las tareas periódicas de los módulos que ya toca correr. Una que falla no frena a las demás
+ * (y se reintenta en la próxima vuelta: no se marca como corrida).
+ */
+export async function correrTareas(ahora = new Date(), reg: Registro = registroGlobal(), todas = false): Promise<string[]> {
+  const corridas: string[] = [];
+  for (const { moduloId, definicion } of reg.tareasPeriodicas) {
+    const id = `${moduloId}.${definicion.nombre}`;
+    const ultima = ultimaVez.get(id);
+    if (!todas && ultima !== undefined && ahora.getTime() - ultima < definicion.cadaSegundos * 1000) continue;
+    try {
+      await definicion.correr(ahora);
+      ultimaVez.set(id, ahora.getTime());
+      corridas.push(id);
+    } catch (e) {
+      console.error(`[barrido] tarea ${id}:`, e);
+    }
+  }
+  return corridas;
+}
 
 /** Una vuelta del barrido. Resuelve cuando terminó (las colas retomadas, vacías). */
 export async function barrer(opciones: { ahora?: Date; dns?: ConsultaDns } = {}): Promise<ResultadoBarrido> {
@@ -29,7 +55,8 @@ export async function barrer(opciones: { ahora?: Date; dns?: ConsultaDns } = {})
     console.error("[barrido] revisión de dominios:", e);
     return { revisados: 0, noApuntan: 0 };
   });
-  return { bandas: bandas.length, dominios };
+  const tareas = await correrTareas(ahora);
+  return { bandas: bandas.length, dominios, tareas };
 }
 
 let corriendo = false;

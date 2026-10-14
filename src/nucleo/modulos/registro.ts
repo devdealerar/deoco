@@ -2,7 +2,11 @@ import { problemaNombreEvento } from "@/nucleo/eventos/nombre";
 import type {
   CabeceraPublica,
   DefinicionAviso,
+  DefinicionAvisoPlataforma,
   DefinicionConsulta,
+  DefinicionLimite,
+  DefinicionTareaPeriodica,
+  GestionCuenta,
   DefinicionPermiso,
   Evento,
   EntradaNavegacion,
@@ -33,6 +37,7 @@ export type EntradaRegistrada = EntradaNavegacion & { moduloId: string };
 export type Suscripto = { moduloId: string; manejador: (e: Evento) => Promise<void> };
 
 export type AvisoEncontrado = { definicion: DefinicionAviso; params: Record<string, string> };
+export type AvisoPlataformaEncontrado = { definicion: DefinicionAvisoPlataforma; params: Record<string, string> };
 
 export type Registro = {
   modulos: readonly Modulo[];
@@ -61,6 +66,14 @@ export type Registro = {
   metadatosPublicos?: { moduloId: string; fn: NonNullable<Modulo["metadatosPublicos"]> };
   /** Consulta ofrecida con ese id (`<modulo>.<nombre>`). */
   consulta(id: string): { moduloId: string; definicion: DefinicionConsulta } | undefined;
+  /** Límites declarados, con su id completo (`<modulo>.<clave>`). */
+  limites: readonly { id: string; moduloId: string; definicion: DefinicionLimite }[];
+  /** El gestor de cuenta, si algún módulo lo es (a lo sumo uno). */
+  gestor?: { moduloId: string; gestion: GestionCuenta };
+  /** Aviso de plataforma de ese módulo para esa ruta. */
+  avisoPlataforma(moduloId: string, path: string): AvisoPlataformaEncontrado | undefined;
+  /** Tareas periódicas de todos los módulos. */
+  tareasPeriodicas: readonly { moduloId: string; definicion: DefinicionTareaPeriodica }[];
 };
 
 export class ErrorRegistro extends Error {
@@ -138,6 +151,11 @@ export function crearRegistro(modulos: Modulo[]): Registro {
   const tablasGlobales: { moduloId: string; tabla: string }[] = [];
   const definiciones = new Map<RutaModulo<unknown>, DefinicionAviso>();
   const consultas = new Map<string, { moduloId: string; definicion: DefinicionConsulta }>();
+  const limites: Registro["limites"][number][] = [];
+  let gestor: Registro["gestor"];
+  const avisosPlataforma = new Map<string, (path: string) => RutaEncontrada<unknown> | undefined>();
+  const definicionesPlataforma = new Map<RutaModulo<unknown>, DefinicionAvisoPlataforma>();
+  const tareasPeriodicas: Registro["tareasPeriodicas"][number][] = [];
 
   for (const m of modulos) {
     if (!ID.test(m.id)) throw new ErrorRegistro(m.id, "id inválido (minúsculas, números y guiones)");
@@ -296,6 +314,56 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       consultas.set(`${m.id}.${c.nombre}`, { moduloId: m.id, definicion: c });
     }
 
+    const clavesLimite = new Set<string>();
+    for (const l of m.limites ?? []) {
+      if (!NOMBRE_CONSULTA.test(l.clave)) throw new ErrorRegistro(m.id, `límite "${l.clave}": clave inválida (minúsculas, números y guiones)`);
+      if (clavesLimite.has(l.clave)) throw new ErrorRegistro(m.id, `límite "${l.clave}" repetido`);
+      if (!l.etiqueta?.trim()) throw new ErrorRegistro(m.id, `límite "${l.clave}": falta la etiqueta`);
+      if (typeof l.usados !== "function" || typeof l.ajustar !== "function") {
+        throw new ErrorRegistro(m.id, `límite "${l.clave}": faltan usados y ajustar`);
+      }
+      clavesLimite.add(l.clave);
+      limites.push({ id: `${m.id}.${l.clave}`, moduloId: m.id, definicion: l });
+    }
+
+    if (m.gestionaCuenta) {
+      if (gestor) throw new ErrorRegistro(m.id, `gestionaCuenta: ya lo es "${gestor.moduloId}" (solo puede haber uno)`);
+      const g = m.gestionaCuenta;
+      if (typeof g.alCrearBanda !== "function" || typeof g.pantallaPago !== "function" || typeof g.comoAmpliar !== "function") {
+        throw new ErrorRegistro(m.id, "gestionaCuenta: faltan alCrearBanda, pantallaPago o comoAmpliar");
+      }
+      gestor = { moduloId: m.id, gestion: g };
+    }
+    if (m.avisosPlataforma?.length && !m.gestionaCuenta) {
+      throw new ErrorRegistro(m.id, "avisosPlataforma: solo el gestor de cuenta (gestionaCuenta) recibe avisos sin banda");
+    }
+    const rutasPlataforma = new Set<string>();
+    const dePlataforma: { moduloId: string; ruta: RutaModulo<unknown> }[] = [];
+    for (const a of m.avisosPlataforma ?? []) {
+      validarRuta(m, a.ruta, []);
+      if (rutasPlataforma.has(canonica(a.ruta))) throw new ErrorRegistro(m.id, `aviso de plataforma "${a.ruta}" repetido`);
+      rutasPlataforma.add(canonica(a.ruta));
+      const metodos = a.metodos ?? ["POST"];
+      if (metodos.length === 0 || metodos.some((x) => x !== "GET" && x !== "POST")) {
+        throw new ErrorRegistro(m.id, `aviso de plataforma "${a.ruta}": métodos válidos GET y POST`);
+      }
+      if (typeof a.manejador !== "function") throw new ErrorRegistro(m.id, `aviso de plataforma "${a.ruta}": falta el manejador`);
+      const ruta: RutaModulo<unknown> = { ruta: a.ruta, componente: () => null };
+      definicionesPlataforma.set(ruta, a);
+      dePlataforma.push({ moduloId: m.id, ruta });
+    }
+    if (dePlataforma.length) avisosPlataforma.set(m.id, indiceRutas(dePlataforma));
+
+    const nombresTarea = new Set<string>();
+    for (const t of m.tareasPeriodicas ?? []) {
+      if (!NOMBRE_CONSULTA.test(t.nombre)) throw new ErrorRegistro(m.id, `tarea "${t.nombre}": nombre inválido`);
+      if (nombresTarea.has(t.nombre)) throw new ErrorRegistro(m.id, `tarea "${t.nombre}" repetida`);
+      if (!Number.isFinite(t.cadaSegundos) || t.cadaSegundos < 5) throw new ErrorRegistro(m.id, `tarea "${t.nombre}": cadaSegundos mínimo 5`);
+      if (typeof t.correr !== "function") throw new ErrorRegistro(m.id, `tarea "${t.nombre}": falta correr`);
+      nombresTarea.add(t.nombre);
+      tareasPeriodicas.push({ moduloId: m.id, definicion: t });
+    }
+
     if (m.marcoPublico) {
       if (marcoPublico) {
         throw new ErrorRegistro(m.id, `marcoPublico: ya lo aporta "${marcoPublico.moduloId}" (solo puede haber uno)`);
@@ -349,5 +417,12 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     metadatosPublicos,
     cabecerasPublicas: cabecerasPublicas.sort((a, b) => a.orden - b.orden || a.moduloId.localeCompare(b.moduloId)),
     consulta: (id) => consultas.get(id),
+    limites,
+    gestor,
+    avisoPlataforma: (moduloId, path) => {
+      const e = avisosPlataforma.get(moduloId)?.(path);
+      return e && { definicion: definicionesPlataforma.get(e.ruta)!, params: e.params };
+    },
+    tareasPeriodicas,
   };
 }

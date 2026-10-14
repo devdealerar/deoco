@@ -1,4 +1,4 @@
-import { atenderAviso } from "@/nucleo/avisos";
+import { PLATAFORMA, atenderAviso, atenderAvisoPlataforma } from "@/nucleo/avisos";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 
 type Contexto = { params: Promise<{ tenant: string; modulo: string; ruta?: string[] }> };
@@ -8,7 +8,10 @@ type Contexto = { params: Promise<{ tenant: string; modulo: string; ruta?: strin
 async function atender(request: Request, { params }: Contexto) {
   if (await tenantDelPedido()) return new Response("No encontrado", { status: 404 });
   const { tenant, modulo, ruta = [] } = await params;
-  return atenderAviso(request, { tenantId: tenant, moduloId: modulo, path: "/" + ruta.map(decodeURIComponent).join("/") });
+  const path = "/" + ruta.map(decodeURIComponent).join("/");
+  // /avisos/plataforma/<modulo>/…: avisos que no son de una banda (la cuota de Deoco).
+  if (tenant === PLATAFORMA) return atenderAvisoPlataforma(request, { moduloId: modulo, path });
+  return atenderAviso(request, { tenantId: tenant, moduloId: modulo, path });
 }
 
 export const GET = atender;

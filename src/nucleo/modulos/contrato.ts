@@ -198,6 +198,68 @@ export type DefinicionConsulta = {
   responder: (tenantId: string, params: Record<string, unknown>) => Promise<unknown>;
 };
 
+/**
+ * Límite que un módulo hace cumplir (p. ej. "productos publicados"). El valor por banda lo fija
+ * el gestor de cuenta (ver `gestionaCuenta`); sin valor, no hay tope. El núcleo no sabe de
+ * planes: solo guarda números. El módulo lo exige con `exigirLimite` (`@/nucleo/cuenta`) al
+ * crear o publicar, y despublica lo que sobra en `ajustar`.
+ */
+export type DefinicionLimite = {
+  /** Minúsculas, números y guiones: `productos-publicados`. Se nombra `<modulo>.<clave>`. */
+  clave: string;
+  /** En plural, para el mensaje: "productos publicados". */
+  etiqueta: string;
+  /** Cuántos usa hoy la banda. */
+  usados: (tenantId: string) => Promise<number>;
+  /**
+   * El tope bajó (la banda bajó de plan): dejar como mucho `maximo`, sacando de circulación lo
+   * que sobra en orden inverso (lo último primero). NUNCA borrar. Devuelve cuántos sacó.
+   */
+  ajustar: (tenantId: string, maximo: number) => Promise<number>;
+};
+
+/**
+ * Gestor de cuenta: el único módulo que decide estado, módulos prendidos y límites de cada
+ * banda (p. ej. según su plan y sus pagos). A lo sumo uno. Usa `@/nucleo/cuenta` con su propio
+ * contrato; el núcleo solo le avisa cuándo nace una banda y le presta la pantalla /pago.
+ */
+export type GestionCuenta = {
+  /** Una banda nueva (alta del staff o autogestión). Rápido: corre en la misma operación. */
+  alCrearBanda: (tenantId: string, origen: "staff" | "autogestion") => Promise<void>;
+  /**
+   * La pantalla `/b/<slug>/pago` (abierta aunque la banda esté SUSPENDIDA, solo para el
+   * titular): plan, vencimiento, forma de pago, cambiar de plan, pagar.
+   */
+  pantallaPago: (props: PropsRutaPanel) => ReactNode | Promise<ReactNode>;
+  /**
+   * Una línea para quien llegó a un límite: qué hacer para tener más (p. ej. "El plan Premium
+   * permite 50."). null si no hay forma.
+   */
+  comoAmpliar: (tenantId: string, limite: string, necesarios: number) => Promise<string | null>;
+};
+
+/**
+ * Aviso de plataforma: no es de una banda (p. ej. la suscripción de la cuota, que la pasarela
+ * de Deoco avisa a una sola URL). Llega a `app.<raiz>/avisos/plataforma/<moduloId><ruta>`; el
+ * manejador resuelve la banda del aviso y verifica la firma. Solo el gestor de cuenta.
+ */
+export type DefinicionAvisoPlataforma = {
+  ruta: string;
+  metodos?: ("GET" | "POST")[];
+  manejador: (aviso: Omit<AvisoEntrante, "tenantId">) => Promise<RespuestaAviso | void>;
+};
+
+/**
+ * Tarea que corre el barrido (en producción) cada `cadaSegundos` (mínimo el período del
+ * barrido). Para lo que vence con el tiempo (una mora, una prueba que termina). Idempotente:
+ * si el proceso se reinicia, vuelve a correr.
+ */
+export type DefinicionTareaPeriodica = {
+  nombre: string;
+  cadaSegundos: number;
+  correr: (ahora: Date) => Promise<void>;
+};
+
 export type Modulo = {
   id: string;
   nombre: string;
@@ -260,4 +322,12 @@ export type Modulo = {
   consultas?: DefinicionConsulta[];
   /** Ids de módulos que tienen que estar prendidos para prender este. */
   dependencias?: string[];
+  /** Límites que el módulo hace cumplir (ver DefinicionLimite). */
+  limites?: DefinicionLimite[];
+  /** Gestor de cuenta (a lo sumo un módulo). Ver GestionCuenta. */
+  gestionaCuenta?: GestionCuenta;
+  /** Avisos que no son de una banda (solo el gestor de cuenta). */
+  avisosPlataforma?: DefinicionAvisoPlataforma[];
+  /** Tareas que corre el barrido cada tanto. */
+  tareasPeriodicas?: DefinicionTareaPeriodica[];
 };

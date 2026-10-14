@@ -1,0 +1,219 @@
+// Cuenta de cada banda: su estado, sus módulos prendidos y sus límites. Lo decide UN módulo,
+// el gestor de cuenta (`gestionaCuenta` en su contrato), p. ej. según el plan y los pagos de la
+// banda. El núcleo no sabe de planes ni de precios: guarda estados, módulos y números, y valida
+// que quien los cambia sea el gestor.
+//
+// ARCHIVADO es del staff: el gestor nunca archiva ni desarchiva.
+import type { EstadoTenant, Prisma } from "@/generated/prisma/client";
+import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
+import { registro as registroGlobal } from "@/nucleo/modulos";
+import type { Modulo } from "@/nucleo/modulos/contrato";
+import { modulosPrendidos } from "@/nucleo/modulos/encendido";
+import type { Registro } from "@/nucleo/modulos/registro";
+
+export class ErrorCuenta extends Error {}
+
+/** Llegó a un límite. `message` es para mostrar tal cual (dice qué falta y cómo ampliarlo). */
+export class ErrorLimite extends Error {
+  constructor(
+    mensaje: string,
+    readonly limite: string,
+    readonly maximo: number,
+  ) {
+    super(mensaje);
+    this.name = "ErrorLimite";
+  }
+}
+
+export type EstadoAutomatico = Exclude<EstadoTenant, "ARCHIVADO">;
+
+function exigirGestor(modulo: Modulo, reg: Registro) {
+  if (reg.modulo(modulo.id) !== modulo || reg.gestor?.moduloId !== modulo.id) {
+    throw new ErrorCuenta(`"${modulo.id}" no es el gestor de cuenta.`);
+  }
+}
+
+/** Fila de auditoría de un cambio que hizo la plataforma sola (sin persona): `detalle.por`. */
+async function auditar(tx: TxTenant, tenantId: string, por: string, accion: string, detalle: Record<string, Prisma.InputJsonValue | null>) {
+  await tx.auditoria.createMany({ data: [{ usuarioId: null, tenantId, accion, detalle: { ...detalle, por } }] });
+}
+
+/**
+ * Cambia el estado de la banda (ACTIVO, MOROSO o SUSPENDIDO). Una banda ARCHIVADA no se toca.
+ * Devuelve si cambió algo. Queda en la auditoría con el motivo.
+ */
+export async function fijarEstado(
+  modulo: Modulo,
+  tenantId: string,
+  estado: EstadoAutomatico,
+  motivo: string,
+  reg: Registro = registroGlobal(),
+): Promise<boolean> {
+  exigirGestor(modulo, reg);
+  if (!["ACTIVO", "MOROSO", "SUSPENDIDO"].includes(estado)) throw new ErrorCuenta(`El gestor no puede pasar una banda a ${estado}.`);
+  return conTenant(tenantId, async (tx) => {
+    const [actual] = await tx.$queryRaw<{ estado: EstadoTenant }[]>`SELECT estado FROM "tenant" WHERE id = ${tenantId}::uuid FOR UPDATE`;
+    if (!actual || actual.estado === "ARCHIVADO" || actual.estado === estado) return false;
+    await tx.tenant.update({ where: { id: tenantId }, data: { estado } });
+    await auditar(tx, tenantId, modulo.id, "banda.estado_cambiado", { de: actual.estado, a: estado, motivo });
+    return true;
+  });
+}
+
+/**
+ * Deja prendidos exactamente `deseados` (más el gestor, que nunca se apaga a sí mismo). Lo que
+ * se apaga conserva sus datos. Falla si la lista no cierra con las dependencias.
+ */
+export async function fijarModulos(
+  modulo: Modulo,
+  tenantId: string,
+  deseados: readonly string[],
+  reg: Registro = registroGlobal(),
+): Promise<{ prendidos: string[]; apagados: string[] }> {
+  exigirGestor(modulo, reg);
+  const desconocidos = deseados.filter((id) => !reg.modulo(id));
+  if (desconocidos.length) throw new ErrorCuenta(`No existen los módulos ${desconocidos.join(", ")}.`);
+  const objetivo = new Set([...deseados, modulo.id]);
+  for (const id of objetivo) {
+    const faltan = (reg.modulo(id)!.dependencias ?? []).filter((d) => !objetivo.has(d));
+    if (faltan.length) throw new ErrorCuenta(`"${id}" necesita ${faltan.join(", ")}, que no está en la lista.`);
+  }
+  return conTenant(tenantId, async (tx) => {
+    const actuales = new Set((await tx.moduloTenant.findMany({ select: { moduloId: true } })).map((f) => f.moduloId));
+    const prendidos = [...objetivo].filter((id) => !actuales.has(id)).sort();
+    // Solo se apagan módulos que existen: una fila de un módulo que no está en el build no se toca.
+    const apagados = [...actuales].filter((id) => !objetivo.has(id) && reg.modulo(id)).sort();
+    if (!prendidos.length && !apagados.length) return { prendidos, apagados };
+    if (apagados.length) await tx.moduloTenant.deleteMany({ where: { moduloId: { in: apagados } } });
+    if (prendidos.length) await tx.moduloTenant.createMany({ data: prendidos.map((moduloId) => ({ tenantId, moduloId })), skipDuplicates: true });
+    await auditar(tx, tenantId, modulo.id, "banda.modulos_cambiados", { prendidos, apagados });
+    return { prendidos, apagados };
+  });
+}
+
+export type Limites = {
+  /** Bytes para archivos. null: el de la plataforma (DEOCO_LIMITE_ALMACENAMIENTO). Ausente: no cambia. */
+  almacenamiento?: bigint | null;
+  /** `<modulo>.<clave>` → tope (null: sin tope). Los que no se nombran no cambian. */
+  topes?: Record<string, number | null>;
+};
+
+/**
+ * Fija los límites de la banda. Si un tope baja (o aparece), el módulo dueño saca de
+ * circulación lo que sobra (`ajustar`, en orden inverso, sin borrar). Devuelve cuánto sacó cada uno.
+ */
+export async function fijarLimites(
+  modulo: Modulo,
+  tenantId: string,
+  limites: Limites,
+  reg: Registro = registroGlobal(),
+): Promise<Record<string, number>> {
+  exigirGestor(modulo, reg);
+  const topes = limites.topes ?? {};
+  for (const [id, valor] of Object.entries(topes)) {
+    if (!reg.limites.some((l) => l.id === id)) throw new ErrorCuenta(`No existe el límite "${id}".`);
+    if (valor !== null && (!Number.isInteger(valor) || valor < 0)) throw new ErrorCuenta(`Tope inválido para "${id}": ${valor}.`);
+  }
+  if (limites.almacenamiento != null && limites.almacenamiento < BigInt(0)) throw new ErrorCuenta("Almacenamiento negativo.");
+
+  const bajaron = await conTenant(tenantId, async (tx) => {
+    const antes = new Map((await tx.limiteBanda.findMany()).map((f) => [f.limite, f.maximo]));
+    const bajaron: { id: string; maximo: number }[] = [];
+    for (const [id, valor] of Object.entries(topes)) {
+      const anterior = antes.get(id) ?? null;
+      if (valor === anterior) continue;
+      if (valor === null) await tx.limiteBanda.deleteMany({ where: { limite: id } });
+      else {
+        await tx.limiteBanda.upsert({ where: { tenantId_limite: { tenantId, limite: id } }, create: { tenantId, limite: id, maximo: valor }, update: { maximo: valor } });
+        if (anterior === null || valor < anterior) bajaron.push({ id, maximo: valor });
+      }
+    }
+    if (limites.almacenamiento !== undefined) {
+      await tx.tenant.update({ where: { id: tenantId }, data: { limiteAlmacenamiento: limites.almacenamiento } });
+    }
+    await auditar(tx, tenantId, modulo.id, "banda.limites_cambiados", {
+      topes,
+      almacenamiento: limites.almacenamiento === undefined ? "sin cambio" : (limites.almacenamiento?.toString() ?? null),
+    });
+    return bajaron;
+  });
+
+  // Después de guardar: cada módulo ajusta lo suyo (lo que sobra se despublica; nada se borra).
+  const sacados: Record<string, number> = {};
+  for (const { id, maximo } of bajaron) {
+    const l = reg.limites.find((x) => x.id === id)!;
+    sacados[id] = await l.definicion.ajustar(tenantId, maximo);
+  }
+  return sacados;
+}
+
+function limitePropio(modulo: Modulo, clave: string, reg: Registro) {
+  const id = `${modulo.id}.${clave}`;
+  const l = reg.limites.find((x) => x.id === id);
+  if (!l || reg.modulo(modulo.id) !== modulo) throw new ErrorCuenta(`"${modulo.id}" no declara el límite "${clave}".`);
+  return l;
+}
+
+/** Tope del límite propio del módulo para la banda; null si no tiene. */
+export async function limiteDe(modulo: Modulo, tenantId: string, clave: string, reg: Registro = registroGlobal()): Promise<number | null> {
+  const { id } = limitePropio(modulo, clave, reg);
+  const fila = await conTenant(tenantId, (tx) => tx.limiteBanda.findUnique({ where: { tenantId_limite: { tenantId, limite: id } } }));
+  return fila?.maximo ?? null;
+}
+
+/** El mensaje para quien llegó al tope: cuánto permite y, si el gestor sabe, cómo tener más. */
+export async function mensajeDeLimite(id: string, tenantId: string, maximo: number, necesarios: number, reg: Registro = registroGlobal()) {
+  const l = reg.limites.find((x) => x.id === id);
+  const etiqueta = l?.definicion.etiqueta ?? id;
+  const base = `Llegaste al máximo de ${etiqueta} de tu cuenta (${maximo}).`;
+  const como = await reg.gestor?.gestion.comoAmpliar(tenantId, id, necesarios).catch((e) => {
+    console.error(`[cuenta] comoAmpliar(${id}): ${e instanceof Error ? e.message : e}`);
+    return null;
+  });
+  return como ? `${base} ${como}` : base;
+}
+
+/**
+ * En la transacción del módulo, ANTES de crear o publicar algo que cuenta: bloquea el límite de
+ * la banda (dos pedidos a la vez no pasan juntos el tope) y verifica que `usadosDespues()` (lo
+ * que habría con el cambio, contado en la misma transacción) no pase el tope. Si pasa, tira
+ * ErrorLimite con el mensaje para mostrar.
+ */
+export async function exigirLimite(
+  tx: TxTenant,
+  modulo: Modulo,
+  tenantId: string,
+  clave: string,
+  usadosDespues: () => Promise<number>,
+  reg: Registro = registroGlobal(),
+): Promise<void> {
+  const { id } = limitePropio(modulo, clave, reg);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${tenantId}:${id}`}))`;
+  const fila = await tx.limiteBanda.findUnique({ where: { tenantId_limite: { tenantId, limite: id } } });
+  if (!fila) return;
+  const usados = await usadosDespues();
+  if (usados > fila.maximo) throw new ErrorLimite(await mensajeDeLimite(id, tenantId, fila.maximo, usados, reg), id, fila.maximo);
+}
+
+export type UsoDeLimite = { id: string; etiqueta: string; usados: number; maximo: number | null };
+
+/** Cuánto usa la banda de cada límite de sus módulos prendidos (para mostrarle su cuenta). */
+export async function usoDeLimites(tenantId: string, reg: Registro = registroGlobal()): Promise<UsoDeLimite[]> {
+  const prendidos = await modulosPrendidos(tenantId, reg);
+  const topes = new Map((await conTenant(tenantId, (tx) => tx.limiteBanda.findMany())).map((f) => [f.limite, f.maximo]));
+  const deEllos = reg.limites.filter((l) => prendidos.has(l.moduloId));
+  return Promise.all(
+    deEllos.map(async (l) => ({ id: l.id, etiqueta: l.definicion.etiqueta, usados: await l.definicion.usados(tenantId), maximo: topes.get(l.id) ?? null })),
+  );
+}
+
+/**
+ * Una banda nueva (alta del staff o autogestión): prende el gestor de cuenta y le avisa (p. ej.
+ * para arrancar el período de prueba). Sin gestor, no hace nada.
+ */
+export async function bandaCreada(tenantId: string, origen: "staff" | "autogestion", reg: Registro = registroGlobal()) {
+  if (!reg.gestor) return;
+  const { moduloId, gestion } = reg.gestor;
+  await conTenant(tenantId, (tx) => tx.moduloTenant.createMany({ data: [{ tenantId, moduloId }], skipDuplicates: true }));
+  await gestion.alCrearBanda(tenantId, origen);
+}

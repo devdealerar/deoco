@@ -9,6 +9,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import { registro } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { problemasDeCorreo } from "@/nucleo/correo/transporte";
+import { cuotaConfigurada } from "@/nucleo/pagos/cuota";
 import { claveMaestra } from "@/nucleo/secretos/cifrado";
 
 type Entorno = Record<string, string | undefined>;
@@ -114,6 +115,10 @@ export async function verificarArranque(env: Entorno = process.env) {
   }
   if (!env.DEOCO_CORREO) {
     console.warn("[deoco] correo sin configurar (DEOCO_CORREO): los correos quedan pendientes y no salen.");
+  }
+  const gestor = registro().gestor;
+  if (gestor && !cuotaConfigurada(env)) {
+    console.warn(`[deoco] cuota sin configurar (DEOCO_CUOTA_MP_TOKEN): "${gestor.moduloId}" no puede cobrar planes; las bandas no pueden pagar.`);
   }
   console.log(`[deoco] arranque verificado · módulos: ${registro().modulos.map((m) => m.id).join(", ") || "ninguno"}`);
 }

@@ -4,7 +4,7 @@
 // módulo; la firma la verifica el módulo (es el que conoce la pasarela).
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
-import type { AvisoEntrante, Modulo } from "@/nucleo/modulos/contrato";
+import type { AvisoEntrante, Modulo, RespuestaAviso } from "@/nucleo/modulos/contrato";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import type { Registro } from "@/nucleo/modulos/registro";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
@@ -16,6 +16,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const texto = (estado: number, cuerpo: string, extra: HeadersInit = {}) =>
   new Response(cuerpo, { status: estado, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...extra } });
+
+/** Segmento de la URL de los avisos que no son de una banda: app.<raiz>/avisos/plataforma/<modulo>… */
+export const PLATAFORMA = "plataforma";
+
+/** URL de un aviso de plataforma (el gestor de cuenta la configura en la pasarela de Deoco). */
+export function urlAvisoPlataforma(modulo: Pick<Modulo, "id">, ruta: string): string {
+  return `${origenPlataforma()}/avisos/${PLATAFORMA}/${modulo.id}${ruta}`;
+}
 
 /** URL absoluta que el módulo le da a la pasarela (p. ej. `notification_url`). */
 export function urlAviso(tenantId: string, modulo: Pick<Modulo, "id">, ruta: string): string {
@@ -61,6 +69,18 @@ export async function atenderAviso(
   if (!tenant || tenant.estado === "ARCHIVADO") return texto(404, "No encontrado");
   if (!(await modulosPrendidos(tenantId, reg)).has(moduloId)) return texto(404, "No encontrado");
 
+  return ejecutar(request, encontrado, (aviso) => encontrado.definicion.manejador({ ...aviso, tenantId }), `${moduloId}${path} de la banda ${tenantId}`);
+}
+
+type Comun = Omit<AvisoEntrante, "tenantId">;
+
+/** Método, cuerpo (con límite) y respuesta: lo mismo para los avisos de banda y de plataforma. */
+async function ejecutar(
+  request: Request,
+  encontrado: { definicion: { metodos?: ("GET" | "POST")[] }; params: Record<string, string> },
+  manejar: (aviso: Comun) => Promise<RespuestaAviso | void>,
+  donde: string,
+): Promise<Response> {
   const { definicion, params } = encontrado;
   const metodo = request.method.toUpperCase();
   const metodos = definicion.metodos ?? ["POST"];
@@ -70,8 +90,7 @@ export async function atenderAviso(
   if (!cuerpo) return texto(413, "Cuerpo demasiado grande");
 
   const decodificado = () => new TextDecoder().decode(cuerpo);
-  const aviso: AvisoEntrante = {
-    tenantId,
+  const aviso: Comun = {
     metodo: metodo as AvisoEntrante["metodo"],
     params,
     consulta: new URL(request.url).searchParams,
@@ -88,7 +107,7 @@ export async function atenderAviso(
   };
 
   try {
-    const r = (await definicion.manejador(aviso)) ?? {};
+    const r = (await manejar(aviso)) ?? {};
     const estado = r.estado ?? 200;
     if (r.cuerpo !== undefined && typeof r.cuerpo !== "string") {
       return Response.json(r.cuerpo, { status: estado, headers: { "cache-control": "no-store" } });
@@ -96,7 +115,21 @@ export async function atenderAviso(
     return texto(estado, r.cuerpo ?? "ok");
   } catch (e) {
     // Solo el mensaje: ni el cuerpo ni las cabeceras (pueden traer firmas o datos de pago).
-    console.error(`[deoco] aviso ${moduloId}${path} de la banda ${tenantId} falló: ${e instanceof Error ? e.message : e}`);
+    console.error(`[deoco] aviso ${donde} falló: ${e instanceof Error ? e.message : e}`);
     return texto(500, "Error");
   }
+}
+
+/**
+ * Aviso de plataforma (no es de una banda): solo los que declara el gestor de cuenta en
+ * `avisosPlataforma`. El manejador resuelve la banda y verifica la firma.
+ */
+export async function atenderAvisoPlataforma(
+  request: Request,
+  donde: { moduloId: string; path: string },
+  reg: Registro = registroGlobal(),
+): Promise<Response> {
+  const encontrado = reg.modulo(donde.moduloId) ? reg.avisoPlataforma(donde.moduloId, donde.path) : undefined;
+  if (!encontrado) return texto(404, "No encontrado");
+  return ejecutar(request, encontrado, (aviso) => encontrado.definicion.manejador(aviso), `de plataforma ${donde.moduloId}${donde.path}`);
 }

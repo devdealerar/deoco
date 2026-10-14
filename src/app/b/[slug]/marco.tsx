@@ -19,6 +19,9 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   // Dominios propios que dejaron de apuntar al servidor (los marca el barrido): lo ve quien
   // lo puede arreglar (el staff lo ve en /admin). El sitio no se despublica.
   const noApuntan = esTitular ? await dominiosQueNoApuntan(acceso.tenantId) : [];
+  // Suspendida: solo se puede pagar (el resto del panel da 403). El sitio público sigue.
+  const suspendida = acceso.estado === "SUSPENDIDO";
+  const conPago = esTitular && Boolean(reg.gestor);
   const item = "block rounded-md px-3 py-2 text-md font-semibold text-secondary hover:bg-primary_hover hover:text-secondary_hover";
   return (
     <div className="min-h-dvh bg-secondary lg:flex">
@@ -29,26 +32,35 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
           </Link>
           <nav aria-label="Panel" className="flex-1">
             <ul className="flex gap-1 overflow-x-auto lg:flex-col">
-              <li>
-                <Link href={`/b/${slug}`} className={item}>
-                  Inicio
-                </Link>
-              </li>
-              {esTitular && (
+              {!suspendida && (
+                <li>
+                  <Link href={`/b/${slug}`} className={item}>
+                    Inicio
+                  </Link>
+                </li>
+              )}
+              {conPago && (
+                <li>
+                  <Link href={`/b/${slug}/pago`} className={item}>
+                    Plan y pago
+                  </Link>
+                </li>
+              )}
+              {esTitular && !suspendida && (
                 <li>
                   <Link href={`/b/${slug}/dominios`} className={item}>
                     Dominios
                   </Link>
                 </li>
               )}
-              {conCredenciales && (
+              {conCredenciales && !suspendida && (
                 <li>
                   <Link href={`/b/${slug}/credenciales`} className={item}>
                     Credenciales
                   </Link>
                 </li>
               )}
-              {menu.map((m) => (
+              {!suspendida && menu.map((m) => (
                 <li key={m.href} data-modulo={m.moduloId}>
                   <Link href={m.href} className={item}>
                     {m.etiqueta}
@@ -70,6 +82,23 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
       </aside>
       <div className="min-w-0 flex-1 p-4 lg:p-10">
         <div className="mx-auto max-w-5xl">
+          {acceso.estado === "MOROSO" && esTitular && (
+            <div className="mb-6">
+              <Aviso titulo="Hay una cuota pendiente." data-testid="aviso-mora">
+                Tu sitio sigue publicado. Si no se regulariza, el panel se suspende.{" "}
+                <Link href={`/b/${slug}/pago`} className="font-semibold underline">
+                  Pagar
+                </Link>
+              </Aviso>
+            </div>
+          )}
+          {suspendida && esTitular && (
+            <div className="mb-6">
+              <Aviso tono="error" titulo="Tu cuenta está suspendida." data-testid="aviso-suspendida">
+                El sitio público sigue online. Para volver a usar el panel, regularizá el pago.
+              </Aviso>
+            </div>
+          )}
           {noApuntan.length > 0 && (
             <div className="mb-6">
               <Aviso
