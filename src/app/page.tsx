@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { bandasVisibles } from "@/nucleo/acceso/bandas";
 import { portalesDe } from "@/nucleo/acceso/externas";
 import { usuarioActivo } from "@/nucleo/acceso/panel";
+import { yaCreoBanda } from "@/nucleo/autogestion";
 import { consultaDe, type SearchParamsNext } from "@/nucleo/modulos/consulta";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { BotonSalir } from "./salir";
@@ -30,6 +31,8 @@ export default async function Inicio({ searchParams }: Props) {
   const [bandas, portales] = await Promise.all([bandasVisibles(usuarioId), portalesDe(usuarioId)]);
   // Una cuenta externa sin bandas (un proveedor) va directo a su portal.
   if (bandas.length === 0 && portales.length === 1) redirect(portales[0].href);
+  // Recién registrada (autogestión), sin nada todavía: a crear su banda.
+  if (bandas.length === 0 && portales.length === 0 && !(await yaCreoBanda(usuarioId))) redirect("/registro/banda");
 
   return (
     <main>

@@ -1,0 +1,49 @@
+"use server";
+
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { exigirPlataforma, usuarioActivo } from "@/nucleo/acceso/panel";
+import { confirmarRegistro, crearBandaPropia, ErrorAutogestion, solicitarRegistro } from "@/nucleo/autogestion";
+import type { EstadoFormulario } from "@/ui";
+
+/** La IP de quien pide (detrás de Traefik: el primer x-forwarded-for). Solo para frenar abusos. */
+async function ip() {
+  const h = await headers();
+  return h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || null;
+}
+const campo = (fd: FormData, k: string) => String(fd.get(k) ?? "");
+
+export async function registrarseAccion(_: EstadoFormulario, fd: FormData): Promise<EstadoFormulario> {
+  await exigirPlataforma();
+  const email = campo(fd, "email").trim().toLowerCase();
+  try {
+    await solicitarRegistro(
+      { nombre: campo(fd, "nombre"), email, contrasena: campo(fd, "contrasena"), repetida: campo(fd, "repetida"), trampa: campo(fd, "sitio_web") },
+      await ip(),
+    );
+  } catch (e) {
+    if (e instanceof ErrorAutogestion) return { error: e.message };
+    throw e;
+  }
+  return { ok: `Te mandamos un mail a ${email}. Abrí el link para confirmar tu email y seguir.` };
+}
+
+/** El token del link (llega desde el navegador, nunca en la URL). true: cuenta creada. */
+export async function confirmarAccion(token: string): Promise<boolean> {
+  await exigirPlataforma();
+  return (await confirmarRegistro(token)) !== null;
+}
+
+export async function crearBandaAccion(_: EstadoFormulario, fd: FormData): Promise<EstadoFormulario> {
+  await exigirPlataforma();
+  const usuarioId = await usuarioActivo();
+  if (!usuarioId) redirect("/ingresar?volver=/registro/banda");
+  let destino: string;
+  try {
+    destino = (await crearBandaPropia(usuarioId, { nombre: campo(fd, "nombre"), subdominio: campo(fd, "subdominio"), opcion: campo(fd, "opcion") || undefined }, await ip())).redireccion;
+  } catch (e) {
+    if (e instanceof ErrorAutogestion) return { error: e.message };
+    throw e;
+  }
+  redirect(destino);
+}

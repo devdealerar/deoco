@@ -134,6 +134,13 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   (`avisosPlataforma`). Cobros en `comercial_cobro`. Vencimientos: `tareasPeriodicas` del barrido.
 - Las pruebas vuelven a sembrar planes y plazos en `limpiar()` (`sembrarComercial`).
 
+## Autogestión del alta (`src/nucleo/autogestion`, `/registro`)
+
+- Registro → mail con link (token después de "#", se guarda su sha256) → el usuario recién existe
+  al confirmar (`registro_confirmar`) → `/registro/banda` → `crear_banda_autogestion` (una por
+  cuenta, la impone la base) → `bandaCreada(…, "autogestion", opcion)`. `registro_pendiente` no
+  la lee nadie (política `false`). Subdominios reservados: `src/nucleo/tenant/reservados.ts`.
+
 ## Cobros (`src/nucleo/pagos`)
 
 - Pasarelas (hoy Mercado Pago) y credenciales de cobro de la banda: del núcleo (secreto con

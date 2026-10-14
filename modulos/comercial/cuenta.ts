@@ -21,6 +21,7 @@ import {
   cancelarSuscripcion,
   consultarSuscripcion,
   crearSuscripcion,
+  cuotaConfigurada,
 } from "@/nucleo/pagos/cuota";
 import { titularDeBanda } from "@/nucleo/personas";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
@@ -116,8 +117,14 @@ export async function aplicarPlan(tenantId: string): Promise<{ prendidos: string
   return { prendidos, apagados, despublicados };
 }
 
-/** Banda nueva: arranca la prueba (plan y días de la configuración), sin tarjeta. */
-export async function alCrearBanda(tenantId: string, ahora = new Date()) {
+export const OPCION_PRUEBA = "prueba";
+
+/**
+ * Banda nueva: arranca la prueba (plan y días de la configuración), sin tarjeta. Si al darse de
+ * alta sola eligió un plan, además va a la pasarela de Deoco a cargar la forma de pago (el plan
+ * se aplica cuando se autoriza; mientras, la prueba). Si eso falla, queda en prueba.
+ */
+export async function alCrearBanda(tenantId: string, opcion?: string, ahora = new Date()): Promise<{ redireccion?: string }> {
   const cfg = await plazos();
   const creada = await conTenant(tenantId, async (tx) => {
     if (await tx.comercialCuenta.findUnique({ where: { tenantId } })) return false;
@@ -125,6 +132,30 @@ export async function alCrearBanda(tenantId: string, ahora = new Date()) {
     return true;
   });
   if (creada) await aplicarPlan(tenantId);
+  if (!creada || !opcion || opcion === OPCION_PRUEBA) return {};
+  const slug = (await conTenant(tenantId, (tx) => tx.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } })))?.slug;
+  if (!slug) return {};
+  try {
+    const r = await elegirPlan(tenantId, slug, opcion, ahora);
+    return "redireccion" in r ? { redireccion: r.redireccion } : {};
+  } catch (e) {
+    console.error(`[comercial] alta de ${slug} con el plan ${opcion}:`, e);
+    return {};
+  }
+}
+
+/** Al crear la banda sola: probar gratis (sin tarjeta) o un plan a la venta con precio. */
+export async function opcionesDeAlta() {
+  const [cfg, todos] = await Promise.all([plazos(), planes()]);
+  const prueba = todos.find((p) => p.id === cfg.planPrueba);
+  const opciones = [{ valor: OPCION_PRUEBA, texto: `Probar ${cfg.diasPrueba} días gratis${prueba ? ` (plan ${prueba.nombre})` : ""}`, detalle: "Sin tarjeta. Al terminar, elegís un plan." }];
+  if (!cuotaConfigurada()) return opciones;
+  return [
+    ...opciones,
+    ...todos
+      .filter((p) => p.aLaVenta && p.precio !== null)
+      .map((p) => ({ valor: p.id, texto: `Plan ${p.nombre} · ${formatearPesos(p.precio!)}/mes`, detalle: `${p.descripcion}. El primer cobro, al terminar la prueba.` })),
+  ];
 }
 
 /** Para quien llegó a un límite: el plan a la venta más barato que le alcanza. */

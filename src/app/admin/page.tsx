@@ -18,6 +18,7 @@ export default async function Bandas({ searchParams }: { searchParams: Promise<P
   const filtro = {
     buscar: texto(p, "q") || undefined,
     estado: ESTADOS_BANDA.includes(estado) ? estado : undefined,
+    origen: (["staff", "autogestion"] as const).find((o) => o === texto(p, "origen")),
     orden: orden(p, ORDENES_BANDA, { columna: "alta", direccion: "desc" }),
     pagina: pagina(p),
   };
@@ -31,6 +32,16 @@ export default async function Bandas({ searchParams }: { searchParams: Promise<P
           etiqueta="Estado"
           defaultValue={filtro.estado ?? ""}
           opciones={[{ valor: "", texto: "Todos" }, ...ESTADOS_BANDA.map((e) => ({ valor: e, texto: e }))]}
+        />
+        <Selector
+          name="origen"
+          etiqueta="Alta"
+          defaultValue={filtro.origen ?? ""}
+          opciones={[
+            { valor: "", texto: "Todas" },
+            { valor: "autogestion", texto: "Autogestión" },
+            { valor: "staff", texto: "Staff" },
+          ]}
         />
       </Filtros>
       <Tabla
@@ -74,8 +85,9 @@ export default async function Bandas({ searchParams }: { searchParams: Promise<P
             <span key="espacio" className="text-sm whitespace-nowrap text-tertiary">
               {formatearBytes(b.usado)} de {formatearBytes(b.limite ?? LIMITE_POR_DEFECTO)}
             </span>,
-            <span key="alta" className="text-sm whitespace-nowrap text-tertiary">
+            <span key="alta" className="flex flex-col items-start gap-1 text-sm whitespace-nowrap text-tertiary" data-origen={b.origen}>
               {FECHA.format(b.creadoEn)}
+              {b.origen === "autogestion" && <Insignia color="marca">Autogestión</Insignia>}
             </span>,
           ],
         }))}

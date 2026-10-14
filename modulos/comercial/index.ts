@@ -8,7 +8,7 @@
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { AdminCobros, AdminCuenta, AdminCuentas, AdminPlanes } from "./admin/pantallas";
 import { avisoDeCuota } from "./aviso";
-import { alCrearBanda, comoAmpliar, revisarVencimientos } from "./cuenta";
+import { alCrearBanda, comoAmpliar, opcionesDeAlta, revisarVencimientos } from "./cuenta";
 import { PantallaPago } from "./panel/pago";
 
 const comercial: Modulo = {
@@ -17,7 +17,8 @@ const comercial: Modulo = {
   // Plan y pago es del titular (ruta del núcleo /pago, exigirTitular): no hay permisos propios.
   permisos: [],
   gestionaCuenta: {
-    alCrearBanda: (tenantId) => alCrearBanda(tenantId),
+    alCrearBanda: (tenantId, _origen, opcion) => alCrearBanda(tenantId, opcion),
+    opcionesDeAlta,
     pantallaPago: PantallaPago,
     comoAmpliar,
   },

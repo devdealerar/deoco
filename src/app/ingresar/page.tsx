@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { exigirPlataforma } from "@/nucleo/acceso/panel";
 import { Aviso, Boton, Campo, Tarjeta } from "@/ui";
 import { ingresar } from "./acciones";
@@ -30,6 +31,12 @@ export default async function Ingresar({
             </Boton>
           </form>
         </Tarjeta>
+        <p className="text-center text-sm text-tertiary">
+          ¿No tenés cuenta?{" "}
+          <Link href="/registro" className="font-semibold text-brand-secondary">
+            Creá tu banda
+          </Link>
+        </p>
       </div>
     </main>
   );

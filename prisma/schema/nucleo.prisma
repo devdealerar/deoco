@@ -56,6 +56,10 @@ model Tenant {
   estado               EstadoTenant   @default(ACTIVO)
   /// Espacio para archivos, en bytes. null = DEOCO_LIMITE_ALMACENAMIENTO. Lo fija un plan (el núcleo no los conoce).
   limiteAlmacenamiento BigInt?
+  /// "staff" (alta en el back office) o "autogestion" (la persona sola, en /registro).
+  origen               String         @default("staff")
+  /// Quién la creó, en autogestión (una por cuenta).
+  creadoPor            String?        @db.Uuid
   creadoEn             DateTime       @default(now())
   membresias           Membresia[]
   dominios             Dominio[]
@@ -326,4 +330,19 @@ model LimiteBanda {
 
   @@id([tenantId, limite])
   @@map("limite_banda")
+}
+
+/// Registro sin verificar (autogestión). Nadie lo lee: solo registro_solicitar/registro_confirmar.
+model RegistroPendiente {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email          String   @unique
+  nombre         String
+  hashContrasena String
+  tokenHash      String   @unique
+  venceEn        DateTime
+  envios         Int      @default(1)
+  ultimoEnvio    DateTime @default(now())
+  creadoEn       DateTime @default(now())
+
+  @@map("registro_pendiente")
 }

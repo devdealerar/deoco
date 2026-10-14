@@ -151,6 +151,9 @@ ventas de las bandas siguen yendo a la cuenta de cada banda.
     6. Sitio → cargar bio corta y una imagen (una foto de celular) → Publicar.
     7. `https://<slug>.deoco.com` → se ve publicado, con candado válido.
     8. En `/admin`, pasar la banda de prueba a Archivado (confirmando) → su sitio da 404.
+    9. Alta sola: en una ventana privada, `https://app.deoco.com/registro` con otro email tuyo →
+       llega el mail → link → ingresar → crear banda → queda en su panel; en `/admin`, filtro
+       "Alta: Autogestión", aparece. (Necesita `DEOCO_CORREO=smtp`.)
 
 Después de la prueba de humo, la verificación completa (pagos reales de prueba, mails, puerta,
 barrido, carga): **`docs/verificacion-despliegue.md`**.

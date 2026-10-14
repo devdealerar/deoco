@@ -60,6 +60,43 @@ y por qué. Si alguna no va, se cambia.
     `subscription_preapproval` y `subscription_authorized_payment`. Está en la lista de
     verificación del despliegue.
 
+## P2 · Autogestión del alta
+
+1. **Flujo**: `/registro` (nombre, email, contraseña) → mail con link → `/registro/verificar`
+   (crea el usuario) → ingresar → `/registro/banda` (nombre, subdominio, "probar gratis" o un
+   plan) → panel de la banda. Después de verificar se vuelve a ingresar con la contraseña (no hay
+   ingreso automático: Auth.js con credenciales no tiene "ingreso por link", y agregarlo era abrir
+   otra puerta de entrada).
+2. **Antiabuso, lo más simple que alcanza**:
+   - el usuario recién existe al confirmar el email (antes, una fila en `registro_pendiente` que
+     nadie lee: sin políticas abiertas, sin permisos para `deoco_app`; solo funciones acotadas);
+     sin email verificado no hay cuenta, ni banda, ni subdominio reservado;
+   - el token del link va después de "#" (nunca llega a un servidor ni a un log) y se guarda solo
+     su sha256; vale 24 h y una vez;
+   - **una banda por autogestión por cuenta** (la base lo impone, con bloqueo por usuario); más,
+     por el staff;
+   - 3 mails de verificación por hora por email (en la base); 5 registros y 3 bandas por hora
+     por IP (en memoria del proceso: un solo contenedor hoy; con varios, cada uno cuenta lo suyo);
+   - un campo trampa oculto que un bot llena (se responde "ok" sin hacer nada);
+   - la pantalla responde lo mismo si el email ya tiene cuenta (el mail lo explica): no se puede
+     averiguar quién está registrado.
+   Sin captcha: agrega un tercero y fricción; si aparece abuso real, es lo siguiente.
+3. **"Con el sitio listo"** = el subdominio verificado y en línea (muestra "en preparación" hasta
+   que publique), el módulo sitio prendido por la prueba, y la persona en su panel. No se
+   publica contenido de ejemplo (sería inventar el sitio de la banda).
+4. **Eligiendo un plan al crear la banda**: igual arranca la prueba; va a la pasarela de Deoco a
+   cargar la forma de pago y el plan se aplica al autorizarse (el primer cobro, al terminar la
+   prueba). Si la pasarela falla, queda en prueba (no se pierde la banda).
+5. **Subdominios reservados**: una lista en el núcleo (`src/nucleo/tenant/reservados.ts`), la
+   misma para el staff y la autogestión: los de la plataforma y los que se prestan a engañar
+   (soporte, pagos, login…). No incluye ids de módulos (el núcleo no los nombra).
+6. **El staff** ve las altas nuevas en `/admin` (filtro "Alta: Autogestión", insignia) y conserva
+   todo: estado, módulos, plan, archivar. Cada alta deja su fila en la auditoría
+   (`usuario.registrado`, `banda.autogestionada`).
+7. **`/ingresar` suma una sola línea**: "¿No tenés cuenta? Creá tu banda". Sin ella no hay forma
+   de llegar al registro. Es lo único que se agrega a esa pantalla.
+8. **Sin `DEOCO_CORREO` no hay registro** (no se puede verificar el email): la pantalla lo dice.
+
 ## A1 · Barrido de pendientes
 
 1. **Cada cuánto**: al arrancar y cada 60 s (`DEOCO_BARRIDO_SEGUNDOS`, mínimo 5). Barato: una

@@ -224,8 +224,14 @@ export type DefinicionLimite = {
  * contrato; el núcleo solo le avisa cuándo nace una banda y le presta la pantalla /pago.
  */
 export type GestionCuenta = {
-  /** Una banda nueva (alta del staff o autogestión). Rápido: corre en la misma operación. */
-  alCrearBanda: (tenantId: string, origen: "staff" | "autogestion") => Promise<void>;
+  /**
+   * Una banda nueva (alta del staff o autogestión). Rápido: corre en la misma operación.
+   * `opcion`: lo que eligió la persona entre `opcionesDeAlta` (autogestión). Puede devolver
+   * adónde mandarla (p. ej. a la pasarela, a cargar su forma de pago).
+   */
+  alCrearBanda: (tenantId: string, origen: "staff" | "autogestion", opcion?: string) => Promise<{ redireccion?: string } | void>;
+  /** Lo que se elige al crear una banda sola (`valor` vuelve como `opcion`). La primera, por defecto. */
+  opcionesDeAlta?: () => Promise<{ valor: string; texto: string; detalle?: string }[]>;
   /**
    * La pantalla `/b/<slug>/pago` (abierta aunque la banda esté SUSPENDIDA, solo para el
    * titular): plan, vencimiento, forma de pago, cambiar de plan, pagar.

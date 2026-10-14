@@ -29,7 +29,7 @@ const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/credenciales
 const ID_RESERVADOS = ["pagos", "nucleo"];
 const NOMBRE_CONSULTA = /^[a-z][a-z0-9-]{0,62}$/;
 const CLAVE_SECRETO = /^[a-z][a-z0-9_]{0,62}$/;
-const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal"]; // plataforma, archivos y avisos
+const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal", "/registro"]; // plataforma, archivos y avisos
 
 export type PermisoRegistrado = DefinicionPermiso & { moduloId: string };
 export type RutaEncontrada<P> = { moduloId: string; ruta: RutaModulo<P>; params: Record<string, string> };

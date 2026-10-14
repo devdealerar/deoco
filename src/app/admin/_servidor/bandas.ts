@@ -1,3 +1,4 @@
+import { problemaDeSubdominio } from "@/nucleo/tenant/reservados";
 import { Prisma, type EstadoTenant } from "@/generated/prisma/client";
 import { claveTemporal } from "@/nucleo/auth/clave-temporal";
 import { hashearContrasena } from "@/nucleo/auth/contrasena";
@@ -26,6 +27,8 @@ export type FilaBanda = {
   usado: bigint;
   limite: bigint | null;
   creadoEn: Date;
+  /** "staff" o "autogestion" (se dio de alta sola). */
+  origen: string;
 };
 
 export const ESTADOS_BANDA: EstadoTenant[] = ["ACTIVO", "MOROSO", "SUSPENDIDO", "ARCHIVADO"];
@@ -34,6 +37,7 @@ export type FiltroBandas = {
   /** Contiene, en el nombre o el slug. */
   buscar?: string;
   estado?: EstadoTenant;
+  origen?: "staff" | "autogestion";
   orden: { columna: (typeof ORDENES_BANDA)[number]; direccion: Direccion };
   pagina: number;
 };
@@ -48,6 +52,7 @@ export async function listarBandas(f: FiltroBandas): Promise<{ filas: FilaBanda[
   const db = dbAdmin();
   const condiciones = [Prisma.sql`TRUE`];
   if (f.estado) condiciones.push(Prisma.sql`t.estado = ${f.estado}::"EstadoTenant"`);
+  if (f.origen) condiciones.push(Prisma.sql`t.origen = ${f.origen}`);
   if (f.buscar) condiciones.push(Prisma.sql`(t.nombre ILIKE ${contiene(f.buscar)} OR t.slug ILIKE ${contiene(f.buscar)})`);
   const donde = Prisma.join(condiciones, " AND ");
 
@@ -81,15 +86,14 @@ export async function listarBandas(f: FiltroBandas): Promise<{ filas: FilaBanda[
         usado,
         limite: b.limiteAlmacenamiento,
         creadoEn: b.creadoEn,
+        origen: b.origen,
       },
     ];
   });
   return { filas, ...p };
 }
 
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** Subdominios que son de la plataforma, no de una banda. */
-const RESERVADOS = ["app", "www", "admin", "api", "mail", "static", "assets", "deoco", "nueva"];
 
 
 export type DatosAlta = {
@@ -112,10 +116,8 @@ export async function altaBanda(staffId: string, datos: DatosAlta) {
     [slug, "El slug"],
     [sub, "El subdominio"],
   ] as const) {
-    if (valor.length < 2 || valor.length > 40 || !SLUG.test(valor)) {
-      throw new ErrorFormulario(`${que} "${valor}" no es válido: minúsculas, números y guiones (2 a 40).`);
-    }
-    if (RESERVADOS.includes(valor)) throw new ErrorFormulario(`${que} "${valor}" está reservado para la plataforma.`);
+    const problema = problemaDeSubdominio(valor, que);
+    if (problema) throw new ErrorFormulario(problema);
   }
   const dominio = `${sub}.${dominioRaiz()}`;
   const email = datos.titularEmail.toLowerCase();

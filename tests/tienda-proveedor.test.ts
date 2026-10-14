@@ -261,7 +261,8 @@ describe("el alcance del proveedor lo pone la base, no el código", () => {
       SELECT tablename AS tabla, policyname AS nombre, cmd, coalesce(qual, '') || ' ' || coalesce(with_check, '') AS condicion
       FROM pg_policies WHERE schemaname = 'public' AND cmd <> 'SELECT'`;
     const abiertas = politicas.filter(
-      (p) => !/app_tenant_id\(\)|app_es_staff\(\)|app_usuario_id\(\)/.test(p.condicion) && !PERMITIDAS.includes(`${p.tabla}/${p.nombre}`),
+      // ("false false": la que no deja pasar nada, p. ej. registro_pendiente.)
+      (p) => !/app_tenant_id\(\)|app_es_staff\(\)|app_usuario_id\(\)/.test(p.condicion) && p.condicion !== "false false" && !PERMITIDAS.includes(`${p.tabla}/${p.nombre}`),
     );
     expect(abiertas.map((p) => `${p.tabla}/${p.nombre} (${p.cmd}): ${p.condicion}`)).toEqual([]);
     // Y las nombradas, solo en la banda fijada para la cuenta externa.

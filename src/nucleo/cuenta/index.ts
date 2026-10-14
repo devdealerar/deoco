@@ -203,11 +203,21 @@ export async function usoDeLimites(tenantId: string, reg: Registro = registroGlo
  * Una banda nueva (alta del staff o autogestión): prende el gestor de cuenta y le avisa (p. ej.
  * para arrancar el período de prueba). Sin gestor, no hace nada.
  */
-export async function bandaCreada(tenantId: string, origen: "staff" | "autogestion", reg: Registro = registroGlobal()) {
-  if (!reg.gestor) return;
+export async function bandaCreada(
+  tenantId: string,
+  origen: "staff" | "autogestion",
+  opcion?: string,
+  reg: Registro = registroGlobal(),
+): Promise<{ redireccion?: string }> {
+  if (!reg.gestor) return {};
   const { moduloId, gestion } = reg.gestor;
   await conTenant(tenantId, (tx) => tx.moduloTenant.createMany({ data: [{ tenantId, moduloId }], skipDuplicates: true }));
-  await gestion.alCrearBanda(tenantId, origen);
+  return (await gestion.alCrearBanda(tenantId, origen, opcion)) ?? {};
+}
+
+/** Lo que se ofrece al crear una banda sola (p. ej. "Probar gratis" o un plan). Vacío: nada que elegir. */
+export async function opcionesDeAlta(reg: Registro = registroGlobal()) {
+  return (await reg.gestor?.gestion.opcionesDeAlta?.()) ?? [];
 }
 
 /**

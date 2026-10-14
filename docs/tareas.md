@@ -7,7 +7,7 @@ Decisiones: `docs/decisiones-pendientes.md` (sección P).
 | # | Parte | Estado |
 | --- | --- | --- |
 | P1 | Módulo comercial: planes, límites, cuota mensual (Mercado Pago de Deoco), estados automáticos, prueba, back office | ✅ hecha |
-| P2 | Autogestión del alta | pendiente |
+| P2 | Autogestión del alta (registro con email verificado, banda con subdominio, prueba o plan) | ✅ hecha |
 | P3 | Inicio del panel | pendiente |
 | P4 | Endurecimiento (limpieza de correos, roles, carga) | pendiente |
 | P5 | Repaso final | pendiente |
@@ -21,6 +21,12 @@ Decisiones: `docs/decisiones-pendientes.md` (sección P).
   vencimientos: `decidir` es puro), `aviso.ts`, `correos.ts`, `panel/pago.tsx`, back office
   (`/admin/m/comercial`: cuentas, planes y plazos, cuotas fallidas, cuenta con Pro a medida).
   Tienda y ticketera declaran `limites` (productos y shows publicados, `publicadoEn`).
+- P2: `src/nucleo/autogestion` (registro, confirmación, banda; freno por IP), migración
+  `autogestion` (`registro_pendiente`, `tenant.origen`/`creadoPor`, funciones
+  `registro_solicitar`, `registro_confirmar`, `crear_banda_autogestion`,
+  `bandas_autogestionadas`), pantallas `/registro`, `/registro/verificar`, `/registro/banda`;
+  `opcionesDeAlta` en el gestor; `/admin` filtra por alta. Pruebas: `tests/autogestion.test.ts`,
+  `tests/e2e/autogestion.e2e.ts`.
 - Pruebas: `tests/comercial.test.ts` (las 8 pedidas y más), `tests/cuenta.test.ts` (núcleo),
   `tests/e2e/comercial.e2e.ts` (elegir plan → pasarela → vuelta; mora, suspensión, pago; staff).
 

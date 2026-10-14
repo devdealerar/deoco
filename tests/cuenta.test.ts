@@ -174,7 +174,7 @@ describe("límites", () => {
 
 describe("alta de una banda", () => {
   it("prende el gestor y le avisa", async () => {
-    await bandaCreada(e.b.id, "autogestion", reg);
+    await bandaCreada(e.b.id, "autogestion", undefined, reg);
     expect(altas).toContainEqual({ tenantId: e.b.id, origen: "autogestion" });
     expect((await dueno.moduloTenant.findMany({ where: { tenantId: e.b.id } })).map((m) => m.moduloId)).toEqual(["gestor"]);
   });
