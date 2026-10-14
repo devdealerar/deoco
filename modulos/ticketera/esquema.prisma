@@ -17,6 +17,8 @@ model TicketeraEvento {
   fotoArchivoId String?  @db.Uuid
   fotoNombre    String?
   publicado     Boolean  @default(false)
+  /// Cuándo se publicó (null en borrador). Si la banda baja de plan, se despublica lo último publicado.
+  publicadoEn   DateTime?
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @default(now()) @updatedAt
 

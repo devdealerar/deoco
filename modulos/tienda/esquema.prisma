@@ -112,6 +112,8 @@ model TiendaProducto {
   fotoNombre     String?
   /// Borrador (false) no se ve en la tienda.
   publicado      Boolean  @default(false)
+  /// Cuándo se publicó (null en borrador). Si la banda baja de plan, se despublica lo último publicado.
+  publicadoEn    DateTime?
   creadoEn       DateTime @default(now())
   actualizadoEn  DateTime @default(now()) @updatedAt
 

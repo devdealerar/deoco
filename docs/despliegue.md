@@ -116,20 +116,37 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
     un pedido ahí, responde 404).
 12. **Deploy**. En los logs, las cuatro líneas de "arranque sano" de arriba.
 
-### E. Primer acceso
+### E. Cuota de Deoco (Mercado Pago de Deoco)
 
-13. En la **consola del servicio de la app**:
+La cuota mensual es la única plata que entra a Deoco: se cobra en **la cuenta de Mercado Pago de
+Deoco**, con credenciales del entorno (nunca en la tabla de credenciales de las bandas). Las
+ventas de las bandas siguen yendo a la cuenta de cada banda.
+
+13. En Mercado Pago (cuenta de Deoco) → **Tus integraciones → Crear aplicación** (producto:
+    suscripciones). Copiá el **Access token de producción** → `DEOCO_CUOTA_MP_TOKEN`.
+14. En esa aplicación → **Webhooks**: URL
+    `https://app.deoco.com/avisos/plataforma/comercial/cuota/mercadopago`, eventos de
+    **Suscripciones** (planes y suscripciones, pagos autorizados). Copiá la **clave secreta** →
+    `DEOCO_CUOTA_MP_SECRETO_AVISOS`. (La URL exacta también está en `/admin/m/comercial/planes`.)
+15. Con tu usuario de staff (paso 16), en `https://app.deoco.com/admin/m/comercial/planes`: poné el **precio en pesos** de
+    Esencial, Medium y Premium (sin precio no se pueden elegir) y revisá los plazos (prueba 14
+    días de Medium, gracia 3, suspensión a los 10 días de mora).
+
+### F. Primer acceso
+
+16. En la **consola del servicio de la app**:
 
     ```sh
     CLAVE='<tu clave, 10+ caracteres>' node scripts/crear-staff.mjs vos@deoco.com "Tu Nombre"
     ```
 
     Es la única vez que se toca algo a mano. Todo lo demás se hace en `https://app.deoco.com/admin`.
-14. **Prueba de humo** (en este orden; cada paso prueba algo distinto):
+17. **Prueba de humo** (en este orden; cada paso prueba algo distinto):
     1. `https://app.deoco.com` → candado válido → ingresar con tu usuario.
     2. `https://app.deoco.com/admin` → listado de bandas (vacío).
     3. Nueva banda de prueba (con un email tuyo como titular) → anotá la clave temporal.
-    4. En el detalle de la banda, prender **Sitio**.
+    4. La banda arranca en **prueba (Medium)**: Sitio y Tienda ya prendidos (Cuentas en
+       `/admin/m/comercial` la muestra "En prueba").
     5. En otra ventana privada, entrar como titular → te pide elegir clave → entra al panel.
     6. Sitio → cargar bio corta y una imagen (una foto de celular) → Publicar.
     7. `https://<slug>.deoco.com` → se ve publicado, con candado válido.
@@ -182,6 +199,9 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_DB_CONEXIONES` | no | Conexiones de la app a Postgres (40). Sumadas a las del back office (5) tienen que quedar bajo `max_connections` (100 por defecto) |
 | `DEOCO_BARRIDO_SEGUNDOS` | no | Cada cuánto corre el barrido de pendientes (60; mínimo 5) |
 | `DEOCO_IP_PUBLICA` | no | IP a la que apuntan los dominios propios; por defecto, la de `app.<raíz>` |
+| `DEOCO_CUOTA_MP_TOKEN` | para cobrar la cuota | Access token de producción de la cuenta de Mercado Pago **de Deoco** (no de una banda). Sin él, la app arranca (aviso en el log) pero nadie puede cargar su forma de pago |
+| `DEOCO_CUOTA_MP_SECRETO_AVISOS` | recomendada | Clave secreta de webhooks de esa aplicación: con ella se verifica la firma de cada aviso de la cuota |
+| `DEOCO_CUOTA_RESPONDER_A` | no | Casilla a la que responden los titulares los mails de la cuota (mora, suspensión) |
 
 ## Correo (Resend por SMTP)
 

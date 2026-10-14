@@ -4,6 +4,9 @@
 // que quien los cambia sea el gestor.
 //
 // ARCHIVADO es del staff: el gestor nunca archiva ni desarchiva.
+// Los errores van primero y en su propio archivo: los módulos los usan al cargarse
+// (accionesDelPanel) y este archivo importa el registro, que importa los módulos.
+import { ErrorCuenta, ErrorLimite } from "./errores";
 import type { EstadoTenant, Prisma } from "@/generated/prisma/client";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
@@ -11,19 +14,8 @@ import type { Modulo } from "@/nucleo/modulos/contrato";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import type { Registro } from "@/nucleo/modulos/registro";
 
-export class ErrorCuenta extends Error {}
 
-/** Llegó a un límite. `message` es para mostrar tal cual (dice qué falta y cómo ampliarlo). */
-export class ErrorLimite extends Error {
-  constructor(
-    mensaje: string,
-    readonly limite: string,
-    readonly maximo: number,
-  ) {
-    super(mensaje);
-    this.name = "ErrorLimite";
-  }
-}
+export { ErrorCuenta, ErrorLimite };
 
 export type EstadoAutomatico = Exclude<EstadoTenant, "ARCHIVADO">;
 
@@ -216,4 +208,19 @@ export async function bandaCreada(tenantId: string, origen: "staff" | "autogesti
   const { moduloId, gestion } = reg.gestor;
   await conTenant(tenantId, (tx) => tx.moduloTenant.createMany({ data: [{ tenantId, moduloId }], skipDuplicates: true }));
   await gestion.alCrearBanda(tenantId, origen);
+}
+
+/**
+ * Lo que el gestor necesita saber del build para armar planes: qué módulos hay (id y nombre) y
+ * qué límites declaran. Solo nombres, nunca contratos (un módulo no importa el registro).
+ */
+export type CatalogoDeCuenta = {
+  modulos: { id: string; nombre: string; esGestor: boolean }[];
+  limites: { id: string; moduloId: string; etiqueta: string }[];
+};
+export function catalogoDeCuenta(reg: Registro = registroGlobal()): CatalogoDeCuenta {
+  return {
+    modulos: reg.modulos.map((m) => ({ id: m.id, nombre: m.nombre, esGestor: reg.gestor?.moduloId === m.id })),
+    limites: reg.limites.map((l) => ({ id: l.id, moduloId: l.moduloId, etiqueta: l.definicion.etiqueta })),
+  };
 }

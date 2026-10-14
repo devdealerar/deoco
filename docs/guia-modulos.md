@@ -483,10 +483,48 @@ navegacion: [{ etiqueta: "Órdenes", href: "/", externa: true, orden: 10 }],
   lo marca antes). Para el contacto de la banda: `titularDeBanda(tx)` de `@/nucleo/personas`.
 - Ejemplo completo: `modulos/tienda/proveedor.ts` y `modulos/tienda/portal/`.
 
+## 6 quinquies. Límites de la cuenta
+
+Si el módulo tiene algo que un plan puede acotar (productos publicados, shows publicados),
+lo declara y lo hace cumplir; el número lo pone el gestor de cuenta (el plan):
+
+```ts
+limites: [{
+  clave: "productos-publicados",          // id completo: "tienda.productos-publicados"
+  etiqueta: "productos publicados",       // va en el mensaje: "Llegaste al máximo de …"
+  usados: (tenantId) => contar(tenantId),
+  // El tope bajó (la banda bajó de plan): despublicar lo que sobra, lo último publicado
+  // primero, SIN BORRAR. Devuelve cuántos despublicó.
+  ajustar: (tenantId, maximo) => despublicarSobrante(tenantId, maximo),
+}],
+```
+
+Y antes de publicar, dentro de la misma transacción de `conTenant`:
+
+```ts
+await exigirLimite(tx, contrato, tenantId, "productos-publicados", async () => (await contarEn(tx)) + 1);
+```
+
+Sin tope fijado (banda sin plan), no hace nada. Pasado el tope lanza `ErrorLimite` con un
+mensaje para mostrar tal cual (dice el máximo y qué plan lo amplía): sumala a los errores de
+`accionesDelPanel`. Dos pedidos a la vez no pasan el tope (bloqueo por banda + límite).
+
+### El gestor de cuenta (`gestionaCuenta`, uno solo: hoy `comercial`)
+
+Decide el estado automático de la banda, sus módulos y sus topes con las funciones de
+`@/nucleo/cuenta` (`fijarEstado`, `fijarModulos`, `fijarLimites`, `bandaCreada`,
+`catalogoDeCuenta`); el núcleo verifica que quien llama sea el gestor y nunca archiva solo.
+Aporta `alCrearBanda`, la pantalla de `/b/<slug>/pago` y `comoAmpliar` (la línea del mensaje de
+límite). Solo él puede declarar `avisosPlataforma` (webhooks sin banda,
+`app.<raiz>/avisos/plataforma/<id><ruta>`) y usar la cuenta de cobro de Deoco
+(`@/nucleo/pagos/cuota`, credenciales del entorno). Cualquier módulo puede declarar
+`tareasPeriodicas: [{ nombre, cadaSegundos, correr(ahora) }]`: las corre el barrido (producción).
+
 ## 7. Encendido
 
 - Un módulo nace apagado. Lo prende o apaga el staff (`prenderModulo`, `apagarModulo`
-  en `src/nucleo/modulos/encendido.ts`).
+  en `src/nucleo/modulos/encendido.ts`) o, según el plan de la banda, el gestor de cuenta
+  (`fijarModulos`).
 - `dependencias`: no se puede prender si falta alguna; no se puede apagar uno que otro
   prendido usa.
 - Un archivo `SOLO_DESARROLLO.md` en la carpeta deja el módulo afuera del build de

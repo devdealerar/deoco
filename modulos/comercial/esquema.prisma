@@ -1,0 +1,105 @@
+// Módulo comercial: planes y cuota mensual de Deoco. Es el gestor de cuenta (gestionaCuenta):
+// traduce el plan de cada banda a módulos prendidos y límites, y su pago a un estado.
+//
+// LA CUOTA ES LA EXCEPCIÓN A LA REGLA DEL DINERO: la banda le paga A DEOCO, en la cuenta de
+// Deoco (credenciales del entorno, @/nucleo/pagos/cuota). Estas tablas son SOLO de la cuota;
+// las ventas de la banda (tienda, ticketera) nunca pasan por acá.
+//
+//  - Globales (/// @global): planes y plazos. Las escribe el staff (conStaff).
+//  - De banda (tenantId, RLS): la cuenta de cada banda y sus cobros de cuota.
+// Dinero: en centavos (Int), pesos argentinos.
+
+/// @global
+/// Un plan: lista de módulos + límites + precio. El staff los edita; el código no los conoce.
+model ComercialPlan {
+  /// "esencial", "medium", "premium", "pro".
+  id             String   @id
+  nombre         String
+  /// Para quién es ("Banda que arranca: sitio y press kit").
+  descripcion    String   @default("")
+  /// Precio de referencia en dólares, solo para mostrar ("8 USD", "a convenir").
+  precioUsd      String   @default("")
+  /// Lo que se cobra por mes, en centavos de peso. null: sin precio todavía (no se puede elegir).
+  precio         Int?
+  /// Ids de los módulos que prende.
+  modulos        String[]
+  /// Bytes para archivos. null: el de la plataforma (DEOCO_LIMITE_ALMACENAMIENTO).
+  almacenamiento BigInt?
+  /// Topes por límite de módulo: { "tienda.productos-publicados": 20 }. Sin clave (o null): sin tope.
+  topes          Json?
+  /// false: no se elige solo (el Pro, a convenir): lo asigna el staff y no se cobra automático.
+  aLaVenta       Boolean  @default(true)
+  orden          Int      @default(0)
+  actualizadoEn  DateTime @default(now()) @updatedAt
+
+  @@map("comercial_plan")
+}
+
+/// @global
+/// Plazos de la cuenta (una sola fila, id 1). Los define el staff en el back office.
+model ComercialConfig {
+  id                 Int      @id @default(1)
+  /// Días de prueba al darse de alta.
+  diasPrueba         Int      @default(14)
+  /// Plan de la prueba.
+  planPrueba         String   @default("medium")
+  /// Días después del vencimiento antes de pasar a MOROSO (lo que tarda en llegar un cobro).
+  diasGracia         Int      @default(3)
+  /// Días de mora antes de SUSPENDIDO.
+  diasMoraASuspender Int      @default(10)
+  actualizadoEn      DateTime @default(now()) @updatedAt
+
+  @@map("comercial_config")
+}
+
+/// La cuenta de una banda: su plan, su prueba, su suscripción y su vencimiento.
+model ComercialCuenta {
+  tenantId          String    @id @db.Uuid
+  planId            String
+  /// Pro a medida para esta banda (lo arma el staff): { precio, modulos, almacenamiento, topes }.
+  pro               Json?
+  /// Hasta cuándo dura la prueba (null: no está en prueba).
+  pruebaHasta       DateTime?
+  /// Plan que eligió y todavía no se aplicó (se aplica al autorizarse la suscripción).
+  planElegido       String?
+  /// Suscripción en la pasarela de la CUOTA (cuenta de Deoco).
+  suscripcionId     String?
+  /// pendiente | activa | pausada | cancelada
+  suscripcionEstado String?
+  medioDePago       String?
+  /// Lo que se cobra por mes en la suscripción, en centavos.
+  montoSuscripcion  Int?
+  proximoCobro      DateTime?
+  /// Pagado hasta (vencimiento). null: nunca pagó.
+  pagoHasta         DateTime?
+  /// Desde cuándo está en mora (null: al día).
+  moraDesde         DateTime?
+  creadoEn          DateTime  @default(now())
+  actualizadoEn     DateTime  @default(now()) @updatedAt
+
+  cobros ComercialCobro[]
+
+  @@index([suscripcionId])
+  @@map("comercial_cuenta")
+}
+
+/// Un cobro mensual de la cuota (aprobado o rechazado), tal como lo informó la pasarela de Deoco.
+model ComercialCobro {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  cuenta         ComercialCuenta @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  /// Id en la pasarela (el pago autorizado del mes). Una sola fila por cobro.
+  cobroId        String   @unique
+  suscripcionId  String?
+  /// aprobado | rechazado | pendiente | devuelto
+  estado         String
+  estadoPasarela String   @default("")
+  /// Centavos.
+  monto          Int
+  fecha          DateTime @default(now())
+  creadoEn       DateTime @default(now())
+
+  @@index([tenantId, fecha])
+  @@index([estado, fecha])
+  @@map("comercial_cobro")
+}

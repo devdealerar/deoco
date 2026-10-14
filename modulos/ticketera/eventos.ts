@@ -1,6 +1,7 @@
 // Shows y tipos de entrada (panel de la banda) y lo que se ve de ellos (sitio y consulta).
 import { borrarArchivos, ErrorArchivo, guardarArchivo, marcarPublicos } from "@/nucleo/archivos";
 import { cache } from "react";
+import { exigirLimite } from "@/nucleo/cuenta";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 
 export class ErrorTicketera extends Error {}
@@ -40,8 +41,46 @@ export async function crearEvento(tenantId: string, datos: DatosEvento): Promise
 
 export async function actualizarEvento(tenantId: string, id: string, datos: DatosEvento) {
   const d = validarEvento(datos);
-  const { count } = await conTenant(tenantId, (tx) => tx.ticketeraEvento.updateMany({ where: { id }, data: d }));
-  if (count === 0) throw new ErrorTicketera("Ese show no existe.");
+  await conTenant(tenantId, async (tx) => {
+    const antes = await tx.ticketeraEvento.findUnique({ where: { id }, select: { publicado: true, fecha: true } });
+    if (!antes) throw new ErrorTicketera("Ese show no existe.");
+    // Un show publicado que pasa de "ya fue" a "próximo" vuelve a contar para el tope.
+    const desde = desdeAhora();
+    if (antes.publicado && antes.fecha < desde && d.fecha >= desde) await exigirTopeDeShows(tx, tenantId);
+    await tx.ticketeraEvento.update({ where: { id }, data: d });
+  });
+}
+
+/** Límite de la cuenta: cuántos shows próximos puede tener publicados la banda. */
+export const LIMITE_SHOWS = "shows-publicados";
+
+/** Los que cuentan: publicados y que no pasaron (la misma ventana que muestra el sitio). */
+const cuentan = () => ({ publicado: true, fecha: { gte: desdeAhora() } });
+
+export const contarShowsPublicados = (tenantId: string) => conTenant(tenantId, (tx) => tx.ticketeraEvento.count({ where: cuentan() }));
+
+async function exigirTopeDeShows(tx: TxTenant, tenantId: string) {
+  await exigirLimite(tx, (await import("./index")).default, tenantId, LIMITE_SHOWS, async () => (await tx.ticketeraEvento.count({ where: cuentan() })) + 1);
+}
+
+/**
+ * El tope bajó (la banda bajó de plan): pasa a borrador los shows próximos que sobran, el último
+ * publicado primero. No borra nada (ni compras ni entradas: las ya vendidas siguen valiendo).
+ */
+export async function ajustarShowsPublicados(tenantId: string, maximo: number): Promise<number> {
+  return conTenant(tenantId, async (tx) => {
+    const publicados = await tx.ticketeraEvento.findMany({
+      where: cuentan(),
+      orderBy: [{ publicadoEn: { sort: "desc", nulls: "last" } }, { creadoEn: "desc" }, { id: "desc" }],
+      select: { id: true, fotoArchivoId: true },
+    });
+    const sobran = publicados.slice(0, Math.max(0, publicados.length - maximo));
+    if (!sobran.length) return 0;
+    await tx.ticketeraEvento.updateMany({ where: { id: { in: sobran.map((e) => e.id) } }, data: { publicado: false, publicadoEn: null } });
+    const fotos = sobran.map((e) => e.fotoArchivoId).filter((f): f is string => !!f);
+    if (fotos.length) await marcarPublicos(tx, fotos, false);
+    return sobran.length;
+  });
 }
 
 /** Foto del show (JPG/PNG/WebP). Pública solo mientras el show esté publicado. */
@@ -65,7 +104,8 @@ export async function publicarEvento(tenantId: string, id: string, publicado: bo
     const e = await tx.ticketeraEvento.findUnique({ where: { id }, include: { _count: { select: { tipos: true } } } });
     if (!e) throw new ErrorTicketera("Ese show no existe.");
     if (publicado && e._count.tipos === 0) throw new ErrorTicketera("Antes de publicar, cargá al menos un tipo de entrada.");
-    await tx.ticketeraEvento.update({ where: { id }, data: { publicado } });
+    if (publicado && !e.publicado && e.fecha >= desdeAhora()) await exigirTopeDeShows(tx, tenantId);
+    await tx.ticketeraEvento.update({ where: { id }, data: { publicado, publicadoEn: publicado ? (e.publicadoEn ?? new Date()) : null } });
     if (e.fotoArchivoId) await marcarPublicos(tx, [e.fotoArchivoId], publicado);
   });
 }

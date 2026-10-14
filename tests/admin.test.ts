@@ -94,6 +94,9 @@ describe("alta de banda (y prueba 5: deja su auditoría)", () => {
     expect(auditoria.map((a) => [a.accion, a.usuarioId, a.tenantId])).toEqual([
       ["usuario.creado", e.staff.id, null],
       ["banda.creada", e.staff.id, r.tenantId],
+      // El gestor de cuenta le pone el plan de prueba (cambios automáticos: sin usuario).
+      ["banda.limites_cambiados", null, r.tenantId],
+      ["banda.modulos_cambiados", null, r.tenantId],
     ]);
     expect(auditoria[1].detalle).toMatchObject({ slug: "los-nuevos", titular: "nuevo@banda.com", titularNuevo: true });
     expect(JSON.stringify(auditoria)).not.toContain(r.claveTemporal); // la clave no queda en ningún lado
@@ -110,7 +113,7 @@ describe("alta de banda (y prueba 5: deja su auditoría)", () => {
     expect(r.claveTemporal).toBeNull();
     expect(r.dominio).toBe("otra-banda.lvh.me");
     expect(await dueno.membresia.count({ where: { usuarioId: e.multi.id } })).toBe(3);
-    expect((await dueno.auditoria.findMany()).map((a) => a.accion)).toEqual(["banda.creada"]);
+    expect((await dueno.auditoria.findMany()).map((a) => a.accion)).toEqual(["banda.creada", "banda.limites_cambiados", "banda.modulos_cambiados"]);
   });
 
   it.each([

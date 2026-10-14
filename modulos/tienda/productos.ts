@@ -3,6 +3,7 @@
 // mira RLS, así que diseño y producto se buscan SIEMPRE bajo conTenant antes de usarlos.
 import type { Prisma } from "@/generated/prisma/client";
 import { borrarArchivos, ErrorArchivo, guardarArchivo, marcarPublicos } from "@/nucleo/archivos";
+import { exigirLimite } from "@/nucleo/cuenta";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
 import { MODULO, type Opcion } from "./catalogo";
@@ -167,8 +168,40 @@ export async function publicarProducto(tenantId: string, id: string, publicado: 
   // Aunque su producto base se haya desactivado: un producto que ya existe sigue andando.
   const actual = await productoDe(tenantId, id);
   return conTenant(tenantId, async (tx) => {
+    if (publicado && !actual.publicado) {
+      // El tope de productos publicados de la cuenta (lo fija el plan; sin tope, pasa).
+      await exigirLimite(tx, (await import("./index")).default, tenantId, LIMITE_PUBLICADOS, async () => (await tx.tiendaProducto.count({ where: { publicado: true } })) + 1);
+    }
     if (actual.fotoArchivoId) await marcarPublicos(tx, [actual.fotoArchivoId], publicado);
-    return tx.tiendaProducto.update({ where: { id }, data: { publicado } });
+    return tx.tiendaProducto.update({
+      where: { id },
+      data: { publicado, publicadoEn: publicado ? (actual.publicadoEn ?? new Date()) : null },
+    });
+  });
+}
+
+/** Límite de la cuenta: cuántos productos puede tener publicados la banda. */
+export const LIMITE_PUBLICADOS = "productos-publicados";
+
+export const contarPublicados = (tenantId: string) => conTenant(tenantId, (tx) => tx.tiendaProducto.count({ where: { publicado: true } }));
+
+/**
+ * El tope bajó (la banda bajó de plan): pasa a borrador lo que sobra, lo último publicado
+ * primero. No borra nada: la banda lo vuelve a publicar si sube de plan.
+ */
+export async function ajustarPublicados(tenantId: string, maximo: number): Promise<number> {
+  return conTenant(tenantId, async (tx) => {
+    const publicados = await tx.tiendaProducto.findMany({
+      where: { publicado: true },
+      orderBy: [{ publicadoEn: { sort: "desc", nulls: "last" } }, { creadoEn: "desc" }, { id: "desc" }],
+      select: { id: true, fotoArchivoId: true },
+    });
+    const sobran = publicados.slice(0, Math.max(0, publicados.length - maximo));
+    if (!sobran.length) return 0;
+    await tx.tiendaProducto.updateMany({ where: { id: { in: sobran.map((p) => p.id) } }, data: { publicado: false, publicadoEn: null } });
+    const fotos = sobran.map((p) => p.fotoArchivoId).filter((f): f is string => !!f);
+    if (fotos.length) await marcarPublicos(tx, fotos, false);
+    return sobran.length;
   });
 }
 

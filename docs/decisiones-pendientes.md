@@ -3,6 +3,63 @@
 Tomadas sin consultar durante el trabajo largo sin supervisión. Cada una dice qué se eligió
 y por qué. Si alguna no va, se cambia.
 
+## P1 · Planes, cuotas y estados (módulo comercial)
+
+1. **Cómo se reparte**: el núcleo no sabe de planes. Ofrece capacidades genéricas para UN
+   módulo "gestor de cuenta" (`gestionaCuenta`): fijar el estado automático (ACTIVO/MOROSO/
+   SUSPENDIDO), el set exacto de módulos prendidos, los topes por banda (`limite_banda`) y el
+   espacio; avisos sin banda (`avisosPlataforma`) y tareas periódicas del barrido. El módulo
+   `comercial` traduce planes a eso. Otro gestor (u otra forma de cobrar) no toca el núcleo.
+2. **La cuota es la única plata que entra a Deoco**: credenciales en el entorno
+   (`DEOCO_CUOTA_MP_TOKEN`, `DEOCO_CUOTA_MP_SECRETO_AVISOS`), nunca en `secreto`. Solo el gestor
+   puede usarlas (`@/nucleo/pagos/cuota` lo verifica contra el registro). Cobros en
+   `comercial_cobro`, nunca en las tablas de ventas. Webhook propio, sin banda en la URL:
+   `app.<raiz>/avisos/plataforma/comercial/cuota/mercadopago`.
+3. **Sin prorrateo**: cambiar de plan con la suscripción activa se aplica al instante (módulos y
+   topes) y el monto nuevo se cobra desde el próximo ciclo (PUT del monto en Mercado Pago). Subir
+   a mitad de mes regala días del plan caro; bajar, cobra un mes más del caro. Es lo más simple
+   y no deja a nadie sin lo que eligió. Se dice en pantalla.
+4. **En la prueba, el plan elegido se aplica al autorizarse la suscripción** (cuando el titular
+   carga la tarjeta), no al elegirlo. El primer cobro es al terminar la prueba (`start_date`).
+5. **Vencido → MOROSO → SUSPENDIDO, igual para todos los casos** (cobro rechazado, suscripción
+   cancelada que llegó al vencimiento, cobro que nunca llegó): MOROSO a los `diasGracia` (3) del
+   vencimiento si no llegó un cobro aprobado, o al instante con un rechazo; SUSPENDIDO a los
+   `diasMoraASuspender` (10) de mora. Los plazos los edita el staff (Planes → Plazos).
+6. **Fin de la prueba sin forma de pago autorizada → SUSPENDIDO directo** (sin pasar por
+   MOROSO): así lo pide la spec. Con la suscripción autorizada, espera el primer cobro.
+7. **Pago aprobado → ACTIVO al instante**, también desde SUSPENDIDO. Suma un mes desde el
+   vencimiento (o desde hoy, si ya pasó).
+8. **ARCHIVADO nunca es automático**: el gestor no puede archivar ni desarchivar (lo impone el
+   núcleo), y una banda ARCHIVADA no se toca.
+9. **El Pro y los planes a medida no se revisan solos**: no están a la venta, el cobro lo acuerda
+   el staff; el barrido no los pasa a mora. Si una banda Pro tiene suscripción activa y el staff
+   pone un precio a medida, se actualiza el monto.
+10. **Precios en pesos, NULL al empezar**: la migración siembra los 4 planes con la referencia en
+    dólares (8/20/45/a convenir) pero sin precio en pesos. Sin precio, un plan no se puede elegir
+    (se muestra "Próximamente"). El staff los pone en Back office → Planes.
+11. **Topes y espacio sembrados** (para revisar): Esencial = sitio, 1 GB. Medium = sitio + tienda,
+    5 GB, 20 productos publicados. Premium = + ticketera, 20 GB, 100 productos y 30 shows. Pro =
+    todo, 100 GB, sin topes. Son un punto de partida.
+12. **Qué cuenta el tope de shows**: los shows publicados que todavía no pasaron (lo mismo que
+    muestra el sitio). Un show viejo no ocupa lugar.
+13. **Bajar de plan despublica, no borra**: lo último publicado primero (`publicadoEn`, columna
+    nueva en productos y shows; los ya publicados toman la fecha de su última edición). Las
+    entradas vendidas de un show despublicado siguen valiendo. El espacio no se ajusta: si queda
+    por encima del nuevo límite, solo no puede subir más (no se borra ningún archivo).
+14. **Al llegar a un tope**: el mensaje dice el número y el plan a la venta más barato que lo
+    resuelve ("El plan Premium permite hasta 100: cambialo en Plan y pago."); si ninguno, el Pro.
+    Dos pedidos a la vez no pasan el tope: un `pg_advisory_xact_lock` por banda + límite.
+15. **Alta por el staff**: también arranca la prueba (14 días de Medium). El staff puede ponerle
+    otro plan desde Cuentas → la banda. Las bandas que ya existían quedan "sin cuenta" (sus
+    módulos no se tocan) hasta que el staff les asigne un plan.
+16. **Mails de la cuota**: remitente "Deoco", responder-a `DEOCO_CUOTA_RESPONDER_A` si está (si
+    no, el titular). Uno por día como mucho (clave única) para mora y para suspensión.
+17. **Mercado Pago, a verificar con la cuenta real**: los campos de `/preapproval` y
+    `/authorized_payments` (estado del pago dentro del cobro, `debit_date`, `payment_method_id`)
+    se leen a la defensiva; el webhook de suscripciones usa los tipos
+    `subscription_preapproval` y `subscription_authorized_payment`. Está en la lista de
+    verificación del despliegue.
+
 ## A1 · Barrido de pendientes
 
 1. **Cada cuánto**: al arrancar y cada 60 s (`DEOCO_BARRIDO_SEGUNDOS`, mínimo 5). Barato: una

@@ -1,5 +1,29 @@
 # Tareas
 
+## Trabajo largo · Planes, cuotas y autogestión
+
+Decisiones: `docs/decisiones-pendientes.md` (sección P).
+
+| # | Parte | Estado |
+| --- | --- | --- |
+| P1 | Módulo comercial: planes, límites, cuota mensual (Mercado Pago de Deoco), estados automáticos, prueba, back office | ✅ hecha |
+| P2 | Autogestión del alta | pendiente |
+| P3 | Inicio del panel | pendiente |
+| P4 | Endurecimiento (limpieza de correos, roles, carga) | pendiente |
+| P5 | Repaso final | pendiente |
+
+- P1 núcleo: `@/nucleo/cuenta` (gestor de cuenta: estado, módulos, topes `limite_banda`, espacio;
+  `exigirLimite` con bloqueo; `catalogoDeCuenta`), `avisosPlataforma`
+  (`/avisos/plataforma/<id><ruta>`), `tareasPeriodicas` (barrido), `@/nucleo/pagos/cuota`
+  (cuenta de Deoco del entorno, suscripciones de Mercado Pago: `/preapproval`,
+  `/authorized_payments`). `/b/<slug>/pago` la pinta el gestor; mora y suspensión en el marco.
+- P1 módulo `comercial`: `cuenta.ts` (planes, prueba, elegir/cambiar/cancelar, cobros,
+  vencimientos: `decidir` es puro), `aviso.ts`, `correos.ts`, `panel/pago.tsx`, back office
+  (`/admin/m/comercial`: cuentas, planes y plazos, cuotas fallidas, cuenta con Pro a medida).
+  Tienda y ticketera declaran `limites` (productos y shows publicados, `publicadoEn`).
+- Pruebas: `tests/comercial.test.ts` (las 8 pedidas y más), `tests/cuenta.test.ts` (núcleo),
+  `tests/e2e/comercial.e2e.ts` (elegir plan → pasarela → vuelta; mora, suspensión, pago; staff).
+
 ## Trabajo largo sin supervisión
 
 Decisiones tomadas sin consultar: `docs/decisiones-pendientes.md` (para revisar).

@@ -121,6 +121,19 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   últimas entradas la página se rehace como "agotada" y un efecto del formulario no correría.
   El sitio lee sus fechas con la consulta `ticketera.proximas-fechas`.
 
+## Planes y cuota (`modulos/comercial`, gestor de cuenta)
+
+- `gestionaCuenta` (uno solo): decide estado automático (ACTIVO/MOROSO/SUSPENDIDO; ARCHIVADO
+  nunca), módulos y topes con `@/nucleo/cuenta` (`fijarEstado`, `fijarModulos`, `fijarLimites`,
+  `catalogoDeCuenta`); pinta `/b/<slug>/pago`. `bandaCreada()` en toda alta (prueba de Medium).
+- `limites` en el contrato + `exigirLimite(tx, …)` antes de publicar (`ErrorLimite`, dice qué plan
+  amplía). Bajar el tope → `ajustar` despublica lo último publicado (`publicadoEn`), nunca borra.
+- LA CUOTA ES LA EXCEPCIÓN AL DINERO: cuenta de Mercado Pago de Deoco, `DEOCO_CUOTA_MP_TOKEN` /
+  `DEOCO_CUOTA_MP_SECRETO_AVISOS` (entorno, nunca `secreto`), solo el gestor
+  (`@/nucleo/pagos/cuota`); webhook `app.<raiz>/avisos/plataforma/comercial/cuota/mercadopago`
+  (`avisosPlataforma`). Cobros en `comercial_cobro`. Vencimientos: `tareasPeriodicas` del barrido.
+- Las pruebas vuelven a sembrar planes y plazos en `limpiar()` (`sembrarComercial`).
+
 ## Cobros (`src/nucleo/pagos`)
 
 - Pasarelas (hoy Mercado Pago) y credenciales de cobro de la banda: del núcleo (secreto con

@@ -5,7 +5,25 @@ import { createServer, type Server } from "node:http";
 export type PreferenciaRecibida = { token: string; cuerpo: Record<string, unknown>; id: string };
 export type PagoFalso = { status: string; external_reference: string; transaction_amount: number; currency_id: string; token: string };
 
+/** Una suscripción (preapproval) de la cuenta de Deoco. `status`: pending | authorized | paused | cancelled. */
+export type SuscripcionFalsa = {
+  token: string;
+  status: string;
+  external_reference: string;
+  reason: string;
+  payer_email: string;
+  back_url: string;
+  monto: number;
+  start_date?: string;
+  next_payment_date?: string;
+  payment_method_id?: string;
+};
+/** Un cobro mensual de una suscripción (authorized_payment) y su pago. */
+export type CobroFalso = { token: string; preapproval_id: string; transaction_amount: number; status: string; payment_status?: string; debit_date: string };
+
 export class MercadoPagoFalso {
+  suscripciones = new Map<string, SuscripcionFalsa>();
+  cobros = new Map<string, CobroFalso>();
   preferencias: PreferenciaRecibida[] = [];
   pagos = new Map<string, PagoFalso>();
   cuentas = new Map<string, { nickname: string; email: string }>();
@@ -29,6 +47,52 @@ export class MercadoPagoFalso {
           const id = `pref-${this.preferencias.length + 1}`;
           this.preferencias.push({ token, cuerpo: JSON.parse(cuerpo || "{}"), id });
           return json(201, { id, init_point: `${this.base}/checkout?pref=${id}` });
+        }
+        if (req.method === "POST" && url.pathname === "/preapproval") {
+          if (!token) return json(401, { message: "unauthorized" });
+          const c = JSON.parse(cuerpo || "{}");
+          const id = `sus-${this.suscripciones.size + 1}-${Math.random().toString(36).slice(2, 8)}`;
+          this.suscripciones.set(id, {
+            token,
+            status: c.status ?? "pending",
+            external_reference: c.external_reference,
+            reason: c.reason,
+            payer_email: c.payer_email,
+            back_url: c.back_url,
+            monto: c.auto_recurring?.transaction_amount,
+            start_date: c.auto_recurring?.start_date,
+          });
+          return json(201, { id, init_point: `${this.base}/suscribir?id=${id}`, status: "pending" });
+        }
+        const sus = /^\/preapproval\/([\w-]+)$/.exec(url.pathname);
+        if (sus) {
+          const s = this.suscripciones.get(sus[1]);
+          if (!s || s.token !== token) return json(404, { message: "not found" });
+          if (req.method === "PUT") {
+            const c = JSON.parse(cuerpo || "{}");
+            if (c.status) s.status = c.status;
+            if (c.auto_recurring?.transaction_amount) s.monto = c.auto_recurring.transaction_amount;
+          }
+          return json(200, this.vistaSuscripcion(sus[1]));
+        }
+        // Pantalla de la pasarela: "carga la tarjeta" y vuelve (la autorización la hace la prueba).
+        if (req.method === "GET" && url.pathname === "/suscribir") {
+          const s = this.suscripciones.get(url.searchParams.get("id") ?? "");
+          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+          return res.end(`<!doctype html><title>Mercado Pago (falso)</title><h1 data-pasarela-suscripcion>Suscribite con Mercado Pago</h1><p>${s?.reason ?? ""}</p><a href="${s?.back_url ?? "/"}">Volver</a>`);
+        }
+        const cobro = /^\/authorized_payments\/([\w-]+)$/.exec(url.pathname);
+        if (req.method === "GET" && cobro) {
+          const c = this.cobros.get(cobro[1]);
+          if (!c || c.token !== token) return json(404, { message: "not found" });
+          return json(200, {
+            id: cobro[1],
+            preapproval_id: c.preapproval_id,
+            status: c.status,
+            transaction_amount: c.transaction_amount,
+            debit_date: c.debit_date,
+            payment: c.payment_status ? { id: Number(cobro[1].replace(/\D/g, "") || 1), status: c.payment_status } : null,
+          });
         }
         if (req.method === "GET" && url.pathname === "/checkout") {
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
@@ -54,7 +118,43 @@ export class MercadoPagoFalso {
     return this;
   }
 
+  private vistaSuscripcion(id: string) {
+    const s = this.suscripciones.get(id)!;
+    return {
+      id,
+      status: s.status,
+      external_reference: s.external_reference,
+      reason: s.reason,
+      payer_email: s.payer_email,
+      auto_recurring: { frequency: 1, frequency_type: "months", transaction_amount: s.monto, currency_id: "ARS", start_date: s.start_date },
+      next_payment_date: s.next_payment_date ?? null,
+      payment_method_id: s.payment_method_id ?? null,
+    };
+  }
+
+  /** Quien paga cargó su tarjeta: la suscripción queda autorizada. */
+  autorizar(id: string, medio = "visa", proximo = new Date(Date.now() + 30 * 86_400_000)) {
+    const s = this.suscripciones.get(id)!;
+    Object.assign(s, { status: "authorized", payment_method_id: medio, next_payment_date: proximo.toISOString() });
+  }
+
+  /** Un cobro mensual de esa suscripción: `aprobado` → approved; si no, rejected. */
+  cobrar(suscripcionId: string, aprobado: boolean, id = `cob-${this.cobros.size + 1}-${Math.random().toString(36).slice(2, 8)}`) {
+    const s = this.suscripciones.get(suscripcionId)!;
+    this.cobros.set(id, {
+      token: s.token,
+      preapproval_id: suscripcionId,
+      transaction_amount: s.monto,
+      status: "processed",
+      payment_status: aprobado ? "approved" : "rejected",
+      debit_date: new Date().toISOString(),
+    });
+    return id;
+  }
+
   limpiar() {
+    this.suscripciones.clear();
+    this.cobros.clear();
     this.preferencias = [];
     this.pagos.clear();
     this.consultas = [];

@@ -7,6 +7,7 @@ import { proximasFechas } from "./eventos";
 import { EventoPanel, EventosPanel } from "./panel/paginas";
 import { PuertaEvento, PuertaPanel } from "./panel/puerta";
 import { CompraPublica, EventoPublico, FechasPublicas, metadatosEvento } from "./publico/paginas";
+import { LIMITE_SHOWS, ajustarShowsPublicados, contarShowsPublicados } from "./eventos";
 
 const VER = "ticketera.eventos.ver";
 const VALIDAR = "ticketera.puerta.validar";
@@ -46,6 +47,8 @@ const ticketera: Modulo = {
   eventosEscucha: [{ evento: "compra.pagada", manejador: alPagarseCompra }],
   // Para el sitio (y cualquier módulo): las próximas fechas publicadas. Forma en eventos.ts.
   consultas: [{ nombre: "proximas-fechas", responder: proximasFechas }],
+  // Tope de la cuenta (lo fija el plan): shows próximos publicados.
+  limites: [{ clave: LIMITE_SHOWS, etiqueta: "shows publicados", usados: contarShowsPublicados, ajustar: ajustarShowsPublicados }],
 };
 
 export default ticketera;

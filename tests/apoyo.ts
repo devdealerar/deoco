@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
@@ -7,11 +8,21 @@ export const dueno = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL_MIGRACIONES! }),
 });
 
-/** Vacía todas las tablas (núcleo y módulos), menos la de migraciones. */
+/** Los planes y plazos que siembra la migración del módulo comercial (tablas globales). */
+const SEMILLA_COMERCIAL = readFileSync("prisma/migrations/20261103130000_comercial/migration.sql", "utf8").match(/INSERT INTO "comercial_[^;]+;/g) ?? [];
+
+/** Vacía todas las tablas (núcleo y módulos), menos la de migraciones, y vuelve a sembrar los planes. */
 export async function limpiar() {
   const tablas = await dueno.$queryRaw<{ t: string }[]>`
     SELECT tablename AS t FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
   await dueno.$executeRawUnsafe(`TRUNCATE ${tablas.map(({ t }) => `"${t}"`).join(", ")} CASCADE`);
+  await sembrarComercial();
+}
+
+/** Planes y plazos como los deja la migración (las pruebas los cambian). */
+export async function sembrarComercial() {
+  await dueno.$executeRawUnsafe(`TRUNCATE "comercial_plan", "comercial_config"`);
+  for (const sql of SEMILLA_COMERCIAL) await dueno.$executeRawUnsafe(sql);
 }
 
 /** Dos bandas, cada una con su dominio, un usuario titular y un evento. */

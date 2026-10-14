@@ -10,6 +10,7 @@ import { AdminAccesosProveedor } from "./admin/accesos";
 import { avisoDePago } from "./aviso";
 import { alDespacharseOrden, alPagarsePedido } from "./correos";
 import { DisenosTienda } from "./panel/disenos";
+import { LIMITE_PUBLICADOS, ajustarPublicados, contarPublicados } from "./productos";
 import { EditarProducto, NuevoProducto } from "./panel/producto";
 import { DeudaTienda, PedidosTienda } from "./panel/pedidos";
 import { ResumenTienda } from "./panel/resumen";
@@ -36,6 +37,9 @@ const tienda: Modulo = {
     // Probar la conexión con la cuenta de cobro: solo el titular (ni otro rol ni el staff).
     { clave: "tienda.pasarela.conectar", rolesPorDefecto: ["TITULAR"], exclusivoTitular: true },
   ],
+  // Tope de la cuenta (lo fija el plan): al pasarlo no se publica más; si baja, se despublica
+  // lo último publicado.
+  limites: [{ clave: LIMITE_PUBLICADOS, etiqueta: "productos publicados", usados: contarPublicados, ajustar: ajustarPublicados }],
   // Formularios del panel de la tienda (accionesDelPanel).
   edicion: { permiso: "tienda.producto.editar", ruta: "/tienda", sinPermiso: "Tu rol no puede editar la tienda." },
   rutasPanel: [

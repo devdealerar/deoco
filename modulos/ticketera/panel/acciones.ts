@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { accionesDelPanel } from "@/nucleo/acceso/acciones";
+import { ErrorLimite } from "@/nucleo/cuenta";
 import { accesoPanel, puedeEnPedido } from "@/nucleo/acceso/panel";
 import ticketera from "../index";
 import type { EstadoFormulario } from "@/ui";
@@ -26,7 +27,7 @@ import { type ResultadoValidacion, type ResumenPuerta, resumenPuerta, validarEnt
 const VALIDAR = "ticketera.puerta.validar";
 
 /** Toda acción de shows: `edicion` del contrato (ticketera.eventos.editar). */
-const conEdicion = accionesDelPanel(() => ticketera, [ErrorTicketera, ErrorFormulario]);
+const conEdicion = accionesDelPanel(() => ticketera, [ErrorTicketera, ErrorFormulario, ErrorLimite]);
 
 function datosEvento(fd: FormData): DatosEvento {
   const fecha = leerFechaHora(texto(fd, "fecha", 20));

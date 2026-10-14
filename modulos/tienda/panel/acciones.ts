@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { accionesDelPanel } from "@/nucleo/acceso/acciones";
+import { ErrorLimite } from "@/nucleo/cuenta";
 import { exigirPermiso } from "@/nucleo/acceso/panel";
 import { prisma } from "@/nucleo/db/cliente";
 import type { EstadoFormulario } from "@/ui";
@@ -25,7 +26,7 @@ import {
 } from "../productos";
 
 /** Toda acción del panel de la tienda: `edicion` del contrato (tienda.producto.editar). */
-const conEdicion = accionesDelPanel(() => tienda, [ErrorTienda, ErrorImpresion, ErrorArchivo, ErrorFormulario, ErrorContacto]);
+const conEdicion = accionesDelPanel(() => tienda, [ErrorTienda, ErrorImpresion, ErrorArchivo, ErrorFormulario, ErrorContacto, ErrorLimite]);
 
 async function subido(fd: FormData, campo: string) {
   const f = archivo(fd, campo);

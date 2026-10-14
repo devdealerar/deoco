@@ -31,6 +31,9 @@ export function formatearBytes(n: number | bigint) {
   return `${Math.ceil(v / 1024)} KB`;
 }
 
+/** Id con que el gestor de cuenta reconoce el límite de espacio (es del núcleo, no de un módulo). */
+export const LIMITE_ALMACENAMIENTO = "nucleo.almacenamiento";
+
 function limitePorDefecto() {
   return BigInt(process.env.DEOCO_LIMITE_ALMACENAMIENTO ?? 1024 ** 3);
 }
@@ -106,9 +109,15 @@ export async function guardarArchivo(
       const limite = tenant?.limiteAlmacenamiento ?? limitePorDefecto();
       const usado = (await tx.archivo.aggregate({ _sum: { bytes: true } }))._sum.bytes ?? BigInt(0);
       if (usado + total > limite) {
+        // El gestor de cuenta (si hay) dice cómo tener más espacio (p. ej. qué plan lo da).
+        // (Import tardío: el registro importa los módulos, que importan este archivo.)
+        const { registro } = await import("@/nucleo/modulos");
+        const como = await registro()
+          .gestor?.gestion.comoAmpliar(tenantId, LIMITE_ALMACENAMIENTO, Number(usado + total))
+          .catch(() => null);
         throw new ErrorArchivo(
           `No hay espacio para "${nombre}" (${formatearBytes(total)}): la banda usa ${formatearBytes(usado)} ` +
-            `de ${formatearBytes(limite)}. Borrá archivos que no uses o ampliá el espacio.`,
+            `de ${formatearBytes(limite)}. Borrá archivos que no uses${como ? `. ${como}` : " o ampliá el espacio."}`,
         );
       }
       await tx.archivo.create({

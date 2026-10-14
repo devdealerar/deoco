@@ -263,7 +263,7 @@ describe("prueba 9: pasada la cuota, la subida se rechaza con un mensaje claro",
       "Agregar foto",
     );
     expect(await f2.getByRole("alert").textContent()).toMatch(
-      /^No hay espacio para "foto\.jpg" \(.+\): la banda usa .+ de 1 KB\. Borrá archivos que no uses o ampliá el espacio\.$/,
+      /^No hay espacio para "foto\.jpg" \(.+\): la banda usa .+ de 1 KB\. Borrá archivos que no uses( o ampliá el espacio\.|\. .+)$/,
     );
   });
 });
