@@ -113,15 +113,16 @@ export async function conCuentaExternaEnBanda<T>(
 
 export type CuentaExternaVista = { id: string; email: string; nombre: string; claveTemporal: boolean; creadoEn: Date };
 
-/** Cuentas vinculadas a esa referencia (para el back office del módulo). */
-export async function cuentasDeReferencia(modulo: Modulo, referencia: string, reg: Registro = registroGlobal()): Promise<CuentaExternaVista[]> {
+/**
+ * Cuentas vinculadas a esa referencia (para el back office del módulo). `tx`: de leerComoStaff()
+ * o conStaff(); `usuario` tiene RLS y esto pasa por una función que solo responde al staff.
+ */
+export async function cuentasDeReferencia(tx: TxTenant, modulo: Modulo, referencia: string, reg: Registro = registroGlobal()): Promise<CuentaExternaVista[]> {
   conCuentas(modulo, reg);
-  const filas = await prisma.cuentaExterna.findMany({
-    where: { moduloId: modulo.id, referencia },
-    include: { usuario: { select: { email: true, nombre: true, claveTemporal: true } } },
-    orderBy: { creadoEn: "asc" },
-  });
-  return filas.map((f) => ({ id: f.id, email: f.usuario.email, nombre: f.usuario.nombre, claveTemporal: f.usuario.claveTemporal, creadoEn: f.creadoEn }));
+  await exigirStaff(tx);
+  return tx.$queryRaw<CuentaExternaVista[]>`
+    SELECT id, email, nombre, clave_temporal AS "claveTemporal", creado_en AS "creadoEn"
+    FROM cuentas_externas_de(${modulo.id}, ${referencia})`;
 }
 
 const EMAIL = /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/;
@@ -147,22 +148,22 @@ export async function crearCuentaExterna(
   const email = datos.email.trim().toLowerCase();
   if (!EMAIL.test(email) || email.length > 254) throw new ErrorCuentaExterna(`"${datos.email}" no es un email válido.`);
   if (!datos.referencia) throw new ErrorCuentaExterna("Falta la referencia.");
-  let usuario = await tx.usuario.findUnique({ where: { email }, select: { id: true, esStaff: true } });
+  // `usuario` tiene RLS: el staff busca y da de alta por funciones acotadas (nunca un staff).
+  const [existente] = await tx.$queryRaw<{ id: string; es_staff: boolean }[]>`SELECT id, es_staff FROM usuario_por_email_staff(${email})`;
   let clave: string | null = null;
-  if (usuario?.esStaff) throw new ErrorCuentaExterna(`${email} es del staff de Deoco: no puede ser una cuenta externa.`);
-  if (!usuario) {
+  if (existente?.es_staff) throw new ErrorCuentaExterna(`${email} es del staff de Deoco: no puede ser una cuenta externa.`);
+  let usuarioId = existente?.id;
+  if (!usuarioId) {
     const nombre = datos.nombre.trim();
     if (!nombre) throw new ErrorCuentaExterna(`No hay ningún usuario con el email ${email}: completá su nombre para crearlo.`);
     clave = claveTemporal();
-    usuario = await tx.usuario.create({
-      data: { email, nombre: nombre.slice(0, 120), hashContrasena: await hashearContrasena(clave), claveTemporal: true },
-      select: { id: true, esStaff: true },
-    });
+    const hash = await hashearContrasena(clave);
+    [{ id: usuarioId }] = await tx.$queryRaw<{ id: string }[]>`SELECT crear_usuario_temporal(${email}, ${nombre.slice(0, 120)}, ${hash}) AS id`;
   }
   try {
     // createMany: sin RETURNING (la política deja escribir al staff; leer, a todos).
     await tx.cuentaExterna.createMany({
-      data: [{ usuarioId: usuario.id, moduloId: modulo.id, referencia: datos.referencia, creadoPor: datos.creadoPor }],
+      data: [{ usuarioId, moduloId: modulo.id, referencia: datos.referencia, creadoPor: datos.creadoPor }],
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {

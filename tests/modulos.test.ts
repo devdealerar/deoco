@@ -318,6 +318,7 @@ describe("un módulo nunca importa código de otro (ni lo que es solo del núcle
     /^@\/nucleo\/secretos\//, // carga y cifrado: un módulo solo lee lo suyo con leerSecreto
     /^@\/app\//,
     /^@\/\.\./,
+    /^@\/nucleo\/db\/con-usuario$/, // la fila de una persona: solo el núcleo, con el id de la sesión
   ];
   function archivos(dir: string): string[] {
     return readdirSync(dir).flatMap((f) => {
@@ -346,6 +347,26 @@ describe("un módulo nunca importa código de otro (ni lo que es solo del núcle
     for (const id of readdirSync("modulos").filter((d) => statSync(path.join("modulos", d)).isDirectory())) {
       for (const f of archivos(path.resolve("modulos", id)).filter((x) => /\.(ts|tsx)$/.test(x))) {
         if (readFileSync(f, "utf8").includes("transaccionDeBanda")) usos.push(path.relative(".", f));
+      }
+    }
+    expect(usos).toEqual([]);
+  });
+
+  it("ningún módulo toca `usuario`: ni el modelo, ni sus funciones, ni la variable de la persona", () => {
+    // Lo de una persona le llega por el núcleo (@/nucleo/personas). La base tampoco lo deja
+    // (RLS, tests/usuario.test.ts); esto lo marca antes de que alguien lo intente.
+    const PROHIBIDO = [
+      /\.usuario\./, // tx.usuario.findMany(...)
+      /\busuario:\s*\{/, // include / select de la relación
+      /\busuario:\s*true\b/,
+      /app\.usuario_id|app_usuario_id|usuario_para_ingresar|usuario_por_email_staff|crear_usuario_temporal|cuentas_externas_de/,
+      /\bconUsuario\b|\busuarioPropio\b/,
+    ];
+    const usos: string[] = [];
+    for (const id of readdirSync("modulos").filter((d) => statSync(path.join("modulos", d)).isDirectory())) {
+      for (const f of archivos(path.resolve("modulos", id)).filter((x) => /\.(ts|tsx|sql)$/.test(x))) {
+        const texto = readFileSync(f, "utf8");
+        for (const r of PROHIBIDO) if (r.test(texto)) usos.push(`${path.relative(".", f)}: ${r}`);
       }
     }
     expect(usos).toEqual([]);

@@ -170,7 +170,23 @@ y por qué. Si alguna no va, se cambia.
    banda carga un contacto después, se ve el nuevo (la tienda lo deja leer); si no, la copia.
 6. **La migración vieja de `tenant` no se borra**: puede estar aplicada en producción y Prisma
    compara checksums. La del núcleo la reemplaza (borra la política y la crea con dueño claro).
-7. **AGUJERO ENCONTRADO, sin arreglar:** `usuario` no tiene RLS. Cualquier transacción de la app
-   (del núcleo, de un módulo, la del proveedor) puede borrar o cambiar cualquier usuario, incluido
-   `esStaff`. Está anotado como excepción con nombre en la prueba. Arreglarlo toca login, cambio
-   de clave y altas: a decidir.
+7. **Agujero encontrado acá:** `usuario` no tenía RLS. Arreglado en G2b (abajo).
+
+## G2b · `usuario` con RLS
+
+1. **La persona, por una variable propia** (`app.usuario_id`, la fija `conUsuario()` del núcleo con
+   el id de la sesión). No reusa `app.tenant_id`: una persona no es de una banda.
+2. **`esStaff` por privilegios de columna, no por política**: deoco_app no tiene UPDATE sobre
+   `esStaff` ni `email`, ni INSERT ni DELETE en la tabla. Ninguna variable de sesión lo habilita;
+   solo el back office (deoco_admin) o SQL a mano.
+3. **Las altas del staff (cuentas externas) por funciones SECURITY DEFINER** que exigen
+   `app_es_staff()` y crean siempre sin staff y con clave temporal. El staff no lee la tabla: ni
+   en conStaff (ahí corre código de módulos).
+4. **Lectura de staff sin auditoría** (`leerComoStaff`): listar quién entra a un portal no cambia
+   nada; auditar cada vista llenaría la tabla. Escribir sigue siendo `conStaff` (auditado).
+5. **El contacto de la tienda** sigue cayendo en el mail del titular si la banda no cargó uno, pero
+   lo pide al núcleo (`titularDeBanda`, solo de su banda) en vez de leer `usuario`.
+6. **Login**: la función devuelve id + hash (lo mínimo para verificar con argon2 en la app). Quien
+   tenga la conexión de la app puede pedir el hash de un email; es lo mismo que necesita el login
+   y no da más que eso.
+

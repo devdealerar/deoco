@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { leerComoStaff } from "@/nucleo/acceso/staff";
 import type { PropsRutaAdmin } from "@/nucleo/modulos/contrato";
 import { Campo, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
 import { listarProveedores } from "../catalogo";
@@ -12,7 +13,7 @@ const DIA = new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeZone: "Am
 export async function AdminAccesosProveedor({ params }: PropsRutaAdmin) {
   const proveedor = (await listarProveedores()).find((p) => p.id === params.id);
   if (!proveedor) notFound();
-  const cuentas = await accesosDeProveedor(proveedor.id);
+  const cuentas = await accesosDeProveedor(leerComoStaff, proveedor.id);
   return (
     <div className="flex flex-col gap-6">
       <header>

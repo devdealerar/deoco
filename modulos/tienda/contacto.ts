@@ -1,6 +1,7 @@
 // Contacto de la tienda: a quién le responde el fan (responder-a del mail de compra) y con
 // quién habla el proveedor. Lo carga la banda; si no, el mail del titular de la banda.
 import { conTenant } from "@/nucleo/db/con-tenant";
+import { titularDeBanda } from "@/nucleo/personas";
 
 export type Contacto = { nombre: string; email: string; telefono: string; cargado: boolean };
 
@@ -15,8 +16,8 @@ export async function contactoDeTienda(tenantId: string): Promise<Contacto> {
     if (config?.contactoEmail) {
       return { nombre: config.contactoNombre || banda.nombre, email: config.contactoEmail, telefono: config.contactoTelefono, cargado: true };
     }
-    const titular = await tx.membresia.findFirst({ where: { rol: "TITULAR" }, orderBy: { id: "asc" }, include: { usuario: { select: { email: true } } } });
-    return { nombre: config?.contactoNombre || banda.nombre, email: titular?.usuario.email ?? "", telefono: config?.contactoTelefono ?? "", cargado: false };
+    const titular = await titularDeBanda(tx);
+    return { nombre: config?.contactoNombre || banda.nombre, email: titular?.email ?? "", telefono: config?.contactoTelefono ?? "", cargado: false };
   });
 }
 

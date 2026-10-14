@@ -4,13 +4,13 @@ import { forbidden, notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import type { EstadoTenant } from "@/generated/prisma/client";
 import { auth } from "@/nucleo/auth";
-import { prisma } from "@/nucleo/db/cliente";
 import { registro } from "@/nucleo/modulos";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import { accesoTienePermiso } from "@/nucleo/permisos/puede";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { registrarAccesoStaff } from "./registro-staff";
 import { type Acceso, esAccesoStaff, resolverAcceso } from "./resolver";
+import { usuarioPropio } from "./usuario";
 
 export type AccesoPanel = Acceso & { estado: EstadoTenant; viaStaff: boolean };
 
@@ -26,7 +26,7 @@ export const usuarioDeSesion = cache(async (): Promise<string | null> => {
 export const usuarioActivo = cache(async (): Promise<string | null> => {
   const usuarioId = await usuarioDeSesion();
   if (!usuarioId) return null;
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { claveTemporal: true } });
+  const usuario = await usuarioPropio(usuarioId);
   if (!usuario) return null;
   if (usuario.claveTemporal) redirect("/clave");
   return usuarioId;

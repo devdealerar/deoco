@@ -9,6 +9,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import type { TxTenant } from "@/nucleo/db/con-tenant";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import { usuarioDeSesion } from "./panel";
+import { usuarioPropio } from "./usuario";
 
 export class ErrorStaff extends Error {}
 
@@ -27,7 +28,7 @@ export async function conStaffComo<T>(
   fn: (tx: TxTenant, ctx: ContextoStaff) => Promise<T>,
 ): Promise<T> {
   if (!ACCION.test(accion)) throw new ErrorStaff(`Acción de auditoría inválida: "${accion}" (modulo.accion).`);
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { esStaff: true } });
+  const usuario = await usuarioPropio(usuarioId);
   if (!usuario?.esStaff) throw new ErrorStaff("Solo el staff de Deoco.");
   let detalle: Prisma.InputJsonValue = {};
   return prisma.$transaction(async (tx) => {
@@ -39,6 +40,28 @@ export async function conStaffComo<T>(
     return r;
   });
 }
+
+/**
+ * Lectura como staff, sin auditoría (no cambia nada): lo que solo el staff ve, como las personas
+ * con acceso a un portal (cuentasDeReferencia). `usuarioId` verificado; fuera de un pedido.
+ */
+export async function leerComoStaffComo<T>(usuarioId: string, fn: (tx: TxTenant) => Promise<T>): Promise<T> {
+  if (!(await usuarioPropio(usuarioId))?.esStaff) throw new ErrorStaff("Solo el staff de Deoco.");
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.staff', 'si', true)`;
+    return fn(tx);
+  });
+}
+
+/** leerComoStaffComo() con el usuario de la sesión. No staff (o host de banda) → 404. */
+export async function leerComoStaff<T>(fn: (tx: TxTenant) => Promise<T>): Promise<T> {
+  if (await tenantDelPedido()) notFound();
+  const usuarioId = await usuarioDeSesion();
+  if (!usuarioId || !(await usuarioPropio(usuarioId))?.esStaff) notFound();
+  return leerComoStaffComo(usuarioId, fn);
+}
+
+export type LeerComoStaff = typeof leerComoStaff;
 
 /**
  * Como staff, el usuario de la sesión. Cualquier otro caso (sin sesión, no staff, host de

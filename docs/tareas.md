@@ -17,6 +17,7 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 | F | Vista previa del sitio = sitio público (fechas de la ticketera, pestañas, cabecera) | ✅ hecha |
 | G1 | Arreglos · bloque 1: apertura de venta (pool, transacciones, errores, carga) y token fuera de la URL | ✅ hecha |
 | G2 | Arreglos · bloque 2: el proveedor escribe con la base como límite; política de `tenant` al núcleo | ✅ hecha |
+| G2b | Arreglos · bloque 2b: `usuario` con RLS; prueba del sitio que se demoraba | ✅ hecha |
 
 - A1: `src/nucleo/barrido.ts` (`barrer`, `iniciarBarrido` desde `instrumentation.ts`). Bandas
   con algo para retomar por `bandas_con_pendientes()` (SECURITY DEFINER, solo ids). Eventos:
@@ -86,6 +87,25 @@ Componentes PRO de Untitled UI resueltos con uno propio: `docs/untitled-ui-pro.m
 - G2, `tenant`: la política de lectura del staff pasa a una migración del núcleo
   (`20261029090000_nucleo_staff_lee_tenant`). Prueba: una migración que cambia tablas de un
   módulo no cambia tablas del núcleo ni de otro módulo (`tests/aislamiento.test.ts`).
+- G2b, `usuario` con RLS (migración `20261030100000_usuario_rls`):
+  - La persona lee y edita su fila en `conUsuario(id)` (`app.usuario_id`, solo núcleo). Una vez
+    por pedido: `usuarioPropio()` (rol, staff, clave temporal, pantalla `/clave`).
+  - deoco_app: sin INSERT ni DELETE; UPDATE solo de `nombre`, `hashContrasena`, `claveTemporal`.
+    `esStaff` y `email` no se escriben desde la app ni forzando la consulta. La marca de clave
+    temporal se saca solo cambiando la clave (disparador).
+  - Login: `usuario_para_ingresar(email)` → id + hash. Staff (conStaff/leerComoStaff):
+    `usuario_por_email_staff`, `crear_usuario_temporal` (nunca staff), `cuentas_externas_de`.
+  - Un módulo no lee `usuario`: el contacto de la tienda usa `titularDeBanda(tx)`
+    (`@/nucleo/personas`, solo su banda). Prueba estática en `tests/modulos.test.ts`.
+  - Back office: sin cambios (deoco_admin, BYPASSRLS). Pruebas: `tests/usuario.test.ts`; la del
+    recorrido de tablas del proveedor ya no tiene excepciones.
+- G2b, la prueba del sitio que fallaba de a ratos: no era el sitio. `next dev` compila cada ruta la
+  primera vez que se pide, y acá eso llegó a tardar más de 30 s (el límite de Playwright para
+  navegar). El archivo del sitio corre primero, así que pagaba esas compilaciones: en la corrida
+  que falló, `goto /ingresar` y `goto banda-a.lvh.me/` vencieron y otras 4 pruebas cayeron en
+  cascada porque usan lo que carga la primera. Ahora `tests/e2e/servidor.ts` compila todas las
+  rutas antes de la primera prueba (`precalentar`, ~40 s en frío), sin apuro; ninguna prueba
+  mide compilación. Probado borrando la caché de Turbopack: 75/75.
 
 ## Paso 4 · Módulo de tienda
 
@@ -480,7 +500,7 @@ en `tests/e2e/modulos.e2e.ts` un pedido real responde en ~300 ms con un suscript
 
 - La política usa `app_tenant_id()` = `NULLIF(current_setting('app.tenant_id', true), '')::uuid`.
   Sin variable fijada da NULL → cero filas (en vez de error). Equivale a la regla pedida.
-- `tenant` tiene RLS por su propio `id`. `usuario` no tiene RLS (identidad global, sin `tenantId`).
+- `tenant` tiene RLS por su propio `id`. `usuario` tiene RLS por persona desde G2b (antes no tenía).
 - `dominio` tiene RLS; el middleware resuelve el host con la función
   `resolver_tenant_por_host(host)` (SECURITY DEFINER), que devuelve solo el id del tenant.
 - `moduloTenant`: la existencia de la fila = módulo prendido.

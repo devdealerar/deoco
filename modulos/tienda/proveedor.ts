@@ -14,6 +14,7 @@ import {
   ErrorCuentaExterna,
   quitarCuentaExterna,
 } from "@/nucleo/acceso/externas";
+import type { LeerComoStaff } from "@/nucleo/acceso/staff";
 import { urlFirmada } from "@/nucleo/archivos/firmados";
 import { emitir } from "@/nucleo/eventos/bus";
 import type { ComoStaff } from "./catalogo";
@@ -271,4 +272,5 @@ export async function quitarAccesoProveedor(comoStaff: ComoStaff, cuentaId: stri
   });
 }
 
-export const accesosDeProveedor = (proveedorId: string) => cuentasDeReferencia(tienda, proveedorId);
+/** Quiénes entran al panel del proveedor. `leer`: leerComoStaff (el back office) o equivalente. */
+export const accesosDeProveedor = (leer: LeerComoStaff, proveedorId: string) => leer((tx) => cuentasDeReferencia(tx, tienda, proveedorId));

@@ -1,6 +1,6 @@
 import type { Rol } from "@/generated/prisma/client";
-import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
+import { usuarioPropio } from "./usuario";
 
 /** Quién es el usuario dentro de una banda, resuelto en cada pedido. */
 export type Acceso = {
@@ -13,10 +13,7 @@ export type Acceso = {
 
 /** usuario + tenant → membresía → rol. null si no tiene membresía ni es staff. */
 export async function resolverAcceso(usuarioId: string, tenantId: string): Promise<Acceso | null> {
-  const usuario = await prisma.usuario.findUnique({
-    where: { id: usuarioId },
-    select: { esStaff: true },
-  });
+  const usuario = await usuarioPropio(usuarioId);
   if (!usuario) return null;
   const membresia = await conTenant(tenantId, (tx) =>
     tx.membresia.findUnique({

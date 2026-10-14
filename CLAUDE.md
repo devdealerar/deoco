@@ -45,6 +45,10 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
   ni el staff (pasarela de cobro). La excepción del staff está en `src/nucleo/permisos/puede.ts`.
   Un permiso de un módulo apagado para la banda es siempre false.
 - Staff sin membresía: `registrarAccesoStaff()` lo deja en `auditoria` (una fila cada 10 min).
+- `usuario` tiene RLS por persona: `conUsuario(id)` (`app.usuario_id`, solo núcleo) y
+  `usuarioPropio(id)` (una vez por pedido). deoco_app no escribe `esStaff`/`email` ni inserta o
+  borra; login por `usuario_para_ingresar()`, altas del staff por funciones acotadas
+  (`crearCuentaExterna`). Un módulo no lee `usuario`: `titularDeBanda(tx)` (`@/nucleo/personas`).
 
 ## Módulos
 

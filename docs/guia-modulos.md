@@ -452,6 +452,10 @@ navegacion: [{ etiqueta: "Órdenes", href: "/", externa: true, orden: 10 }],
   Ejemplo: la migración `tienda_proveedor_escribe_en_la_base`. Nunca uses `conTenant` para la
   cuenta externa: le abre la banda entera.
 - Elegí las columnas a mano: RLS filtra filas, no columnas (el proveedor no ve montos de venta).
+- Quiénes entran al portal (back office): `cuentasDeReferencia(tx, modulo, referencia)` con la
+  `tx` de `leerComoStaff` (o de `conStaff`). Ejemplo: `accesosDeProveedor` en la tienda.
+- Personas: un módulo nunca lee ni escribe `usuario` (RLS no lo deja; `tests/modulos.test.ts`
+  lo marca antes). Para el contacto de la banda: `titularDeBanda(tx)` de `@/nucleo/personas`.
 - Ejemplo completo: `modulos/tienda/proveedor.ts` y `modulos/tienda/portal/`.
 
 ## 7. Encendido

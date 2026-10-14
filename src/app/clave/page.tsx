@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { exigirPlataforma, usuarioDeSesion } from "@/nucleo/acceso/panel";
+import { usuarioPropio } from "@/nucleo/acceso/usuario";
 import { LARGO_MINIMO_CLAVE } from "@/nucleo/auth/clave";
-import { prisma } from "@/nucleo/db/cliente";
 import { Campo, Formulario, Tarjeta } from "@/ui";
 import { BotonSalir } from "../salir";
 import { guardarClave } from "./acciones";
@@ -11,7 +11,7 @@ export default async function Clave({ searchParams }: { searchParams: Promise<{ 
   await exigirPlataforma();
   const usuarioId = await usuarioDeSesion();
   if (!usuarioId) redirect("/ingresar?volver=/clave");
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { email: true, claveTemporal: true } });
+  const usuario = await usuarioPropio(usuarioId);
   const { volver = "/" } = await searchParams;
 
   return (

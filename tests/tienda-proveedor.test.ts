@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { conCuentaExterna, conCuentaExternaEnBanda, crearCuentaExterna, portalesDe } from "@/nucleo/acceso/externas";
-import { conStaffComo } from "@/nucleo/acceso/staff";
+import { conStaffComo, type LeerComoStaff, leerComoStaffComo } from "@/nucleo/acceso/staff";
 import { urlFirmada, verificarFirma } from "@/nucleo/archivos/firmados";
 import { bandejaDeSalida, esperarCorreos, vaciarBandeja } from "@/nucleo/correo";
 import { conTenant } from "@/nucleo/db/con-tenant";
@@ -27,6 +27,7 @@ import { dueno, escenarioAcceso } from "./apoyo";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
 let comoStaff: ComoStaff;
+let leer: LeerComoStaff;
 let sur: { id: string };
 let prensa: { id: string };
 let remeraBase: { id: string };
@@ -63,6 +64,7 @@ const ordenDe = async (usuarioId: string, banda: string) => (await ordenesDelPro
 beforeAll(async () => {
   e = await escenarioAcceso();
   comoStaff = (accion, fn) => conStaffComo(e.staff.id, accion, fn);
+  leer = (fn) => leerComoStaffComo(e.staff.id, fn);
   for (const t of ["tiendaPagoExtra", "tiendaOrden", "tiendaDeuda", "tiendaPedidoItem", "tiendaPedido", "tiendaProducto", "tiendaDiseno", "tiendaProductoBase", "tiendaProveedor"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
@@ -106,7 +108,7 @@ afterAll(async () => {
 
 describe("acceso del proveedor (cuenta externa)", () => {
   it("lo da el staff; el usuario no es de ninguna banda y entra a su portal", async () => {
-    expect((await accesosDeProveedor(sur.id)).map((c) => [c.email, c.claveTemporal])).toEqual([["taller@sur.com", true]]);
+    expect((await accesosDeProveedor(leer, sur.id)).map((c) => [c.email, c.claveTemporal])).toEqual([["taller@sur.com", true]]);
     expect(await dueno.membresia.count({ where: { usuarioId: delSur } })).toBe(0);
     expect(await portalesDe(delSur)).toEqual([{ moduloId: "tienda", etiqueta: "Panel de proveedor", href: "/portal/tienda" }]);
     // Fuera del staff no se puede dar acceso; a alguien del staff, tampoco.
@@ -117,7 +119,7 @@ describe("acceso del proveedor (cuenta externa)", () => {
 
   it("quitar el acceso: ya no lee nada", async () => {
     await darAccesoProveedor(comoStaff, sur.id, { email: "otro@sur.com", nombre: "Otro" });
-    const [, otro] = await accesosDeProveedor(sur.id);
+    const [, otro] = await accesosDeProveedor(leer, sur.id);
     await quitarAccesoProveedor(comoStaff, otro.id);
     const id = (await dueno.usuario.findUniqueOrThrow({ where: { email: "otro@sur.com" } })).id;
     await expect(ordenesDelProveedor(id)).rejects.toThrow(/no tiene cuenta externa/);
@@ -252,13 +254,14 @@ describe("el alcance del proveedor lo pone la base, no el código", () => {
 
   it("ninguna política de escritura queda abierta para una cuenta externa salvo las nombradas", async () => {
     // Toda política que deja escribir (INSERT/UPDATE/DELETE/ALL) depende de la banda fijada
-    // (conTenant), del staff (conStaff) o es una de estas, pensadas para la cuenta externa.
+    // (conTenant), del staff (conStaff), de la propia persona (conUsuario, su fila de `usuario`)
+    // o es una de estas, pensadas para la cuenta externa.
     const PERMITIDAS = ["auditoria/externa_audita", "evento/externa_emite", "tienda_deuda/proveedor_actualiza", "tienda_orden/proveedor_actualiza"];
     const politicas = await dueno.$queryRaw<{ tabla: string; nombre: string; cmd: string; condicion: string }[]>`
       SELECT tablename AS tabla, policyname AS nombre, cmd, coalesce(qual, '') || ' ' || coalesce(with_check, '') AS condicion
       FROM pg_policies WHERE schemaname = 'public' AND cmd <> 'SELECT'`;
     const abiertas = politicas.filter(
-      (p) => !/app_tenant_id\(\)|app_es_staff\(\)/.test(p.condicion) && !PERMITIDAS.includes(`${p.tabla}/${p.nombre}`),
+      (p) => !/app_tenant_id\(\)|app_es_staff\(\)|app_usuario_id\(\)/.test(p.condicion) && !PERMITIDAS.includes(`${p.tabla}/${p.nombre}`),
     );
     expect(abiertas.map((p) => `${p.tabla}/${p.nombre} (${p.cmd}): ${p.condicion}`)).toEqual([]);
     // Y las nombradas, solo en la banda fijada para la cuenta externa.
@@ -281,11 +284,8 @@ describe("el alcance del proveedor lo pone la base, no el código", () => {
       }
       return r;
     });
-    // AGUJERO CONOCIDO, a decidir: `usuario` no tiene RLS (identidad global), así que cualquier
-    // transacción de la app (esta incluida) puede escribirla. Anotado; no es de la banda.
-    const AGUJEROS_CONOCIDOS = ["usuario"];
+    // Sin excepciones: también `usuario` (RLS + privilegios por columna).
     for (const [tabla, { borrar, tocar }] of Object.entries(resultado)) {
-      if (AGUJEROS_CONOCIDOS.includes(tabla)) continue;
       expect(borrar, `${tabla}: borrar`).not.toSatisfy((x: number | string) => typeof x === "number" && x > 0);
       // Un UPDATE "sin cambios" en sus órdenes y deudas lo frena el disparador de columnas
       // (solo se despacha o se salda): en ninguna tabla una fila queda tocada.

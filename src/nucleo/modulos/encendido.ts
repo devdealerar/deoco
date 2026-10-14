@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { prisma } from "@/nucleo/db/cliente";
+import { usuarioPropio } from "@/nucleo/acceso/usuario";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "./index";
 import type { Registro } from "./registro";
@@ -42,7 +42,7 @@ const lista = (ids: string[]) => ids.map((d) => `"${d}"`).join(", ");
 
 /** Prender y apagar módulos es tarea del staff de Deoco (sin pantalla por ahora). */
 async function exigirStaff(staffId: string) {
-  const usuario = await prisma.usuario.findUnique({ where: { id: staffId }, select: { esStaff: true } });
+  const usuario = await usuarioPropio(staffId);
   if (!usuario?.esStaff) throw new ErrorModulo("Solo el staff de Deoco puede prender o apagar módulos.");
 }
 

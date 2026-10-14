@@ -4,6 +4,7 @@
 // transacción se copian los costos, se registra la deuda y se emite pedido.pagado.
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { emitir } from "@/nucleo/eventos/bus";
+import { titularDeBanda } from "@/nucleo/personas";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { fijarCostosDelPedido } from "./catalogo";
 import { tituloEnvio } from "./comun";
@@ -116,10 +117,10 @@ export async function registrarDeudas(tx: TxTenant, tenantId: string, pedidoId: 
   const config = await tx.tiendaConfig.findUnique({ where: { tenantId } });
   const titular = config?.contactoEmail
     ? null
-    : await tx.membresia.findFirst({ where: { rol: "TITULAR" }, orderBy: { id: "asc" }, select: { usuario: { select: { email: true } } } });
+    : await titularDeBanda(tx);
   const contacto = {
     contactoNombre: config?.contactoNombre || bandaNombre,
-    contactoEmail: config?.contactoEmail || titular?.usuario.email || "",
+    contactoEmail: config?.contactoEmail || titular?.email || "",
     contactoTelefono: config?.contactoTelefono ?? "",
   };
   await tx.tiendaOrden.createMany({
