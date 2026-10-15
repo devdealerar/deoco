@@ -38,7 +38,7 @@ sigue igual en `docs/despliegue.md`. **Nuevo**:
    `https://app.deoco.com/avisos/plataforma/comercial/cuota/mercadopago`, eventos de
    suscripciones; la **clave secreta** → `DEOCO_CUOTA_MP_SECRETO_AVISOS`.
 3. Recomendada: `DEOCO_CUOTA_RESPONDER_A` (casilla de Deoco a la que responden las bandas los
-   mails del alta, la mora y la suspensión). Opcional: y `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` (plazos de limpieza).
+   mails del alta, la mora y la suspensión). Opcional: `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` (plazos de limpieza).
 4. `DEOCO_CORREO=smtp` ya no es opcional en la práctica: sin mail no hay alta sola.
 5. Con tu usuario de staff, en `/admin/m/comercial/planes`: **precios en pesos** de Esencial,
    Medium y Premium (sin precio no se pueden elegir); revisar espacio y topes de cada plan
