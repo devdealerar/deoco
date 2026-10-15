@@ -9,6 +9,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import { registro } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { problemasDeCorreo } from "@/nucleo/correo/transporte";
+import { problemasDeRegistrador } from "@/nucleo/dominios/registrador";
 import { cuotaConfigurada } from "@/nucleo/pagos/cuota";
 import { claveMaestra } from "@/nucleo/secretos/cifrado";
 
@@ -54,6 +55,11 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
     if (env.DEOCO_RESEND_TOKEN?.trim() && !env.DEOCO_CLOUDFLARE_KV?.trim()) {
       p.push("Con DEOCO_RESEND_TOKEN y Cloudflare falta DEOCO_CLOUDFLARE_KV (el namespace de KV del reenvío de correo).");
     }
+  }
+  // Vender dominios: el registrador bien configurado, y Cloudflare (un dominio comprado vive en una zona nuestra).
+  p.push(...problemasDeRegistrador(env));
+  if (env.DEOCO_REGISTRADOR?.trim() && !env.DEOCO_CLOUDFLARE_TOKEN?.trim()) {
+    p.push("DEOCO_REGISTRADOR necesita Cloudflare configurado (DEOCO_CLOUDFLARE_*): un dominio comprado vive en una zona de Deoco.");
   }
   if (build.generadoPara !== "produccion") {
     p.push("La lista de módulos no es de producción (incluiría módulos de desarrollo): construí con `next build`.");

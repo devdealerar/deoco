@@ -32,6 +32,12 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D7: `src/nucleo/dominios/registrador.ts` (interfaz `Registrador`, `ErrorRegistrador` con cinco
+  tipos, `registrador()` por `DEOCO_REGISTRADOR`), `godaddy.ts` (subcuenta por banda, registro a
+  nombre del titular sin renovación automática, 202 + acciones, nunca dos registros, código de
+  transferencia con la subcuenta), `cola.ts` (59 pedidos por minuto, en orden). Sin pantallas ni
+  cobro todavía. Arranque: registrador bien configurado y con Cloudflare. Pruebas:
+  `tests/registrador.test.ts` con `tests/registrador-falso.ts`. Endpoints sin confirmar: diseño §12.
 - D6: `src/nucleo/dominios/salida.ts` (`llevarseElDns`, `quedarseEnDeoco`, `revisarSalidas` en el
   barrido), `bind.ts` (archivo de zona para importar), `soltarZona` al quitar un delegado,
   `validarPorHttp`; tabla `zona_saliente`. "Cómo me lo llevo" en cada dominio (delegado: el
@@ -65,7 +71,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME ya está en D1) + vencimiento de delegaciones | 2 | ✅ hecha |
 | D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | ✅ hecha |
 | D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | ✅ hecha |
-| D7 | `Registrador` GoDaddy v2 + falso | 5–7 | pendiente |
+| D7 | `Registrador` GoDaddy v2 + falso | 5–7 | ✅ hecha |
 | D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | pendiente |
 | D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | pendiente |
 | D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | pendiente |

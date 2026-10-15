@@ -605,6 +605,12 @@ un registro DNS.
   sobre SPF/DKIM del entrante.
 - [ ] **GoDaddy, programa API Reseller**: contrato, saldo prepago, entorno de pruebas (lo
   averiguás vos).
+- [ ] **GoDaddy, endpoints sin confirmar en D7** (marcados "SIN CONFIRMAR" en
+  `src/nucleo/dominios/godaddy.ts`; probarlos en el entorno de pruebas de GoDaddy, OTE):
+  disponibilidad y condiciones (v1), alta de la subcuenta (`/v1/shoppers/subaccount`), los nombres
+  de las acciones (`REGISTER`, `RENEW`, `DOMAIN_UPDATE_NAME_SERVERS`, `DOMAIN_UPDATE_CONTACTS`,
+  `TRANSFER`), desbloqueo y código (v1 con `X-Shopper-Id`), cambio de titular y transferencia
+  entrante (v2), y los códigos de error que se traducen (no disponible, sin saldo).
 - [ ] **GoDaddy v2**: clave de idempotencia; campos de aceptación de condiciones; endpoint de
   transferencia entrante a una subcuenta; mail de verificación del titular (ICANN) y qué pasa si
   no lo confirma; plazos de bloqueo, gracia y recuperación; privacidad de datos.
@@ -629,7 +635,7 @@ quiera.
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME entró en D1) — ✅ hecha | S | 2 |
 | D5 | Correo: `DominioDeEnvio` (Resend), Email Worker + KV, pantalla Correo, remitente en `enviarCorreo` — ✅ hecha | M | 4 a 5 |
 | D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino — ✅ hecha | S | 2 |
-| D7 | `Registrador` con GoDaddy v2 + registrador falso | L | 5 a 7 |
+| D7 | `Registrador` con GoDaddy v2 + registrador falso — ✅ hecha | L | 5 a 7 |
 | D8 | Máquina de estados, tablas, barrido; back office de dominios | L | 5 |
 | D9 | Cobro en el gestor: precios por terminación, Checkout Pro de Deoco, aviso, devoluciones | M | 3 a 4 |
 | D10 | Pantallas de compra: buscar, titular, resumen (con el costo de salida), progreso, listo | M | 4 |

@@ -36,6 +36,8 @@ describe("verificación de arranque: entorno", () => {
     [{ DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_IP_PUBLICA: "203.0.113.10" }, /falta DEOCO_CLOUDFLARE_CUENTA/],
     [{ DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_CLOUDFLARE_CUENTA: "c" }, /falta DEOCO_IP_PUBLICA/],
     [{ DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_CLOUDFLARE_CUENTA: "c", DEOCO_IP_PUBLICA: "203.0.113.10", DEOCO_RESEND_TOKEN: "re" }, /falta DEOCO_CLOUDFLARE_KV/],
+    [{ DEOCO_REGISTRADOR: "godaddy" }, /necesita DEOCO_GODADDY_KEY y DEOCO_GODADDY_SECRET/],
+    [{ DEOCO_REGISTRADOR: "godaddy", DEOCO_GODADDY_KEY: "k", DEOCO_GODADDY_SECRET: "s" }, /necesita Cloudflare configurado/],
   ])("%o", (cambio, problema) => {
     expect(problemasDeEntorno({ ...BIEN, ...cambio }, PROD).join("\n")).toMatch(problema);
   });

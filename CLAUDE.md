@@ -129,6 +129,9 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   los correos de los módulos de la banda salen desde ahí (`direccionDeEnvio`); los de origen
   `nucleo`, desde Deoco. Recepción solo en delegados sin MX propio: Email Routing → Email Worker
   (`infra/cloudflare/reenvio`, lee el destino del KV `DEOCO_CLOUDFLARE_KV`) → Resend.
+- Registrador (D7, sin pantallas todavía): `Registrador` (`registrador.ts`, `registrador()` por
+  `DEOCO_REGISTRADOR`), GoDaddy en `godaddy.ts` (subcuenta por banda, cola de 59/min). Pruebas:
+  `tests/registrador-falso.ts`.
 - Traefik (Easypanel): las rutas de Deoco van en el YAML propio (no en Easypanel); `aop` solo en
   `app.` (host exacto) y lista de IPs de Cloudflare en todas (`docs/despliegue.md`).
 
