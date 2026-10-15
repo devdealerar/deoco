@@ -11,7 +11,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | --- | --- | --- | --- |
 | D0 | Preparación única en Cloudflare (staff): fallback origin, `customers.<raíz>`, token, Email Routing, Worker y KV | — | pendiente (vos) |
 | D1 | Revisión, verificación y principal según el estado de Cloudflare; `ProveedorDns` mínimo + falso | 3,5–4,5 | pendiente |
-| D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | pendiente |
+| D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | ensayo local hecho: comodín ✅; Authenticated Origin Pulls pide decidir A/B/C (`docs/diseno-dominios.md`, §1) |
 | D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | pendiente |
 | D4 | Conectar por CNAME (Cloudflare for SaaS) y pasar de conectado a delegado sin corte | 3 | pendiente |
 | D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | pendiente |

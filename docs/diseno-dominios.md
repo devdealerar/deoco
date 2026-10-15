@@ -85,6 +85,69 @@ alguien cargó a mano:
 
 Es la parte 2 del plan y se cierra con un ensayo real.
 
+#### Ensayo local (15/10/2026, imagen de producción del commit `9a92f09`, Traefik 3.4.5)
+
+Montaje: Postgres 16 + la imagen de la app (migraciones al arrancar) + Traefik con lo que
+Easypanel genera hoy (`Host(app.<raíz>)` y `HostRegexp(^.+\.<raíz>$)` con el certificado del
+comodín) y **un archivo más**, la ruta comodín:
+
+```yaml
+http:
+  routers:
+    deoco-comodin:
+      rule: "HostRegexp(`.+`)"
+      priority: 1
+      entryPoints: [websecure]
+      service: deoco      # el mismo servicio de la app
+      tls: {}
+```
+
+Dos bandas: Los Satélites (`cualquier-dominio.com` principal, `www.cualquier-dominio.com`) y
+Niebla Norte (`nieblanorte.com.ar` principal, `sin-verificar.com` sin verificar).
+
+| Pedido (HTTPS, SNI y `Host` iguales) | Ruta de Traefik | Respuesta |
+| --- | --- | --- |
+| `cualquier-dominio.com` | comodín | 200, Los Satélites |
+| `nieblanorte.com.ar` | comodín | 200, Niebla Norte |
+| `www.cualquier-dominio.com` | comodín | 307 → `https://cualquier-dominio.com/` (con `https`: Traefik pasa `X-Forwarded-Proto`) |
+| `sin-verificar.com`, `otro.com` | comodín | 404 de la app |
+| `satelites.deoco.test`, `niebla.deoco.test` | la de Easypanel | 307 a su dominio principal |
+| `app.deoco.test` | la de Easypanel | panel, igual que antes |
+
+**La ruta comodín funciona**: un dominio que nadie cargó en Traefik llega a la app y resuelve la
+banda correcta; las rutas que ya existían no cambian (la comodín tiene la prioridad mínima).
+
+**Authenticated Origin Pulls, como lo había propuesto, no alcanza.** Se simuló con una CA propia
+en lugar de la de Cloudflare (`clientAuth: RequireAndVerifyClientCert`):
+
+- Las opciones TLS de Traefik se eligen por SNI y solo se pueden atar a rutas con `Host(...)`.
+  Las rutas `HostRegexp` (la comodín y **la de los subdominios de banda**) usan las opciones
+  `default` (Traefik lo avisa en el log).
+- Exigir el certificado de cliente en `default` hace lo buscado con los dominios propios (con el
+  certificado de "Cloudflare": 200; sin certificado o con uno ajeno: la conexión se corta), pero
+  **también corta los subdominios `labanda.deocoartist.com`**, que hoy llegan directo (nube
+  gris) sin certificado de cliente. `app.` solo se salva si su ruta tiene opciones propias, y esa
+  ruta la genera Easypanel.
+- Con **todo** por Cloudflare (`app.`, el comodín y los dominios propios, todos con certificado
+  de cliente) anduvo todo: panel, subdominios con su redirección, dominios propios, 404; y nada
+  entra sin pasar por Cloudflare, ni pidiendo a la IP pelada.
+- Efecto lateral de pasar `app.` por Cloudflare: Traefik reemplaza `X-Forwarded-For` por la IP
+  que se conecta (comprobado: llega `127.0.0.1` aunque el pedido traiga otro valor), que sería la
+  de Cloudflare. El freno por IP del alta (`src/app/registro/acciones.ts`) juntaría a todos en
+  pocas IPs. Se arregla leyendo `CF-Connecting-IP`, que llega intacta y es confiable porque solo
+  Cloudflare puede conectarse.
+
+Opciones (decisión pendiente):
+
+| | Qué | Origen protegido | Cambios |
+| --- | --- | --- | --- |
+| **A** (recomendada) | Todo por Cloudflare: `app.`, `*.<raíz>` y dominios propios con nube naranja; certificado de cliente exigido en `default` | Sí, completo | DNS de `app.` y del comodín a naranja; la app lee `CF-Connecting-IP` (chico, va en D2); confirmar que Easypanel deja agregar archivos dinámicos y opciones TLS `default` en su Traefik |
+| B | `app.` y subdominios siguen directos; sin Authenticated Origin Pulls | No: quien sepa la IP puede saltear Cloudflare (la app igual resuelve y aísla bandas; se pierde lo que filtre Cloudflare) | Ninguno |
+| C | Puerto aparte solo para Cloudflare, con certificado de cliente | Sí, para dominios propios | Una regla de origen en Cloudflare que cambie el puerto (a confirmar que esté en el plan gratis) y abrir otro puerto en el VPS |
+
+Montaje del ensayo (fuera del repo): Postgres en `:5434`, app en `:3000`, Traefik en `:443`,
+certificados de prueba generados con `openssl`.
+
 ## 2. Principio: ninguna banda queda presa
 
 La banda, cuando quiera, desde el panel y sin pedir nada a nadie, puede:
