@@ -541,6 +541,12 @@ Dos caminos. **Delegar** (recomendado; también el `.com.ar`):
 4. Un dominio conectado por CNAME se pasa a delegado con "Pasarme a delegar", sin corte: sigue
    andando por CNAME hasta que la zona se activa.
 
+**Salir** (la banda sola, sin staff): en un delegado, "Cómo me lo llevo" → "Llevarme el DNS".
+La app arma la lista exacta para el DNS nuevo (también como archivo de zona) y, si la banda sigue
+con el sitio en Deoco, deja `www` andando por CNAME antes de que cambie los nameservers. Cuando
+los cambia, el barrido da de baja la zona y le avisa; si no los cambia en 90 días, se da de baja
+igual (aviso una semana antes). Quitar un delegado deja su DNS andando esos mismos 90 días.
+
 **Conectar por CNAME** (la banda conserva su DNS; solo con `www`):
 
 1. La banda (el titular, en **Panel → Dominios**) o el staff (en `/admin`, detalle de la banda)

@@ -32,6 +32,7 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - Cualquier otro host (`labanda.deocoartist.com`, dominio propio) → sitio público (superficie
   `"publico"`), tenant por host. Anónimo.
 - `/b/<slug>/pago` lo define el núcleo: abierto con la banda suspendida, solo para el titular.
+  `/b/<slug>/dominios` también (la cuota impaga no le impide llevarse sus dominios).
 - Solo resuelven dominios **verificados**. En el sitio público, todo dominio de la banda que no
   sea el principal redirige (307) al principal, misma ruta.
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.
@@ -104,6 +105,11 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   dominio y su www. Una zona es de una sola banda (`zona_de_otra_banda()`). `.com.ar` sin
   registrar → `estadoProveedor: "sin-registrar"`, se reintenta. Sin completar a los 14 días, se
   libera sola (aviso en el panel 2 días antes, `delegacionesPorVencer`).
+- Salir (`salida.ts`, D6): "Llevarme el DNS" (`llevarseElDns`) arma la lista para el DNS nuevo y,
+  si sigue con el sitio, valida antes el custom hostname de www por TXT desde nuestra zona; el
+  barrido pasa www a CNAME (y a HTTP para renovar), detecta los nameservers idos y da de baja la
+  zona (`zona_saliente`); si no los cambia, baja a los 90 días con aviso 7 días antes. Quitar un
+  delegado verificado abre lo mismo (la zona sigue 90 días); uno sin activar se borra ya.
 - De CNAME a delegado sin corte: `pasarADelegado()` (`migrandoA` → al activarse, `via: "zona"`;
   el custom hostname viejo se borra con el certificado de la zona activo, `hostnameViejo`).
 - Cloudflare detrás de `ProveedorDns` (`proveedor.ts`, `cloudflare.ts`): `DEOCO_CLOUDFLARE_TOKEN`

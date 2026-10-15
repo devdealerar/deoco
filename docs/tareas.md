@@ -32,6 +32,12 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D6: `src/nucleo/dominios/salida.ts` (`llevarseElDns`, `quedarseEnDeoco`, `revisarSalidas` en el
+  barrido), `bind.ts` (archivo de zona para importar), `soltarZona` al quitar un delegado,
+  `validarPorHttp`; tabla `zona_saliente`. "Cómo me lo llevo" en cada dominio (delegado: el
+  botón; por CNAME: su DNS ya es suyo). Dominios queda abierto con la banda suspendida (solo
+  titular). Mails: aviso de baja 7 días antes, "ya no usa los nameservers", "dimos de baja".
+  Pruebas: `tests/salida.test.ts`, e2e en `tests/e2e/dominios.e2e.ts` y `panel.e2e.ts`.
 - D5: `src/nucleo/dominios/correo.ts` (`configurarCorreo`, `revisarCorreo`, barrido cada 10 min,
   `quitarCorreo`, `probarCorreo`), `envio.ts` (Resend), Cloudflare (`prenderRecepcion`,
   `fijarReenvio` en KV), `correo/remitente-banda.ts` (remitente de los correos de la banda),
@@ -56,7 +62,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | ✅ hecha |
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME ya está en D1) + vencimiento de delegaciones | 2 | ✅ hecha |
 | D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | ✅ hecha |
-| D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | pendiente |
+| D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | ✅ hecha |
 | D7 | `Registrador` GoDaddy v2 + falso | 5–7 | pendiente |
 | D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | pendiente |
 | D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | pendiente |

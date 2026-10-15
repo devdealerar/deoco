@@ -401,15 +401,18 @@ describe("delegar (la zona es nuestra; la banda cambia los nameservers)", () => 
     expect(cf.zonas.size).toBe(1);
   });
 
-  it("quitado y vuelto a delegar, retoma la misma zona", async () => {
+  it("quitado sin haberse activado, la zona se borra (nada depende de ella); delegar de nuevo crea otra", async () => {
     const id = await agregarDominio(ua.id, a.id, "lossatelites.com", "zona");
     const zona = cf.zonaDe("lossatelites.com")!.id;
     await quitarDominio(ua.id, a.id, id, true);
+    expect(cf.zonas.size).toBe(1); // queda www
     const www = await dueno.dominio.findFirstOrThrow({ where: { tenantId: a.id, dominio: "www.lossatelites.com" } });
     await quitarDominio(ua.id, a.id, www.id, true);
+    expect(cf.zonas.size).toBe(0);
     await agregarDominio(ua.id, a.id, "lossatelites.com", "zona");
     expect(cf.zonas.size).toBe(1);
-    expect((await filas(a.id)).map((f) => f.proveedorId)).toEqual([zona, zona]);
+    expect((await filas(a.id)).map((f) => f.proveedorId)).toEqual([cf.zonaDe("lossatelites.com")!.id, cf.zonaDe("lossatelites.com")!.id]);
+    expect(cf.zonaDe("lossatelites.com")!.id).not.toBe(zona);
   });
 
   it("no se delega si el dominio o su www ya están en la banda, ni sin la IP del servidor", async () => {

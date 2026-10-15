@@ -155,6 +155,8 @@ async function prepararZona(tenantId: string, apex: string, p: ProveedorDns): Pr
   const z = await p.crearZona(apex);
   const [{ deOtra }] = await prisma.$queryRaw<{ deOtra: boolean }[]>`SELECT zona_de_otra_banda(${z.id}, ${tenantId}::uuid) AS "deOtra"`;
   if (deOtra) throw new ErrorDominio(`Otra banda de Deoco ya está conectando ${apex}. Si el dominio es tuyo, escribinos.`);
+  // Vuelve a delegar una zona de la que se estaba yendo: se queda.
+  await conTenant(tenantId, (tx) => tx.zonaSaliente.deleteMany({ where: { zonaId: z.id } }));
 
   await p.ajustarZona(z.id);
   const [, www] = nombresDelSitio(apex);
@@ -251,12 +253,28 @@ export type DominioBanda = {
     /** Si para entonces no cambió los nameservers, el pedido vence y se libera. */
     vence: Date;
   } | null;
+  /** Delegado del que la banda se está llevando el DNS (salida.ts). */
+  salida: {
+    seguirConSitio: boolean;
+    /** Si para entonces los nameservers no cambiaron, se da de baja la zona. */
+    bajaEn: Date;
+    /** Lo que tiene que cargar en su DNS nuevo. */
+    registros: RegistroDns[];
+    /** La fila de www: la salida se maneja desde el dominio. */
+    acompanaA: string | null;
+    /** La dirección cuyo reenvío deja de andar al cambiar los nameservers. */
+    pierdeRecepcion: string | null;
+  } | null;
 };
 
 /** Los dominios de la banda, el principal primero. Lee lo guardado: no consulta a Cloudflare. */
 export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]> {
-  const filas = await conTenant(tenantId, (tx) =>
-    tx.dominio.findMany({ orderBy: [{ esPrincipal: "desc" }, { verificado: "desc" }, { dominio: "asc" }] }),
+  const [filas, salidas, correo] = await conTenant(tenantId, (tx) =>
+    Promise.all([
+      tx.dominio.findMany({ orderBy: [{ esPrincipal: "desc" }, { verificado: "desc" }, { dominio: "asc" }] }),
+      tx.zonaSaliente.findMany({ where: { seLlevaElDns: true } }),
+      tx.correoDominio.findFirst({ where: { recepcion: "activa" }, select: { local: true, dominio: true } }),
+    ]),
   );
   return filas.map((d) => {
     const dePlataforma = esDePlataforma(d.dominio);
@@ -294,6 +312,17 @@ export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]>
               vence: venceDelegacion(d.creadoEn),
             }
           : null,
+      salida: (() => {
+        const s = d.via === "zona" && d.verificado ? salidas.find((x) => x.zonaId === d.proveedorId) : undefined;
+        if (!s) return null;
+        return {
+          seguirConSitio: s.seguirConSitio,
+          bajaEn: s.bajaEn,
+          registros: Array.isArray(s.registros) ? (s.registros as RegistroDns[]) : [],
+          acompanaA: d.dominio === s.dominio ? null : s.dominio,
+          pierdeRecepcion: correo && correo.dominio === s.dominio ? `${correo.local}@${correo.dominio}` : null,
+        };
+      })(),
     };
   });
 }
@@ -655,7 +684,9 @@ export async function quitarDominio(usuarioId: string, tenantId: string, dominio
     if (!confirmado) {
       throw new ErrorDominio(
         d.verificado
-          ? `Para quitar ${d.dominio}, confirmalo: deja de mostrar el sitio.`
+          ? d.via === "zona"
+            ? `Para quitar ${d.dominio}, confirmalo: deja de mostrar el sitio. Su DNS sigue en Deoco ${PLAZO_SALIDA_DIAS} días (tu correo, si lo tiene, sigue andando) para que cambies los nameservers.`
+            : `Para quitar ${d.dominio}, confirmalo: deja de mostrar el sitio.`
           : `Para quitar ${d.dominio}, confirmalo.`,
       );
     }
@@ -663,7 +694,8 @@ export async function quitarDominio(usuarioId: string, tenantId: string, dominio
     await auditar(tx, usuarioId, tenantId, "dominio.quitado", { dominio: d.dominio, verificado: d.verificado });
     return d;
   });
-  if (quitado.via === "zona" || !quitado.proveedorId) return; // las zonas se dan de baja con su propio plazo (D6)
+  if (quitado.via === "zona" && quitado.proveedorId) return soltarZona(tenantId, quitado.proveedorId, apexDe(quitado.dominio), quitado.verificado);
+  if (!quitado.proveedorId) return;
   const [{ compartido }] = await prisma.$queryRaw<{ compartido: boolean }[]>`
     SELECT dominio_compartido(${quitado.dominio}, ${quitado.id}::uuid) AS compartido`;
   if (compartido) return;
@@ -672,6 +704,31 @@ export async function quitarDominio(usuarioId: string, tenantId: string, dominio
   await proveedorDns()
     ?.borrarHostname(quitado.proveedorId)
     .catch((e) => console.warn(`[dominios] no se pudo borrar el custom hostname de ${quitado.dominio}:`, e instanceof Error ? e.message : e));
+}
+
+/** Cuánto sigue andando una zona después de que la banda se va (ver salida.ts). */
+export const PLAZO_SALIDA_DIAS = 90;
+
+/**
+ * Se quitó una fila delegada. Si no queda ninguna de esa zona en la banda: una zona que nunca se
+ * activó se borra ya (nada depende de ella); una activa sigue andando PLAZO_SALIDA_DIAS días (el
+ * correo de la banda, por ejemplo) hasta que cambie los nameservers (salida.ts la termina).
+ */
+async function soltarZona(tenantId: string, zonaId: string, apex: string, activa: boolean): Promise<void> {
+  const quedan = await conTenant(tenantId, (tx) => tx.dominio.count({ where: { via: "zona", proveedorId: zonaId } }));
+  if (quedan) return;
+  if (activa) {
+    await conTenant(tenantId, (tx) =>
+      tx.zonaSaliente.upsert({
+        where: { tenantId_zonaId: { tenantId, zonaId } },
+        create: { tenantId, zonaId, dominio: apex, bajaEn: new Date(Date.now() + PLAZO_SALIDA_DIAS * 86_400_000) },
+        update: {},
+      }),
+    );
+    return;
+  }
+  const [{ deOtra }] = await prisma.$queryRaw<{ deOtra: boolean }[]>`SELECT zona_de_otra_banda(${zonaId}, ${tenantId}::uuid) AS "deOtra"`;
+  if (!deOtra) await proveedorDns()?.borrarZona(zonaId).catch((e) => console.warn(`[dominios] no se pudo borrar la zona de ${apex}:`, e instanceof Error ? e.message : e));
 }
 
 // ── Revisión periódica ──────────────────────────────────────────────────────────────────────

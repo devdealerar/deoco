@@ -44,11 +44,20 @@ export class ErrorProveedor extends Error {
 }
 
 export interface ProveedorDns {
-  /** Crea el custom hostname (si ya existe, devuelve el que hay). */
-  crearHostname(dominio: string): Promise<Hostname>;
+  /**
+   * Crea el custom hostname (si ya existe, devuelve el que hay). `porTxt`: la validación (del
+   * dominio y del certificado) por registros TXT en vez de por HTTP, para validarlo antes de que
+   * el CNAME exista (al salir de una zona nuestra: los TXT los ponemos nosotros).
+   */
+  crearHostname(dominio: string, opciones?: { porTxt?: boolean }): Promise<Hostname>;
   /** null: no existe (lo borraron o venció sin validarse). */
   hostname(id: string): Promise<Hostname | null>;
   borrarHostname(id: string): Promise<void>;
+  /**
+   * Pasa la validación del certificado a HTTP (alcanza con el CNAME). Para uno creado por TXT:
+   * si no, cada renovación pediría TXT nuevos en un DNS que ya no es nuestro.
+   */
+  validarPorHttp(id: string): Promise<void>;
   /** null: la zona no existe. */
   zona(id: string): Promise<Zona | null>;
   /**

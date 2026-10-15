@@ -4,13 +4,15 @@ import type { EstadoTenant } from "@/generated/prisma/client";
  * Rutas del panel en app.<raiz>:
  *   /b/<slug>/...        panel de una banda
  *   /b/<slug>/pago/...   pago de la cuota: lo define el núcleo (una banda sin módulos
- *                        prendidos igual tiene que poder pagar). Abierto con el tenant
- *                        SUSPENDIDO, solo para el titular.
+ *                        prendidos igual tiene que poder pagar).
+ *   /b/<slug>/dominios   los dominios de la banda: la cuota impaga no le impide llevárselos
+ *                        (docs/diseno-dominios.md §2, "ninguna banda queda presa").
+ * Las dos, abiertas con el tenant SUSPENDIDO, solo para el titular.
  */
 const RUTA_PANEL_BANDA = /^\/b\/([^/]+)(\/.*)?$/;
-const SUBRUTA_PAGO = "/pago";
+const ABIERTAS_SUSPENDIDA = ["/pago", "/dominios"];
 
-export type RutaPanel = { slug: string; esPago: boolean };
+export type RutaPanel = { slug: string; abiertaSuspendida: boolean };
 
 /** Si `pathname` es el panel de una banda, su slug; si no, null (selector, login, etc.). */
 export function rutaPanelBanda(pathname: string): RutaPanel | null {
@@ -23,8 +25,8 @@ export function rutaPanelBanda(pathname: string): RutaPanel | null {
   } catch {
     return null;
   }
-  const esPago = resto === SUBRUTA_PAGO || resto.startsWith(SUBRUTA_PAGO + "/");
-  return { slug, esPago };
+  const abiertaSuspendida = ABIERTAS_SUSPENDIDA.some((r) => resto === r || resto.startsWith(r + "/"));
+  return { slug, abiertaSuspendida };
 }
 
 export type Superficie = "panel" | "publico";
@@ -38,7 +40,7 @@ export type Decision =
 export function decidirPorEstado(
   estado: EstadoTenant,
   superficie: Superficie,
-  esPago = false,
+  abiertaSuspendida = false,
 ): Decision {
   switch (estado) {
     case "ACTIVO":
@@ -46,7 +48,7 @@ export function decidirPorEstado(
       return { tipo: "seguir", soloTitular: false };
     case "SUSPENDIDO":
       if (superficie === "publico") return { tipo: "seguir", soloTitular: false };
-      return esPago ? { tipo: "seguir", soloTitular: true } : { tipo: "prohibido" };
+      return abiertaSuspendida ? { tipo: "seguir", soloTitular: true } : { tipo: "prohibido" };
     case "ARCHIVADO":
       return { tipo: "no-encontrado" };
     default: {

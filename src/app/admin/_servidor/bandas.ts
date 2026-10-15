@@ -11,6 +11,7 @@ import {
   quitarDominio as quitarDominioNucleo,
   verificarDominio as verificarDominioNucleo,
 } from "@/nucleo/dominios";
+import { llevarseElDns as llevarseElDnsNucleo, quedarseEnDeoco as quedarseEnDeocoNucleo } from "@/nucleo/dominios/salida";
 import { bandaCreada } from "@/nucleo/cuenta";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
 import { ErrorFormulario } from "@/ui/servidor";
@@ -223,6 +224,16 @@ export async function verificarDominio(staffId: string, tenantId: string, domini
 /** Pasa un dominio conectado por CNAME a delegado (sin corte). */
 export async function pasarADelegado(staffId: string, tenantId: string, dominioId: string) {
   return dominios(() => pasarADelegadoNucleo(staffId, tenantId, dominioId));
+}
+
+/** "Llevarme el DNS" de un delegado, de parte de la banda (el staff la ayuda; no hace falta). */
+export async function llevarseElDns(staffId: string, tenantId: string, dominioId: string, seguirConSitio: boolean) {
+  return dominios(() => llevarseElDnsNucleo(staffId, tenantId, dominioId, { seguirConSitio }));
+}
+
+/** Cancela una salida en curso. */
+export async function quedarseEnDeoco(staffId: string, tenantId: string, dominioId: string) {
+  return dominios(() => quedarseEnDeocoNucleo(staffId, tenantId, dominioId));
 }
 
 /** Quita un dominio propio (confirmado; nunca el principal ni el subdominio). */

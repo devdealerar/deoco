@@ -10,7 +10,9 @@ import {
   cambiarRol,
   invitar,
   marcarPrincipal,
+  llevarseElDns,
   pasarADelegado,
+  quedarseEnDeoco,
   quitarDominio,
   quitarMiembro,
   verificarDominio,
@@ -64,6 +66,20 @@ export async function delegarAccion(tenantId: string, dominioId: string, _: Esta
   return accionAdmin(async (staffId) => {
     await pasarADelegado(staffId, tenantId, dominioId);
     return "Pasando a delegado: la banda tiene que cambiar los nameservers.";
+  });
+}
+
+export async function llevarseAccion(tenantId: string, dominioId: string, _: EstadoFormulario, fd: FormData) {
+  return accionAdmin(async (staffId) => {
+    await llevarseElDns(staffId, tenantId, dominioId, fd.get("seguirConSitio") === "on");
+    return "Salida en curso: la banda tiene que cargar los registros y cambiar los nameservers.";
+  });
+}
+
+export async function quedarseAccion(tenantId: string, dominioId: string, _: EstadoFormulario) {
+  return accionAdmin(async (staffId) => {
+    await quedarseEnDeoco(staffId, tenantId, dominioId);
+    return "Salida cancelada.";
   });
 }
 

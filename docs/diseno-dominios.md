@@ -570,10 +570,21 @@ un registro DNS.
 
 ## 12. Lo que falta confirmar (ninguno cambia el diseño)
 
+- [ ] **CRÍTICO (D5): si el Email Worker falla, Cloudflare no tiene que dar el mensaje por
+  entregado.** El Worker tira un error cuando Resend no acepta el reenvío; hay que comprobar con
+  Cloudflare real que eso hace que el servidor que mandó el mail lo reintente (rechazo temporal).
+  Si Cloudflare lo da por entregado igual, **el mail se pierde y no se recupera**: en ese caso el
+  Worker tiene que guardar el mensaje (por ejemplo en KV o R2) antes de responder y reintentar.
+- [ ] **CRÍTICO (D5): mails de más de 20 MB.** El Worker reenvía solo el texto con un aviso. Probar
+  con un mail grande real: qué tamaño acepta Email Routing, qué acepta la API de Resend, y que el
+  aviso llegue.
+- [ ] **Salida (D6, a probar en el ensayo real)**: que un custom hostname de `www.x.com` se valide
+  por TXT mientras la zona `x.com` es nuestra (los TXT los ponemos nosotros) y conviva con su
+  registro en la zona hasta que cambien los nameservers; que el cambio a validación por HTTP
+  (`PATCH`) ande para las renovaciones; cuánto tarda Cloudflare en marcar una zona "moved".
 - [ ] **Correo (D5, a probar en el ensayo real)**: la API de Resend (alta de dominio, registros
   que devuelve, verificación, "ya existe"), la de Email Routing (`/email/routing/enable` y la
-  regla `catch_all` hacia un Worker) y de KV; que si el Worker falla, Cloudflare no dé el mensaje
-  por entregado; tamaños máximos (el Worker reenvía sin adjuntos por encima de 20 MB).
+  regla `catch_all` hacia un Worker) y de KV.
 
 - [ ] **Cloudflare, al crear zonas** (D3, a probar en el ensayo real): que `jump_start` traiga
   los registros del DNS anterior, y los códigos de error que usa la app (1061 zona ya existe,
@@ -617,7 +628,7 @@ quiera.
 | D3 | Delegar (comprado afuera y `.com.ar` asistido): zona con registros, nameservers, detección — ✅ hecha | S | 2 a 3 |
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME entró en D1) — ✅ hecha | S | 2 |
 | D5 | Correo: `DominioDeEnvio` (Resend), Email Worker + KV, pantalla Correo, remitente en `enviarCorreo` — ✅ hecha | M | 4 a 5 |
-| D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino | S | 2 |
+| D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino — ✅ hecha | S | 2 |
 | D7 | `Registrador` con GoDaddy v2 + registrador falso | L | 5 a 7 |
 | D8 | Máquina de estados, tablas, barrido; back office de dominios | L | 5 |
 | D9 | Cobro en el gestor: precios por terminación, Checkout Pro de Deoco, aviso, devoluciones | M | 3 a 4 |

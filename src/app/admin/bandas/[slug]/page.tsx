@@ -12,8 +12,10 @@ import {
   dominioAccion,
   estadoAccion,
   invitarAccion,
+  llevarseAccion,
   prenderAccion,
   principalAccion,
+  quedarseAccion,
   quitarAccion,
   quitarDominioAccion,
   rolAccion,
@@ -109,6 +111,8 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
           quitar={(d) => quitarDominioAccion.bind(null, id, d)}
           agregar={dominioAccion.bind(null, id)}
           delegar={(d) => delegarAccion.bind(null, id, d)}
+          llevarse={(d) => llevarseAccion.bind(null, id, d)}
+          quedarse={(d) => quedarseAccion.bind(null, id, d)}
         />
       </section>
 

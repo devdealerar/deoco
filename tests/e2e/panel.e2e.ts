@@ -113,15 +113,18 @@ describe("prueba 6: staff", () => {
 });
 
 describe("prueba 7: banda SUSPENDIDO", () => {
-  it("el titular entra a /pago; editor y staff reciben 403; el resto del panel 403", async () => {
+  it("el titular entra a /pago y a /dominios; editor y staff reciben 403; el resto del panel 403", async () => {
     await suspender(e.a.id);
     const titular = (await logueado("multi@x.com")).page;
     expect((await titular.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(200);
     expect(await titular.getByTestId("estado").textContent()).toBe("SUSPENDIDO");
     expect((await titular.goto(`${APP}/b/banda-a`))!.status()).toBe(403);
+    // Dominios también: la cuota impaga no le impide llevarse sus dominios.
+    expect((await titular.goto(`${APP}/b/banda-a/dominios`))!.status()).toBe(200);
 
     const editor = (await logueado("editor-a@x.com")).page;
     expect((await editor.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
+    expect((await editor.goto(`${APP}/b/banda-a/dominios`))!.status()).toBe(403);
 
     const staff = (await logueado("staff@deocoartist.com")).page;
     expect((await staff.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);

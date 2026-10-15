@@ -9,7 +9,7 @@ import {
 } from "@/nucleo/tenant/resolver";
 
 const noEncontrado = () => new NextResponse("No encontrado", { status: 404 });
-// El único 403 del proxy: el panel de una banda SUSPENDIDA (salvo Plan y pago). Una página que
+// El único 403 del proxy: el panel de una banda SUSPENDIDA (salvo Plan y pago, y Dominios). Una página que
 // explica qué pasó y qué hacer, no un "Prohibido" pelado.
 const panelSuspendido = (slug: string) =>
   new NextResponse(
@@ -19,6 +19,7 @@ const panelSuspendido = (slug: string) =>
 <h1 style="font-size:22px">El panel de esta banda está en pausa</h1>
 <p>La cuota de Deoco está pendiente. El sitio público sigue online y no se borró nada.</p>
 <p>Quien es titular de la banda puede regularizarlo en <a href="/b/${encodeURIComponent(slug)}/pago" style="color:#6941c6;font-weight:600">Plan y pago</a>: apenas se acredita el pago, el panel vuelve a funcionar.</p>
+<p>Los dominios de la banda siguen siendo suyos: quien es titular puede verlos y llevárselos desde <a href="/b/${encodeURIComponent(slug)}/dominios" style="color:#6941c6;font-weight:600">Dominios</a>.</p>
 </main></body></html>`,
     { status: 403, headers: { "content-type": "text/html; charset=utf-8" } },
   );
@@ -42,21 +43,21 @@ export async function proxy(request: NextRequest) {
   const host = normalizarHost(request.headers.get("host"));
   let tenant: TenantResuelto | null;
   let superficie: Superficie;
-  let esPago = false;
+  let abiertaSuspendida = false;
 
   if (esHostPlataforma(host)) {
     const ruta = rutaPanelBanda(request.nextUrl.pathname);
     if (!ruta) return seguir();
     tenant = await resolverTenantPorSlug(ruta.slug);
     superficie = "panel";
-    esPago = ruta.esPago;
+    abiertaSuspendida = ruta.abiertaSuspendida;
   } else {
     tenant = await resolverTenantPorHost(host);
     superficie = "publico";
   }
   if (!tenant) return noEncontrado();
 
-  const decision = decidirPorEstado(tenant.estado, superficie, esPago);
+  const decision = decidirPorEstado(tenant.estado, superficie, abiertaSuspendida);
   if (decision.tipo === "no-encontrado") return noEncontrado();
   // "prohibido" solo sale del panel (por slug) de una banda suspendida.
   if (decision.tipo === "prohibido") return panelSuspendido(rutaPanelBanda(request.nextUrl.pathname)?.slug ?? "");

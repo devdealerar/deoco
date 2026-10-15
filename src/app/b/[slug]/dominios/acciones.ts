@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { exigirTitular } from "@/nucleo/acceso/panel";
 import { agregarDominio, ErrorDominio, marcarPrincipal, pasarADelegado, quitarDominio, verificarDominio } from "@/nucleo/dominios";
+import { llevarseElDns, quedarseEnDeoco } from "@/nucleo/dominios/salida";
 import type { EstadoFormulario } from "@/ui";
 import { texto } from "@/ui/servidor";
 import { mensajeVerificacion } from "../../../_dominios/mensajes";
@@ -46,6 +47,20 @@ export async function delegarAccion(slug: string, dominioId: string, _: EstadoFo
   return comoTitular(slug, async (c) => {
     await pasarADelegado(c.usuarioId, c.tenantId, dominioId);
     return { ok: "Listo. Ahora cambiá los nameservers donde está registrado (los pasos están en la tarjeta)." };
+  });
+}
+
+export async function llevarseAccion(slug: string, dominioId: string, _: EstadoFormulario, fd: FormData) {
+  return comoTitular(slug, async (c) => {
+    await llevarseElDns(c.usuarioId, c.tenantId, dominioId, { seguirConSitio: fd.get("seguirConSitio") === "on" });
+    return { ok: "Listo: los pasos están en la tarjeta." };
+  });
+}
+
+export async function quedarseAccion(slug: string, dominioId: string, _: EstadoFormulario) {
+  return comoTitular(slug, async (c) => {
+    await quedarseEnDeoco(c.usuarioId, c.tenantId, dominioId);
+    return { ok: "Listo: el dominio sigue delegado en Deoco." };
   });
 }
 

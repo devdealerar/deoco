@@ -49,7 +49,8 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                   </Link>
                 </li>
               )}
-              {esTitular && !suspendida && (
+              {/* Dominios, también suspendida: la cuota impaga no le impide llevarse sus dominios. */}
+              {esTitular && (
                 <li>
                   <Link href={`/b/${slug}/dominios`} className={item}>
                     Dominios

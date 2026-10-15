@@ -12,6 +12,7 @@ import { CORREO_COLGADO_MS, retomarCorreos } from "@/nucleo/correo";
 import { limpiarCorreos } from "@/nucleo/correo/limpieza";
 import { revisarDominios } from "@/nucleo/dominios";
 import { revisarCorreosPendientes } from "@/nucleo/dominios/correo";
+import { revisarSalidas } from "@/nucleo/dominios/salida";
 import { retomarEventos } from "@/nucleo/eventos/bus";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Registro } from "@/nucleo/modulos/registro";
@@ -21,6 +22,8 @@ export type ResultadoBarrido = {
   dominios: { revisados: number; conProblema: number; delegados: number };
   /** Direcciones de correo de bandas que quedaron verificadas en esta vuelta. */
   correos: number;
+  /** Zonas delegadas de las que una banda terminó de irse en esta vuelta. */
+  salidas: number;
   tareas: string[];
 };
 
@@ -67,6 +70,10 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
     console.error("[barrido] revisión de direcciones de correo:", e);
     return 0;
   });
+  const { terminadas: salidas } = await revisarSalidas(ahora).catch((e) => {
+    console.error("[barrido] salidas de dominios:", e);
+    return { terminadas: 0 };
+  });
   const tareas = await correrTareas(ahora);
   // Una vez por día (en este proceso): la limpieza de correos enviados.
   if (ahora.getTime() - ultimaLimpieza >= 86_400_000) {
@@ -79,7 +86,7 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
       console.log(`[barrido] correos: ${l.adjuntos} sin adjuntos, ${l.cuerpos} sin cuerpo, ${l.borrados} borrados`);
     }
   }
-  return { bandas: bandas.length, dominios, correos, tareas };
+  return { bandas: bandas.length, dominios, correos, salidas, tareas };
 }
 
 let ultimaLimpieza = 0;

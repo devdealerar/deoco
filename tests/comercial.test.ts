@@ -8,7 +8,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import { crearSuscripcion } from "@/nucleo/pagos/cuota";
 import { guardarSecreto } from "@/nucleo/secretos/carga";
-import { decidirPorEstado } from "@/nucleo/tenant/reglas";
+import { decidirPorEstado, rutaPanelBanda } from "@/nucleo/tenant/reglas";
 import comercial from "../modulos/comercial";
 import {
   type ComoStaff,
@@ -232,6 +232,10 @@ describe("cuota", () => {
     expect(decidirPorEstado("SUSPENDIDO", "publico")).toEqual({ tipo: "seguir", soloTitular: false });
     expect(decidirPorEstado("SUSPENDIDO", "panel")).toEqual({ tipo: "prohibido" });
     expect(decidirPorEstado("SUSPENDIDO", "panel", true)).toEqual({ tipo: "seguir", soloTitular: true });
+    // Pago y Dominios abiertos (solo titular): la cuota impaga no le impide llevarse sus dominios.
+    expect(rutaPanelBanda("/b/x/pago")).toEqual({ slug: "x", abiertaSuspendida: true });
+    expect(rutaPanelBanda("/b/x/dominios")).toEqual({ slug: "x", abiertaSuspendida: true });
+    expect(rutaPanelBanda("/b/x/tienda")).toEqual({ slug: "x", abiertaSuspendida: false });
     expect(decidirPorEstado("MOROSO", "panel")).toEqual({ tipo: "seguir", soloTitular: false });
   });
 

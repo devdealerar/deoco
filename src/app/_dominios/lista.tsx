@@ -1,4 +1,5 @@
 import type { DominioBanda, RegistroDns } from "@/nucleo/dominios";
+import { enFormatoBind } from "@/nucleo/dominios/bind";
 import { Campo, Casilla, Copiable, type EstadoFormulario, Formulario, Insignia, Tarjeta } from "@/ui";
 
 type Accion = (estado: EstadoFormulario, datos: FormData) => Promise<EstadoFormulario>;
@@ -15,6 +16,8 @@ export function ListaDominios({
   quitar,
   agregar,
   delegar,
+  llevarse,
+  quedarse,
 }: {
   dominios: DominioBanda[];
   verificar: (dominioId: string) => Accion;
@@ -22,6 +25,8 @@ export function ListaDominios({
   quitar: (dominioId: string) => Accion;
   agregar: Accion;
   delegar: (dominioId: string) => Accion;
+  llevarse: (dominioId: string) => Accion;
+  quedarse: (dominioId: string) => Accion;
 }) {
   const enLinea = { puedeEditar: true, enLinea: true, variante: "secundario" as const };
   return (
@@ -38,6 +43,7 @@ export function ListaDominios({
               {d.dePlataforma && <Insignia>Subdominio de Deoco</Insignia>}
               {d.via === "zona" && <Insignia>Delegado</Insignia>}
               {d.delegacion?.migrando && <Insignia>Pasando a delegado</Insignia>}
+              {d.salida && <Insignia color="advertencia">Te estás llevando el DNS</Insignia>}
               {d.estado === "sin-verificar" && (
                 <Insignia color="advertencia">{d.delegacion ? "Esperando los nameservers" : "Sin verificar"}</Insignia>
               )}
@@ -46,7 +52,10 @@ export function ListaDominios({
               {d.estado === "problema" && <Insignia color="error">Con un problema</Insignia>}
             </>
           }
-          acciones={d.verificado && !d.esPrincipal && <Formulario {...enLinea} accion={principal(d.id)} etiqueta="Usar como principal" />}
+          acciones={
+            // El dominio del que se está llevando el DNS deja de llegar a Deoco: no se ofrece como principal.
+            d.verificado && !d.esPrincipal && !(d.salida && !d.salida.acompanaA) && <Formulario {...enLinea} accion={principal(d.id)} etiqueta="Usar como principal" />
+          }
         >
           {d.estado === "certificado" && !d.esPrincipal && (
             <p className="text-sm text-tertiary">
@@ -55,7 +64,7 @@ export function ListaDominios({
               usarlo como principal.
             </p>
           )}
-          {d.estado === "listo" && !d.esPrincipal && (
+          {d.estado === "listo" && !d.esPrincipal && !d.salida && (
             <p className="text-sm text-tertiary">Listo para usar como principal. Mientras no lo sea, redirige al principal.</p>
           )}
           {d.esPrincipal && !d.dePlataforma && (
@@ -121,6 +130,43 @@ export function ListaDominios({
                 </div>
               )}
             </>
+          )}
+
+          {d.salida && !d.salida.acompanaA && <Salida dominio={d.dominio} salida={d.salida} quedarse={quedarse(d.id)} />}
+          {d.salida?.acompanaA && (
+            <p className="text-sm text-secondary">
+              Va con <strong>{d.salida.acompanaA}</strong>: {d.salida.seguirConSitio ? "cuando cambies los nameservers, sigue en Deoco por CNAME." : "cuando cambies los nameservers, deja de llegar a Deoco."}
+            </p>
+          )}
+
+          {d.via === "zona" && d.verificado && !d.salida && !d.dominio.startsWith("www.") && (
+            <details className="text-sm text-secondary" data-como-me-lo-llevo>
+              <summary className="cursor-pointer font-semibold">Cómo me lo llevo</summary>
+              <div className="mt-3 flex flex-col gap-3">
+                <p>
+                  El dominio es tuyo y sigue registrado donde lo compraste. Para llevarte el DNS: te damos la lista de registros para tu
+                  proveedor nuevo y cambiás los nameservers. No se corta nada: hasta que los cambies, todo sigue andando por Deoco.
+                </p>
+                <p>
+                  Si querés seguir con el sitio en Deoco, queda en <strong>www.{d.dominio}</strong> (por un CNAME que va en la lista) y lo
+                  preparamos antes, así no se corta. El dominio sin www lo redirigís vos a www en tu proveedor.
+                </p>
+                <div>
+                  <Formulario {...enLinea} accion={llevarse(d.id)} etiqueta="Llevarme el DNS">
+                    <Casilla name="seguirConSitio" etiqueta={`Seguir con el sitio en Deoco (www.${d.dominio})`} marcada />
+                  </Formulario>
+                </div>
+              </div>
+            </details>
+          )}
+          {d.via === "cname" && d.verificado && !d.delegacion && (
+            <details className="text-sm text-secondary" data-como-me-lo-llevo>
+              <summary className="cursor-pointer font-semibold">Cómo me lo llevo</summary>
+              <p className="mt-3">
+                Tu DNS ya es tuyo: Deoco no maneja nada de este dominio. Para dejar de usarlo en Deoco, borrá el CNAME y el TXT de tu DNS y
+                quitalo acá{d.esPrincipal ? " (como es el principal, primero elegí otro)" : ""}.
+              </p>
+            </details>
           )}
 
           {!d.dePlataforma && !d.esPrincipal && (
@@ -257,6 +303,51 @@ function Delegacion({ dominio, delegacion: g, verificar }: { dominio: string; de
       {vence}
       <div>
         <Formulario puedeEditar accion={verificar} etiqueta="Ya cambié los nameservers" />
+      </div>
+    </div>
+  );
+}
+
+/** Un delegado del que la banda se está llevando el DNS: qué cargar, qué cambiar, hasta cuándo. */
+function Salida({ dominio, salida: s, quedarse }: { dominio: string; salida: NonNullable<DominioBanda["salida"]>; quedarse: Accion }) {
+  const nicAr = /\.ar$/.test(dominio);
+  return (
+    <div className="flex flex-col gap-4" data-salida>
+      <ol className="flex list-decimal flex-col gap-3 pl-5 text-sm text-secondary">
+        <li>
+          Cargá estos registros en tu proveedor de DNS nuevo
+          {s.seguirConSitio ? " (el CNAME de www es el que mantiene el sitio en Deoco)" : ""}:
+          <div className="mt-3">
+            <Registros registros={s.registros} />
+          </div>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-tertiary">Los mismos, en formato de archivo de zona (para importar)</summary>
+            <Copiable valor={enFormatoBind(s.registros)} etiqueta="archivo de zona" />
+          </details>
+        </li>
+        {s.seguirConSitio && (
+          <li>
+            En tu proveedor, redirigí <strong>{dominio}</strong> a <strong>https://www.{dominio}</strong> (muchos lo llaman &quot;redirección&quot;
+            o &quot;forwarding&quot;): el dominio sin www no puede ir por CNAME.
+          </li>
+        )}
+        {s.pierdeRecepcion && (
+          <li>
+            El reenvío de <strong>{s.pierdeRecepcion}</strong> deja de andar cuando cambies los nameservers. Antes, creá esa casilla donde
+            vayas a tener tu correo. El envío desde esa dirección sigue (sus registros están en la lista).
+          </li>
+        )}
+        <li>
+          Cambiá los nameservers {nicAr ? "en nic.ar (Delegar)" : "donde registraste el dominio"} por los de tu proveedor nuevo.
+        </li>
+      </ol>
+      <p className="text-xs text-tertiary">
+        Lo revisamos solos: cuando los nameservers cambien, damos de baja el DNS en Deoco
+        {s.seguirConSitio ? ` y el sitio sigue en www.${dominio}` : " y el sitio queda en tu subdominio de Deoco"}. Si el{" "}
+        {s.bajaEn.toLocaleDateString("es-AR", FECHA)} todavía no cambiaron, lo damos de baja igual (te avisamos una semana antes).
+      </p>
+      <div>
+        <Formulario puedeEditar variante="secundario" accion={quedarse} etiqueta="Me quedo en Deoco" />
       </div>
     </div>
   );

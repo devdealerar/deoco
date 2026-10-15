@@ -22,7 +22,7 @@ const SIN_REGISTRAR = 1049;
 const REGISTRO_DUPLICADO = [81053, 81057, 81058];
 
 type ZonaCf = { id: string; name: string; status: string; name_servers?: string[] };
-type RegistroCf = { id: string; type: string; name: string; content: string; proxied?: boolean };
+type RegistroCf = { id: string; type: string; name: string; content: string; proxied?: boolean; priority?: number };
 
 export class Cloudflare implements ProveedorDns {
   constructor(private readonly cfg: { token: string; zona: string; cuenta: string; kv: string; worker: string; api: string }) {}
@@ -55,10 +55,10 @@ export class Cloudflare implements ProveedorDns {
 
   private base = () => `/zones/${this.cfg.zona}/custom_hostnames`;
 
-  async crearHostname(dominio: string): Promise<Hostname> {
+  async crearHostname(dominio: string, opciones: { porTxt?: boolean } = {}): Promise<Hostname> {
     try {
-      // Validación del certificado por HTTP: alcanza con el CNAME, la banda no carga nada más.
-      const r = await this.llamar<HostnameCf>("POST", this.base(), { hostname: dominio, ssl: { method: "http", type: "dv" } });
+      // Por defecto, validación del certificado por HTTP: alcanza con el CNAME, la banda no carga nada más.
+      const r = await this.llamar<HostnameCf>("POST", this.base(), { hostname: dominio, ssl: { method: opciones.porTxt ? "txt" : "http", type: "dv" } });
       return aHostname(r!.result);
     } catch (e) {
       if (!(e as { duplicado?: boolean }).duplicado) throw e;
@@ -72,6 +72,10 @@ export class Cloudflare implements ProveedorDns {
   async hostname(id: string): Promise<Hostname | null> {
     const r = await this.llamar<HostnameCf>("GET", `${this.base()}/${encodeURIComponent(id)}`);
     return r ? aHostname(r.result) : null;
+  }
+
+  async validarPorHttp(id: string): Promise<void> {
+    await this.llamar("PATCH", `${this.base()}/${encodeURIComponent(id)}`, { ssl: { method: "http", type: "dv" } });
   }
 
   async borrarHostname(id: string): Promise<void> {
@@ -103,7 +107,14 @@ export class Cloudflare implements ProveedorDns {
 
   async registros(zonaId: string): Promise<RegistroZona[]> {
     const r = await this.llamar<RegistroCf[]>("GET", `/zones/${encodeURIComponent(zonaId)}/dns_records?per_page=500`);
-    return (r?.result ?? []).map((x) => ({ id: x.id, tipo: x.type, nombre: x.name, valor: x.content, proxy: Boolean(x.proxied) }));
+    return (r?.result ?? []).map((x) => ({
+      id: x.id,
+      tipo: x.type,
+      nombre: x.name,
+      valor: x.content,
+      proxy: Boolean(x.proxied),
+      ...(x.priority !== undefined ? { prioridad: x.priority } : {}),
+    }));
   }
 
   async crearRegistro(zonaId: string, r: Omit<RegistroZona, "id">): Promise<void> {

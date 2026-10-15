@@ -8,7 +8,8 @@ export type HostnameFalso = {
   id: string;
   hostname: string;
   status: string;
-  ssl: { status: string; validation_records?: { txt_name: string; txt_value: string }[] };
+  ssl: { status: string; method?: string; validation_records?: { txt_name: string; txt_value: string }[] };
+  ownership_verification?: { type: string; name: string; value: string };
 };
 export type RegistroFalso = { id: string; type: string; name: string; content: string; proxied: boolean; priority?: number };
 export type ZonaFalsa = {
@@ -70,10 +71,14 @@ export class CloudflareFalso {
           if (ch[1] !== ZONA_CF) return error(404, 1001, "Invalid zone identifier");
           const id = ch[2];
           if (!id && req.method === "POST") {
-            const { hostname } = JSON.parse(cuerpo || "{}") as { hostname: string };
+            const { hostname, ssl } = JSON.parse(cuerpo || "{}") as { hostname: string; ssl?: { method?: string } };
             if (this.rechazados.has(hostname)) return error(400, 1407, "Invalid custom hostname.");
             if ([...this.hostnames.values()].some((h) => h.hostname === hostname)) return error(409, 1406, "Duplicate custom hostname found.");
-            const h: HostnameFalso = { id: `ch-${++this.n}`, hostname, status: "pending", ssl: { status: "initializing" } };
+            const h: HostnameFalso = { id: `ch-${++this.n}`, hostname, status: "pending", ssl: { status: "initializing", method: ssl?.method } };
+            if (ssl?.method === "txt") {
+              h.ssl.validation_records = [{ txt_name: `_acme-challenge.${hostname}`, txt_value: `acme-${this.n}` }];
+              h.ownership_verification = { type: "txt", name: `_cf-custom-hostname.${hostname}`, value: `propiedad-${this.n}` };
+            }
             this.hostnames.set(h.id, h);
             return ok(h);
           }
@@ -87,6 +92,11 @@ export class CloudflareFalso {
           if (req.method === "DELETE") {
             this.hostnames.delete(h.id);
             return ok({ id: h.id });
+          }
+          if (req.method === "PATCH") {
+            const { ssl } = JSON.parse(cuerpo || "{}") as { ssl?: { method?: string } };
+            if (ssl?.method) h.ssl.method = ssl.method;
+            return ok(h);
           }
         }
         if (url.pathname === "/zones" && req.method === "POST") {

@@ -16,6 +16,7 @@ beforeAll(async () => {
 afterEach(async () => {
   await dueno.dominio.deleteMany({ where: { dominio: { in: ["www.lossatelites.com.ar", "lossatelites.com.ar", "www.lossatelites.com", "lossatelites.com"] } } });
   await dueno.auditoria.deleteMany({ where: { accion: { startsWith: "dominio." } } });
+  await dueno.zonaSaliente.deleteMany();
   await dueno.dominio.updateMany({ where: { dominio: { endsWith: ".lvh.me" } }, data: { esPrincipal: true } });
   cf.limpiar();
   await cerrarContextos();
@@ -138,6 +139,38 @@ describe("dominio propio desde el panel de la banda", () => {
     await dueno.dominio.updateMany({ where: { tenantId: e.a.id, via: "zona" }, data: { creadoEn: new Date(Date.now() - 12.5 * 86_400_000) } });
     await page.goto(`${APP}/b/banda-a`);
     expect(await page.locator("[data-delegacion-por-vencer]").textContent()).toContain("La delegación de lossatelites.com está por vencer");
+  });
+
+  it("cómo me lo llevo: llevarse el DNS muestra qué cargar y qué cambiar; 'Me quedo' lo cancela", async () => {
+    cf.zonas.set("z-sal", {
+      id: "z-sal",
+      name: "lossatelites.com",
+      status: "active",
+      name_servers: [],
+      certificado: "active",
+      registros: [{ id: "r1", type: "MX", name: "lossatelites.com", content: "aspmx.l.google.com", proxied: false, priority: 1 }],
+    });
+    for (const dominio of ["lossatelites.com", "www.lossatelites.com"]) {
+      await dueno.dominio.create({ data: { tenantId: e.a.id, dominio, verificado: true, via: "zona", proveedorId: "z-sal", estadoProveedor: "active", certificado: "active" } });
+    }
+    const { page } = await logueado("multi@x.com");
+    await page.goto(DOMINIOS);
+    const tarjeta = page.locator('[data-dominio="lossatelites.com"]');
+    await tarjeta.locator("[data-como-me-lo-llevo] summary").click();
+    const llevar = tarjeta.locator("[data-como-me-lo-llevo] form[data-hidratado]");
+    await llevar.getByRole("button", { name: "Llevarme el DNS" }).click();
+    await tarjeta.locator("[data-salida]").waitFor();
+    expect(await tarjeta.textContent()).toContain("Te estás llevando el DNS");
+    const valores = await tarjeta.locator('[data-salida] [data-registro] [data-copiable]').allTextContents();
+    expect(valores).toEqual(["www.lossatelites.com", "customers.lvh.me", "lossatelites.com", "aspmx.l.google.com"]);
+    expect(await tarjeta.locator("[data-salida]").textContent()).toContain("redirigí lossatelites.com a https://www.lossatelites.com");
+    expect(await page.locator('[data-dominio="www.lossatelites.com"]').textContent()).toContain("Va con lossatelites.com");
+    await captura(page, "dominios-salida");
+
+    const quedarse = tarjeta.locator("form[data-hidratado]", { has: page.getByRole("button", { name: "Me quedo en Deoco" }) });
+    await quedarse.getByRole("button", { name: "Me quedo en Deoco" }).click();
+    await tarjeta.locator("[data-salida]").waitFor({ state: "detached" });
+    expect(await dueno.zonaSaliente.count()).toBe(0);
   });
 
   it("quitar pide confirmación; el principal y el subdominio no ofrecen quitar", async () => {
