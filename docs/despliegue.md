@@ -2,16 +2,16 @@
 
 Deoco se despliega como **una sola aplicación** (monolito modular) más **un Postgres**, en el
 VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un **comodín
-`*.deoco.com` validado por DNS en Cloudflare**.
+`*.deocoartist.com` validado por DNS en Cloudflare**.
 
 ```
  Cloudflare DNS (nube gris)          VPS · Easypanel
- *.deoco.com ─ A ─▶ IP del VPS ──▶ Traefik (TLS, certificado *.deoco.com)
+ *.deocoartist.com ─ A ─▶ IP del VPS ──▶ Traefik (TLS, certificado *.deocoartist.com)
                                      │  Host original + X-Forwarded-Proto: https
                                      ▼
                        servicio "deoco" (Dockerfile) · Next.js :3000
-                         app.deoco.com      → panel y /admin
-                         <banda>.deoco.com  → sitio público de la banda
+                         app.deocoartist.com      → panel y /admin
+                         <banda>.deocoartist.com  → sitio público de la banda
                          /data/archivos     → volumen (fotos, logos, riders)
                                      │ deoco_app (con RLS) · deoco_admin (solo /admin)
                                      ▼
@@ -43,13 +43,13 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
 
 ## Lo que configurás vos, en orden
 
-### A. Cloudflare (dominio `deoco.com`)
+### A. Cloudflare (dominio `deocoartist.com`)
 
 1. **Token de API** (My Profile → API Tokens → Create Token → "Edit zone DNS"):
-   permisos **Zone · DNS · Edit** y **Zone · Zone · Read**, limitado a la zona `deoco.com`.
+   permisos **Zone · DNS · Edit** y **Zone · Zone · Read**, limitado a la zona `deocoartist.com`.
    Guardalo: lo usa Traefik para el desafío DNS.
 2. **Registro DNS**: `A` · nombre `*` · IP del VPS · **solo DNS (nube gris)**.
-   Cubre `app.deoco.com` y todas las bandas. Empezá con la nube gris: el certificado lo pone
+   Cubre `app.deocoartist.com` y todas las bandas. Empezá con la nube gris: el certificado lo pone
    Traefik y hay una pieza menos que mirar si algo falla. (Si después querés el proxy de
    Cloudflare, nube naranja con SSL/TLS en **Full (strict)**.)
 3. Si existen registros `TXT _acme-challenge` viejos, borralos: pueden hacer fallar la
@@ -103,16 +103,16 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
    | `DATABASE_URL_MIGRACIONES` | `postgresql://deoco_owner:<clave 1>@<host-postgres>:5432/deoco` |
    | `DATABASE_URL_ADMIN` | `postgresql://deoco_admin:<clave 3>@<host-postgres>:5432/deoco` |
    | `AUTH_SECRET` | `openssl rand -base64 32` — **fijo**: si cambia, se cierran todas las sesiones |
-   | `DEOCO_DOMINIO_RAIZ` | `deoco.com` |
+   | `DEOCO_DOMINIO_RAIZ` | `deocoartist.com` |
    | `DEOCO_LIMITE_ALMACENAMIENTO` | opcional: bytes por banda (por defecto 1 GiB) |
    | `DEOCO_CLAVE_SECRETOS` | `openssl rand -base64 32` — cifra las credenciales de las bandas. Hoy opcional; obligatoria cuando se prenda un módulo con credenciales (la tienda). **Fija**: guardala aparte |
 
    `NODE_ENV`, el puerto y `DEOCO_ARCHIVOS_DIR=/data/archivos` ya los fija la imagen. Si una
    clave tiene caracteres como `@`, `:` o `/`, va codificada en la URL (o generala sin ellos).
 10. **Volumen** persistente montado en **`/data/archivos`** (si falta, la app no arranca).
-11. **Dominio**: `*.deoco.com` → puerto **3000**, HTTPS, con **"Wildcard domain"** activado y
-    el resolver `cloudflare`. Ese único dominio cubre `app.deoco.com` y todas las bandas: la app
-    distingue panel y sitios por el `Host`. No hace falta configurar `deoco.com` sola (si llega
+11. **Dominio**: `*.deocoartist.com` → puerto **3000**, HTTPS, con **"Wildcard domain"** activado y
+    el resolver `cloudflare`. Ese único dominio cubre `app.deocoartist.com` y todas las bandas: la app
+    distingue panel y sitios por el `Host`. No hace falta configurar `deocoartist.com` sola (si llega
     un pedido ahí, responde 404).
 12. **Deploy**. En los logs, las cuatro líneas de "arranque sano" de arriba.
 
@@ -125,10 +125,10 @@ ventas de las bandas siguen yendo a la cuenta de cada banda.
 13. En Mercado Pago (cuenta de Deoco) → **Tus integraciones → Crear aplicación** (producto:
     suscripciones). Copiá el **Access token de producción** → `DEOCO_CUOTA_MP_TOKEN`.
 14. En esa aplicación → **Webhooks**: URL
-    `https://app.deoco.com/avisos/plataforma/comercial/cuota/mercadopago`, eventos de
+    `https://app.deocoartist.com/avisos/plataforma/comercial/cuota/mercadopago`, eventos de
     **Suscripciones** (planes y suscripciones, pagos autorizados). Copiá la **clave secreta** →
     `DEOCO_CUOTA_MP_SECRETO_AVISOS`. (La URL exacta también está en `/admin/m/comercial/planes`.)
-15. Con tu usuario de staff (paso 16), en `https://app.deoco.com/admin/m/comercial/planes`: poné el **precio en pesos** de
+15. Con tu usuario de staff (paso 16), en `https://app.deocoartist.com/admin/m/comercial/planes`: poné el **precio en pesos** de
     Esencial, Medium y Premium (sin precio no se pueden elegir) y revisá los plazos (prueba 14
     días de Medium, gracia 3, suspensión a los 10 días de mora).
 
@@ -137,21 +137,21 @@ ventas de las bandas siguen yendo a la cuenta de cada banda.
 16. En la **consola del servicio de la app**:
 
     ```sh
-    CLAVE='<tu clave, 10+ caracteres>' node scripts/crear-staff.mjs vos@deoco.com "Tu Nombre"
+    CLAVE='<tu clave, 10+ caracteres>' node scripts/crear-staff.mjs vos@deocoartist.com "Tu Nombre"
     ```
 
-    Es la única vez que se toca algo a mano. Todo lo demás se hace en `https://app.deoco.com/admin`.
+    Es la única vez que se toca algo a mano. Todo lo demás se hace en `https://app.deocoartist.com/admin`.
 17. **Prueba de humo** (en este orden; cada paso prueba algo distinto):
-    1. `https://app.deoco.com` → candado válido → ingresar con tu usuario.
-    2. `https://app.deoco.com/admin` → listado de bandas (vacío).
+    1. `https://app.deocoartist.com` → candado válido → ingresar con tu usuario.
+    2. `https://app.deocoartist.com/admin` → listado de bandas (vacío).
     3. Nueva banda de prueba (con un email tuyo como titular) → anotá la clave temporal.
     4. La banda arranca en **prueba (Medium)**: Sitio y Tienda ya prendidos (Cuentas en
        `/admin/m/comercial` la muestra "En prueba").
     5. En otra ventana privada, entrar como titular → te pide elegir clave → entra al panel.
     6. Sitio → cargar bio corta y una imagen (una foto de celular) → Publicar.
-    7. `https://<slug>.deoco.com` → se ve publicado, con candado válido.
+    7. `https://<slug>.deocoartist.com` → se ve publicado, con candado válido.
     8. En `/admin`, pasar la banda de prueba a Archivado (confirmando) → su sitio da 404.
-    9. Alta sola: en una ventana privada, `https://app.deoco.com/registro` con otro email tuyo →
+    9. Alta sola: en una ventana privada, `https://app.deocoartist.com/registro` con otro email tuyo →
        llega el mail → link → ingresar → crear banda → queda en su panel; en `/admin`, filtro
        "Alta: Autogestión", aparece. (Necesita `DEOCO_CORREO=smtp`.)
 
@@ -168,8 +168,8 @@ barrido, carga): **`docs/verificacion-despliegue.md`**.
 | `Deoco no puede arrancar:` + lista | logs de la app | lee la lista: dice exactamente qué (rol equivocado en una URL, volumen, etc.) |
 | `No se puede escribir en /data/archivos` | logs de la app | falta el volumen del paso 10 |
 | El navegador advierte "certificado no válido" | navegador; logs de Traefik (`acme`, `cloudflare`) | token sin permisos, registro en nube naranja, TXT viejos, o variables de Traefik mal escritas |
-| Todo da 404, incluido `app.deoco.com` | navegador | `DEOCO_DOMINIO_RAIZ` mal escrito, o el proxy no pasa el `Host` original |
-| **Login: ingresás y volvés a la pantalla de ingresar, sin error** | navegador | la cookie `__Host-deoco.sesion` es `Secure`: solo se guarda por **HTTPS**. Entraste por `http://`, o el certificado no está. Revisá en las herramientas del navegador (Application → Cookies → `app.deoco.com`) si la cookie existe |
+| Todo da 404, incluido `app.deocoartist.com` | navegador | `DEOCO_DOMINIO_RAIZ` mal escrito, o el proxy no pasa el `Host` original |
+| **Login: ingresás y volvés a la pantalla de ingresar, sin error** | navegador | la cookie `__Host-deoco.sesion` es `Secure`: solo se guarda por **HTTPS**. Entraste por `http://`, o el certificado no está. Revisá en las herramientas del navegador (Application → Cookies → `app.deocoartist.com`) si la cookie existe |
 | Login: después de un redeploy te saca a todos | — | cambió `AUTH_SECRET`; dejalo fijo |
 | Formularios del panel fallan con error genérico | logs de la app (`Server Action`, `origin`) | el proxy reescribe `Host`/`Origin`; Traefik por defecto no lo hace |
 | Subir una foto grande falla | mensaje en el formulario o logs | más de 25 MB (límite de Deoco); si es menor, un límite de cuerpo en el proxy |
@@ -190,7 +190,7 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DATABASE_URL_MIGRACIONES` | sí | migraciones al arrancar y `crear-staff.mjs` (rol `deoco_owner`) |
 | `DATABASE_URL_ADMIN` | sí | solo el back office `/admin` (rol `deoco_admin`) |
 | `AUTH_SECRET` | sí | firma de las sesiones (32+ caracteres, fijo) |
-| `DEOCO_DOMINIO_RAIZ` | sí | `deoco.com`: el panel es `app.<raíz>`, las bandas `<slug>.<raíz>` |
+| `DEOCO_DOMINIO_RAIZ` | sí | `deocoartist.com`: el panel es `app.<raíz>`, las bandas `<slug>.<raíz>` |
 | `DEOCO_ARCHIVOS_DIR` | no | `/data/archivos` (valor de la imagen) |
 | `DEOCO_ALMACEN` | no | `disco` (único implementado) |
 | `DEOCO_LIMITE_ALMACENAMIENTO` | no | espacio por banda en bytes; por defecto 1 GiB |
@@ -198,7 +198,7 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_CLAVE_SECRETOS_ANTERIOR` | solo durante una rotación | La clave vieja: lo que todavía no se recifró se lee con ella |
 | `DEOCO_CORREO` | para que salgan correos | `smtp` (producción) o `memoria` (desarrollo). Sin ella, en producción los correos quedan pendientes |
 | `DEOCO_SMTP_URL` | con `DEOCO_CORREO=smtp` | `smtps://resend:<API key>@smtp.resend.com:465` |
-| `DEOCO_CORREO_REMITENTE` | con `DEOCO_CORREO=smtp` | `tiendas@deoco.com` (dominio verificado en Resend) |
+| `DEOCO_CORREO_REMITENTE` | con `DEOCO_CORREO=smtp` | `tiendas@deocoartist.com` (dominio verificado en Resend) |
 | `DEOCO_DB_CONEXIONES` | no | Conexiones de la app a Postgres (40). Sumadas a las del back office (5) tienen que quedar bajo `max_connections` (100 por defecto) |
 | `DEOCO_BARRIDO_SEGUNDOS` | no | Cada cuánto corre el barrido de pendientes (60; mínimo 5) |
 | `DEOCO_IP_PUBLICA` | no | IP a la que apuntan los dominios propios; por defecto, la de `app.<raíz>` |
@@ -209,11 +209,11 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 
 ## Correo (Resend por SMTP)
 
-1. Cuenta en Resend → **Domains → Add domain** `deoco.com` (o un subdominio de envío). Resend
+1. Cuenta en Resend → **Domains → Add domain** `deocoartist.com` (o un subdominio de envío). Resend
    muestra registros DNS (SPF/DKIM, y DMARC recomendado): crealos en Cloudflare, **solo DNS**.
 2. **API Keys → Create** con permiso de envío.
 3. En la app: `DEOCO_CORREO=smtp`, `DEOCO_SMTP_URL=smtps://resend:<API key>@smtp.resend.com:465`,
-   `DEOCO_CORREO_REMITENTE=tiendas@deoco.com`. Si falta algo, la app no arranca y dice qué.
+   `DEOCO_CORREO_REMITENTE=tiendas@deocoartist.com`. Si falta algo, la app no arranca y dice qué.
 
 Para cambiar de proveedor (Postmark, SES) solo cambia `DEOCO_SMTP_URL`.
 
@@ -265,7 +265,7 @@ no, el titular las vuelve a cargar en Credenciales.
    tuyo). El certificado lo emite Easypanel; la app no lo toca.
 4. Cuando `https://<dominio>` abre con candado, la banda puede tocar **Usar como principal**
    (la app lo comprueba: sin certificado válido no lo deja). Desde ahí el subdominio
-   `<slug>.deoco.com` redirige al dominio propio.
+   `<slug>.deocoartist.com` redirige al dominio propio.
 5. Si la banda **quita** un dominio (con confirmación; nunca el principal ni el subdominio),
    sacalo también de Easypanel.
 
@@ -275,8 +275,8 @@ no, el titular las vuelve a cargar en Credenciales.
    verificación: cuando la banda corrige el DNS, la próxima revisión lo desmarca.
 
 La IP que se muestra es `DEOCO_IP_PUBLICA` si está definida; si no, la que resuelve
-`app.deoco.com` (con el comodín en "solo DNS" es la del VPS). Si alguna vez ponés la nube
-naranja de Cloudflare en `deoco.com`, definí `DEOCO_IP_PUBLICA` con la IP del VPS.
+`app.deocoartist.com` (con el comodín en "solo DNS" es la del VPS). Si alguna vez ponés la nube
+naranja de Cloudflare en `deocoartist.com`, definí `DEOCO_IP_PUBLICA` con la IP del VPS.
 
 ## Qué se verificó antes de este despliegue
 

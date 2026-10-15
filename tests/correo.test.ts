@@ -46,14 +46,14 @@ afterAll(async () => {
 
 describe("enviarCorreo", () => {
   it("sale después, a nombre de la banda, desde la dirección de Deoco, con responder-a de la banda", async () => {
-    process.env.DEOCO_CORREO_REMITENTE = "tiendas@deoco.com";
+    process.env.DEOCO_CORREO_REMITENTE = "tiendas@deocoartist.com";
     const { id, repetido } = await enviar(a.id);
     expect(repetido).toBe(false);
     await esperarCorreos();
     const [m] = bandejaDeSalida();
     expect(m).toMatchObject({
       id,
-      de: { nombre: "Banda A", direccion: "tiendas@deoco.com" },
+      de: { nombre: "Banda A", direccion: "tiendas@deocoartist.com" },
       para: "fan@ejemplo.com",
       responderA: "prensa@banda-a.com",
       asunto: "Tu pedido #123",
@@ -147,7 +147,7 @@ describe("SMTP de verdad (servidor local) y reintento", () => {
     await new Promise<void>((ok) => servidor.listen(0, "127.0.0.1", ok));
     const puerto = (servidor.server.address() as { port: number }).port;
     process.env.DEOCO_CORREO = "smtp";
-    process.env.DEOCO_CORREO_REMITENTE = "tiendas@deoco.com";
+    process.env.DEOCO_CORREO_REMITENTE = "tiendas@deocoartist.com";
     try {
       process.env.DEOCO_SMTP_URL = "smtp://127.0.0.1:1"; // nadie escucha
       const { id } = await enviar(a.id);
@@ -161,7 +161,7 @@ describe("SMTP de verdad (servidor local) y reintento", () => {
       expect(await dueno.correo.findUniqueOrThrow({ where: { id } })).toMatchObject({ estado: "ENVIADO", intentos: 2, error: null });
       expect(recibidos).toHaveLength(1);
       const crudo = recibidos[0];
-      expect(crudo).toMatch(/^From: "?Banda A"? <tiendas@deoco\.com>/m);
+      expect(crudo).toMatch(/^From: "?Banda A"? <tiendas@deocoartist\.com>/m);
       expect(crudo).toMatch(/^To: fan@ejemplo\.com/m);
       expect(crudo).toMatch(/^Reply-To: prensa@banda-a\.com/m);
       expect(crudo).toMatch(/^Subject: Tu pedido #123/m);

@@ -1,8 +1,11 @@
-// Hosts de la plataforma. DEOCO_DOMINIO_RAIZ: "deoco.com" en producción,
+// Hosts de la plataforma. DEOCO_DOMINIO_RAIZ: el dominio de producción (deocoartist.com), o
 // "lvh.me" en desarrollo (todo *.lvh.me apunta a 127.0.0.1, sin tocar /etc/hosts).
+// El dominio sale SIEMPRE de la variable: no hay uno escrito en el código.
 
 export function dominioRaiz(): string {
-  return (process.env.DEOCO_DOMINIO_RAIZ ?? "deoco.com").toLowerCase();
+  const raiz = process.env.DEOCO_DOMINIO_RAIZ?.trim();
+  if (!raiz) throw new Error("Falta la variable de entorno DEOCO_DOMINIO_RAIZ (el dominio de la plataforma).");
+  return raiz.toLowerCase();
 }
 
 /** Host del pedido sin puerto ni punto final, en minúsculas. */

@@ -35,7 +35,7 @@ afterAll(async () => {
 describe("rutasAdmin: pantallas de módulos en el back office", () => {
   it("el staff la ve en el menú, entra y lo que hace pasa por conStaff (auditado)", async () => {
     await dueno.auditoria.deleteMany();
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin`);
     await page.click('nav[aria-label="Back office"] a:text("Prueba")');
     await page.waitForURL(`${APP}/admin/m/prueba`);
@@ -51,7 +51,7 @@ describe("rutasAdmin: pantallas de módulos en el back office", () => {
     expect((await (await anonimo()).page.goto(`${APP}/admin/m/prueba`))!.status()).toBe(404);
     expect((await (await logueado("multi@x.com")).page.goto(`${APP}/admin/m/prueba`))!.status()).toBe(404);
     expect((await (await anonimo()).page.goto(`${sitio("banda-a")}/admin/m/prueba`))!.status()).toBe(404);
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     expect((await page.goto(`${APP}/admin/m/prueba/no-existe`))!.status()).toBe(404);
     expect((await page.goto(`${APP}/admin/m/nadie`))!.status()).toBe(404);
   });

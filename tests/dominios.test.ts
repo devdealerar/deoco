@@ -15,7 +15,7 @@ import { CABECERA } from "@/nucleo/tenant/cabeceras";
 import { proxy } from "@/proxy";
 import { dosBandas, dueno } from "./apoyo";
 
-process.env.DEOCO_DOMINIO_RAIZ = "deoco.com";
+process.env.DEOCO_DOMINIO_RAIZ = "deocoartist.com";
 process.env.DEOCO_IP_PUBLICA = "203.0.113.10";
 
 let a: { id: string };
@@ -27,8 +27,8 @@ beforeAll(async () => {
   ({ a, b, ua, ub } = await dosBandas());
 });
 beforeEach(async () => {
-  await dueno.dominio.deleteMany({ where: { NOT: { dominio: { endsWith: ".deoco.com" } } } });
-  await dueno.dominio.updateMany({ where: { dominio: { endsWith: ".deoco.com" } }, data: { esPrincipal: true } });
+  await dueno.dominio.deleteMany({ where: { NOT: { dominio: { endsWith: ".deocoartist.com" } } } });
+  await dueno.dominio.updateMany({ where: { dominio: { endsWith: ".deocoartist.com" } }, data: { esPrincipal: true } });
   await dueno.auditoria.deleteMany();
 });
 afterAll(async () => {
@@ -71,14 +71,14 @@ describe("registros DNS a crear", () => {
       { tipo: "TXT", nombre: "_deoco.www.lossatelites.com.ar", valor: `deoco-verificacion=${d.token}` },
     ]);
     // El subdominio de la plataforma no pide nada.
-    expect(lista.find((x) => x.dominio === "banda-a.deoco.com")).toMatchObject({ dePlataforma: true, registros: null });
+    expect(lista.find((x) => x.dominio === "banda-a.deocoartist.com")).toMatchObject({ dePlataforma: true, registros: null });
   });
 
   it("sin DEOCO_IP_PUBLICA, la IP es la de app.<raiz>", async () => {
     delete process.env.DEOCO_IP_PUBLICA;
     try {
       await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
-      const lista = await dominiosDeBanda(a.id, dnsFalso({ "app.deoco.com": { a: ["198.51.100.7"] } }));
+      const lista = await dominiosDeBanda(a.id, dnsFalso({ "app.deocoartist.com": { a: ["198.51.100.7"] } }));
       expect(lista.find((x) => x.dominio === "lossatelites.com.ar")!.registros![0].valor).toBe("198.51.100.7");
     } finally {
       process.env.DEOCO_IP_PUBLICA = "203.0.113.10";
@@ -102,7 +102,7 @@ describe("verificar", () => {
     const res = await proxy(pedido("lossatelites.com.ar"));
     // No es el principal: redirige al subdominio (el principal), que sí resuelve.
     expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("http://banda-a.deoco.com/");
+    expect(res.headers.get("location")).toBe("http://banda-a.deocoartist.com/");
 
     const fila = await dueno.dominio.findUniqueOrThrow({ where: { id } });
     expect(fila.verificado).toBe(true);
@@ -163,7 +163,7 @@ describe("verificar", () => {
     });
     await expect(verificarDominio(ua.id, a.id, deA, ambos)).rejects.toThrow(/ya está verificado por otra banda/);
     const res = await proxy(pedido("disputado.com"));
-    expect(res.headers.get("location")).toBe("http://banda-b.deoco.com/");
+    expect(res.headers.get("location")).toBe("http://banda-b.deocoartist.com/");
   });
 
   it("una banda no puede verificar ni marcar dominios de otra", async () => {
@@ -193,12 +193,12 @@ describe("principal", () => {
     expect(directo.status).toBe(200);
     expect(directo.headers.get(`x-middleware-request-${CABECERA.tenantId}`)).toBe(a.id);
 
-    const viejo = await proxy(pedido("banda-a.deoco.com", "/prensa?foto=2", { "x-forwarded-proto": "https" }));
+    const viejo = await proxy(pedido("banda-a.deocoartist.com", "/prensa?foto=2", { "x-forwarded-proto": "https" }));
     expect(viejo.status).toBe(307);
     expect(viejo.headers.get("location")).toBe("https://lossatelites.com.ar/prensa?foto=2");
 
     // Con puerto (desarrollo), lo conserva.
-    const conPuerto = await proxy(pedido("banda-a.deoco.com:3000", "/"));
+    const conPuerto = await proxy(pedido("banda-a.deocoartist.com:3000", "/"));
     expect(conPuerto.headers.get("location")).toBe("http://lossatelites.com.ar:3000/");
   });
 
@@ -206,10 +206,10 @@ describe("principal", () => {
     const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
     await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
     await marcarPrincipal(ua.id, a.id, id, httpsOk);
-    expect((await proxy(pedido("app.deoco.com", "/b/banda-a"))).status).toBe(200);
+    expect((await proxy(pedido("app.deocoartist.com", "/b/banda-a"))).status).toBe(200);
     await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
     try {
-      expect((await proxy(pedido("banda-a.deoco.com"))).status).toBe(404);
+      expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(404);
       expect((await proxy(pedido("lossatelites.com.ar"))).status).toBe(404);
     } finally {
       await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ACTIVO" } });
@@ -233,7 +233,7 @@ describe("principal", () => {
     const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
     await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
     await marcarPrincipal(ua.id, a.id, id, httpsOk);
-    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deoco.com" } });
+    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deocoartist.com" } });
     await marcarPrincipal(ua.id, a.id, sub.id, async () => {
       throw new Error("no debería consultar");
     });
@@ -244,7 +244,7 @@ describe("principal", () => {
     const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar");
     await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
     await marcarPrincipal(ua.id, a.id, id, httpsOk);
-    expect((await proxy(pedido("banda-b.deoco.com"))).status).toBe(200);
+    expect((await proxy(pedido("banda-b.deocoartist.com"))).status).toBe(200);
   });
 });
 
@@ -265,14 +265,14 @@ describe("quitar", () => {
     await verificarDominio(ua.id, a.id, id, await dnsCorrecto(a.id, "lossatelites.com.ar"));
     await marcarPrincipal(ua.id, a.id, id, httpsOk);
     await expect(quitarDominio(ua.id, a.id, id, true)).rejects.toThrow(/elegí otro como principal antes/);
-    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deoco.com" } });
+    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deocoartist.com" } });
     await marcarPrincipal(ua.id, a.id, sub.id);
     await quitarDominio(ua.id, a.id, id, true);
     expect(await dueno.dominio.count({ where: { tenantId: a.id } })).toBe(1);
   });
 
   it("el subdominio de Deoco nunca se quita", async () => {
-    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deoco.com" } });
+    const sub = await dueno.dominio.findFirstOrThrow({ where: { dominio: "banda-a.deocoartist.com" } });
     await dueno.dominio.update({ where: { id: sub.id }, data: { esPrincipal: false } });
     await expect(quitarDominio(ua.id, a.id, sub.id, true)).rejects.toThrow(/no se puede quitar/);
   });

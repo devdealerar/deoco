@@ -35,7 +35,7 @@ sigue igual en `docs/despliegue.md`. **Nuevo**:
    aplicación de suscripciones y copiar el **Access token de producción** →
    `DEOCO_CUOTA_MP_TOKEN` en las variables de la app.
 2. En esa aplicación → **Webhooks**: URL
-   `https://app.deoco.com/avisos/plataforma/comercial/cuota/mercadopago`, eventos de
+   `https://app.deocoartist.com/avisos/plataforma/comercial/cuota/mercadopago`, eventos de
    suscripciones; la **clave secreta** → `DEOCO_CUOTA_MP_SECRETO_AVISOS`.
 3. Recomendada: `DEOCO_CUOTA_RESPONDER_A` (casilla de Deoco a la que responden las bandas los
    mails del alta, la mora y la suspensión). Opcional: `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` (plazos de limpieza).

@@ -92,7 +92,7 @@ describe("dominios", () => {
   it.each([
     ["no es un dominio", /no es un dominio válido/],
     ["otra.lvh.me", /los asigna la plataforma/],
-    ["banda-a.deoco.com", /ya está registrado en esta banda/],
+    ["banda-a.deocoartist.com", /ya está registrado en esta banda/],
   ])("rechaza %s", async (dominio, error) => {
     await expect(agregarDominio(e.staff.id, e.a.id, dominio)).rejects.toThrow(error);
   });

@@ -16,7 +16,7 @@ import { MercadoPagoFalso } from "./mercadopago-falso";
 
 const mp = new MercadoPagoFalso();
 const TOKEN_A = "APP_USR-ticketera-a";
-const ORIGEN = "https://banda-a.deoco.com";
+const ORIGEN = "https://banda-a.deocoartist.com";
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
 let titularB = "";
 
@@ -217,7 +217,7 @@ describe("pago: entradas nominadas, QR por mail y página para verlas", () => {
     const c = await compraDe(tipoId, 1);
     mp.pagos.set("777", { status: "approved", external_reference: c.compraId, transaction_amount: 15000, currency_id: "ARS", token: TOKEN_A });
     const r = await atenderAviso(
-      new Request(`http://app.deoco.com/avisos/${e.a.id}/ticketera/pago/mercadopago`, { method: "POST", body: JSON.stringify({ type: "payment", data: { id: "777" } }) }),
+      new Request(`http://app.deocoartist.com/avisos/${e.a.id}/ticketera/pago/mercadopago`, { method: "POST", body: JSON.stringify({ type: "payment", data: { id: "777" } }) }),
       { tenantId: e.a.id, moduloId: "ticketera", path: "/pago/mercadopago" },
     );
     expect(await r.json()).toEqual({ resultado: "pagada" });

@@ -28,7 +28,7 @@ describe("prueba 1: /admin es 404 para todo el que no sea staff", () => {
     expect((await titular.goto(`${APP}/admin`))!.status()).toBe(404);
     expect((await titular.goto(`${APP}/admin/bandas/nueva`))!.status()).toBe(404);
 
-    const staff = (await logueado("staff@deoco.com")).page;
+    const staff = (await logueado("staff@deocoartist.com")).page;
     expect((await staff.goto(`${sitio("banda-a")}/admin`))!.status()).toBe(404);
     expect((await staff.goto(`${APP}/admin`))!.status()).toBe(200);
   });
@@ -36,7 +36,7 @@ describe("prueba 1: /admin es 404 para todo el que no sea staff", () => {
 
 describe("listado de bandas", () => {
   it("muestra todas las bandas con estado, módulos y espacio", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin`);
     const filas = page.getByRole("row");
     await expect(filas.filter({ hasText: "Banda A" }).count()).resolves.toBe(1);
@@ -53,7 +53,7 @@ describe("listado de bandas", () => {
 
 describe("prueba 2: el staff da de alta una banda y el titular entra sin tocar SQL", () => {
   it("alta con titular nuevo → clave temporal → el titular entra a su panel", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin/bandas/nueva`);
     const form = page.locator("form[data-hidratado]");
     await form.waitFor();
@@ -93,14 +93,14 @@ describe("prueba 2: el staff da de alta una banda y el titular entra sin tocar S
 
     // Prueba 5: quedó la auditoría.
     const banda = await dueno.tenant.findUniqueOrThrow({ where: { slug: "los-nuevos" } });
-    const staff = await dueno.usuario.findUniqueOrThrow({ where: { email: "staff@deoco.com" } });
+    const staff = await dueno.usuario.findUniqueOrThrow({ where: { email: "staff@deocoartist.com" } });
     const filas = await dueno.auditoria.findMany({ where: { usuarioId: staff.id, accion: { in: ["banda.creada", "usuario.creado"] } } });
     expect(filas.map((f) => f.accion).sort()).toEqual(["banda.creada", "usuario.creado"]);
     expect(filas.find((f) => f.accion === "banda.creada")!.tenantId).toBe(banda.id);
   });
 
   it("un dato inválido devuelve el error y conserva lo escrito", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin/bandas/nueva`);
     const form = page.locator("form[data-hidratado]");
     await form.waitFor();
@@ -116,8 +116,8 @@ describe("prueba 2: el staff da de alta una banda y el titular entra sin tocar S
 
 describe("accesos del staff al panel de una banda", () => {
   it("quedan en la auditoría", async () => {
-    const { page } = await logueado("staff@deoco.com");
-    const staff = await dueno.usuario.findUniqueOrThrow({ where: { email: "staff@deoco.com" } });
+    const { page } = await logueado("staff@deocoartist.com");
+    const staff = await dueno.usuario.findUniqueOrThrow({ where: { email: "staff@deocoartist.com" } });
     const banda = await dueno.tenant.findUniqueOrThrow({ where: { slug: "banda-b" } });
     expect((await page.goto(`${APP}/b/banda-b`))!.status()).toBe(200);
     const fila = await dueno.auditoria.findFirst({ where: { usuarioId: staff.id, tenantId: banda.id, accion: "acceso.panel" } });
@@ -127,7 +127,7 @@ describe("accesos del staff al panel de una banda", () => {
 
 describe("prueba 6: archivar y reactivar una banda", () => {
   it("archivada deja de responder (panel y sitio); activa de nuevo, responde", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     const v = (await anonimo()).page;
     expect((await v.goto(sitio("banda-b")))!.status()).toBe(200);
 
@@ -164,7 +164,7 @@ describe("prueba 6: archivar y reactivar una banda", () => {
 
 describe("prueba 8 (pantalla): quitar al único titular", () => {
   it("muestra el error y no lo quita", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin/bandas/banda-b`);
     const fila = page.getByRole("row").filter({ has: page.locator('[data-email="b@x.com"]') });
     const quitar = fila.locator("form[data-hidratado]").last();
@@ -192,7 +192,7 @@ describe("prueba 9 (pantalla): eventos fallidos", () => {
         fallos: [{ intento: 1, moduloId: "prueba", error: "el servicio no respondió", fecha: new Date().toISOString() }],
       },
     });
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin/eventos`);
     const fila = page.getByRole("row").filter({ has: page.locator(`[data-evento="${ev.id}"]`) });
     expect(await fila.textContent()).toContain("prueba: el servicio no respondió");
@@ -225,7 +225,7 @@ describe("listados largos: paginados en el servidor, con filtro y orden en la UR
 
   it("bandas: 50 por página, filtro y orden en la URL; el link compartido muestra lo mismo", async () => {
     const total = await dueno.tenant.count();
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin`);
     expect(await slugs(page)).toHaveLength(50);
     await captura(page, "admin-bandas-pagina-1");
@@ -248,7 +248,7 @@ describe("listados largos: paginados en el servidor, con filtro y orden en la UR
 
     // Otra persona del staff abre el mismo link: ve lo mismo.
     const compartido = page.url();
-    const otra = (await logueado("staff@deoco.com")).page;
+    const otra = (await logueado("staff@deocoartist.com")).page;
     await otra.goto(compartido);
     expect(await slugs(otra)).toEqual(["lote-01", "lote-04", "lote-07"]);
     expect(await otra.locator("form[data-filtros]").getByLabel("Buscar").inputValue()).toBe("lote 0");
@@ -260,12 +260,12 @@ describe("listados largos: paginados en el servidor, con filtro y orden en la UR
   });
 
   it("usuarios: solo staff; eventos: por banda y por nombre", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin/usuarios`);
     const filtros = page.locator("form[data-filtros]");
     await filtros.getByText("Solo staff").click();
     await Promise.all([page.waitForURL(`${APP}/admin/usuarios?staff=on`), filtros.getByRole("button", { name: "Filtrar" }).click()]);
-    expect(await page.locator("[data-email]").evaluateAll((xs) => xs.map((x) => x.getAttribute("data-email")))).toEqual(["staff@deoco.com"]);
+    expect(await page.locator("[data-email]").evaluateAll((xs) => xs.map((x) => x.getAttribute("data-email")))).toEqual(["staff@deocoartist.com"]);
     await captura(page, "admin-usuarios-staff");
 
     const [a, b] = await Promise.all(["banda-a", "banda-b"].map((slug) => dueno.tenant.findUniqueOrThrow({ where: { slug } })));

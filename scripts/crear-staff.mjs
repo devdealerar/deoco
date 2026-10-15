@@ -1,7 +1,7 @@
 // Alta de una persona del STAFF de Deoco (la primera; las demás bandas y personas, por /admin).
 // Se corre en la consola del contenedor de la app, que ya tiene DATABASE_URL_MIGRACIONES:
 //
-//   CLAVE='una-clave-larga' node scripts/crear-staff.mjs vos@deoco.com "Tu Nombre"
+//   CLAVE='una-clave-larga' node scripts/crear-staff.mjs vos@deocoartist.com "Tu Nombre"
 //
 // Si el email ya existe, lo marca como staff y le pone esa clave. La clave no se guarda en
 // claro ni queda en el historial de la base (solo su hash argon2id).

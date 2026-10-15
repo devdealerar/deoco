@@ -3,6 +3,7 @@
 //   DEOCO_CORREO=memoria  → no sale: queda en una bandeja en memoria (desarrollo y pruebas)
 // Sin DEOCO_CORREO: memoria en desarrollo; en producción, ninguno (quedan PENDIENTES).
 import { createTransport, type Transporter } from "nodemailer";
+import { dominioRaiz } from "@/nucleo/tenant/hosts";
 
 export type MensajeSaliente = {
   de: { nombre: string; direccion: string };
@@ -68,7 +69,7 @@ export function problemasDeCorreo(env: Record<string, string | undefined>): stri
   const p: string[] = [];
   if (!env.DEOCO_SMTP_URL) p.push("DEOCO_CORREO=smtp necesita DEOCO_SMTP_URL (p. ej. smtps://resend:<clave>@smtp.resend.com:465).");
   else if (!/^smtps?:\/\//.test(env.DEOCO_SMTP_URL)) p.push("DEOCO_SMTP_URL tiene que empezar con smtp:// o smtps://.");
-  if (!env.DEOCO_CORREO_REMITENTE) p.push("DEOCO_CORREO=smtp necesita DEOCO_CORREO_REMITENTE (p. ej. tiendas@deoco.com).");
+  if (!env.DEOCO_CORREO_REMITENTE) p.push("DEOCO_CORREO=smtp necesita DEOCO_CORREO_REMITENTE (p. ej. tiendas@deocoartist.com).");
   return p;
 }
 
@@ -93,5 +94,5 @@ export function transporte(): TransporteCorreo | null {
 }
 
 export function remitente(): string {
-  return process.env.DEOCO_CORREO_REMITENTE ?? `no-responder@${process.env.DEOCO_DOMINIO_RAIZ ?? "deoco.com"}`;
+  return process.env.DEOCO_CORREO_REMITENTE ?? `no-responder@${dominioRaiz()}`;
 }

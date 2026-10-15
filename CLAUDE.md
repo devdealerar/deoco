@@ -21,12 +21,15 @@ SaaS multi-tenant para bandas. Monolito modular: núcleo + módulos.
 
 ## Hosts y tenant
 
+El producto se llama **Deoco**; el dominio de producción es **`deocoartist.com`** (`DEOCO_DOMINIO_RAIZ`).
+El dominio sale siempre de esa variable (`dominioRaiz()`, que falla si falta): nunca se escribe en el código.
+
 `src/proxy.ts` (Next 16 renombró `middleware` → `proxy`; corre en Node) resuelve el
 tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/reglas.ts`):
 
 - `app.<DEOCO_DOMINIO_RAIZ>/b/<slug>/...` → panel de esa banda, tenant por slug.
 - `app.<DEOCO_DOMINIO_RAIZ>` sin `/b/<slug>` → plataforma (selector de bandas, login), sin tenant.
-- Cualquier otro host (`labanda.deoco.com`, dominio propio) → sitio público (superficie
+- Cualquier otro host (`labanda.deocoartist.com`, dominio propio) → sitio público (superficie
   `"publico"`), tenant por host. Anónimo.
 - `/b/<slug>/pago` lo define el núcleo: abierto con la banda suspendida, solo para el titular.
 - Solo resuelven dominios **verificados**. En el sitio público, todo dominio de la banda que no
@@ -220,7 +223,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   PRO con `--license "$UNTITLEDUI_LICENSE"` (`docs/untitled-ui-pro.md`).
 - Sitio público: estilo propio de cada banda (marco del módulo sitio, `marcoPublico`).
 - Demo: `npm run db:demo` (Los Satélites y Niebla Norte, usuarios `titular@demo.com`,
-  `lectura@demo.com`, `staff@deoco.com`, clave `demo1234`).
+  `lectura@demo.com`, `staff@deocoartist.com`, clave `demo1234`).
 
 ## Barrido (`src/nucleo/barrido.ts`)
 
@@ -259,7 +262,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 ## Despliegue
 
 Guía completa: `docs/despliegue.md` (Easypanel: Postgres + app por `Dockerfile` + volumen
-`/data/archivos`; comodín `*.deoco.com` por DNS en Cloudflare). Al arrancar,
+`/data/archivos`; comodín `*.deocoartist.com` por DNS en Cloudflare). Al arrancar,
 `scripts/arrancar.sh` aplica migraciones y levanta el server; en producción
 `src/instrumentation.ts` → `src/nucleo/arranque.ts` verifica variables, roles de base, volumen,
 módulos y que el build sea de producción (`generadoPara`), y si algo falla el proceso termina.

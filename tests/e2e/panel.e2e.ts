@@ -97,7 +97,7 @@ describe("prueba 4: cambiar de banda no pide re-login y cambia el rol", () => {
 
 describe("prueba 6: staff", () => {
   it("entra a cualquier banda, marcado como acceso de staff", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     const items = await page.locator("li").allTextContents();
     expect(items).toEqual(["Banda A · — · acceso de staff", "Banda B · — · acceso de staff"]);
     for (const slug of ["banda-a", "banda-b"]) {
@@ -107,7 +107,7 @@ describe("prueba 6: staff", () => {
   });
 
   it("no entra al pago: es solo del titular", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     expect((await page.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
   });
 });
@@ -123,7 +123,7 @@ describe("prueba 7: banda SUSPENDIDO", () => {
     const editor = (await logueado("editor-a@x.com")).page;
     expect((await editor.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
 
-    const staff = (await logueado("staff@deoco.com")).page;
+    const staff = (await logueado("staff@deocoartist.com")).page;
     expect((await staff.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
   });
 

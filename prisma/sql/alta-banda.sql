@@ -3,7 +3,7 @@
 --
 --   psql "$DATABASE_URL_MIGRACIONES" \
 --     -v email="'titular@labanda.com'" -v nombre="'Nombre Apellido'" -v hash="'<hash argon2>'" \
---     -v banda="'La Banda'" -v slug="'labanda'" -v dominio="'labanda.deoco.com'" \
+--     -v banda="'La Banda'" -v slug="'labanda'" -v dominio="'labanda.deocoartist.com'" \
 --     -v staff=false -f prisma/sql/alta-banda.sql
 --
 -- El hash se genera en el contenedor (nunca guardes la clave en claro):

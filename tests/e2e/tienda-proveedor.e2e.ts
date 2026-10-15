@@ -71,7 +71,7 @@ afterAll(async () => {
 describe("panel del proveedor", () => {
   it("el staff da acceso → el proveedor cambia la clave, ve su orden, la despacha y marca lo cobrado", async () => {
     // Staff: Proveedores → Accesos al panel → Dar acceso.
-    const staff = (await logueado("staff@deoco.com")).page;
+    const staff = (await logueado("staff@deocoartist.com")).page;
     await staff.goto(`${APP}/admin/m/tienda/proveedores`);
     await staff.locator("form[data-hidratado]").first().waitFor(); // un click antes de hidratar se pierde
     await staff.getByRole("link", { name: "Accesos al panel" }).click();

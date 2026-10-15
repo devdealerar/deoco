@@ -37,7 +37,7 @@ const reg = crearRegistro([pasarela]);
 const bus = crearBus(() => reg);
 
 const pedido = (path: string, init: RequestInit & { cuerpo?: string } = {}) =>
-  new Request(`http://app.deoco.com${path}`, { method: "POST", body: init.cuerpo, ...init });
+  new Request(`http://app.deocoartist.com${path}`, { method: "POST", body: init.cuerpo, ...init });
 const atender = (tenantId: string, path: string, init: RequestInit & { cuerpo?: string } = {}, r = reg) =>
   atenderAviso(pedido(path, init), { tenantId, moduloId: "pasarela-falsa", path: path.split("?")[0] }, r);
 
@@ -176,7 +176,7 @@ describe("el aviso de ejemplo (módulo de prueba): firma, rapidez, idempotencia"
   const firmar = (cuerpo: string) => createHmac("sha256", TOKEN).update(cuerpo).digest("hex");
   const avisoPrueba = (cuerpo: string, firma: string) =>
     atenderAviso(
-      new Request(`http://app.deoco.com/avisos/${e.a.id}/prueba/pago`, { method: "POST", body: cuerpo, headers: { "x-firma": firma } }),
+      new Request(`http://app.deocoartist.com/avisos/${e.a.id}/prueba/pago`, { method: "POST", body: cuerpo, headers: { "x-firma": firma } }),
       { tenantId: e.a.id, moduloId: "prueba", path: "/pago" },
     );
 

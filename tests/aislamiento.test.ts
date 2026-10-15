@@ -88,7 +88,7 @@ describe("prueba 2: una consulta sin filtro de tenant no filtra datos", () => {
 describe("resolución de dominio sin tenant fijado", () => {
   it("resolver_tenant_por_host devuelve solo el id del tenant", async () => {
     const [r] = await prisma.$queryRaw<{ id: string | null }[]>`
-      SELECT resolver_tenant_por_host('BANDA-B.deoco.com') AS id`;
+      SELECT resolver_tenant_por_host('BANDA-B.deocoartist.com') AS id`;
     expect(r.id).toBe(b.id);
     const [n] = await prisma.$queryRaw<{ id: string | null }[]>`
       SELECT resolver_tenant_por_host('no-existe.com') AS id`;

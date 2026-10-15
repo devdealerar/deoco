@@ -32,7 +32,7 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
     p.push("AUTH_SECRET es demasiado corto (mínimo 32 caracteres; generalo con `openssl rand -base64 32`).");
   }
   if (env.DEOCO_DOMINIO_RAIZ && /[:/]/.test(env.DEOCO_DOMINIO_RAIZ)) {
-    p.push(`DEOCO_DOMINIO_RAIZ tiene que ser solo el dominio (p. ej. deoco.com), no "${env.DEOCO_DOMINIO_RAIZ}".`);
+    p.push(`DEOCO_DOMINIO_RAIZ tiene que ser solo el dominio (p. ej. deocoartist.com), no "${env.DEOCO_DOMINIO_RAIZ}".`);
   }
   const app = usuarioDe(env.DATABASE_URL);
   const admin = usuarioDe(env.DATABASE_URL_ADMIN);

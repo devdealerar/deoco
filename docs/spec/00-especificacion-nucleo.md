@@ -134,7 +134,7 @@ Una tabla `dominio` del núcleo: cada fila es un dominio, apunta a un tenant, y 
 
 Tres etapas, sin migración entre ellas:
 
-1. **Al dar de alta** — la banda recibe `labanda.deoco.com`, que funciona al instante.
+1. **Al dar de alta** — la banda recibe `labanda.deocoartist.com`, que funciona al instante.
 2. **Dominio propio** — en su panel escribe `labanda.com`. Deoco le muestra el registro DNS exacto para copiar, ella lo pega donde compró el dominio, y la plataforma verifica sola cuando ya apunta.
 3. **Certificado** — se emite automático al verificar, y se renueva solo. La banda no hace nada.
 
@@ -142,7 +142,7 @@ El subdominio nunca se da de baja: queda como respaldo, y redirige al dominio pr
 
 Pendiente de infraestructura: la emisión automática de certificados para dominios de terceros se resuelve en Easypanel con Let's Encrypt. Hay que confirmar el límite de dominios por proyecto antes de pasar las primeras diez bandas con dominio propio.
 
-El panel de gestión vive en `app.deoco.com`, separado del sitio público. Mismo código, distinto punto de entrada.
+El panel de gestión vive en `app.deocoartist.com`, separado del sitio público. Mismo código, distinto punto de entrada.
 
 ## Sitio público de la banda
 
@@ -175,7 +175,7 @@ Criterio de terminado del tramo 1:
 - [ ] El titular invita a un editor y el editor solo ve lo que le toca
 - [ ] Dos bandas distintas conviven sin verse datos entre sí
 - [ ] La home y el press kit se cargan desde el panel y se publican
-- [ ] El sitio se ve en `labanda.deoco.com` con la identidad de la banda
+- [ ] El sitio se ve en `labanda.deocoartist.com` con la identidad de la banda
 - [ ] Las pestañas de tienda y ticketera no aparecen, porque están apagadas
 
 Revisión del tramo: Nov 10, 2026

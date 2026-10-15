@@ -113,7 +113,7 @@ describe("acceso del proveedor (cuenta externa)", () => {
     expect(await portalesDe(delSur)).toEqual([{ moduloId: "tienda", etiqueta: "Panel de proveedor", href: "/portal/tienda" }]);
     // Fuera del staff no se puede dar acceso; a alguien del staff, tampoco.
     await expect(conTenant(e.a.id, (tx) => crearCuentaExterna(tx, tienda, { referencia: sur.id, email: "x@x.com", nombre: "X", creadoPor: e.multi.id }))).rejects.toThrow(/staff/);
-    await expect(darAccesoProveedor(comoStaff, sur.id, { email: "staff@deoco.com", nombre: "" })).rejects.toThrow(/staff de Deoco/);
+    await expect(darAccesoProveedor(comoStaff, sur.id, { email: "staff@deocoartist.com", nombre: "" })).rejects.toThrow(/staff de Deoco/);
     await expect(darAccesoProveedor(comoStaff, sur.id, { email: "taller@sur.com", nombre: "" })).rejects.toThrow(/ya tiene una cuenta/);
   });
 

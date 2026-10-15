@@ -32,7 +32,7 @@ async function formulario(page: Page, titulo: string) {
 
 describe("back office de la tienda: proveedores y catálogo base", () => {
   it("el staff carga un proveedor y un producto base con foto; queda auditado", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin`);
     await page.click('nav[aria-label="Back office"] a:text("Proveedores")');
     await page.waitForURL(`${APP}/admin/m/tienda/proveedores`);
@@ -85,7 +85,7 @@ describe("back office de la tienda: proveedores y catálogo base", () => {
       });
       await tx.tiendaProducto.create({ data: { tenantId: e.a.id, productoBaseId: base.id, disenoId: diseno.id, nombre: "Remera A", precio: 2500000 } });
     });
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin/m/tienda`);
     await formulario(page, "Nuevo producto base"); // hidratada: el clic lo toma el router
     await page.click('[data-producto-base="Remera"]');

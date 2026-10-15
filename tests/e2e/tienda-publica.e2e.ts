@@ -218,7 +218,7 @@ describe("tienda pública", () => {
     expect(await dueno.correo.count()).toBe(2); // ni mails ni deuda de más
 
     // El staff la ve en el back office, por banda y por proveedor.
-    const { page: staff } = await logueado("staff@deoco.com");
+    const { page: staff } = await logueado("staff@deocoartist.com");
     await staff.goto(`${APP}/admin/m/tienda/deudas`);
     expect(await plano(staff.locator('[data-banda="banda-a"] [data-deuda="Sur"] [data-pendiente]'))).toBe("$ 26.000");
 

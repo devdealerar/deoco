@@ -65,7 +65,7 @@ describe("autogestión del alta", () => {
   });
 
   it("el staff ve el alta nueva marcada como autogestión", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin?origen=autogestion`);
     await page.locator('[data-slug="vera-nuevos"]').waitFor();
     expect(await page.locator('[data-origen="autogestion"]').count()).toBe(1);

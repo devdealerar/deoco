@@ -60,7 +60,7 @@ describe("apertura de venta", () => {
   it("400 fans a la vez por 25 lugares: entran 25, los demás ven 'agotada', ninguno un error técnico", async () => {
     const tipoId = await show(25);
     const inicio = Date.now();
-    const r = await Promise.all(Array.from({ length: 400 }, (_, i) => intentarComprar(e.a.id, fan(i, tipoId), "https://banda-a.deoco.com")));
+    const r = await Promise.all(Array.from({ length: 400 }, (_, i) => intentarComprar(e.a.id, fan(i, tipoId), "https://banda-a.deocoartist.com")));
     const ms = Date.now() - inicio;
     const ok = r.filter((x) => x.ok);
     const mensajes = new Set(r.flatMap((x) => (x.ok ? [] : [x.error])));
@@ -75,7 +75,7 @@ describe("apertura de venta", () => {
 
   it("300 fans comprando de 1 a 4 por 40 lugares: nunca pasa el cupo y el que no entra sabe cuántas quedan", async () => {
     const tipoId = await show(40);
-    const r = await Promise.all(Array.from({ length: 300 }, (_, i) => intentarComprar(e.a.id, fan(i, tipoId, (i % 4) + 1), "https://banda-a.deoco.com")));
+    const r = await Promise.all(Array.from({ length: 300 }, (_, i) => intentarComprar(e.a.id, fan(i, tipoId, (i % 4) + 1), "https://banda-a.deocoartist.com")));
     const vendidas = (await dueno.ticketeraCompra.findMany({ where: { tipoId } })).reduce((s, c) => s + c.cantidad, 0);
     const ocupadas = (await dueno.ticketeraTipo.findUniqueOrThrow({ where: { id: tipoId } })).ocupadas;
     expect(ocupadas).toBe(vendidas);
@@ -90,10 +90,10 @@ describe("apertura de venta", () => {
     // Ocupa todo el pool con transacciones largas (como un pico que no da abasto).
     const ocupadas = Array.from({ length: n }, () => prisma.$transaction((tx) => tx.$executeRaw`SELECT pg_sleep(12)`));
     await new Promise((ok) => setTimeout(ok, 500));
-    const r = await intentarComprar(e.a.id, fan(1, tipoId), "https://banda-a.deoco.com");
+    const r = await intentarComprar(e.a.id, fan(1, tipoId), "https://banda-a.deocoartist.com");
     expect(r).toEqual({ ok: false, error: MENSAJE_SATURACION });
     await Promise.all(ocupadas);
     // Y cuando baja la carga, vuelve a andar.
-    expect((await intentarComprar(e.a.id, fan(2, tipoId), "https://banda-a.deoco.com")).ok).toBe(true);
+    expect((await intentarComprar(e.a.id, fan(2, tipoId), "https://banda-a.deocoartist.com")).ok).toBe(true);
   }, 60_000);
 });

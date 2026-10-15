@@ -114,7 +114,7 @@ Lo que es igual para todas las bandas (el catálogo base de la tienda) va en una
 
 ### Pantallas del back office (`rutasAdmin`)
 
-`rutasAdmin: [{ ruta: "/", componente }]` se monta en `app.deoco.com/admin/m/<id><ruta>`, solo
+`rutasAdmin: [{ ruta: "/", componente }]` se monta en `app.deocoartist.com/admin/m/<id><ruta>`, solo
 para staff (cualquier otro: 404). El componente recibe `{ usuarioId, params, consulta }`. Para
 el menú del back office: `navegacion: [{ etiqueta, href: "/", admin: true, orden }]`. Lo que
 escribe, por `conStaff()`. Ejemplo: `modulos/prueba/admin.tsx`.
@@ -145,7 +145,7 @@ const { id } = await guardarArchivo(tenantId, { nombre: f.name, datos }, {
   siempre públicos, `urlArchivoPlataforma(ref, { variante })` (`@/nucleo/archivos/plataforma`).
 - **Link firmado** para un tercero sin sesión (el archivo de impresión al proveedor):
   `await urlFirmada(suContrato, tenantId, archivoId, { validoPorSegundos })` (`@/nucleo/archivos/firmados`).
-  Por defecto 7 días, máximo 30. Es de la plataforma (`app.deoco.com/descargas/...`), siempre
+  Por defecto 7 días, máximo 30. Es de la plataforma (`app.deocoartist.com/descargas/...`), siempre
   como descarga; vencido responde 410, alterado 404. Solo firma archivos del propio módulo.
 
 ### Correo
@@ -206,10 +206,10 @@ secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ay
 
 ## 5. Rutas y navegación
 
-- `rutasPanel` se montan en `app.deoco.com/b/<slug><ruta>`. El componente recibe
+- `rutasPanel` se montan en `app.deocoartist.com/b/<slug><ruta>`. El componente recibe
   `{ tenantId, slug, acceso, params, consulta }`. El núcleo ya verificó sesión, membresía,
   módulo prendido y el `permiso` de la ruta.
-- `rutasPublicas` se montan en la raíz del sitio de la banda (`labanda.deoco.com<ruta>`).
+- `rutasPublicas` se montan en la raíz del sitio de la banda (`labanda.deocoartist.com<ruta>`).
   El componente recibe `{ tenantId, params, consulta }`. Es anónimo: no hay sesión.
 - Segmentos dinámicos: `/tienda/[producto]` → `params.producto`. Las rutas fijas ganan.
 - Parámetros de consulta: las dos superficies reciben `consulta` (`URLSearchParams`):
@@ -349,7 +349,7 @@ avisos: [{ ruta: "/mercadopago", manejador: avisoMercadoPago }], // POST por def
 ```
 
 - La URL es de la **plataforma**, no del host de la banda (no depende del dominio propio):
-  `https://app.deoco.com/avisos/<tenantId>/<id del módulo><ruta>`. Armala con
+  `https://app.deocoartist.com/avisos/<tenantId>/<id del módulo><ruta>`. Armala con
   `urlAviso(tenantId, modulo, "/mercadopago")` (`@/nucleo/avisos`) y dásela a la pasarela
   (p. ej. `notification_url` al crear el cobro).
 - El núcleo resuelve la banda: 404 si no existe, está archivada o tiene el módulo apagado;

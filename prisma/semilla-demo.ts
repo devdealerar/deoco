@@ -105,7 +105,7 @@ async function usuario(email: string, nombre: string, esStaff = false) {
 }
 
 async function main() {
-  await usuario("staff@deoco.com", "Staff Deoco", true);
+  await usuario("staff@deocoartist.com", "Staff Deoco", true);
   const titular = await usuario("titular@demo.com", "Titular Demo");
   const lectura = await usuario("lectura@demo.com", "Solo Lectura");
 
@@ -186,7 +186,7 @@ async function main() {
     });
     console.log(`✓ ${b.nombre}: http://${b.slug}.${raiz}:3000 · panel http://app.${raiz}:3000/b/${b.slug}`);
   }
-  console.log(`Usuarios (clave "${CLAVE}"): titular@demo.com (titular en Los Satélites, editor en Niebla Norte), lectura@demo.com, staff@deoco.com`);
+  console.log(`Usuarios (clave "${CLAVE}"): titular@demo.com (titular en Los Satélites, editor en Niebla Norte), lectura@demo.com, staff@deocoartist.com`);
 }
 
 main()

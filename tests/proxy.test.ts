@@ -6,7 +6,7 @@ import { CABECERA } from "@/nucleo/tenant/cabeceras";
 import { proxy } from "@/proxy";
 import { dosBandas, dueno } from "./apoyo";
 
-process.env.DEOCO_DOMINIO_RAIZ = "deoco.com";
+process.env.DEOCO_DOMINIO_RAIZ = "deocoartist.com";
 
 let a: { id: string };
 let b: { id: string };
@@ -35,23 +35,23 @@ async function ponerEstado(id: string, estado: EstadoTenant) {
   await dueno.tenant.update({ where: { id }, data: { estado } });
 }
 
-const APP = "app.deoco.com";
+const APP = "app.deocoartist.com";
 
 describe("camino 1: sitio público, por host", () => {
   it("el host de la banda A resuelve el tenant A (con puerto y mayúsculas)", async () => {
-    const res = await proxy(pedido("Banda-A.deoco.com:3000"));
+    const res = await proxy(pedido("Banda-A.deocoartist.com:3000"));
     expect(res.status).toBe(200);
     expect(cabeceraReenviada(res, CABECERA.tenantId)).toBe(a.id);
     expect(cabeceraReenviada(res, CABECERA.superficie)).toBe("publico");
   });
 
   it("host inexistente → 404", async () => {
-    expect((await proxy(pedido("nadie.deoco.com"))).status).toBe(404);
+    expect((await proxy(pedido("nadie.deocoartist.com"))).status).toBe(404);
     expect((await proxy(pedido("otra-cosa.com"))).status).toBe(404);
   });
 
   it("en el host de la banda, /b/<slug> es sitio público, no panel", async () => {
-    const res = await proxy(pedido("banda-a.deoco.com", "/b/banda-b"));
+    const res = await proxy(pedido("banda-a.deocoartist.com", "/b/banda-b"));
     expect(cabeceraReenviada(res, CABECERA.tenantId)).toBe(a.id);
     expect(cabeceraReenviada(res, CABECERA.superficie)).toBe("publico");
   });
@@ -92,7 +92,7 @@ describe("prueba 5: reglas de estado en los dos caminos", () => {
     const res = await proxy(pedido(APP, "/b/banda-a"));
     expect(res.status).toBe(200);
     expect(cabeceraReenviada(res, CABECERA.estado)).toBe("MOROSO");
-    expect((await proxy(pedido("banda-a.deoco.com"))).status).toBe(200);
+    expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(200);
   });
 
   it("SUSPENDIDO: panel 403, sitio público 200", async () => {
@@ -100,8 +100,8 @@ describe("prueba 5: reglas de estado en los dos caminos", () => {
     expect((await proxy(pedido(APP, "/b/banda-a"))).status).toBe(403);
     expect((await proxy(pedido(APP, "/b/banda-a/sitio"))).status).toBe(403);
     expect((await proxy(pedido(APP, "/b/banda-a/pagos-viejos"))).status).toBe(403);
-    expect((await proxy(pedido("banda-a.deoco.com", "/"))).status).toBe(200);
-    expect((await proxy(pedido("banda-a.deoco.com", "/pago"))).status).toBe(200);
+    expect((await proxy(pedido("banda-a.deocoartist.com", "/"))).status).toBe(200);
+    expect((await proxy(pedido("banda-a.deocoartist.com", "/pago"))).status).toBe(200);
   });
 
   it("SUSPENDIDO: /b/<slug>/pago pasa, marcada solo para el titular", async () => {
@@ -122,14 +122,14 @@ describe("prueba 5: reglas de estado en los dos caminos", () => {
     await ponerEstado(a.id, "ARCHIVADO");
     expect((await proxy(pedido(APP, "/b/banda-a"))).status).toBe(404);
     expect((await proxy(pedido(APP, "/b/banda-a/pago"))).status).toBe(404);
-    expect((await proxy(pedido("banda-a.deoco.com", "/"))).status).toBe(404);
+    expect((await proxy(pedido("banda-a.deocoartist.com", "/"))).status).toBe(404);
     expect(await dueno.dominio.count({ where: { tenantId: a.id } })).toBe(1);
   });
 
   it("el estado de una banda no afecta a la otra", async () => {
     await ponerEstado(a.id, "ARCHIVADO");
     expect((await proxy(pedido(APP, "/b/banda-b"))).status).toBe(200);
-    expect((await proxy(pedido("banda-b.deoco.com"))).status).toBe(200);
+    expect((await proxy(pedido("banda-b.deocoartist.com"))).status).toBe(200);
   });
 });
 

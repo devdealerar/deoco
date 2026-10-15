@@ -124,7 +124,7 @@ describe("plan y pago", () => {
   });
 
   it("el staff ve las cuentas y edita los planes", async () => {
-    const { page } = await logueado("staff@deoco.com");
+    const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin/m/comercial`);
     const fila = page.locator('[data-cuenta="banda-a"]');
     await fila.waitFor();

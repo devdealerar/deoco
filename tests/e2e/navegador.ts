@@ -59,8 +59,8 @@ export async function captura(page: Page, nombre: string) {
 }
 
 /**
- * dosBandas() crea banda-x.deoco.com como principal; en e2e se navega por los hosts de
- * desarrollo, que pasan a ser los principales (si no, redirigirían a deoco.com).
+ * dosBandas() crea banda-x.deocoartist.com como principal; en e2e se navega por los hosts de
+ * desarrollo, que pasan a ser los principales (si no, redirigirían a deocoartist.com).
  */
 export async function dominiosDeDesarrollo(a: { id: string }, b: { id: string }) {
   await dueno.dominio.updateMany({ where: { tenantId: { in: [a.id, b.id] } }, data: { esPrincipal: false } });

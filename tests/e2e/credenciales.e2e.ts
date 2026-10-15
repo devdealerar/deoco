@@ -68,7 +68,7 @@ describe("credenciales de la banda (secretos por módulo)", () => {
 
   it("solo el titular: otro rol y el staff reciben 403 y no ven la entrada", async () => {
     await prenderModulo(e.staff.id, e.a.id, "prueba");
-    for (const email of ["editor-a@x.com", "staff@deoco.com"]) {
+    for (const email of ["editor-a@x.com", "staff@deocoartist.com"]) {
       const { page } = await logueado(email);
       await page.goto(`${APP}/b/banda-a`);
       expect(await page.locator('nav[aria-label="Panel"] a:text("Credenciales")').count()).toBe(0);

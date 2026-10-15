@@ -39,7 +39,7 @@ export async function dosBandas() {
   for (const [t, u] of [[a, ua], [b, ub]] as const) {
     await dueno.membresia.create({ data: { tenantId: t.id, usuarioId: u.id, rol: "TITULAR" } });
     await dueno.dominio.create({
-      data: { tenantId: t.id, dominio: `${t.slug}.deoco.com`, esPrincipal: true, verificado: true },
+      data: { tenantId: t.id, dominio: `${t.slug}.deocoartist.com`, esPrincipal: true, verificado: true },
     });
     await dueno.evento.create({ data: { tenantId: t.id, nombre: "prueba.creada", payload: {} } });
   }
@@ -64,7 +64,7 @@ export async function escenarioAcceso() {
   const multi = await crear("multi@x.com");
   const ajeno = await crear("ajeno@x.com");
   const editorA = await crear("editor-a@x.com");
-  const staff = await crear("staff@deoco.com", true);
+  const staff = await crear("staff@deocoartist.com", true);
   await dueno.membresia.createMany({
     data: [
       { usuarioId: multi.id, tenantId: a.id, rol: "TITULAR" },

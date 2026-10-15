@@ -144,9 +144,9 @@ describe("usuarios", () => {
     expect((await listarUsuarios({ ...todos, buscar: "PERSONA 0" })).total).toBe(10);
     expect((await listarUsuarios({ ...todos, buscar: "persona-59@" })).filas.map((u) => u.nombre)).toEqual(["Persona 59"]);
     expect((await listarUsuarios({ ...todos, buscar: "%_" })).filas.map((u) => u.email)).toEqual(["rara@x.com"]);
-    expect((await listarUsuarios({ ...todos, soloStaff: true })).filas.map((u) => u.email)).toEqual(["staff@deoco.com"]);
+    expect((await listarUsuarios({ ...todos, soloStaff: true })).filas.map((u) => u.email)).toEqual(["staff@deocoartist.com"]);
     const porNombre = await listarUsuarios({ ...todos, orden: { columna: "nombre", direccion: "desc" } });
-    expect(porNombre.filas[0].nombre).toBe("staff@deoco.com");
+    expect(porNombre.filas[0].nombre).toBe("staff@deocoartist.com");
   });
 });
 

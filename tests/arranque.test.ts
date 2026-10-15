@@ -11,7 +11,7 @@ const BIEN = {
   DATABASE_URL_ADMIN: "postgresql://deoco_admin:y@db:5432/deoco",
   DATABASE_URL_MIGRACIONES: "postgresql://deoco_owner:z@db:5432/deoco",
   AUTH_SECRET: "a".repeat(44),
-  DEOCO_DOMINIO_RAIZ: "deoco.com",
+  DEOCO_DOMINIO_RAIZ: "deocoartist.com",
 };
 const PROD = { generadoPara: "produccion" };
 
@@ -26,7 +26,7 @@ describe("verificación de arranque: entorno", () => {
     [{ AUTH_SECRET: undefined }, "Falta la variable de entorno AUTH_SECRET."],
     [{ DEOCO_DOMINIO_RAIZ: undefined }, "Falta la variable de entorno DEOCO_DOMINIO_RAIZ."],
     [{ AUTH_SECRET: "corto" }, /AUTH_SECRET es demasiado corto/],
-    [{ DEOCO_DOMINIO_RAIZ: "https://deoco.com" }, /solo el dominio/],
+    [{ DEOCO_DOMINIO_RAIZ: "https://deocoartist.com" }, /solo el dominio/],
     [{ DATABASE_URL_ADMIN: BIEN.DATABASE_URL }, /usan el mismo rol \(deoco_app\)/],
     [{ DATABASE_URL: BIEN.DATABASE_URL_MIGRACIONES }, /usa el rol dueño de las tablas \(deoco_owner\)/],
   ])("%o", (cambio, problema) => {
@@ -50,5 +50,36 @@ describe("verificación de arranque: base", () => {
       "DATABASE_URL_ADMIN usa el rol deoco_app, sin BYPASSRLS: el back office no vería las bandas.",
     ]);
     expect((await problemasDeBase({ DATABASE_URL_ADMIN: "postgresql://nadie:x@db/deoco" })).join()).toMatch(/no existe/);
+  });
+});
+
+describe("el dominio raíz sale de DEOCO_DOMINIO_RAIZ, nunca del código", () => {
+  it("sin la variable, dominioRaiz() no inventa uno; con ella, la usa (también el remitente por defecto)", async () => {
+    const { dominioRaiz } = await import("@/nucleo/tenant/hosts");
+    const { remitente } = await import("@/nucleo/correo/transporte");
+    const antes = { raiz: process.env.DEOCO_DOMINIO_RAIZ, remitente: process.env.DEOCO_CORREO_REMITENTE };
+    try {
+      delete process.env.DEOCO_DOMINIO_RAIZ;
+      expect(() => dominioRaiz()).toThrow(/DEOCO_DOMINIO_RAIZ/);
+      process.env.DEOCO_DOMINIO_RAIZ = "Ejemplo.Test";
+      delete process.env.DEOCO_CORREO_REMITENTE;
+      expect(dominioRaiz()).toBe("ejemplo.test");
+      expect(remitente()).toBe("no-responder@ejemplo.test");
+    } finally {
+      process.env.DEOCO_DOMINIO_RAIZ = antes.raiz;
+      if (antes.remitente === undefined) delete process.env.DEOCO_CORREO_REMITENTE;
+      else process.env.DEOCO_CORREO_REMITENTE = antes.remitente;
+    }
+  });
+
+  it("ningún archivo de la app tiene un dominio de respaldo para DEOCO_DOMINIO_RAIZ", async () => {
+    const { execFileSync } = await import("node:child_process");
+    let salida = "";
+    try {
+      salida = execFileSync("git", ["grep", "-n", "-E", "DEOCO_DOMINIO_RAIZ\\s*(\\?\\?|\\|\\|)", "--", "src", "modulos"], { encoding: "utf8" });
+    } catch {
+      // git grep sale con 1 cuando no encuentra nada: es lo esperado.
+    }
+    expect(salida).toBe("");
   });
 });

@@ -109,7 +109,7 @@ describe("cada persona, su fila", () => {
       otra: await tx.usuario.findUnique({ where: { id: e.ajeno.id }, select: { email: true } }),
     }));
     expect(r).toEqual({ todas: 1, suya: { email: "multi@x.com" }, otra: null });
-    expect(await usuarioPropio(e.staff.id)).toMatchObject({ email: "staff@deoco.com", esStaff: true, claveTemporal: false });
+    expect(await usuarioPropio(e.staff.id)).toMatchObject({ email: "staff@deocoartist.com", esStaff: true, claveTemporal: false });
   });
 
   it("edita su nombre; no edita a otro", async () => {
@@ -133,7 +133,7 @@ describe("cada persona, su fila", () => {
       async (tx) => ({
         directo: await probar(tx, `UPDATE usuario SET "esStaff" = true WHERE id = '${e.multi.id}'`),
         conOtraColumna: await probar(tx, `UPDATE usuario SET nombre = 'M', "esStaff" = true WHERE id = '${e.multi.id}'`),
-        cambiandoElEmail: await probar(tx, `UPDATE usuario SET email = 'staff2@deoco.com' WHERE id = '${e.multi.id}'`),
+        cambiandoElEmail: await probar(tx, `UPDATE usuario SET email = 'staff2@deocoartist.com' WHERE id = '${e.multi.id}'`),
         sacarleAlStaff: await probar(tx, `UPDATE usuario SET "esStaff" = false WHERE id = '${e.staff.id}'`),
         altaComoStaff: await probar(tx, `INSERT INTO usuario (id, email, nombre, "hashContrasena", "esStaff") VALUES (gen_random_uuid(), 'yo@x.com', 'Y', 'x', true)`),
         porPrisma: await tx.usuario
@@ -221,7 +221,7 @@ describe("los cuatro caminos siguen andando", () => {
     expect(otra.claveTemporal).toBeNull();
     await expect(
       conStaffComo(e.staff.id, "prueba.alta", (tx) =>
-        crearCuentaExterna(tx, tienda, { referencia: "ref-3", email: "staff@deoco.com", nombre: "", creadoPor: e.staff.id }),
+        crearCuentaExterna(tx, tienda, { referencia: "ref-3", email: "staff@deocoartist.com", nombre: "", creadoPor: e.staff.id }),
       ),
     ).rejects.toThrow(/staff de Deoco/);
   });

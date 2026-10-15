@@ -1,5 +1,5 @@
 // Subdominios (y slugs) que no puede tomar una banda: los usa o podría usar la plataforma, o
-// se prestan a engañar ("soporte.deoco.com", "pagos.deoco.com"). Vale para el alta del staff y
+// se prestan a engañar ("soporte.deocoartist.com", "pagos.deocoartist.com"). Vale para el alta del staff y
 // para la autogestión.
 export const SUBDOMINIOS_RESERVADOS: readonly string[] = [
   "app", "www", "admin", "api", "mail", "correo", "smtp", "imap", "pop", "mx", "ns", "ns1", "ns2", "dns",

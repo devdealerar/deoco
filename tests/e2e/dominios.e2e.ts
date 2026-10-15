@@ -87,7 +87,7 @@ describe("dominio propio desde el panel de la banda", () => {
   });
 
   it("solo el titular: otro rol y el staff reciben 403 y no ven la entrada", async () => {
-    for (const email of ["editor-a@x.com", "staff@deoco.com"]) {
+    for (const email of ["editor-a@x.com", "staff@deocoartist.com"]) {
       const { page } = await logueado(email);
       await page.goto(`${APP}/b/banda-a`);
       expect(await page.locator('nav[aria-label="Panel"] a:text("Dominios")').count()).toBe(0);

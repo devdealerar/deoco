@@ -26,7 +26,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   cookies: {
-    // Cookie SOLO del host del panel (app.deoco.com / app.lvh.me): sin `domain`,
+    // Cookie SOLO del host del panel (app.deocoartist.com / app.lvh.me): sin `domain`,
     // así los sitios públicos de las bandas no la reciben nunca. En producción el
     // prefijo __Host- lo garantiza el navegador (prohíbe `domain` y exige https).
     sessionToken: {

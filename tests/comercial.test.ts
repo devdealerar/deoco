@@ -49,7 +49,7 @@ async function ponerPrecios() {
 
 const avisoCuota = (tipo: "subscription_preapproval" | "subscription_authorized_payment", id: string) =>
   atenderAvisoPlataforma(
-    new Request("http://app.deoco.com/avisos/plataforma/comercial/cuota/mercadopago", {
+    new Request("http://app.deocoartist.com/avisos/plataforma/comercial/cuota/mercadopago", {
       method: "POST",
       body: JSON.stringify({ type: tipo, data: { id } }),
       headers: { "content-type": "application/json" },
@@ -299,7 +299,7 @@ describe("cuota", () => {
     } finally {
       delete process.env.DEOCO_CUOTA_MP_SECRETO_AVISOS;
     }
-    const otra = await atenderAvisoPlataforma(new Request("http://app.deoco.com/x", { method: "POST", body: "{}" }), { moduloId: "comercial", path: "/cuota/otra" });
+    const otra = await atenderAvisoPlataforma(new Request("http://app.deocoartist.com/x", { method: "POST", body: "{}" }), { moduloId: "comercial", path: "/cuota/otra" });
     expect(otra.status).toBe(404);
   });
 });
@@ -330,7 +330,7 @@ describe("la cuota y las ventas de la banda nunca se mezclan", () => {
     // 2. Un cobro de la cuota no entra por el aviso de pagos de la banda (otra URL, otra cuenta).
     const cobro = mp.cobrar(id, true);
     const porLaBanda = await atenderAviso(
-      new Request(`http://app.deoco.com/avisos/${e.a.id}/tienda/pago/mercadopago`, { method: "POST", body: JSON.stringify({ type: "subscription_authorized_payment", data: { id: cobro } }) }),
+      new Request(`http://app.deocoartist.com/avisos/${e.a.id}/tienda/pago/mercadopago`, { method: "POST", body: JSON.stringify({ type: "subscription_authorized_payment", data: { id: cobro } }) }),
       { tenantId: e.a.id, moduloId: "tienda", path: "/pago/mercadopago" },
     );
     expect(porLaBanda.status).toBe(200); // se ignora: no es un pago

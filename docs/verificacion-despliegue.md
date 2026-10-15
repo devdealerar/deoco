@@ -35,18 +35,18 @@ reinicia). Las migraciones aplicadas sin error justo antes.
 
 La prueba de que el barrido **retoma** algo de verdad está en el punto 8.
 
-## 2. Certificado comodín (`*.deoco.com`)
+## 2. Certificado comodín (`*.deocoartist.com`)
 
 **Qué hago.**
 ```sh
-curl -sI https://app.deoco.com/ingresar | head -1
-curl -sI https://prueba-deploy.deoco.com/ | head -1
-echo | openssl s_client -connect prueba-deploy.deoco.com:443 -servername prueba-deploy.deoco.com 2>/dev/null \
+curl -sI https://app.deocoartist.com/ingresar | head -1
+curl -sI https://prueba-deploy.deocoartist.com/ | head -1
+echo | openssl s_client -connect prueba-deploy.deocoartist.com:443 -servername prueba-deploy.deocoartist.com 2>/dev/null \
   | openssl x509 -noout -subject -issuer -ext subjectAltName -dates
 ```
 Y abrir las dos direcciones en el celular (no solo en la compu).
 
-**Qué tiene que pasar.** `HTTP/2 200` en las dos; el certificado con `DNS:*.deoco.com` en el
+**Qué tiene que pasar.** `HTTP/2 200` en las dos; el certificado con `DNS:*.deocoartist.com` en el
 SAN, emitido por Let's Encrypt, vigente. Candado sin advertencias en el celular.
 
 **Si falla.** Logs de Traefik (`acme`, `cloudflare`). Lo usual: el token de Cloudflare sin
@@ -105,7 +105,7 @@ es repetible.
 2. Entrar como el **vendedor de prueba**, crear una aplicación (Checkout Pro) y copiar su
    **Access token** (`APP_USR-…`, son las credenciales "de producción" de la cuenta de prueba).
 3. En esa aplicación → **Webhooks**: activar notificaciones de **Pagos**, URL
-   `https://app.deoco.com/avisos/<id de la banda>/tienda/pago/mercadopago`, y copiar la
+   `https://app.deocoartist.com/avisos/<id de la banda>/tienda/pago/mercadopago`, y copiar la
    **clave secreta**.
 4. En el panel de la banda de prueba (como titular) → **Credenciales → Cobros**: pegar el
    access token y la clave secreta. **Probar conexión**: tiene que mostrar el nombre del
@@ -114,14 +114,14 @@ es repetible.
 **Qué hago.**
 1. Desde `/admin` (o el staff en el back office de la tienda): un proveedor y un producto base.
    Como titular: un producto en la tienda, publicado.
-2. En una ventana privada, en `https://prueba-deploy.deoco.com/tienda`: agregar al carrito,
+2. En una ventana privada, en `https://prueba-deploy.deocoartist.com/tienda`: agregar al carrito,
    checkout con tu Gmail, **Pagar**. En Mercado Pago, entrar con el **comprador de prueba** y
    pagar con una tarjeta de prueba aprobada (titular `APRO`).
 3. Volver al sitio (botón de Mercado Pago o redirección).
 4. Repetir con titular `OTHE` (rechazado).
 5. Firma: con la clave secreta cargada,
    ```sh
-   curl -si -X POST "https://app.deoco.com/avisos/<id>/tienda/pago/mercadopago?data.id=1&type=payment" \
+   curl -si -X POST "https://app.deocoartist.com/avisos/<id>/tienda/pago/mercadopago?data.id=1&type=payment" \
      -H 'x-signature: ts=1,v1=00' -H 'x-request-id: x' -H 'content-type: application/json' -d '{}' | head -1
    ```
 
@@ -132,7 +132,7 @@ es repetible.
   hasta **"¡Pago recibido!"** (el aviso tarda segundos). La URL de vuelta **no** tiene el token (`?resultado=exito`
   y nada más).
 - En el panel → Pedidos: **Pagado**; en Deuda, la del proveedor; el proveedor ve su orden en
-  `app.deoco.com/portal/tienda`.
+  `app.deocoartist.com/portal/tienda`.
 - Mails: al fan (confirmación, con link a su pedido) y al proveedor (orden, sin montos de venta).
 - Rechazado: el pedido sigue esperando el pago; la página dice **"El pago no se completó"**
   ("No se te cobró nada. Podés intentar de nuevo.").
@@ -186,7 +186,7 @@ es repetible.
 1. En `/admin` → la banda de prueba → **Miembros**: sumar a alguien con rol **PUERTA** (o usar
    al titular).
 2. En el **celular**, por **https**, entrar con ese usuario a
-   `https://app.deoco.com/b/prueba-deploy/puerta` y elegir el show.
+   `https://app.deocoartist.com/b/prueba-deploy/puerta` y elegir el show.
 3. Aceptar el permiso de la cámara. Escanear la entrada 1 desde **otra pantalla** (el mail en
    la compu) y la entrada 2 **impresa** en papel.
 4. Escanear la entrada 1 otra vez.
@@ -240,14 +240,14 @@ candado, **Usar como principal**.
 - Verificar: "verificado" en menos de un minuto después de que el DNS propagó.
 - `https://<dominio>`: candado válido (certificado **del dominio**, no el comodín).
 - "Usar como principal" lo acepta solo con el candado; después,
-  `https://prueba-deploy.deoco.com/cualquier/ruta` → **307** a `https://<dominio>/cualquier/ruta`.
+  `https://prueba-deploy.deocoartist.com/cualquier/ruta` → **307** a `https://<dominio>/cualquier/ruta`.
 - Los links de los mails nuevos usan el dominio propio.
 
 **Si falla.**
 - "No apunta / no encuentro el TXT": esperar la propagación (`dig A <dominio>`,
   `dig TXT _deoco.<dominio>`); el TXT va en `_deoco.<dominio>`, no en el dominio.
 - Sin candado: el dominio no se sumó en Easypanel, o se sumó con el resolver de Cloudflare
-  (ese solo sirve para `deoco.com`).
+  (ese solo sirve para `deocoartist.com`).
 - "Usar como principal" no lo deja: lo comprueba abriendo `https://<dominio>`; hasta que el
   candado sea válido, no.
 
@@ -261,7 +261,7 @@ hasta 50 a la vez (`docs/decisiones-pendientes.md`, P4).
 **Qué hago.** Desde **otra máquina** (no desde el VPS: el que mide le sacaría CPU al servidor), con el show
 del punto 6 (con cupo, publicado):
 ```sh
-npx autocannon -c 300 -a 300 -t 60 https://prueba-deploy.deoco.com/fechas/<id del show>
+npx autocannon -c 300 -a 300 -t 60 https://prueba-deploy.deocoartist.com/fechas/<id del show>
 ```
 Repetir 3 veces. Mientras tanto, en el VPS: `top` (CPU de node y de postgres).
 Después, lo mismo con `-a 3000` (diez tandas).
@@ -306,7 +306,7 @@ Lo que el ensayo hizo con el Mercado Pago falso: los campos de `/preapproval` y
 **Qué hago.**
 1. En `/admin/m/comercial/planes`, poner temporalmente el precio de Esencial en **$ 100** (el
    mínimo que acepte Mercado Pago para suscripciones).
-2. Con un email tuyo, alta sola en `https://app.deoco.com/registro` → mail → link → ingresar →
+2. Con un email tuyo, alta sola en `https://app.deocoartist.com/registro` → mail → link → ingresar →
    crear banda eligiendo **Esencial**. Te lleva a Mercado Pago (cuenta de **Deoco**): pagá con
    una tarjeta tuya (o con un usuario de prueba de esa aplicación).
 3. Al volver a "Plan y pago": forma de pago "Mercado Pago · <tarjeta>", plan Esencial.
@@ -331,7 +331,7 @@ Lo que el ensayo hizo con el Mercado Pago falso: los campos de `/preapproval` y
 
 ## 13. Alta sola con mails de verdad
 
-**Qué hago.** `https://app.deoco.com/registro` con una casilla Gmail y otra Outlook.
+**Qué hago.** `https://app.deocoartist.com/registro` con una casilla Gmail y otra Outlook.
 
 **Qué tiene que pasar.** El mail "Confirmá tu email…" llega (no a spam), remitente "Deoco"; el
 link abre `/registro/verificar` y confirma; la banda nueva aparece en `/admin` con el filtro

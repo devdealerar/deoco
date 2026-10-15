@@ -6,7 +6,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import { EVENTO_COLGADO_MS, esperarEventos } from "@/nucleo/eventos/bus";
 import { dosBandas, dueno } from "./apoyo";
 
-process.env.DEOCO_DOMINIO_RAIZ = "deoco.com";
+process.env.DEOCO_DOMINIO_RAIZ = "deocoartist.com";
 
 let a: { id: string };
 let b: { id: string };
@@ -123,7 +123,7 @@ describe("barrido de correos", () => {
     const original = { ...process.env };
     process.env.DEOCO_CORREO = "smtp";
     process.env.DEOCO_SMTP_URL = "smtp://127.0.0.1:1"; // nadie escucha
-    process.env.DEOCO_CORREO_REMITENTE = "tiendas@deoco.com";
+    process.env.DEOCO_CORREO_REMITENTE = "tiendas@deocoartist.com";
     try {
       const c = await correo(a.id);
       await barrer({ dns: dnsVacio });

@@ -29,7 +29,7 @@ const FAN: DatosFan = {
   nombre: "Lucía Fan", email: "lucia@fan.com", telefono: "341 555-1234", calle: "Córdoba", numero: "1234",
   piso: "", ciudad: "Rosario", provincia: "Santa Fe", codigoPostal: "2000",
 };
-const ORIGEN = "https://banda-a.deoco.com";
+const ORIGEN = "https://banda-a.deocoartist.com";
 let sur: { id: string };
 let prensa: { id: string };
 let remeraBase: { id: string };
@@ -63,7 +63,7 @@ async function pedidoDeA() {
 /** Lo que manda Mercado Pago (webhook): solo el id; el resto se consulta a la API. */
 const aviso = (tenantId: string, cuerpo: unknown, cabeceras: Record<string, string> = {}, query = "") =>
   atenderAviso(
-    new Request(`http://app.deoco.com/avisos/${tenantId}/tienda/pago/mercadopago${query}`, {
+    new Request(`http://app.deocoartist.com/avisos/${tenantId}/tienda/pago/mercadopago${query}`, {
       method: "POST",
       body: JSON.stringify(cuerpo),
       headers: { "content-type": "application/json", ...cabeceras },
@@ -143,7 +143,7 @@ describe("prueba 1: el cobro se crea en la pasarela de esa banda, con su token",
   it("la banda B cobra con el token de B", async () => {
     const { vinilo } = await productos(e.b.id);
     const pedido = await crearPedido(tienda, e.b.id, [{ productoId: vinilo.id, variante: {}, cantidad: 1 }], FAN);
-    await iniciarCobro(tienda, e.b.id, pedido.id, "https://banda-b.deoco.com");
+    await iniciarCobro(tienda, e.b.id, pedido.id, "https://banda-b.deocoartist.com");
     expect(mp.preferencias.map((p) => p.token)).toEqual([TOKEN_B]);
   });
 });
