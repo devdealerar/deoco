@@ -3,6 +3,25 @@
 Tomadas sin consultar durante el trabajo largo sin supervisión. Cada una dice qué se eligió
 y por qué. Si alguna no va, se cambia.
 
+## D2 · Lo que la lista de IPs de Cloudflare no cubre (anotado, sin hacer)
+
+**Situación.** Deoco va detrás de Cloudflare con la opción A acotada (`docs/despliegue.md`, "Todo
+detrás de Cloudflare"): certificado de cliente de Cloudflare (Authenticated Origin Pulls) solo
+en `app.<raíz>`, y lista de IPs de Cloudflare en todas las rutas de Deoco. Traefik no puede
+exigir el certificado en los subdominios de banda ni en los dominios propios sin tocar
+`default`, que rompería los otros servicios del VPS.
+
+**El hueco.** Alguien con **su propia cuenta de Cloudflare** puede apuntar un host suyo a nuestra
+IP: el pedido llega desde una IP de Cloudflare y pasa la lista. Hoy solo llega a hosts que la app
+no conoce (404): no puede usar el host de una banda, porque esas zonas y custom hostnames están
+en nuestra cuenta. En `app.` no pasa (ahí sí se exige el certificado de cliente).
+
+**Decisión: no hacer nada por ahora.** Si algún día hace falta cerrarlo (por ejemplo, si la app
+empieza a responder algo útil a hosts desconocidos), la salida es un **Cloudflare Tunnel** para
+Deoco: `cloudflared` sale del VPS hacia Cloudflare y el tráfico de Deoco ya no entra por el 443
+(ni ruta comodín ni lista de IPs). Los custom hostnames y las zonas delegadas apuntarían al
+túnel. Pide un ensayo con Cloudflare real.
+
 ## P1 · Planes, cuotas y estados (módulo comercial)
 
 1. **Cómo se reparte**: el núcleo no sabe de planes. Ofrece capacidades genéricas para UN

@@ -260,6 +260,15 @@ Decisión (docs/diseno-dominios.md §1, opción A **acotada**): Deoco (`app.`, l
 banda y los dominios propios) pasa por Cloudflare; los **otros servicios del VPS no se tocan**
 (siguen en gris con Let's Encrypt) y las opciones TLS `default` de Traefik **no se cambian**.
 
+> **⚠️ ANTES DE EMPEZAR: los dominios de Deoco tienen que salir de Easypanel.**
+> **Si en Easypanel queda cargado `app.deocoartist.com` (o `*.deocoartist.com`) en el servicio
+> de la app, Easypanel genera su propia ruta para ese host. Con dos rutas para el mismo host y
+> opciones TLS distintas, Traefik usa `default` para las dos: el certificado de cliente de
+> `app.` (`aop`) se pierde EN SILENCIO. Todo sigue andando y nada avisa en pantalla; solo queda
+> una línea en el log de Traefik ("Found different TLS options for routers on the same host").**
+> **Es el error más fácil de cometer y el más difícil de ver. Sacalos (paso 7) y revisá el log
+> (sección "Verificar").**
+
 Lo que dijo tu Easypanel: Traefik **3.6.7**; en `/etc/easypanel/traefik/config/` solo está
 `main.yaml` (lo regenera Easypanel) y no define ninguna opción TLS; el editor de
 "Configuración personalizada" escribe el YAML propio.
@@ -410,10 +419,9 @@ custom hostnames son nuestros).
 7. **Easypanel, servicio de la app**: sacá sus dominios (`app.deocoartist.com` y
    `*.deocoartist.com`). Así Easypanel no genera rutas para Deoco (que pisarían `aop`) ni pide
    certificados a Let's Encrypt para ellos. Los otros servicios, igual que antes.
-8. **El resolver de Let's Encrypt por DNS** (sección B): te sugiero **no** sacarlo. Ya no lo usa
+8. **El resolver de Let's Encrypt por DNS** (sección B) **se queda** (decidido). Ya no lo usa
    Deoco, pero es lo que hace rápida la vuelta atrás (abajo): con él, Traefik vuelve a sacar el
-   certificado de `*.deocoartist.com` en un par de minutos. Si lo sacás, la vuelta atrás tiene
-   que volver a configurarlo.
+   certificado de `*.deocoartist.com` en un par de minutos.
 
 ### Verificar
 
