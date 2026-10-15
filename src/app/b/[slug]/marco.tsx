@@ -23,8 +23,10 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   // Delegaciones que vencen en un par de días si la banda no cambia los nameservers.
   const porVencer = esTitular ? await delegacionesPorVencer(acceso.tenantId) : [];
   // Suspendida: solo se puede pagar (el resto del panel da 403). El sitio público sigue.
-  const suspendida = acceso.estado === "SUSPENDIDO";
-  const conPago = esTitular && Boolean(reg.gestor);
+  // Archivada: el panel no existe más, salvo Dominios para el titular (el dominio es suyo).
+  const archivada = acceso.estado === "ARCHIVADO";
+  const suspendida = acceso.estado === "SUSPENDIDO" || archivada;
+  const conPago = esTitular && Boolean(reg.gestor) && !archivada;
   const item = "block rounded-md px-3 py-2 text-md font-semibold text-secondary hover:bg-primary_hover hover:text-secondary_hover";
   return (
     <div className="min-h-dvh bg-secondary lg:flex">
@@ -103,7 +105,14 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
               </Aviso>
             </div>
           )}
-          {suspendida && esTitular && (
+          {archivada && esTitular && (
+            <div className="mb-6">
+              <Aviso tono="error" titulo="La banda está archivada." data-testid="aviso-archivada">
+                El sitio y el panel ya no están en Deoco. Tus dominios siguen siendo tuyos: desde acá podés llevártelos.
+              </Aviso>
+            </div>
+          )}
+          {suspendida && !archivada && esTitular && (
             <div className="mb-6">
               <Aviso tono="error" titulo="Tu cuenta está suspendida." data-testid="aviso-suspendida">
                 El sitio público sigue online. Para volver a usar el panel, regularizá el pago.

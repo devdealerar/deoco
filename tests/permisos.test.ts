@@ -104,9 +104,17 @@ describe("selector de bandas", () => {
     ]);
   });
 
-  it("las bandas archivadas no aparecen", async () => {
+  it("una banda archivada solo la ve su titular (para llevarse sus dominios); otros roles y el staff, no", async () => {
     await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ARCHIVADO" } });
-    expect((await bandasVisibles(e.multi.id)).map((b) => b.slug)).toEqual(["banda-b"]);
-    await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ACTIVO" } });
+    try {
+      // multi: TITULAR en A (archivada), EDITOR en B.
+      expect((await bandasVisibles(e.multi.id)).map((b) => [b.slug, b.estado])).toEqual([
+        ["banda-a", "ARCHIVADO"],
+        ["banda-b", "ACTIVO"],
+      ]);
+      expect((await bandasVisibles(e.staff.id)).map((b) => b.slug)).toEqual(["banda-b"]);
+    } finally {
+      await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ACTIVO" } });
+    }
   });
 });

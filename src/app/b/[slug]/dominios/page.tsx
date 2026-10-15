@@ -26,6 +26,7 @@ export default async function Dominios({ params }: { params: Promise<{ slug: str
           delegar={(d) => delegarAccion.bind(null, slug, d)}
           llevarse={(d) => llevarseAccion.bind(null, slug, d)}
           quedarse={(d) => quedarseAccion.bind(null, slug, d)}
+          soloSalida={acceso.estado === "ARCHIVADO"}
         />
       </div>
     </MarcoPanel>

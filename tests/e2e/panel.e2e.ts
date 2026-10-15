@@ -130,6 +130,26 @@ describe("prueba 7: banda SUSPENDIDO", () => {
     expect((await staff.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
   });
 
+  it("ARCHIVADO: el titular entra solo a Dominios (para llevárselos); el resto, 404; otro rol tampoco", async () => {
+    const editor = (await logueado("editor-a@x.com")).page;
+    await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ARCHIVADO" } });
+    try {
+      const titular = (await logueado("multi@x.com")).page;
+      // El selector la muestra archivada, con el camino a sus dominios.
+      const enSelector = titular.locator('[data-slug="banda-a"]');
+      expect(await enSelector.textContent()).toContain("archivada");
+      await enSelector.getByRole("link", { name: "Tus dominios" }).click();
+      await titular.waitForURL(`${APP}/b/banda-a/dominios`);
+      expect(await titular.getByTestId("aviso-archivada").textContent()).toContain("Tus dominios siguen siendo tuyos");
+      expect(await titular.getByRole("button", { name: "Delegar dominio" }).count()).toBe(0);
+      expect((await titular.goto(`${APP}/b/banda-a`))!.status()).toBe(404);
+      expect((await titular.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(404);
+      expect((await editor.goto(`${APP}/b/banda-a/dominios`))!.status()).toBe(403);
+    } finally {
+      await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ACTIVO" } });
+    }
+  });
+
   it("MOROSO: el titular ve el aviso y puede pagar; el editor no ve el aviso", async () => {
     await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "MOROSO" } });
     const titular = (await logueado("multi@x.com")).page;

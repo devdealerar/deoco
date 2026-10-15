@@ -80,6 +80,12 @@ export const dnsDelSistema: ConsultaDns = {
 
 const NO_HABILITADO = "Los dominios propios todavía no están habilitados en Deoco. Escribinos y lo vemos.";
 
+/** Una banda archivada solo puede llevarse (o quitar) sus dominios, no sumar nuevos. */
+async function exigirNoArchivada(tenantId: string) {
+  const t = await conTenant(tenantId, (tx) => tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { estado: true } }));
+  if (t.estado === "ARCHIVADO") throw new ErrorDominio("La banda está archivada: solo podés llevarte o quitar tus dominios.");
+}
+
 function proveedor(): ProveedorDns {
   const p = proveedorDns();
   if (!p) throw new ErrorDominio(NO_HABILITADO);
@@ -347,6 +353,7 @@ const esUnico = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestErro
  * Si Cloudflare no responde, el dominio queda igual: "Verificar" (o la revisión) lo reintenta.
  */
 export async function agregarDominio(usuarioId: string, tenantId: string, crudo: string, via: "cname" | "zona" = "cname"): Promise<string> {
+  await exigirNoArchivada(tenantId);
   const p = proveedor();
   if (via === "zona") return agregarDelegado(usuarioId, tenantId, crudo, p);
   const dominio = normalizarDominio(crudo);
@@ -504,6 +511,7 @@ export async function pasarADelegado(usuarioId: string, tenantId: string, domini
   if (esDePlataforma(d.dominio)) throw new ErrorDominio("El subdominio de Deoco no se delega.");
   if (d.via === "zona") throw new ErrorDominio(`${d.dominio} ya está delegado.`);
   if (d.migrandoA) return;
+  await exigirNoArchivada(tenantId);
   const p = proveedor();
   if (!ipDelServidor()) throw new ErrorDominio(NO_HABILITADO);
   const apex = apexDe(d.dominio);

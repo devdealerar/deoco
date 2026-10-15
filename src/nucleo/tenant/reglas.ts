@@ -5,14 +5,13 @@ import type { EstadoTenant } from "@/generated/prisma/client";
  *   /b/<slug>/...        panel de una banda
  *   /b/<slug>/pago/...   pago de la cuota: lo define el núcleo (una banda sin módulos
  *                        prendidos igual tiene que poder pagar).
- *   /b/<slug>/dominios   los dominios de la banda: la cuota impaga no le impide llevárselos
- *                        (docs/diseno-dominios.md §2, "ninguna banda queda presa").
- * Las dos, abiertas con el tenant SUSPENDIDO, solo para el titular.
+ *   /b/<slug>/dominios   los dominios de la banda: ni la cuota impaga ni el archivo le impiden
+ *                        llevárselos (docs/diseno-dominios.md §2, "ninguna banda queda presa").
+ * Con el tenant SUSPENDIDO, las dos abiertas solo para el titular; ARCHIVADO, solo Dominios.
  */
 const RUTA_PANEL_BANDA = /^\/b\/([^/]+)(\/.*)?$/;
-const ABIERTAS_SUSPENDIDA = ["/pago", "/dominios"];
 
-export type RutaPanel = { slug: string; abiertaSuspendida: boolean };
+export type RutaPanel = { slug: string; subruta: "pago" | "dominios" | null };
 
 /** Si `pathname` es el panel de una banda, su slug; si no, null (selector, login, etc.). */
 export function rutaPanelBanda(pathname: string): RutaPanel | null {
@@ -25,8 +24,8 @@ export function rutaPanelBanda(pathname: string): RutaPanel | null {
   } catch {
     return null;
   }
-  const abiertaSuspendida = ABIERTAS_SUSPENDIDA.some((r) => resto === r || resto.startsWith(r + "/"));
-  return { slug, abiertaSuspendida };
+  const es = (r: string) => resto === r || resto.startsWith(r + "/");
+  return { slug, subruta: es("/pago") ? "pago" : es("/dominios") ? "dominios" : null };
 }
 
 export type Superficie = "panel" | "publico";
@@ -40,7 +39,7 @@ export type Decision =
 export function decidirPorEstado(
   estado: EstadoTenant,
   superficie: Superficie,
-  abiertaSuspendida = false,
+  subruta: RutaPanel["subruta"] = null,
 ): Decision {
   switch (estado) {
     case "ACTIVO":
@@ -48,9 +47,10 @@ export function decidirPorEstado(
       return { tipo: "seguir", soloTitular: false };
     case "SUSPENDIDO":
       if (superficie === "publico") return { tipo: "seguir", soloTitular: false };
-      return abiertaSuspendida ? { tipo: "seguir", soloTitular: true } : { tipo: "prohibido" };
+      return subruta ? { tipo: "seguir", soloTitular: true } : { tipo: "prohibido" };
     case "ARCHIVADO":
-      return { tipo: "no-encontrado" };
+      // Todo 404, salvo los dominios para el titular: el dominio es suyo.
+      return superficie === "panel" && subruta === "dominios" ? { tipo: "seguir", soloTitular: true } : { tipo: "no-encontrado" };
     default: {
       const _exhaustivo: never = estado;
       return _exhaustivo;

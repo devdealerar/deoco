@@ -32,7 +32,9 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - Cualquier otro host (`labanda.deocoartist.com`, dominio propio) → sitio público (superficie
   `"publico"`), tenant por host. Anónimo.
 - `/b/<slug>/pago` lo define el núcleo: abierto con la banda suspendida, solo para el titular.
-  `/b/<slug>/dominios` también (la cuota impaga no le impide llevarse sus dominios).
+  `/b/<slug>/dominios` también (la cuota impaga no le impide llevarse sus dominios), y es lo único
+  abierto con la banda ARCHIVADA (solo titular; el selector se la muestra con el link; no suma
+  dominios nuevos).
 - Solo resuelven dominios **verificados**. En el sitio público, todo dominio de la banda que no
   sea el principal redirige (307) al principal, misma ruta.
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.

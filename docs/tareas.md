@@ -37,6 +37,8 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   `validarPorHttp`; tabla `zona_saliente`. "Cómo me lo llevo" en cada dominio (delegado: el
   botón; por CNAME: su DNS ya es suyo). Dominios queda abierto con la banda suspendida (solo
   titular). Mails: aviso de baja 7 días antes, "ya no usa los nameservers", "dimos de baja".
+  Banda archivada (decidido): Dominios sigue abierto para el titular (todo lo demás, 404), el
+  selector se la muestra con "Tus dominios" (`bandas_visibles`), no suma dominios nuevos.
   Pruebas: `tests/salida.test.ts`, e2e en `tests/e2e/dominios.e2e.ts` y `panel.e2e.ts`.
 - D5: `src/nucleo/dominios/correo.ts` (`configurarCorreo`, `revisarCorreo`, barrido cada 10 min,
   `quitarCorreo`, `probarCorreo`), `envio.ts` (Resend), Cloudflare (`prenderRecepcion`,

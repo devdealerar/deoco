@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { CABECERA, PREFIJO_CABECERAS } from "@/nucleo/tenant/cabeceras";
 import { esHostPlataforma, normalizarHost } from "@/nucleo/tenant/hosts";
-import { decidirPorEstado, rutaPanelBanda, type Superficie } from "@/nucleo/tenant/reglas";
+import { decidirPorEstado, type RutaPanel, rutaPanelBanda, type Superficie } from "@/nucleo/tenant/reglas";
 import {
   resolverTenantPorHost,
   resolverTenantPorSlug,
@@ -43,21 +43,21 @@ export async function proxy(request: NextRequest) {
   const host = normalizarHost(request.headers.get("host"));
   let tenant: TenantResuelto | null;
   let superficie: Superficie;
-  let abiertaSuspendida = false;
+  let subruta: RutaPanel["subruta"] = null;
 
   if (esHostPlataforma(host)) {
     const ruta = rutaPanelBanda(request.nextUrl.pathname);
     if (!ruta) return seguir();
     tenant = await resolverTenantPorSlug(ruta.slug);
     superficie = "panel";
-    abiertaSuspendida = ruta.abiertaSuspendida;
+    subruta = ruta.subruta;
   } else {
     tenant = await resolverTenantPorHost(host);
     superficie = "publico";
   }
   if (!tenant) return noEncontrado();
 
-  const decision = decidirPorEstado(tenant.estado, superficie, abiertaSuspendida);
+  const decision = decidirPorEstado(tenant.estado, superficie, subruta);
   if (decision.tipo === "no-encontrado") return noEncontrado();
   // "prohibido" solo sale del panel (por slug) de una banda suspendida.
   if (decision.tipo === "prohibido") return panelSuspendido(rutaPanelBanda(request.nextUrl.pathname)?.slug ?? "");

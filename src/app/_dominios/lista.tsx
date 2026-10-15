@@ -18,6 +18,7 @@ export function ListaDominios({
   delegar,
   llevarse,
   quedarse,
+  soloSalida = false,
 }: {
   dominios: DominioBanda[];
   verificar: (dominioId: string) => Accion;
@@ -27,6 +28,8 @@ export function ListaDominios({
   delegar: (dominioId: string) => Accion;
   llevarse: (dominioId: string) => Accion;
   quedarse: (dominioId: string) => Accion;
+  /** Banda archivada: sin agregar ni pasar a delegado; solo llevarse o quitar. */
+  soloSalida?: boolean;
 }) {
   const enLinea = { puedeEditar: true, enLinea: true, variante: "secundario" as const };
   return (
@@ -86,7 +89,7 @@ export function ListaDominios({
 
           {d.delegacion && <Delegacion dominio={d.dominio} delegacion={d.delegacion} verificar={verificar(d.id)} />}
 
-          {d.via === "cname" && !d.delegacion && (
+          {d.via === "cname" && !d.delegacion && !soloSalida && (
             <div className="flex flex-col gap-2 rounded-lg p-4 ring-1 ring-secondary" data-pasar-a-delegado>
               <p className="text-sm text-secondary">
                 <strong>Pasarme a delegar:</strong> Deoco maneja el DNS y el sitio anda también sin www. Preparamos todo antes
@@ -179,29 +182,33 @@ export function ListaDominios({
         </Tarjeta>
       ))}
 
-      <Tarjeta
-        titulo="Delegar un dominio (recomendado)"
-        descripcion="Deoco maneja su DNS: el sitio con y sin www y el certificado. Cambiás dos nameservers donde registraste el dominio; lo que ya tenga (por ejemplo tu correo) lo traemos. Sirve también para un .com.ar de NIC Argentina."
-      >
-        <div data-agregar="zona">
-          <Formulario accion={agregar} puedeEditar etiqueta="Delegar dominio" limpiarAlGuardar>
-            <input type="hidden" name="via" value="zona" />
-            <Campo name="dominio" etiqueta="Dominio" placeholder="labanda.com" required />
-          </Formulario>
-        </div>
-      </Tarjeta>
+      {!soloSalida && (
+        <Tarjeta
+          titulo="Delegar un dominio (recomendado)"
+          descripcion="Deoco maneja su DNS: el sitio con y sin www y el certificado. Cambiás dos nameservers donde registraste el dominio; lo que ya tenga (por ejemplo tu correo) lo traemos. Sirve también para un .com.ar de NIC Argentina."
+        >
+          <div data-agregar="zona">
+            <Formulario accion={agregar} puedeEditar etiqueta="Delegar dominio" limpiarAlGuardar>
+              <input type="hidden" name="via" value="zona" />
+              <Campo name="dominio" etiqueta="Dominio" placeholder="labanda.com" required />
+            </Formulario>
+          </div>
+        </Tarjeta>
+      )}
 
-      <Tarjeta
-        titulo="Conectar por CNAME"
-        descripcion="Seguís manejando tu DNS: lo conectás con dos registros. Solo con www adelante (p. ej. www.labanda.com): el dominio sin www lo tenés que redirigir vos."
-      >
-        <div data-agregar="cname">
-          <Formulario accion={agregar} puedeEditar etiqueta="Agregar dominio" limpiarAlGuardar>
-            <input type="hidden" name="via" value="cname" />
-            <Campo name="dominio" etiqueta="Dominio" placeholder="www.labanda.com" required />
-          </Formulario>
-        </div>
-      </Tarjeta>
+      {!soloSalida && (
+        <Tarjeta
+          titulo="Conectar por CNAME"
+          descripcion="Seguís manejando tu DNS: lo conectás con dos registros. Solo con www adelante (p. ej. www.labanda.com): el dominio sin www lo tenés que redirigir vos."
+        >
+          <div data-agregar="cname">
+            <Formulario accion={agregar} puedeEditar etiqueta="Agregar dominio" limpiarAlGuardar>
+              <input type="hidden" name="via" value="cname" />
+              <Campo name="dominio" etiqueta="Dominio" placeholder="www.labanda.com" required />
+            </Formulario>
+          </div>
+        </Tarjeta>
+      )}
     </div>
   );
 }

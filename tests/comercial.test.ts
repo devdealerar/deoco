@@ -231,11 +231,17 @@ describe("cuota", () => {
   it("SUSPENDIDO: el sitio público sigue online y el panel queda bloqueado salvo el pago (solo titular)", () => {
     expect(decidirPorEstado("SUSPENDIDO", "publico")).toEqual({ tipo: "seguir", soloTitular: false });
     expect(decidirPorEstado("SUSPENDIDO", "panel")).toEqual({ tipo: "prohibido" });
-    expect(decidirPorEstado("SUSPENDIDO", "panel", true)).toEqual({ tipo: "seguir", soloTitular: true });
+    expect(decidirPorEstado("SUSPENDIDO", "panel", "pago")).toEqual({ tipo: "seguir", soloTitular: true });
     // Pago y Dominios abiertos (solo titular): la cuota impaga no le impide llevarse sus dominios.
-    expect(rutaPanelBanda("/b/x/pago")).toEqual({ slug: "x", abiertaSuspendida: true });
-    expect(rutaPanelBanda("/b/x/dominios")).toEqual({ slug: "x", abiertaSuspendida: true });
-    expect(rutaPanelBanda("/b/x/tienda")).toEqual({ slug: "x", abiertaSuspendida: false });
+    expect(decidirPorEstado("SUSPENDIDO", "panel", "dominios")).toEqual({ tipo: "seguir", soloTitular: true });
+    // Archivada: todo 404 salvo Dominios (solo titular), ni siquiera Plan y pago ni el sitio.
+    expect(decidirPorEstado("ARCHIVADO", "panel", "dominios")).toEqual({ tipo: "seguir", soloTitular: true });
+    expect(decidirPorEstado("ARCHIVADO", "panel", "pago")).toEqual({ tipo: "no-encontrado" });
+    expect(decidirPorEstado("ARCHIVADO", "panel")).toEqual({ tipo: "no-encontrado" });
+    expect(decidirPorEstado("ARCHIVADO", "publico", "dominios")).toEqual({ tipo: "no-encontrado" });
+    expect(rutaPanelBanda("/b/x/pago")).toEqual({ slug: "x", subruta: "pago" });
+    expect(rutaPanelBanda("/b/x/dominios")).toEqual({ slug: "x", subruta: "dominios" });
+    expect(rutaPanelBanda("/b/x/tienda")).toEqual({ slug: "x", subruta: null });
     expect(decidirPorEstado("MOROSO", "panel")).toEqual({ tipo: "seguir", soloTitular: false });
   });
 

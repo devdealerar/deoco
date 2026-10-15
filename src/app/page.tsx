@@ -41,8 +41,17 @@ export default async function Inicio({ searchParams }: Props) {
       <ul>
         {bandas.map((b) => (
           <li key={b.tenantId} data-slug={b.slug}>
-            <Link href={`/b/${b.slug}`}>{b.nombre}</Link> · {b.rol ?? "—"}
-            {b.accesoStaff && <strong> · acceso de staff</strong>}
+            {b.estado === "ARCHIVADO" ? (
+              // Archivada: solo sus dominios, para llevárselos.
+              <>
+                {b.nombre} · archivada · <Link href={`/b/${b.slug}/dominios`}>Tus dominios</Link>
+              </>
+            ) : (
+              <>
+                <Link href={`/b/${b.slug}`}>{b.nombre}</Link> · {b.rol ?? "—"}
+                {b.accesoStaff && <strong> · acceso de staff</strong>}
+              </>
+            )}
           </li>
         ))}
       </ul>

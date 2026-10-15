@@ -208,3 +208,33 @@ describe("quitar un delegado", () => {
     expect(await dueno.zonaSaliente.count()).toBe(0);
   });
 });
+
+describe("banda archivada", () => {
+  it("no suma dominios, pero se lleva los suyos: la salida corre igual", async () => {
+    const { id, zonaId } = await delegado();
+    await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
+    try {
+      await expect(agregarDominio(ua.id, a.id, "otro.com", "zona")).rejects.toThrow(/archivada: solo podés llevarte o quitar/);
+      await llevarseElDns(ua.id, a.id, id, { seguirConSitio: false });
+      cf.zonas.get(zonaId)!.status = "moved";
+      expect((await barrer()).salidas).toBe(1);
+      expect(cf.zonas.size).toBe(0);
+    } finally {
+      await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ACTIVO" } });
+    }
+  });
+
+  it("el proxy deja pasar solo Dominios del panel (para el titular); el resto, 404", async () => {
+    await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
+    try {
+      const panel = (ruta: string) => new NextRequest(`https://app.deocoartist.com${ruta}`, { headers: { host: "app.deocoartist.com" } });
+      expect((await proxy(panel("/b/banda-a/dominios"))).status).toBe(200);
+      expect((await proxy(panel("/b/banda-a"))).status).toBe(404);
+      expect((await proxy(panel("/b/banda-a/pago"))).status).toBe(404);
+      expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(404);
+    } finally {
+      await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ACTIVO" } });
+    }
+  });
+});
+
