@@ -4,12 +4,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { exigirPlataforma, usuarioActivo } from "@/nucleo/acceso/panel";
 import { confirmarRegistro, crearBandaPropia, ErrorAutogestion, solicitarRegistro } from "@/nucleo/autogestion";
+import { ipDelVisitante } from "@/nucleo/publico/visitante";
 import type { EstadoFormulario } from "@/ui";
 
-/** La IP de quien pide (detrás de Traefik: el primer x-forwarded-for). Solo para frenar abusos. */
+/** La IP de quien pide (detrás de Cloudflare: CF-Connecting-IP). Solo para frenar abusos. */
 async function ip() {
-  const h = await headers();
-  return h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || null;
+  return ipDelVisitante(await headers());
 }
 const campo = (fd: FormData, k: string) => String(fd.get(k) ?? "");
 

@@ -10,7 +10,6 @@ const entorno = (): NodeJS.ProcessEnv => ({
   ...process.env,
   NODE_ENV: "production",
   DEOCO_DOMINIO_RAIZ: "lvh.me",
-  DEOCO_IP_PUBLICA: "203.0.113.10",
   DEOCO_MERCADOPAGO_API: `http://127.0.0.1:${PUERTO_MP}`,
   DEOCO_CORREO: "memoria",
   PORT: String(PUERTO),

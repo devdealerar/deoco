@@ -17,13 +17,16 @@ import { esperarEventos } from "@/nucleo/eventos/bus";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { crearRegistro } from "@/nucleo/modulos/registro";
 import { CONTRASENA, dueno, escenarioAcceso } from "./apoyo";
+import { CloudflareFalso } from "./cloudflare-falso";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
+const cf = new CloudflareFalso();
 const acciones = async (tenantId?: string) =>
   (await dueno.auditoria.findMany({ where: tenantId ? { tenantId } : {}, orderBy: { fecha: "asc" } })).map((a) => a.accion);
 
 beforeAll(async () => {
   e = await escenarioAcceso();
+  (await cf.iniciar()).usar();
 });
 beforeEach(async () => {
   await dueno.auditoria.deleteMany();
@@ -31,6 +34,7 @@ beforeEach(async () => {
   await dueno.tenant.updateMany({ data: { estado: "ACTIVO" } });
 });
 afterAll(async () => {
+  await cf.cerrar();
   await prisma.$disconnect();
   await dbAdmin().$disconnect();
   await dueno.$disconnect();
@@ -83,7 +87,8 @@ describe("dominios", () => {
     expect(d).toMatchObject({ tenantId: e.a.id, esPrincipal: false, verificado: false });
     await expect(marcarPrincipal(e.staff.id, e.a.id, d.id)).rejects.toThrow(/todavía no está verificado/);
     await dueno.dominio.update({ where: { id: d.id }, data: { verificado: true } });
-    await marcarPrincipal(e.staff.id, e.a.id, d.id, async () => ({ abre: true }));
+    cf.activar("lossatelites.com.ar");
+    await marcarPrincipal(e.staff.id, e.a.id, d.id);
     const principales = await dueno.dominio.findMany({ where: { tenantId: e.a.id, esPrincipal: true } });
     expect(principales.map((p) => p.dominio)).toEqual(["lossatelites.com.ar"]);
     expect(await acciones(e.a.id)).toEqual(["dominio.agregado", "dominio.principal_marcado"]);

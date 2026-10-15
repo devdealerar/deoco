@@ -18,6 +18,7 @@ const PROD = { generadoPara: "produccion" };
 describe("verificación de arranque: entorno", () => {
   it("una configuración correcta no tiene problemas", () => {
     expect(problemasDeEntorno(BIEN, PROD)).toEqual([]);
+    expect(problemasDeEntorno({ ...BIEN, DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona" }, PROD)).toEqual([]);
   });
 
   it.each([
@@ -29,6 +30,8 @@ describe("verificación de arranque: entorno", () => {
     [{ DEOCO_DOMINIO_RAIZ: "https://deocoartist.com" }, /solo el dominio/],
     [{ DATABASE_URL_ADMIN: BIEN.DATABASE_URL }, /usan el mismo rol \(deoco_app\)/],
     [{ DATABASE_URL: BIEN.DATABASE_URL_MIGRACIONES }, /usa el rol dueño de las tablas \(deoco_owner\)/],
+    [{ DEOCO_CLOUDFLARE_TOKEN: "tok" }, /las dos variables: DEOCO_CLOUDFLARE_TOKEN y DEOCO_CLOUDFLARE_ZONA/],
+    [{ DEOCO_CLOUDFLARE_ZONA: "zona" }, /las dos variables: DEOCO_CLOUDFLARE_TOKEN y DEOCO_CLOUDFLARE_ZONA/],
   ])("%o", (cambio, problema) => {
     expect(problemasDeEntorno({ ...BIEN, ...cambio }, PROD).join("\n")).toMatch(problema);
   });

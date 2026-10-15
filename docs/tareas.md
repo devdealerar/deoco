@@ -7,13 +7,25 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 (reenvío de correo): resueltos. D1 toca lo que ya funciona (revisión de dominios, verificación,
 "Usar como principal"): va primera y sola.
 
+- D1: `src/nucleo/dominios` (`proveedor.ts` + `cloudflare.ts`: custom hostnames y zonas;
+  `index.ts`: alta crea el custom hostname, verificar = hostname activo + TXT de la banda o zona
+  activa, principal = certificado activo consultado en el momento, revisión cada 6 h según
+  Cloudflare con `problema`), migración `dominios_cloudflare` (`via`, `proveedorId`, estados,
+  `validacion`, `problemaDesde`/`problema`, `dominio_compartido()`), pantallas
+  `src/app/_dominios`, aviso del marco, arranque (las dos variables de Cloudflare o ninguna).
+  Se fueron el registro A, el comprobador HTTPS y `ipPublica()`. Pruebas: `tests/dominios.test.ts`,
+  `tests/barrido.test.ts`, `tests/backoffice.test.ts`, `tests/e2e/dominios.e2e.ts`, con
+  `tests/cloudflare-falso.ts`.
+- D2 (parte de código): `ipDelVisitante()` lee `CF-Connecting-IP` (el freno del alta era el único
+  lugar que leía la IP). Vuelta atrás si Cloudflare se cae: `docs/despliegue.md`.
+
 | # | Parte | Días | Estado |
 | --- | --- | --- | --- |
 | D0 | Preparación única en Cloudflare (staff): fallback origin, `customers.<raíz>`, token, Email Routing, Worker y KV | — | pendiente (vos) |
-| D1 | Revisión, verificación y principal según el estado de Cloudflare; `ProveedorDns` mínimo + falso | 3,5–4,5 | pendiente |
-| D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | ensayo local hecho: comodín ✅; Authenticated Origin Pulls pide decidir A/B/C (`docs/diseno-dominios.md`, §1) |
+| D1 | Revisión, verificación y principal según el estado de Cloudflare; `ProveedorDns` mínimo + falso; alta por CNAME | 3,5–4,5 | ✅ hecha |
+| D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | decidido A (todo por Cloudflare); ensayo local ✅; `CF-Connecting-IP` ✅; vuelta atrás documentada; **falta confirmar en Easypanel** archivo propio de Traefik y TLS `default`, y el ensayo con dominio real |
 | D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | pendiente |
-| D4 | Conectar por CNAME (Cloudflare for SaaS) y pasar de conectado a delegado sin corte | 3 | pendiente |
+| D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME ya está en D1) | 2 | pendiente |
 | D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | pendiente |
 | D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | pendiente |
 | D7 | `Registrador` GoDaddy v2 + falso | 5–7 | pendiente |

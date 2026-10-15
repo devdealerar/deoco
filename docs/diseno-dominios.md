@@ -137,7 +137,11 @@ en lugar de la de Cloudflare (`clientAuth: RequireAndVerifyClientCert`):
   pocas IPs. Se arregla leyendo `CF-Connecting-IP`, que llega intacta y es confiable porque solo
   Cloudflare puede conectarse.
 
-Opciones (decisión pendiente):
+Opciones (**decidido: A**, 15/10/2026 — B deja el VPS expuesto con la ticketera y los pagos
+adentro; C depende de algo no confirmado). Pasos y vuelta atrás: `docs/despliegue.md`, "Todo
+detrás de Cloudflare". El cambio a `CF-Connecting-IP` ya está (`ipDelVisitante`); era el único
+lugar del código que leía la IP del visitante. Falta que se confirme en Easypanel lo de los
+archivos propios y las opciones TLS `default`.
 
 | | Qué | Origen protegido | Cambios |
 | --- | --- | --- | --- |
@@ -395,6 +399,16 @@ VPS. Con el código de hoy:
   desplegó). Si para cuando se haga ya hubiera, se marcan `via = a-heredado` con la revisión
   vieja hasta que pasen a delegar o a CNAME; si no, esa rama no se escribe.
 
+Hecho en D1 (ver `docs/tareas.md`). Dos ajustes de alcance respecto de lo de arriba:
+
+- **El alta por CNAME entró en D1**: el camino del registro A ya no sirve detrás de Cloudflare
+  (con Authenticated Origin Pulls ni siquiera llega), así que reemplazarlo era parte de no dejar
+  la rama rota. Quedó el TXT `_deoco` en el camino CNAME: un custom hostname es uno por dominio
+  y no distingue bandas, así que no prueba de cuál es. D4 queda solo con el paso de conectado a
+  delegado.
+- **`DEOCO_IP_PUBLICA` obligatoria pasa a D3**, que es cuando la app crea registros A en las
+  zonas; en D1 no se usa.
+
 ### Cuánto trabajo es
 
 | Qué | Días |
@@ -544,10 +558,10 @@ quiera.
 | # | Parte | Tamaño | Días |
 | --- | --- | --- | --- |
 | D0 | Preparación única (staff, sin código): fallback origin, `customers.<raíz>`, token, Email Routing, Worker y KV vacíos | — | (vos) |
-| D1 | **Revisión, verificación y principal según Cloudflare** (sección 7): `ProveedorDns` mínimo + falso | M | 3,5 a 4,5 |
+| D1 | **Revisión, verificación y principal según Cloudflare** (sección 7): `ProveedorDns` mínimo + falso; alta por CNAME — ✅ hecha | M | 3,5 a 4,5 |
 | D2 | Origen detrás de Cloudflare + ensayo con un dominio real de prueba | S | 2 a 3 |
 | D3 | Delegar (comprado afuera y `.com.ar` asistido): zona con registros, nameservers, detección | S | 2 a 3 |
-| D4 | Conectar por CNAME (Cloudflare for SaaS) y pasar de conectado a delegado sin corte | M | 3 |
+| D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME entró en D1) | S | 2 |
 | D5 | Correo: `DominioDeEnvio` (Resend), Email Worker + KV, pantalla Correo, remitente en `enviarCorreo` | M | 4 a 5 |
 | D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino | S | 2 |
 | D7 | `Registrador` con GoDaddy v2 + registrador falso | L | 5 a 7 |
@@ -557,7 +571,7 @@ quiera.
 | D11 | Renovación y avisos; llevarse el dominio (código, detección de la salida → pasa a delegado) | M | 3 a 4 |
 | D12 | Transferir a Deoco (delegado → comprado) | M | 3 |
 | D13 | Punta a punta y ensayo con un dominio real comprado | M | 3 |
-| | **Total** | | **43 a 52** |
+| | **Total** | | **42 a 51** |
 
 D12 puede quedar para después del lanzamiento de la compra sin romper el principio: la banda
 nunca queda presa por no poder *entrar* a Deoco por transferencia, solo pierde comodidad.

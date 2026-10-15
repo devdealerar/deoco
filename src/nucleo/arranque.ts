@@ -43,6 +43,10 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
   if (app && duena && app === duena) {
     p.push(`DATABASE_URL usa el rol dueño de las tablas (${app}): la app tiene que usar deoco_app, si no RLS no aísla a las bandas.`);
   }
+  // Dominios propios (Cloudflare): las dos o ninguna (sin ellas, el panel dice que no están habilitados).
+  if (Boolean(env.DEOCO_CLOUDFLARE_TOKEN?.trim()) !== Boolean(env.DEOCO_CLOUDFLARE_ZONA?.trim())) {
+    p.push("Para los dominios propios hacen falta las dos variables: DEOCO_CLOUDFLARE_TOKEN y DEOCO_CLOUDFLARE_ZONA (id de la zona de DEOCO_DOMINIO_RAIZ).");
+  }
   if (build.generadoPara !== "produccion") {
     p.push("La lista de módulos no es de producción (incluiría módulos de desarrollo): construí con `next build`.");
   }

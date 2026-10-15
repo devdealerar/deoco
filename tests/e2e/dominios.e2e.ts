@@ -1,28 +1,34 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { dueno, escenarioAcceso } from "../apoyo";
+import { CloudflareFalso } from "../cloudflare-falso";
 import { APP, abrirNavegador, captura, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado } from "./navegador";
+import { PUERTO_CF } from "./servidor";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
+const cf = new CloudflareFalso();
 
 beforeAll(async () => {
   e = await escenarioAcceso();
   await dominiosDeDesarrollo(e.a, e.b);
+  await cf.iniciar(PUERTO_CF);
   await abrirNavegador();
 });
 afterEach(async () => {
-  await dueno.dominio.deleteMany({ where: { dominio: { in: ["lossatelites.com.ar", "sincert.invalid"] } } });
+  await dueno.dominio.deleteMany({ where: { dominio: { in: ["www.lossatelites.com.ar", "lossatelites.com.ar"] } } });
   await dueno.dominio.updateMany({ where: { dominio: { endsWith: ".lvh.me" } }, data: { esPrincipal: true } });
+  cf.limpiar();
   await cerrarContextos();
 });
 afterAll(async () => {
   await cerrarNavegador();
+  await cf.cerrar();
   await dueno.$disconnect();
 });
 
 const DOMINIOS = `${APP}/b/banda-a/dominios`;
 
 describe("dominio propio desde el panel de la banda", () => {
-  it("el titular lo agrega y ve los dos registros exactos, listos para copiar", async () => {
+  it("el titular lo agrega y ve el CNAME y el TXT exactos, listos para copiar", async () => {
     const { page } = await logueado("multi@x.com");
     await page.goto(`${APP}/b/banda-a`);
     await page.click('nav[aria-label="Panel"] a:text("Dominios")');
@@ -30,45 +36,54 @@ describe("dominio propio desde el panel de la banda", () => {
     expect(await page.locator("[data-dominio]").first().getAttribute("data-dominio")).toBe("banda-a.lvh.me");
 
     const alta = page.locator("form[data-hidratado]", { has: page.getByRole("button", { name: "Agregar dominio" }) });
-    await alta.locator('input[name="dominio"]').fill("https://LosSatelites.com.ar/");
+    await alta.locator('input[name="dominio"]').fill("https://www.LosSatelites.com.ar/");
     await alta.getByRole("button", { name: "Agregar dominio" }).click();
     await alta.getByRole("status").waitFor();
 
-    const tarjeta = page.locator('[data-dominio="lossatelites.com.ar"]');
+    const tarjeta = page.locator('[data-dominio="www.lossatelites.com.ar"]');
     await tarjeta.waitFor();
     expect(await tarjeta.textContent()).toContain("Sin verificar");
-    const { token } = await dueno.dominio.findFirstOrThrow({ where: { dominio: "lossatelites.com.ar" } });
+    // Se creó el custom hostname en Cloudflare.
+    expect(cf.de("www.lossatelites.com.ar")).toBeDefined();
+    const { token } = await dueno.dominio.findFirstOrThrow({ where: { dominio: "www.lossatelites.com.ar" } });
     const valores = (sel: string) => tarjeta.locator(`[data-registro="${sel}"] [data-copiable]`).allTextContents();
-    expect(await valores("A")).toEqual(["lossatelites.com.ar", "203.0.113.10"]);
-    expect(await valores("TXT")).toEqual(["_deoco.lossatelites.com.ar", `deoco-verificacion=${token}`]);
+    expect(await valores("CNAME")).toEqual(["www.lossatelites.com.ar", "customers.lvh.me"]);
+    expect(await valores("TXT")).toEqual(["_deoco.www.lossatelites.com.ar", `deoco-verificacion=${token}`]);
 
     // En http (desarrollo) no hay API de portapapeles: copia por selección.
-    const copiar = tarjeta.getByRole("button", { name: "Copiar valor del registro TXT" });
+    const copiar = tarjeta.getByRole("button", { name: "Copiar valor del registro CNAME" });
     await copiar.click();
     expect(await copiar.textContent()).toBe("Copiado");
 
-    // Sin los registros en el DNS, verificar dice qué falta y no lo verifica.
-    const verificar = tarjeta.locator("form[data-hidratado]");
+    // Sin los registros, verificar dice qué falta y no lo verifica.
+    const verificar = tarjeta.locator("form[data-hidratado]", { has: page.getByRole("button", { name: "Verificar" }) });
     await verificar.getByRole("button", { name: "Verificar" }).click();
-    expect(await verificar.getByRole("alert").textContent()).toMatch(/^Sin verificar: todavía no se ve el registro A/);
-    expect((await dueno.dominio.findFirstOrThrow({ where: { dominio: "lossatelites.com.ar" } })).verificado).toBe(false);
+    expect(await verificar.getByRole("alert").textContent()).toMatch(/^Sin verificar: todavía no vemos el CNAME apuntando a customers\.lvh\.me/);
+    expect((await dueno.dominio.findFirstOrThrow({ where: { dominio: "www.lossatelites.com.ar" } })).verificado).toBe(false);
     // Sin verificar no se ofrece como principal.
     expect(await tarjeta.getByRole("button", { name: "Usar como principal" }).count()).toBe(0);
     await captura(page, "dominios");
   });
 
-  it("verificado pero sin HTTPS: el botón explica que falta el certificado y no lo marca", async () => {
-    // .invalid nunca resuelve: el servidor no puede abrir https://sincert.invalid
-    await dueno.dominio.create({ data: { tenantId: e.a.id, dominio: "sincert.invalid", verificado: true } });
+  it("verificado con el certificado emitiéndose: el botón lo explica; cuando Cloudflare lo emite, pasa a principal", async () => {
+    cf.hostnames.set("ch-e2e", { id: "ch-e2e", hostname: "www.lossatelites.com.ar", status: "active", ssl: { status: "pending_validation" } });
+    await dueno.dominio.create({
+      data: { tenantId: e.a.id, dominio: "www.lossatelites.com.ar", verificado: true, via: "cname", proveedorId: "ch-e2e", estadoProveedor: "active", certificado: "pending_validation" },
+    });
     const { page } = await logueado("multi@x.com");
     await page.goto(DOMINIOS);
-    const tarjeta = page.locator('[data-dominio="sincert.invalid"]');
-    expect(await tarjeta.textContent()).toContain("Verificado");
+    const tarjeta = page.locator('[data-dominio="www.lossatelites.com.ar"]');
+    expect(await tarjeta.textContent()).toContain("Emitiendo el certificado");
     const form = tarjeta.locator("form[data-hidratado]", { has: page.getByRole("button", { name: "Usar como principal" }) });
     await form.getByRole("button", { name: "Usar como principal" }).click();
-    expect(await form.getByRole("alert").textContent()).toMatch(/falta que Deoco lo active en el servidor \(certificado\)/);
-    const principal = await dueno.dominio.findFirstOrThrow({ where: { tenantId: e.a.id, esPrincipal: true } });
-    expect(principal.dominio).toBe("banda-a.lvh.me");
+    expect(await form.getByRole("alert").textContent()).toMatch(/todavía se está emitiendo \(lo hace Cloudflare solo/);
+    expect((await dueno.dominio.findFirstOrThrow({ where: { tenantId: e.a.id, esPrincipal: true } })).dominio).toBe("banda-a.lvh.me");
+
+    cf.activar("www.lossatelites.com.ar");
+    await form.getByRole("button", { name: "Usar como principal" }).click();
+    // Ya es el principal: la página se rehace con la insignia.
+    await tarjeta.getByText("Principal", { exact: true }).waitFor();
+    expect((await dueno.dominio.findFirstOrThrow({ where: { tenantId: e.a.id, esPrincipal: true } })).dominio).toBe("www.lossatelites.com.ar");
   });
 
   it("quitar pide confirmación; el principal y el subdominio no ofrecen quitar", async () => {
@@ -95,23 +110,31 @@ describe("dominio propio desde el panel de la banda", () => {
     }
   });
 
-  it("uno que dejó de apuntar al servidor: el titular ve el aviso en el panel y el registro A a corregir", async () => {
+  it("uno con un problema (lo marcó la revisión): el titular ve el aviso en el panel y los registros a revisar", async () => {
     await dueno.dominio.create({
-      data: { tenantId: e.a.id, dominio: "lossatelites.com.ar", verificado: true, noApuntaDesde: new Date("2026-10-12T15:00:00Z") },
+      data: {
+        tenantId: e.a.id,
+        dominio: "www.lossatelites.com.ar",
+        verificado: true,
+        via: "cname",
+        problemaDesde: new Date("2026-10-12T15:00:00Z"),
+        problema: "El CNAME de tu dominio dejó de apuntar a Deoco.",
+      },
     });
     const { page } = await logueado("multi@x.com");
     await page.goto(`${APP}/b/banda-a`);
-    const aviso = page.locator("[data-dominio-no-apunta]");
-    expect(await aviso.textContent()).toContain("lossatelites.com.ar dejó de apuntar a Deoco");
+    const aviso = page.locator("[data-dominio-problema]");
+    expect(await aviso.textContent()).toContain("www.lossatelites.com.ar tiene un problema");
+    expect(await aviso.textContent()).toContain("El CNAME de tu dominio dejó de apuntar a Deoco.");
     await aviso.getByRole("link", { name: "Ver dominios" }).click();
     await page.waitForURL(DOMINIOS);
-    const tarjeta = page.locator('[data-dominio="lossatelites.com.ar"]');
-    expect(await tarjeta.textContent()).toContain("No apunta a Deoco");
-    expect(await tarjeta.locator("[data-no-apunta] [data-copiable]").allTextContents()).toEqual(["203.0.113.10"]);
+    const tarjeta = page.locator('[data-dominio="www.lossatelites.com.ar"]');
+    expect(await tarjeta.textContent()).toContain("Con un problema");
+    expect(await tarjeta.locator('[data-registro="CNAME"] [data-copiable]').allTextContents()).toEqual(["www.lossatelites.com.ar", "customers.lvh.me"]);
 
     // Otro rol no lo ve (no lo puede arreglar).
     const editor = await logueado("editor-a@x.com");
     await editor.page.goto(`${APP}/b/banda-a`);
-    expect(await editor.page.locator("[data-dominio-no-apunta]").count()).toBe(0);
+    expect(await editor.page.locator("[data-dominio-problema]").count()).toBe(0);
   });
 });

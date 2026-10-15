@@ -1,11 +1,12 @@
-import type { DominioBanda } from "@/nucleo/dominios";
+import type { DominioBanda, RegistroDns } from "@/nucleo/dominios";
 import { Campo, Casilla, Copiable, type EstadoFormulario, Formulario, Insignia, Tarjeta } from "@/ui";
 
 type Accion = (estado: EstadoFormulario, datos: FormData) => Promise<EstadoFormulario>;
 
 /**
  * Dominios de una banda: la usan el panel (titular) y el back office. Para cada dominio
- * propio sin verificar muestra los registros DNS exactos, listos para copiar.
+ * propio sin verificar (o con un problema) muestra los registros DNS exactos, listos para
+ * copiar; el estado (certificado, problema) es el que informó Cloudflare.
  */
 export function ListaDominios({
   dominios,
@@ -27,28 +28,29 @@ export function ListaDominios({
         <Tarjeta
           key={d.id}
           data-dominio={d.dominio}
+          data-estado={d.estado}
           titulo={d.dominio}
           junto={
             <>
               {d.esPrincipal && <Insignia color="marca">Principal</Insignia>}
               {d.dePlataforma && <Insignia>Subdominio de Deoco</Insignia>}
-              {d.noApunta ? (
-                <Insignia color="error">No apunta a Deoco</Insignia>
-              ) : d.verificado ? (
-                !d.dePlataforma && <Insignia color="exito">Verificado</Insignia>
-              ) : (
-                <Insignia color="advertencia">Sin verificar</Insignia>
-              )}
+              {d.estado === "sin-verificar" && <Insignia color="advertencia">Sin verificar</Insignia>}
+              {d.estado === "certificado" && <Insignia color="advertencia">Emitiendo el certificado</Insignia>}
+              {d.estado === "listo" && <Insignia color="exito">Listo</Insignia>}
+              {d.estado === "problema" && <Insignia color="error">Con un problema</Insignia>}
             </>
           }
           acciones={d.verificado && !d.esPrincipal && <Formulario {...enLinea} accion={principal(d.id)} etiqueta="Usar como principal" />}
         >
-
-          {d.verificado && !d.esPrincipal && (
+          {d.estado === "certificado" && !d.esPrincipal && (
             <p className="text-sm text-tertiary">
-              Mientras no sea el principal, redirige al principal. Usalo como principal cuando{" "}
-              <code>https://{d.dominio}</code> abra con candado (el certificado lo activa Deoco en el servidor).
+              Verificado: ya muestra el sitio y, mientras no sea el principal, redirige al principal. Cloudflare está
+              emitiendo el certificado de <code>https://{d.dominio}</code> (suele tardar unos minutos); cuando esté, podés
+              usarlo como principal.
             </p>
+          )}
+          {d.estado === "listo" && !d.esPrincipal && (
+            <p className="text-sm text-tertiary">Listo para usar como principal. Mientras no lo sea, redirige al principal.</p>
           )}
           {d.esPrincipal && !d.dePlataforma && (
             <p className="text-sm text-tertiary">
@@ -56,54 +58,47 @@ export function ListaDominios({
             </p>
           )}
 
-          {d.noApunta && (
-            <div data-no-apunta className="flex flex-col gap-2">
+          {d.problema && (
+            <div data-problema className="flex flex-col gap-2">
               <p className="text-sm text-secondary">
-                Desde el {d.noApunta.desde.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}{" "}
-                este dominio no apunta al servidor de Deoco: quien entra por acá no llega al sitio. El sitio sigue
-                publicado. Corregí el registro A; cuando apunte de nuevo, este aviso se va solo (se revisa cada pocas horas).
+                Desde el {d.problema.desde.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}:{" "}
+                {d.problema.texto} El sitio sigue publicado, pero quien entra por este dominio puede no llegar.
+                {d.registros && " Revisá que estos registros sigan en el DNS de tu dominio."} Cuando se corrija, este
+                aviso se va solo (se revisa cada pocas horas).
               </p>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-tertiary">Registro A de {d.noApunta.registroA.nombre}: tiene que apuntar a</span>
-                <Copiable valor={d.noApunta.registroA.valor} etiqueta="valor del registro A" />
-              </div>
             </div>
           )}
 
           {d.registros && (
             <>
-              <p className="text-sm text-secondary">
-                Creá estos dos registros en el DNS de <strong>{d.dominio}</strong> (donde compraste el dominio o en
-                Cloudflare) y tocá <strong>Verificar</strong>. Hasta entonces el dominio no muestra el sitio. Si
-                usás Cloudflare, el registro A va en <strong>solo DNS</strong> (nube gris).
-              </p>
-              <dl className="flex flex-col gap-4">
-                {d.registros.map((r) => (
-                  <div key={r.tipo} data-registro={r.tipo} className="grid gap-2 rounded-lg p-4 ring-1 ring-secondary sm:grid-cols-[6rem_1fr]">
-                    <dt className="text-sm font-semibold text-primary">
-                      {r.tipo}
-                      <span className="block text-xs font-normal text-tertiary">{r.para}</span>
-                    </dt>
-                    <dd className="flex flex-col gap-2">
-                      <div className="grid items-center gap-1 sm:grid-cols-[4rem_1fr]">
-                        <span className="text-xs text-tertiary">Nombre</span>
-                        <Copiable valor={r.nombre} etiqueta={`nombre del registro ${r.tipo}`} />
-                      </div>
-                      <div className="grid items-center gap-1 sm:grid-cols-[4rem_1fr]">
-                        <span className="text-xs text-tertiary">Valor</span>
-                        <Copiable valor={r.valor} etiqueta={`valor del registro ${r.tipo}`} />
-                      </div>
-                    </dd>
+              {!d.verificado && (
+                <p className="text-sm text-secondary">
+                  Creá estos dos registros en el DNS de <strong>{d.dominio}</strong> (donde compraste el dominio) y tocá{" "}
+                  <strong>Verificar</strong>. Hasta entonces el dominio no muestra el sitio.
+                </p>
+              )}
+              <Registros registros={d.registros} />
+              {!d.verificado && (
+                <p className="text-xs text-tertiary">
+                  Algunos proveedores piden el nombre sin el dominio: la parte de adelante (por ejemplo <code>www</code>) para
+                  el CNAME y <code>_deoco</code> o <code>_deoco.www</code> para el TXT. Si tu proveedor no acepta un CNAME en el
+                  dominio sin www, usá <code>www.</code> adelante. Si tu DNS está en Cloudflare, dejá el CNAME en{" "}
+                  <strong>solo DNS</strong> (nube gris). Los cambios de DNS pueden tardar desde minutos hasta unas horas.
+                </p>
+              )}
+              {d.validacion.length > 0 && (
+                <details className="text-sm text-secondary" data-validacion>
+                  <summary className="cursor-pointer text-tertiary">¿Pasó más de un día y sigue sin verificar? Sumá también estos</summary>
+                  <div className="mt-3">
+                    <Registros registros={d.validacion} />
                   </div>
-                ))}
-              </dl>
-              <p className="text-xs text-tertiary">
-                Algunos proveedores piden el nombre sin el dominio: <code>@</code> para el A y <code>_deoco</code> para
-                el TXT. Los cambios de DNS pueden tardar desde minutos hasta unas horas.
-              </p>
-              <div>
-                <Formulario puedeEditar accion={verificar(d.id)} etiqueta="Verificar" />
-              </div>
+                </details>
+              )}
+              {!d.verificado && (
+                <div>
+                  <Formulario puedeEditar accion={verificar(d.id)} etiqueta="Verificar" />
+                </div>
+              )}
             </>
           )}
 
@@ -117,11 +112,37 @@ export function ListaDominios({
         </Tarjeta>
       ))}
 
-      <Tarjeta titulo="Agregar dominio propio" descripcion="Un dominio que ya tenga la banda, p. ej. labanda.com o www.labanda.com.">
+      <Tarjeta titulo="Agregar dominio propio" descripcion="Un dominio que ya tenga la banda, p. ej. www.labanda.com. Lo conectás con dos registros en su DNS.">
         <Formulario accion={agregar} puedeEditar etiqueta="Agregar dominio" limpiarAlGuardar>
-          <Campo name="dominio" etiqueta="Dominio" placeholder="labanda.com" required />
+          <Campo name="dominio" etiqueta="Dominio" placeholder="www.labanda.com" required />
         </Formulario>
       </Tarjeta>
     </div>
+  );
+}
+
+/** Registros DNS exactos, listos para copiar. */
+function Registros({ registros }: { registros: RegistroDns[] }) {
+  return (
+    <dl className="flex flex-col gap-4">
+      {registros.map((r) => (
+        <div key={`${r.tipo}-${r.nombre}`} data-registro={r.tipo} className="grid gap-2 rounded-lg p-4 ring-1 ring-secondary sm:grid-cols-[6rem_1fr]">
+          <dt className="text-sm font-semibold text-primary">
+            {r.tipo}
+            <span className="block text-xs font-normal text-tertiary">{r.para}</span>
+          </dt>
+          <dd className="flex flex-col gap-2">
+            <div className="grid items-center gap-1 sm:grid-cols-[4rem_1fr]">
+              <span className="text-xs text-tertiary">Nombre</span>
+              <Copiable valor={r.nombre} etiqueta={`nombre del registro ${r.tipo}`} />
+            </div>
+            <div className="grid items-center gap-1 sm:grid-cols-[4rem_1fr]">
+              <span className="text-xs text-tertiary">Valor</span>
+              <Copiable valor={r.valor} etiqueta={`valor del registro ${r.tipo}`} />
+            </div>
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

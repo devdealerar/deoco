@@ -89,13 +89,24 @@ Guía para escribir uno: `docs/guia-modulos.md`.
 
 ## Dominios propios
 
-- `src/nucleo/dominios` (bajo RLS): `agregarDominio`, `verificarDominio` (DNS: `A` a la IP del
-  servidor + `TXT _deoco.<dominio>` con el token de la banda), `marcarPrincipal` (verificado y
-  abriendo por HTTPS con certificado válido), `quitarDominio` (confirmado; nunca el principal ni
-  el subdominio).
+Diseño y plan: `docs/diseno-dominios.md`. Todo el tráfico pasa por Cloudflare (Authenticated
+Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que informa Cloudflare.
+
+- `src/nucleo/dominios` (bajo RLS): `agregarDominio` (crea el custom hostname), `verificarDominio`
+  (custom hostname activo = el CNAME a `customers.<raiz>` llega + `TXT _deoco.<dominio>` con el
+  token de la banda; `via: "zona"`: zona activa), `marcarPrincipal` (certificado activo según
+  Cloudflare, consultado en el momento), `quitarDominio` (confirmado; nunca el principal ni el
+  subdominio; borra el custom hostname si ninguna otra banda lo registró), `revisarDominios`
+  (barrido, 6 h; dos fallas → `problemaDesde` + `problema`).
+- Cloudflare detrás de `ProveedorDns` (`proveedor.ts`, `cloudflare.ts`): `DEOCO_CLOUDFLARE_TOKEN`
+  + `DEOCO_CLOUDFLARE_ZONA` (las dos o ninguna; sin ellas no se agregan dominios). Pruebas:
+  `tests/cloudflare-falso.ts` (`DEOCO_CLOUDFLARE_API`).
 - Pantalla `/b/<slug>/dominios` (núcleo, solo titular) y la misma lista en `/admin`
-  (`src/app/_dominios`). El certificado lo emite Easypanel: la app nunca lo intenta.
-- Sin verificar, un dominio puede estar en varias bandas; verificado, en una sola.
+  (`src/app/_dominios`). La app nunca emite un certificado ni toca Easypanel.
+- Sin verificar, un dominio puede estar en varias bandas (comparten el custom hostname);
+  verificado, en una sola.
+- La IP del visitante (frenos por IP): `ipDelVisitante()` (`@/nucleo/publico/visitante`),
+  `CF-Connecting-IP` primero.
 
 ## Secretos por banda
 

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { type AccesoPanel, prendidosDelPedido } from "@/nucleo/acceso/panel";
 import { registro } from "@/nucleo/modulos";
 import { menuPanel } from "@/nucleo/modulos/navegacion";
-import { dominiosQueNoApuntan } from "@/nucleo/dominios";
+import { dominiosConProblema } from "@/nucleo/dominios";
 import { bandaCobra } from "@/nucleo/pagos";
 import { Aviso } from "@/ui";
 import { BotonSalir } from "../../salir";
@@ -16,9 +16,9 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   const esTitular = acceso.rol === "TITULAR";
   const conCredenciales =
     esTitular && (reg.modulos.some((m) => prendidos.has(m.id) && m.secretos?.length) || (await bandaCobra(acceso.tenantId, reg)));
-  // Dominios propios que dejaron de apuntar al servidor (los marca el barrido): lo ve quien
-  // lo puede arreglar (el staff lo ve en /admin). El sitio no se despublica.
-  const noApuntan = esTitular ? await dominiosQueNoApuntan(acceso.tenantId) : [];
+  // Dominios propios con un problema (los marca el barrido según Cloudflare): lo ve quien lo
+  // puede arreglar (el staff lo ve en /admin). El sitio no se despublica.
+  const conProblema = esTitular ? await dominiosConProblema(acceso.tenantId) : [];
   // Suspendida: solo se puede pagar (el resto del panel da 403). El sitio público sigue.
   const suspendida = acceso.estado === "SUSPENDIDO";
   const conPago = esTitular && Boolean(reg.gestor);
@@ -99,18 +99,18 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
               </Aviso>
             </div>
           )}
-          {noApuntan.length > 0 && (
+          {conProblema.length > 0 && (
             <div className="mb-6">
               <Aviso
                 titulo={
-                  noApuntan.length === 1
-                    ? `${noApuntan[0].dominio} dejó de apuntar a Deoco`
-                    : `${noApuntan.map((d) => d.dominio).join(", ")} dejaron de apuntar a Deoco`
+                  conProblema.length === 1
+                    ? `${conProblema[0].dominio} tiene un problema`
+                    : `${conProblema.map((d) => d.dominio).join(", ")} tienen un problema`
                 }
-                data-dominio-no-apunta
+                data-dominio-problema
               >
-                El sitio sigue publicado, pero quien entra por ese dominio no llega. Revisá el registro A en tu
-                proveedor de dominio. <Link href={`/b/${slug}/dominios`} className="font-semibold underline">Ver dominios</Link>
+                {conProblema.length === 1 ? `${conProblema[0].problema} ` : ""}El sitio sigue publicado, pero quien entra
+                por ese dominio puede no llegar. <Link href={`/b/${slug}/dominios`} className="font-semibold underline">Ver dominios</Link>
               </Aviso>
             </div>
           )}

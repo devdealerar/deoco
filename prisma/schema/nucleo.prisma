@@ -83,8 +83,9 @@ model Membresia {
 
 /// Un host resuelve solo si está verificado. Sin verificar, el mismo dominio puede estar
 /// registrado en varias bandas: lo gana la que prueba que es suya (registro TXT con su
-/// `token`). Únicos (índices parciales en la migración): un verificado por dominio y un
-/// principal por banda; el principal siempre está verificado.
+/// `token`; delegado, la que tiene la zona activa). Únicos (índices parciales en la
+/// migración): un verificado por dominio y un principal por banda; el principal siempre está
+/// verificado.
 model Dominio {
   id           String    @id @default(uuid()) @db.Uuid
   dominio      String
@@ -97,8 +98,20 @@ model Dominio {
   revisadoEn     DateTime?
   /// Revisiones seguidas en que no apuntó al servidor.
   fallasSeguidas Int       @default(0)
-  /// Desde cuándo no apunta al servidor (dos revisiones seguidas). Null = bien.
-  noApuntaDesde  DateTime?
+  /// Desde cuándo tiene un problema (dos revisiones seguidas). Null = bien.
+  problemaDesde  DateTime?
+  /// El problema, como lo ve la banda ("Tu CNAME dejó de apuntar a Deoco").
+  problema       String?
+  /// Por dónde llega a Deoco: "cname" (custom hostname) o "zona" (delegado). Null: subdominio de la plataforma.
+  via             String?
+  /// Id en Cloudflare: el custom hostname o la zona.
+  proveedorId     String?
+  /// Último estado que informó Cloudflare (hostname o zona: "active", "pending", …).
+  estadoProveedor String?
+  /// Último estado del certificado ("active" = listo para ser principal).
+  certificado     String?
+  /// Registros de validación que pidió Cloudflare (por si tarda), [{ tipo, nombre, valor }].
+  validacion      Json      @default("[]")
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, dominio])

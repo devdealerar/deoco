@@ -1,9 +1,12 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { request } from "node:http";
+import { TOKEN_CF, ZONA_CF } from "../cloudflare-falso";
 
 export const PUERTO = 3200;
 /** Mercado Pago falso (tests/mercadopago-falso.ts) que usa el servidor de pruebas. */
 export const PUERTO_MP = 3299;
+/** Cloudflare falso (tests/cloudflare-falso.ts) que usa el servidor de pruebas. */
+export const PUERTO_CF = 3298;
 /** La cuenta de Mercado Pago de Deoco (cuotas) en el servidor de pruebas. */
 export const TOKEN_CUOTA = "APP_USR-DEOCO-cuota-e2e";
 let servidor: ChildProcess | undefined;
@@ -105,7 +108,7 @@ async function precalentar() {
 /** Levanta next dev contra la base de pruebas (el env ya viene de .env.test). */
 export async function setup() {
   servidor = spawn("npx", ["next", "dev", "-p", String(PUERTO)], {
-    env: { ...process.env, DEOCO_DOMINIO_RAIZ: "lvh.me", DEOCO_IP_PUBLICA: "203.0.113.10", DEOCO_MERCADOPAGO_API: `http://127.0.0.1:${PUERTO_MP}`, DEOCO_CUOTA_MP_TOKEN: TOKEN_CUOTA, NODE_ENV: "development" },
+    env: { ...process.env, DEOCO_DOMINIO_RAIZ: "lvh.me", DEOCO_MERCADOPAGO_API: `http://127.0.0.1:${PUERTO_MP}`, DEOCO_CUOTA_MP_TOKEN: TOKEN_CUOTA, DEOCO_CLOUDFLARE_API: `http://127.0.0.1:${PUERTO_CF}`, DEOCO_CLOUDFLARE_TOKEN: TOKEN_CF, DEOCO_CLOUDFLARE_ZONA: ZONA_CF, NODE_ENV: "development" },
     stdio: process.env.E2E_LOG ? "inherit" : "ignore",
     detached: true,
   });

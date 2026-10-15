@@ -10,12 +10,12 @@
 import { prisma } from "@/nucleo/db/cliente";
 import { CORREO_COLGADO_MS, retomarCorreos } from "@/nucleo/correo";
 import { limpiarCorreos } from "@/nucleo/correo/limpieza";
-import { revisarDominios, type ConsultaDns } from "@/nucleo/dominios";
+import { revisarDominios } from "@/nucleo/dominios";
 import { retomarEventos } from "@/nucleo/eventos/bus";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Registro } from "@/nucleo/modulos/registro";
 
-export type ResultadoBarrido = { bandas: number; dominios: { revisados: number; noApuntan: number }; tareas: string[] };
+export type ResultadoBarrido = { bandas: number; dominios: { revisados: number; conProblema: number }; tareas: string[] };
 
 /** Última vez que corrió cada tarea periódica (`<modulo>.<nombre>`), en este proceso. */
 const ultimaVez = new Map<string, number>();
@@ -42,7 +42,7 @@ export async function correrTareas(ahora = new Date(), reg: Registro = registroG
 }
 
 /** Una vuelta del barrido. Resuelve cuando terminó (las colas retomadas, vacías). */
-export async function barrer(opciones: { ahora?: Date; dns?: ConsultaDns } = {}): Promise<ResultadoBarrido> {
+export async function barrer(opciones: { ahora?: Date } = {}): Promise<ResultadoBarrido> {
   const ahora = opciones.ahora ?? new Date();
   const colgadoDesde = new Date(ahora.getTime() - CORREO_COLGADO_MS);
   const bandas = await prisma.$queryRaw<{ id: string }[]>`
@@ -52,9 +52,9 @@ export async function barrer(opciones: { ahora?: Date; dns?: ConsultaDns } = {})
     await retomarEventos(id).catch((e) => console.error(`[barrido] eventos de ${id}:`, e));
     await retomarCorreos(id, ahora).catch((e) => console.error(`[barrido] correos de ${id}:`, e));
   }
-  const dominios = await revisarDominios(opciones.dns, ahora).catch((e) => {
+  const dominios = await revisarDominios(ahora).catch((e) => {
     console.error("[barrido] revisión de dominios:", e);
-    return { revisados: 0, noApuntan: 0 };
+    return { revisados: 0, conProblema: 0 };
   });
   const tareas = await correrTareas(ahora);
   // Una vez por día (en este proceso): la limpieza de correos enviados.
@@ -84,7 +84,7 @@ export async function vuelta(): Promise<ResultadoBarrido | null> {
     const r = await barrer();
     // Solo cuando hizo algo: así los logs muestran que el barrido corre sin llenarse de líneas.
     if (r.bandas || r.dominios.revisados) {
-      console.log(`[barrido] pendientes de ${r.bandas} banda(s) · dominios revisados: ${r.dominios.revisados}, sin apuntar: ${r.dominios.noApuntan}`);
+      console.log(`[barrido] pendientes de ${r.bandas} banda(s) · dominios revisados: ${r.dominios.revisados}, con problema: ${r.dominios.conProblema}`);
     }
     return r;
   } catch (e) {

@@ -1,11 +1,20 @@
-// Dominios propios de una banda: alta, verificación por DNS y principal.
+// Dominios propios de una banda: alta, verificación, principal y revisión periódica.
 // Corre bajo RLS (conTenant): lo usan el panel de la banda (titular) y el back office.
-// El certificado HTTPS NO se emite acá: lo emite Easypanel (Traefik) para cada dominio.
-import { resolve4, resolveTxt } from "node:dns/promises";
+//
+// Todo el tráfico de los dominios de banda pasa por Cloudflare (docs/diseno-dominios.md). El
+// estado (¿llega a Deoco?, ¿tiene certificado?) es el que informa Cloudflare: la app nunca
+// resuelve un registro A ni pide un certificado.
+//   - "cname": la banda conserva su DNS y crea un CNAME a customers.<raíz> (custom hostname).
+//     Más un TXT con el token de la banda, que prueba que el dominio es suyo: el custom
+//     hostname es uno solo por dominio y no distingue bandas.
+//   - "zona": la zona es nuestra (dominio delegado o comprado). Activa = los nameservers son
+//     los nuestros, que ya prueba que es de quien la pidió. (La alta de zonas llega en D3.)
+import { resolveTxt } from "node:dns/promises";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
+import { destinoCname, ErrorProveedor, type ProveedorDns, proveedorDns, type RegistroDns } from "./proveedor";
 
 export class ErrorDominio extends Error {}
 
@@ -33,29 +42,27 @@ export function esDePlataforma(dominio: string): boolean {
   return dominio.endsWith(`.${dominioRaiz()}`);
 }
 
-export type RegistroDns = { tipo: "A" | "TXT"; nombre: string; valor: string; para: string };
+
+export { destinoCname, ErrorProveedor, proveedorDns, type ProveedorDns, type RegistroDns } from "./proveedor";
 
 /** Prefijo del registro TXT que prueba que el dominio es de la banda. */
 export const PREFIJO_TXT = "_deoco";
 const valorTxt = (token: string) => `deoco-verificacion=${token}`;
 
 /**
- * Los registros que la banda tiene que crear, exactos: el A lleva el tráfico al servidor;
- * el TXT prueba que el dominio es suyo (sin él, cualquiera podría quedarse con un dominio
- * ajeno que ya apunta a Deoco).
+ * Los registros que la banda crea en su DNS para conectar un dominio, exactos: el CNAME lleva
+ * el tráfico a Deoco (por Cloudflare); el TXT prueba que el dominio es de esta banda (sin él,
+ * cualquiera podría quedarse con un dominio ajeno que ya apunta a Deoco).
  */
-export function registrosDns(dominio: string, token: string, ip: string): RegistroDns[] {
+export function registrosDns(dominio: string, token: string): RegistroDns[] {
   return [
-    { tipo: "A", nombre: dominio, valor: ip, para: "Lleva el sitio al servidor de Deoco." },
+    { tipo: "CNAME", nombre: dominio, valor: destinoCname(), para: "Lleva el sitio a Deoco." },
     { tipo: "TXT", nombre: `${PREFIJO_TXT}.${dominio}`, valor: valorTxt(token), para: "Prueba que el dominio es de la banda." },
   ];
 }
 
-/** Consultas DNS; las pruebas pasan unas falsas. */
-export type ConsultaDns = {
-  a(host: string): Promise<string[]>;
-  txt(host: string): Promise<string[]>;
-};
+/** Consultas DNS (solo el TXT de la banda); las pruebas pasan unas falsas. */
+export type ConsultaDns = { txt(host: string): Promise<string[]> };
 
 // Que no exista, que no responda o que el servidor DNS falle: para verificar es lo
 // mismo, el registro "todavía no se ve".
@@ -65,20 +72,65 @@ const sinResultado = (e: unknown): string[] => {
 };
 
 export const dnsDelSistema: ConsultaDns = {
-  a: (host) => resolve4(host).catch(sinResultado),
   txt: (host) => resolveTxt(host).then((r) => r.map((partes) => partes.join("")), sinResultado),
 };
 
-/**
- * IP a la que tienen que apuntar los dominios propios. `DEOCO_IP_PUBLICA` si está; si no,
- * la de `app.<raiz>` (con el registro comodín en "solo DNS", es la IP del servidor).
- */
-export async function ipPublica(dns: ConsultaDns = dnsDelSistema): Promise<string | null> {
-  const fija = process.env.DEOCO_IP_PUBLICA?.trim();
-  if (fija) return fija;
-  const [ip] = await dns.a(`app.${dominioRaiz()}`).catch(() => []);
-  return ip ?? null;
+const NO_HABILITADO = "Los dominios propios todavía no están habilitados en Deoco. Escribinos y lo vemos.";
+
+function proveedor(): ProveedorDns {
+  const p = proveedorDns();
+  if (!p) throw new ErrorDominio(NO_HABILITADO);
+  return p;
 }
+
+// ── Estado según Cloudflare ─────────────────────────────────────────────────────────────────
+
+type Fila = { id: string; dominio: string; via: string | null; proveedorId: string | null };
+
+/** Lo que importa del estado en Cloudflare: ¿llega a Deoco? ¿tiene certificado? */
+type Estado = { llega: boolean; certificado: boolean };
+
+const ACTIVO = "active";
+
+/**
+ * Pregunta a Cloudflare por el dominio y guarda lo que dijo. Un custom hostname que no existe
+ * (nunca se creó, o Cloudflare lo borró) se crea de nuevo: así se repara solo.
+ */
+async function consultar(tenantId: string, d: Fila, p: ProveedorDns): Promise<Estado> {
+  if (d.via === "zona") {
+    const z = d.proveedorId ? await p.zona(d.proveedorId) : null;
+    await conTenant(tenantId, (tx) =>
+      tx.dominio.update({ where: { id: d.id }, data: { estadoProveedor: z?.estado ?? "sin-zona", certificado: z?.certificado ?? null } }),
+    );
+    return { llega: z?.estado === ACTIVO, certificado: z?.estado === ACTIVO && z.certificado === ACTIVO };
+  }
+  const h = (d.proveedorId ? await p.hostname(d.proveedorId) : null) ?? (await p.crearHostname(d.dominio));
+  await conTenant(tenantId, (tx) =>
+    tx.dominio.update({
+      where: { id: d.id },
+      data: { via: "cname", proveedorId: h.id, estadoProveedor: h.estado, certificado: h.ssl, validacion: h.validacion },
+    }),
+  );
+  return { llega: h.estado === ACTIVO, certificado: h.estado === ACTIVO && h.ssl === ACTIVO };
+}
+
+/** El problema, como lo lee la banda. */
+function textoProblema(via: string | null, e: Estado): string {
+  if (!e.llega) {
+    return via === "zona" ? "Tu dominio dejó de usar los nameservers de Deoco." : "El CNAME de tu dominio dejó de apuntar a Deoco.";
+  }
+  return "El certificado HTTPS no está activo.";
+}
+
+// ── Lista ───────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * - `sin-verificar`: falta que la banda cree los registros (o que Cloudflare los vea).
+ * - `certificado`: verificado; Cloudflare todavía emite el certificado. Ya muestra el sitio.
+ * - `listo`: verificado y con certificado: puede ser el principal.
+ * - `problema`: verificado, pero dos revisiones seguidas no llegó a Deoco o perdió el certificado.
+ */
+export type EstadoDominio = "plataforma" | "sin-verificar" | "certificado" | "listo" | "problema";
 
 export type DominioBanda = {
   id: string;
@@ -86,30 +138,46 @@ export type DominioBanda = {
   esPrincipal: boolean;
   verificado: boolean;
   dePlataforma: boolean;
-  /** Solo los propios sin verificar. */
+  via: "cname" | "zona" | null;
+  estado: EstadoDominio;
+  /** Los registros que conectan el dominio (cname): a crear si falta verificar, a revisar si hay problema. */
   registros: RegistroDns[] | null;
-  /** Verificado que dejó de apuntar al servidor (revisión periódica): el registro A a corregir. */
-  noApunta: { desde: Date; registroA: RegistroDns } | null;
+  /** Registros extra que pidió Cloudflare, por si tarda en validar. */
+  validacion: RegistroDns[];
+  problema: { desde: Date; texto: string } | null;
 };
 
-/** Los dominios de la banda, el principal primero, con los registros a crear si faltan verificar. */
-export async function dominiosDeBanda(tenantId: string, dns: ConsultaDns = dnsDelSistema): Promise<DominioBanda[]> {
+/** Los dominios de la banda, el principal primero. Lee lo guardado: no consulta a Cloudflare. */
+export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]> {
   const filas = await conTenant(tenantId, (tx) =>
     tx.dominio.findMany({ orderBy: [{ esPrincipal: "desc" }, { verificado: "desc" }, { dominio: "asc" }] }),
   );
-  const ip = filas.some((d) => !d.verificado || d.noApuntaDesde)
-    ? ((await ipPublica(dns)) ?? "IP del servidor (sin configurar)")
-    : "";
-  return filas.map((d) => ({
-    id: d.id,
-    dominio: d.dominio,
-    esPrincipal: d.esPrincipal,
-    verificado: d.verificado,
-    dePlataforma: esDePlataforma(d.dominio),
-    registros: d.verificado ? null : registrosDns(d.dominio, d.token, ip),
-    noApunta:
-      d.verificado && d.noApuntaDesde ? { desde: d.noApuntaDesde, registroA: registrosDns(d.dominio, d.token, ip)[0] } : null,
-  }));
+  return filas.map((d) => {
+    const dePlataforma = esDePlataforma(d.dominio);
+    const via = dePlataforma ? null : d.via === "zona" ? "zona" : "cname";
+    const problema = d.verificado && d.problemaDesde ? { desde: d.problemaDesde, texto: d.problema ?? "" } : null;
+    const estado: EstadoDominio = dePlataforma
+      ? "plataforma"
+      : !d.verificado
+        ? "sin-verificar"
+        : problema
+          ? "problema"
+          : d.estadoProveedor === ACTIVO && d.certificado === ACTIVO
+            ? "listo"
+            : "certificado";
+    return {
+      id: d.id,
+      dominio: d.dominio,
+      esPrincipal: d.esPrincipal,
+      verificado: d.verificado,
+      dePlataforma,
+      via,
+      estado,
+      registros: via === "cname" && (!d.verificado || problema) ? registrosDns(d.dominio, d.token) : null,
+      validacion: !d.verificado && Array.isArray(d.validacion) ? (d.validacion as RegistroDns[]) : [],
+      problema,
+    };
+  });
 }
 
 const auditar = (
@@ -122,12 +190,20 @@ const auditar = (
 
 const esUnico = (e: unknown) => e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 
-/** Registra un dominio propio, sin verificar: todavía no resuelve. */
+// ── Alta ────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Registra un dominio propio para conectar por CNAME, sin verificar (todavía no resuelve), y
+ * crea su custom hostname en Cloudflare. Si Cloudflare no responde, el dominio queda igual:
+ * "Verificar" lo vuelve a intentar.
+ */
 export async function agregarDominio(usuarioId: string, tenantId: string, crudo: string): Promise<string> {
   const dominio = normalizarDominio(crudo);
+  const p = proveedor();
+  let id: string;
   try {
-    return await conTenant(tenantId, async (tx) => {
-      const fila = await tx.dominio.create({ data: { tenantId, dominio }, select: { id: true } });
+    id = await conTenant(tenantId, async (tx) => {
+      const fila = await tx.dominio.create({ data: { tenantId, dominio, via: "cname" }, select: { id: true } });
       await auditar(tx, usuarioId, tenantId, "dominio.agregado", { dominio });
       return fila.id;
     });
@@ -135,15 +211,30 @@ export async function agregarDominio(usuarioId: string, tenantId: string, crudo:
     if (esUnico(e)) throw new ErrorDominio(`${dominio} ya está registrado en esta banda.`);
     throw e;
   }
+  try {
+    await consultar(tenantId, { id, dominio, via: "cname", proveedorId: null }, p);
+  } catch (e) {
+    if (e instanceof ErrorProveedor && e.tipo === "datos") {
+      // Cloudflare no lo acepta: no tiene sentido dejarlo en la lista.
+      await conTenant(tenantId, (tx) => tx.dominio.delete({ where: { id } }));
+      console.warn(`[dominios] Cloudflare rechazó ${dominio}: ${e.message}`);
+      throw new ErrorDominio(`No pudimos conectar ${dominio}. Revisá que esté bien escrito; si lo está, escribinos.`);
+    }
+    console.warn(`[dominios] ${dominio}: el custom hostname queda para "Verificar":`, e instanceof Error ? e.message : e);
+  }
+  return id;
 }
+
+// ── Verificar ───────────────────────────────────────────────────────────────────────────────
 
 export type ResultadoVerificacion =
   | { verificado: true }
-  | { verificado: false; faltaA: boolean; faltaTxt: boolean; ipEsperada: string | null; ipsEncontradas: string[] };
+  | { verificado: false; faltaCname: boolean; faltaTxt: boolean; destino: string; sinRespuesta?: boolean };
 
 /**
- * Consulta el DNS y, si los dos registros están, marca el dominio verificado. Desde ese
- * momento resuelve el sitio. Si otra banda lo verificó antes, falla (un dominio, una banda).
+ * Pregunta a Cloudflare y al DNS. Con el CNAME funcionando (Cloudflare lo ve: hostname activo)
+ * y el TXT de esta banda, queda verificado y desde ese momento resuelve el sitio. Si otra
+ * banda lo verificó antes, falla (un dominio, una banda).
  */
 export async function verificarDominio(
   usuarioId: string,
@@ -154,15 +245,21 @@ export async function verificarDominio(
   const d = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { id: dominioId } }));
   if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
   if (d.verificado) return { verificado: true };
+  const p = proveedor();
 
-  const [ipEsperada, ips, txts] = await Promise.all([
-    ipPublica(dns),
-    dns.a(d.dominio),
-    dns.txt(`${PREFIJO_TXT}.${d.dominio}`),
+  const zona = d.via === "zona";
+  const [estado, txts] = await Promise.all([
+    consultar(tenantId, d, p).catch((e) => {
+      if (!(e instanceof ErrorProveedor)) throw e;
+      if (e.tipo === "temporal") return null;
+      console.warn(`[dominios] Cloudflare rechazó ${d.dominio}: ${e.message}`);
+      throw new ErrorDominio(`No pudimos conectar ${d.dominio}. Revisá que esté bien escrito; si lo está, escribinos.`);
+    }),
+    zona ? Promise.resolve([] as string[]) : dns.txt(`${PREFIJO_TXT}.${d.dominio}`),
   ]);
-  const faltaA = !ipEsperada || !ips.includes(ipEsperada);
-  const faltaTxt = !txts.includes(valorTxt(d.token));
-  if (faltaA || faltaTxt) return { verificado: false, faltaA, faltaTxt, ipEsperada, ipsEncontradas: ips };
+  const faltaCname = !estado?.llega;
+  const faltaTxt = !zona && !txts.includes(valorTxt(d.token));
+  if (faltaCname || faltaTxt) return { verificado: false, faltaCname, faltaTxt, destino: destinoCname(), sinRespuesta: !estado };
 
   try {
     await conTenant(tenantId, async (tx) => {
@@ -176,49 +273,30 @@ export async function verificarDominio(
   return { verificado: true };
 }
 
-/** ¿El dominio abre por HTTPS con un certificado válido? Las pruebas pasan uno falso. */
-export type ComprobadorHttps = (dominio: string) => Promise<{ abre: true } | { abre: false; motivo: "certificado" | "sin-respuesta" }>;
-
-// Errores de TLS de Node (undici los deja en `cause.code`).
-const ERRORES_CERTIFICADO = /CERT|SELF_SIGNED|ALTNAME|UNABLE_TO_VERIFY|TLS|SSL|EPROTO/;
+// ── Principal ───────────────────────────────────────────────────────────────────────────────
 
 /**
- * Pide `https://<dominio>/` sin seguir redirecciones. Cualquier respuesta HTTP sirve: lo
- * que importa es que el certificado sea válido. Con el certificado por defecto de Traefik
- * (dominio todavía no agregado en Easypanel) falla la validación.
+ * Marca el dominio principal (uno por banda). Un dominio propio tiene que estar verificado y
+ * con el certificado activo según Cloudflare (si no, el subdominio redirigiría a un sitio sin
+ * candado). Los demás dominios de la banda, el subdominio incluido, redirigen a él.
  */
-export const httpsDelSistema: ComprobadorHttps = async (dominio) => {
-  try {
-    await fetch(`https://${dominio}/`, { method: "HEAD", redirect: "manual", signal: AbortSignal.timeout(8000) });
-    return { abre: true };
-  } catch (e) {
-    const code = String((e as { cause?: { code?: unknown } }).cause?.code ?? "");
-    return { abre: false, motivo: ERRORES_CERTIFICADO.test(code) ? "certificado" : "sin-respuesta" };
-  }
-};
-
-/**
- * Marca el dominio principal (uno por banda). Un dominio propio tiene que estar verificado
- * y abrir por HTTPS (si no, el subdominio redirigiría a un sitio sin certificado). Los
- * demás dominios de la banda, el subdominio incluido, redirigen a él.
- */
-export async function marcarPrincipal(
-  usuarioId: string,
-  tenantId: string,
-  dominioId: string,
-  https: ComprobadorHttps = httpsDelSistema,
-): Promise<void> {
+export async function marcarPrincipal(usuarioId: string, tenantId: string, dominioId: string): Promise<void> {
   const d = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { id: dominioId } }));
   if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
   if (!d.verificado) throw new ErrorDominio(`${d.dominio} todavía no está verificado.`);
   if (d.esPrincipal) return;
   if (!esDePlataforma(d.dominio)) {
-    const r = await https(d.dominio);
-    if (!r.abre) {
+    let e: Estado;
+    try {
+      e = await consultar(tenantId, d, proveedor());
+    } catch (err) {
+      if (err instanceof ErrorProveedor) throw new ErrorDominio("No pudimos consultar el estado del dominio. Probá de nuevo en un rato.");
+      throw err;
+    }
+    if (!e.llega) throw new ErrorDominio(`${textoProblema(d.via, e)} Corregilo y probá de nuevo.`);
+    if (!e.certificado) {
       throw new ErrorDominio(
-        r.motivo === "certificado"
-          ? `https://${d.dominio} todavía no tiene certificado: falta que Deoco lo active en el servidor. Probá de nuevo cuando abra con candado.`
-          : `https://${d.dominio} no responde. Si recién lo verificaste, falta que Deoco lo active en el servidor (certificado); probá de nuevo en un rato.`,
+        `El certificado de https://${d.dominio} todavía se está emitiendo (lo hace Cloudflare solo; suele tardar unos minutos). Probá de nuevo en un rato.`,
       );
     }
   }
@@ -231,12 +309,15 @@ export async function marcarPrincipal(
   });
 }
 
+// ── Quitar ──────────────────────────────────────────────────────────────────────────────────
+
 /**
  * Quita un dominio propio. Pide confirmación. El principal no se quita (primero se elige
- * otro); el subdominio de la plataforma, nunca.
+ * otro); el subdominio de la plataforma, nunca. Borra su custom hostname en Cloudflare, salvo
+ * que otra banda tenga registrado el mismo dominio (lo comparten mientras nadie lo verifique).
  */
 export async function quitarDominio(usuarioId: string, tenantId: string, dominioId: string, confirmado: boolean): Promise<void> {
-  await conTenant(tenantId, async (tx) => {
+  const quitado = await conTenant(tenantId, async (tx) => {
     const d = await tx.dominio.findFirst({ where: { id: dominioId } });
     if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
     if (esDePlataforma(d.dominio)) throw new ErrorDominio("El subdominio de Deoco no se puede quitar.");
@@ -250,35 +331,45 @@ export async function quitarDominio(usuarioId: string, tenantId: string, dominio
     }
     await tx.dominio.delete({ where: { id: d.id } });
     await auditar(tx, usuarioId, tenantId, "dominio.quitado", { dominio: d.dominio, verificado: d.verificado });
+    return d;
   });
+  if (quitado.via === "zona" || !quitado.proveedorId) return; // las zonas se dan de baja con su propio plazo (D6)
+  const [{ compartido }] = await prisma.$queryRaw<{ compartido: boolean }[]>`
+    SELECT dominio_compartido(${quitado.dominio}, ${quitado.id}::uuid) AS compartido`;
+  if (compartido) return;
+  // Si Cloudflare no responde, queda un custom hostname suelto: no sirve a nadie (sin fila, no
+  // resuelve) y no frena a la banda.
+  await proveedorDns()
+    ?.borrarHostname(quitado.proveedorId)
+    .catch((e) => console.warn(`[dominios] no se pudo borrar el custom hostname de ${quitado.dominio}:`, e instanceof Error ? e.message : e));
 }
 
-/** Cada cuánto se revisa que un dominio propio verificado siga apuntando al servidor. */
+// ── Revisión periódica ──────────────────────────────────────────────────────────────────────
+
+/** Cada cuánto se revisa que un dominio propio verificado siga llegando a Deoco. */
 export const REVISAR_DOMINIOS_CADA_MS = 6 * 3600_000;
-/** Revisiones seguidas sin apuntar para avisar (una sola puede ser un DNS que tardó). */
+/** Revisiones seguidas con problema para avisar (una sola puede ser algo pasajero). */
 const FALLAS_PARA_AVISAR = 2;
 
 /**
  * Revisión periódica (la corre el barrido): cada dominio propio verificado tiene que seguir
- * apuntando (registro A) a la IP del servidor. Si dos revisiones seguidas no apunta, queda
- * marcado (`noApuntaDesde`) y la banda lo ve en su panel. NO se despublica ni se le quita la
- * verificación: si la banda corrige el DNS, la próxima revisión lo desmarca sola.
+ * llegando a Deoco y con certificado, según Cloudflare. Si dos revisiones seguidas no, queda
+ * marcado (`problemaDesde` + `problema`) y la banda lo ve en su panel. NO se despublica ni se le
+ * quita la verificación: si la banda lo corrige, la próxima revisión lo desmarca sola.
  * El TXT no se vuelve a pedir: ya probó que el dominio es de la banda, y mucha gente lo borra.
+ * Si Cloudflare no responde, ese dominio no cuenta como revisado (se reintenta en la próxima).
  */
-export async function revisarDominios(
-  dns: ConsultaDns = dnsDelSistema,
-  ahora = new Date(),
-): Promise<{ revisados: number; noApuntan: number }> {
-  const ip = await ipPublica(dns);
-  if (!ip) {
-    console.warn("[dominios] no se revisan: no se sabe la IP del servidor (DEOCO_IP_PUBLICA o app.<raiz>).");
-    return { revisados: 0, noApuntan: 0 };
-  }
+export async function revisarDominios(ahora = new Date()): Promise<{ revisados: number; conProblema: number }> {
   const antes = new Date(ahora.getTime() - REVISAR_DOMINIOS_CADA_MS);
   const bandas = await prisma.$queryRaw<{ id: string }[]>`
     SELECT b AS id FROM bandas_con_dominios_a_revisar(${dominioRaiz()}, ${antes}::timestamp) AS b`;
+  const p = proveedorDns();
+  if (!p) {
+    if (bandas.length) console.warn("[dominios] no se revisan: falta configurar Cloudflare (DEOCO_CLOUDFLARE_TOKEN y DEOCO_CLOUDFLARE_ZONA).");
+    return { revisados: 0, conProblema: 0 };
+  }
   let revisados = 0;
-  let noApuntan = 0;
+  let conProblema = 0;
   for (const { id: tenantId } of bandas) {
     const dominios = await conTenant(tenantId, (tx) =>
       tx.dominio.findMany({
@@ -287,24 +378,36 @@ export async function revisarDominios(
     );
     for (const d of dominios) {
       if (esDePlataforma(d.dominio)) continue;
-      const apunta = (await dns.a(d.dominio)).includes(ip);
-      const fallas = apunta ? 0 : d.fallasSeguidas + 1;
-      const noApuntaDesde = apunta ? null : (d.noApuntaDesde ?? (fallas >= FALLAS_PARA_AVISAR ? ahora : null));
+      let e: Estado;
+      try {
+        e = await consultar(tenantId, d, p);
+      } catch (err) {
+        console.warn(`[dominios] no se pudo revisar ${d.dominio}:`, err instanceof Error ? err.message : err);
+        continue;
+      }
+      const bien = e.llega && e.certificado;
+      const fallas = bien ? 0 : d.fallasSeguidas + 1;
+      const problemaDesde = bien ? null : (d.problemaDesde ?? (fallas >= FALLAS_PARA_AVISAR ? ahora : null));
+      const problema = problemaDesde ? textoProblema(d.via, e) : null;
       await conTenant(tenantId, (tx) =>
-        tx.dominio.update({ where: { id: d.id }, data: { revisadoEn: ahora, fallasSeguidas: fallas, noApuntaDesde } }),
+        tx.dominio.update({ where: { id: d.id }, data: { revisadoEn: ahora, fallasSeguidas: fallas, problemaDesde, problema } }),
       );
-      if (noApuntaDesde && !d.noApuntaDesde) console.warn(`[dominios] ${d.dominio} dejó de apuntar al servidor.`);
+      if (problemaDesde && !d.problemaDesde) console.warn(`[dominios] ${d.dominio}: ${problema}`);
       revisados++;
-      if (noApuntaDesde) noApuntan++;
+      if (problemaDesde) conProblema++;
     }
   }
-  return { revisados, noApuntan };
+  return { revisados, conProblema };
 }
 
-/** Dominios propios de la banda que dejaron de apuntar al servidor (para el aviso del panel). */
-export async function dominiosQueNoApuntan(tenantId: string): Promise<{ dominio: string; desde: Date }[]> {
+/** Dominios propios de la banda con un problema (para el aviso del panel). */
+export async function dominiosConProblema(tenantId: string): Promise<{ dominio: string; desde: Date; problema: string }[]> {
   const filas = await conTenant(tenantId, (tx) =>
-    tx.dominio.findMany({ where: { noApuntaDesde: { not: null } }, select: { dominio: true, noApuntaDesde: true }, orderBy: { dominio: "asc" } }),
+    tx.dominio.findMany({
+      where: { verificado: true, problemaDesde: { not: null } },
+      select: { dominio: true, problemaDesde: true, problema: true },
+      orderBy: { dominio: "asc" },
+    }),
   );
-  return filas.map((f) => ({ dominio: f.dominio, desde: f.noApuntaDesde! }));
+  return filas.map((f) => ({ dominio: f.dominio, desde: f.problemaDesde!, problema: f.problema ?? "" }));
 }

@@ -4,17 +4,12 @@ import type { ResultadoVerificacion } from "@/nucleo/dominios";
 export function mensajeVerificacion(r: ResultadoVerificacion): { ok: string } | { error: string } {
   if (r.verificado) {
     return {
-      ok: "Verificado. Falta que Deoco lo active en el servidor (certificado HTTPS); cuando abra con candado, podés usarlo como principal.",
+      ok: "Verificado: ya muestra el sitio. Cloudflare está emitiendo el certificado; en unos minutos vas a poder usarlo como principal.",
     };
   }
+  if (r.sinRespuesta) return { error: "No pudimos consultar el estado del dominio. Probá de nuevo en un rato." };
   const faltan: string[] = [];
-  if (r.faltaA) {
-    faltan.push(
-      r.ipsEncontradas.length
-        ? `el registro A apunta a ${r.ipsEncontradas.join(", ")} y tiene que apuntar a ${r.ipEsperada ?? "la IP del servidor"}`
-        : "todavía no se ve el registro A",
-    );
-  }
+  if (r.faltaCname) faltan.push(`todavía no vemos el CNAME apuntando a ${r.destino}`);
   if (r.faltaTxt) faltan.push("todavía no se ve el registro TXT");
-  return { error: `Sin verificar: ${faltan.join("; ")}. Si recién lo creaste, esperá unos minutos y volvé a probar.` };
+  return { error: `Sin verificar: ${faltan.join("; ")}. Si recién los creaste, esperá unos minutos y volvé a probar.` };
 }

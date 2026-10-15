@@ -50,8 +50,8 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
    Guardalo: lo usa Traefik para el desafío DNS.
 2. **Registro DNS**: `A` · nombre `*` · IP del VPS · **solo DNS (nube gris)**.
    Cubre `app.deocoartist.com` y todas las bandas. Empezá con la nube gris: el certificado lo pone
-   Traefik y hay una pieza menos que mirar si algo falla. (Si después querés el proxy de
-   Cloudflare, nube naranja con SSL/TLS en **Full (strict)**.)
+   Traefik y hay una pieza menos que mirar si algo falla. Para los dominios propios de las
+   bandas todo pasa después a nube naranja: sección "Todo detrás de Cloudflare".
 3. Si existen registros `TXT _acme-challenge` viejos, borralos: pueden hacer fallar la
    validación.
 
@@ -201,7 +201,7 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_CORREO_REMITENTE` | con `DEOCO_CORREO=smtp` | `tiendas@deocoartist.com` (dominio verificado en Resend) |
 | `DEOCO_DB_CONEXIONES` | no | Conexiones de la app a Postgres (40). Sumadas a las del back office (5) tienen que quedar bajo `max_connections` (100 por defecto) |
 | `DEOCO_BARRIDO_SEGUNDOS` | no | Cada cuánto corre el barrido de pendientes (60; mínimo 5) |
-| `DEOCO_IP_PUBLICA` | no | IP a la que apuntan los dominios propios; por defecto, la de `app.<raíz>` |
+| `DEOCO_CLOUDFLARE_TOKEN` / `DEOCO_CLOUDFLARE_ZONA` | para dominios propios | Token de API de Cloudflare y el id de la zona de `DEOCO_DOMINIO_RAIZ` (custom hostnames). Las dos o ninguna |
 | `DEOCO_CUOTA_MP_TOKEN` | para cobrar la cuota | Access token de producción de la cuenta de Mercado Pago **de Deoco** (no de una banda). Sin él, la app arranca (aviso en el log) pero nadie puede cargar su forma de pago |
 | `DEOCO_CUOTA_MP_SECRETO_AVISOS` | recomendada | Clave secreta de webhooks de esa aplicación: con ella se verifica la firma de cada aviso de la cuota |
 | `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` | no | Limpieza de correos enviados: días hasta vaciar adjuntos (7), cuerpo (90) y borrar la fila (365). Lo pendiente o fallido no se toca |
@@ -253,30 +253,107 @@ primer deploy de esa versión corré una vez, en la consola de la app:
 `node scripts/mover-credenciales-de-cobro.mjs` (las recifra en su nuevo lugar; repetible). Si
 no, el titular las vuelve a cargar en Credenciales.
 
+## Todo detrás de Cloudflare (dominios propios de las bandas)
+
+Decisión (docs/diseno-dominios.md §1, opción A): `app.`, los subdominios de banda y los dominios
+propios pasan todos por Cloudflare, y el servidor solo acepta conexiones de Cloudflare
+(Authenticated Origin Pulls). Ensayado con la imagen de producción y Traefik 3.4 (§1 del diseño).
+
+**Antes de tocar nada, confirmá en tu Easypanel (desde el entorno de desarrollo no se pudo:
+la documentación de Easypanel está bloqueada):**
+
+- [ ] que deja **agregar un archivo propio de configuración dinámica a Traefik** (además de lo
+  que genera Easypanel), y
+- [ ] que deja **cambiar las opciones TLS `default`** de Traefik (en ese mismo archivo, o donde
+  Easypanel lo permita).
+
+Si alguna de las dos no se puede, **no sigas**: el plan cambia (opción C o un proxy propio
+delante de Easypanel).
+
+### Una vez
+
+1. **Cloudflare, zona `deocoartist.com`**:
+   - `A *` y `A app` a la IP del VPS con **nube naranja** (proxy).
+   - `A origen` a la IP del VPS, nube naranja: **fallback origin** de Cloudflare for SaaS
+     (SSL/TLS → Custom Hostnames → Fallback Origin).
+   - `CNAME customers` → `origen.deocoartist.com`, nube naranja: el destino del CNAME que crean
+     las bandas.
+   - SSL/TLS → modo **Full**. SSL/TLS → Origin Server → **Authenticated Origin Pulls** prendido.
+   - Un **token de API** con permiso de editar *SSL and Certificates* (custom hostnames) en la
+     zona → `DEOCO_CLOUDFLARE_TOKEN`; el **id de la zona** (Overview, columna derecha) →
+     `DEOCO_CLOUDFLARE_ZONA`.
+2. **Traefik** (el archivo propio): la ruta comodín y el certificado de cliente de Cloudflare.
+   `cloudflare-origin-pull-ca.pem` es el certificado público de Cloudflare para Authenticated
+   Origin Pulls (se baja de la documentación de Cloudflare); `deoco` es el servicio de la app
+   tal como lo nombra Easypanel.
+
+   ```yaml
+   http:
+     routers:
+       deoco-comodin:
+         rule: "HostRegexp(`.+`)"
+         priority: 1
+         entryPoints: [websecure]   # el nombre del entrypoint 443 en Easypanel
+         service: deoco
+         tls: {}
+   tls:
+     options:
+       default:
+         clientAuth:
+           caFiles: [/ruta/a/cloudflare-origin-pull-ca.pem]
+           clientAuthType: RequireAndVerifyClientCert
+   ```
+3. **Firewall del VPS**: 443 solo desde los rangos de IP de Cloudflare (cloudflare.com/ips).
+   Con el certificado de cliente ya no entra nadie más, pero así ni siquiera llegan.
+4. Verificá: `https://app.deocoartist.com` y el sitio de una banda abren; `curl -k
+   --resolve app.deocoartist.com:443:<IP del VPS> https://app.deocoartist.com/` **falla** (sin
+   pasar por Cloudflare no se entra).
+
+### Vuelta atrás rápida (si Cloudflare se cae)
+
+Con todo detrás de Cloudflare, si Cloudflare se cae, Deoco se cae. Para volver a servir directo
+(unos minutos, más lo que tarde el DNS):
+
+1. **Traefik**: sacá el bloque `tls.options.default.clientAuth` del archivo propio (o comentalo).
+   Sin eso, Traefik acepta conexiones directas otra vez. La ruta comodín puede quedar.
+2. **Cloudflare, zona `deocoartist.com`**: pasá `A *`, `A app` y `A origen` a **nube gris**
+   (solo DNS). Si el panel de Cloudflare no responde, el DNS lo sirve Cloudflare igual: sin
+   panel no se puede cambiar, y la única salida es cambiar los nameservers de `deocoartist.com`
+   en el registrador (lento: horas).
+3. **Certificado**: con nube gris, el de `*.deocoartist.com` lo vuelve a poner Traefik (el
+   resolver DNS de la sección B sigue configurado). Mirá que `app.` abra con candado.
+4. **Dominios propios de las bandas**: los conectados por CNAME apuntan a
+   `customers.deocoartist.com`; en nube gris resuelve a la IP del VPS, pero **no tienen
+   certificado** en Traefik (lo daba Cloudflare): abren con advertencia hasta volver. El
+   subdominio de cada banda sigue andando, con candado: si la caída va a ser larga, el staff
+   puede pasar las bandas afectadas a su subdominio como principal.
+5. La app no necesita cambios: sin Cloudflare lee la IP del visitante de `x-forwarded-for`.
+
+Para volver a Cloudflare: el orden inverso (nube naranja, después `clientAuth`).
+
 ## Dominio propio de una banda
 
 1. La banda (el titular, en **Panel → Dominios**) o el staff (en `/admin`, detalle de la banda)
-   agrega el dominio. La pantalla muestra dos registros exactos para crear en el DNS del dominio:
-   `A <dominio> → <IP del servidor>` y `TXT _deoco.<dominio> → deoco-verificacion=<token>`.
-2. La banda los crea y toca **Verificar**: la app consulta el DNS. Hasta que verifica, el
-   dominio no muestra el sitio (404).
-3. **Vos** agregás ese dominio en Easypanel (servicio de la app → Domains → `<dominio>`, puerto
-   3000, HTTPS con el resolver HTTP por defecto, **no** el de Cloudflare: el dominio no es
-   tuyo). El certificado lo emite Easypanel; la app no lo toca.
-4. Cuando `https://<dominio>` abre con candado, la banda puede tocar **Usar como principal**
-   (la app lo comprueba: sin certificado válido no lo deja). Desde ahí el subdominio
-   `<slug>.deocoartist.com` redirige al dominio propio.
-5. Si la banda **quita** un dominio (con confirmación; nunca el principal ni el subdominio),
-   sacalo también de Easypanel.
+   agrega el dominio, por ejemplo `www.labanda.com`. La app crea su **custom hostname** en
+   Cloudflare y muestra dos registros exactos para el DNS del dominio:
+   `CNAME <dominio> → customers.deocoartist.com` y `TXT _deoco.<dominio> → deoco-verificacion=<token>`.
+2. La banda los crea y toca **Verificar**: la app pregunta a Cloudflare si ve el CNAME (custom
+   hostname activo) y busca el TXT de esa banda. Hasta que verifica, el dominio no muestra el
+   sitio (404).
+3. El certificado lo emite Cloudflare solo. Cuando está activo, la banda puede tocar **Usar como
+   principal** (la app se lo pregunta a Cloudflare en ese momento). Desde ahí el subdominio
+   `<slug>.deocoartist.com` redirige al dominio propio. **Nadie toca Easypanel.**
+4. Si la banda **quita** un dominio (con confirmación; nunca el principal ni el subdominio), la
+   app borra su custom hostname en Cloudflare.
+5. Cada 6 horas la app revisa, según Cloudflare, que cada dominio propio verificado siga
+   llegando y con certificado. Si dos revisiones seguidas no, la banda ve un aviso en su panel y
+   el dominio queda marcado en la lista (también en `/admin`). **No** se despublica ni pierde la
+   verificación: cuando se corrige, la próxima revisión lo desmarca.
 
-6. Cada 6 horas la app revisa que cada dominio propio verificado siga apuntando (registro A) al
-   servidor. Si dos revisiones seguidas no apunta, la banda ve un aviso en su panel y el
-   dominio queda marcado en la lista (también en `/admin`). **No** se despublica ni pierde la
-   verificación: cuando la banda corrige el DNS, la próxima revisión lo desmarca.
-
-La IP que se muestra es `DEOCO_IP_PUBLICA` si está definida; si no, la que resuelve
-`app.deocoartist.com` (con el comodín en "solo DNS" es la del VPS). Si alguna vez ponés la nube
-naranja de Cloudflare en `deocoartist.com`, definí `DEOCO_IP_PUBLICA` con la IP del VPS.
+Sin `DEOCO_CLOUDFLARE_TOKEN` y `DEOCO_CLOUDFLARE_ZONA`, el panel dice que los dominios propios
+todavía no están habilitados. El dominio sin www (`labanda.com`) por CNAME no lo soporta
+Cloudflare for SaaS: la banda usa `www.`; delegar los nameservers (para el dominio sin www)
+llega en una parte siguiente (D3).
 
 ## Qué se verificó antes de este despliegue
 

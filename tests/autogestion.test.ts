@@ -5,6 +5,7 @@ import { confirmarRegistro, crearBandaPropia, ErrorAutogestion, olvidarIntentos,
 import { bandejaDeSalida, vaciarBandeja } from "@/nucleo/correo";
 import { prisma } from "@/nucleo/db/cliente";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
+import { ipDelVisitante } from "@/nucleo/publico/visitante";
 import { resolverTenantPorHost } from "@/nucleo/tenant/resolver";
 import { cuentaDe } from "../modulos/comercial/cuenta";
 import { dueno, limpiar } from "./apoyo";
@@ -145,5 +146,16 @@ describe("crear la banda", () => {
     ]);
     expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
     expect(await dueno.tenant.count({ where: { creadoPor: usuarioId } })).toBe(1);
+  });
+});
+
+describe("IP del visitante (freno por IP)", () => {
+  it("detrás de Cloudflare vale CF-Connecting-IP, no la de Cloudflare que Traefik pone en x-forwarded-for", () => {
+    const h = (c: Record<string, string>) => new Headers(c);
+    expect(ipDelVisitante(h({ "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "172.70.1.1" }))).toBe("203.0.113.7");
+    // Sin Cloudflare (desarrollo o vuelta atrás a nube gris): el primer x-forwarded-for.
+    expect(ipDelVisitante(h({ "x-forwarded-for": "198.51.100.4, 10.0.0.1" }))).toBe("198.51.100.4");
+    expect(ipDelVisitante(h({ "x-real-ip": "198.51.100.5" }))).toBe("198.51.100.5");
+    expect(ipDelVisitante(h({}))).toBeNull();
   });
 });

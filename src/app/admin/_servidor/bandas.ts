@@ -4,7 +4,6 @@ import { Prisma, type EstadoTenant } from "@/generated/prisma/client";
 import { claveTemporal } from "@/nucleo/auth/clave-temporal";
 import { hashearContrasena } from "@/nucleo/auth/contrasena";
 import {
-  type ComprobadorHttps,
   ErrorDominio,
   agregarDominio as agregarDominioNucleo,
   marcarPrincipal as marcarPrincipalNucleo,
@@ -215,7 +214,7 @@ export async function agregarDominio(staffId: string, tenantId: string, dominio:
   return dominios(() => agregarDominioNucleo(staffId, tenantId, dominio));
 }
 
-/** Consulta el DNS y lo verifica si los registros están. */
+/** Consulta a Cloudflare y al DNS, y lo verifica si los registros están. */
 export async function verificarDominio(staffId: string, tenantId: string, dominioId: string) {
   return dominios(() => verificarDominioNucleo(staffId, tenantId, dominioId));
 }
@@ -225,9 +224,9 @@ export async function quitarDominio(staffId: string, tenantId: string, dominioId
   return dominios(() => quitarDominioNucleo(staffId, tenantId, dominioId, confirmado));
 }
 
-/** Marca el dominio principal de la banda (hay uno solo, verificado y con HTTPS). */
-export async function marcarPrincipal(staffId: string, tenantId: string, dominioId: string, https?: ComprobadorHttps) {
-  return dominios(() => marcarPrincipalNucleo(staffId, tenantId, dominioId, https));
+/** Marca el dominio principal de la banda (hay uno solo, verificado y con certificado). */
+export async function marcarPrincipal(staffId: string, tenantId: string, dominioId: string) {
+  return dominios(() => marcarPrincipalNucleo(staffId, tenantId, dominioId));
 }
 
 // ── miembros ───────────────────────────────────────────────────────────────
