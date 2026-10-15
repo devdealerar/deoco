@@ -537,11 +537,11 @@ un registro DNS.
   1049 dominio sin registrar, 81053/81057/81058 registro repetido). El `.com.ar` no se puede
   preparar antes de que exista: si Cloudflare dice "sin registrar", el panel lo explica y se
   reintenta (el diseño original lo creaba antes; no se puede).
-- [ ] **Delegación que nadie completa**: una banda que pide delegar un dominio ajeno y nunca
-  cambia los nameservers bloquea a la dueña real ("otra banda ya lo está conectando"). Hoy lo
-  resuelve el staff quitándolo. ¿Vencerla sola a los N días? Decisión pendiente.
-- [ ] **Mail de "listo"** al activarse una delegación: el núcleo no tiene cómo mandar un mail
-  propio (sin un módulo). Va con los avisos de renovación (D11), que necesitan lo mismo.
+- [x] **Delegación que nadie completa** (decidido): vence a los **14 días** y se libera sola (zona
+  y filas; un conectado por CNAME que se estaba pasando queda como estaba). Desde 2 días antes,
+  aviso en el panel y la fecha en la tarjeta. El aviso por **mail** va con D11.
+- [ ] **Mails de "listo" y "por vencer"** de una delegación: el núcleo no tiene cómo mandar un
+  mail propio (sin un módulo). Van con los avisos de renovación (D11), que necesitan lo mismo.
 
 - [ ] **Origen detrás de Cloudflare**: ruta comodín en el Traefik de Easypanel, modo SSL y
   Authenticated Origin Pulls (parte 2, con ensayo).
@@ -572,7 +572,7 @@ quiera.
 | D1 | **Revisión, verificación y principal según Cloudflare** (sección 7): `ProveedorDns` mínimo + falso; alta por CNAME — ✅ hecha | M | 3,5 a 4,5 |
 | D2 | Origen detrás de Cloudflare + ensayo con un dominio real de prueba | S | 2 a 3 |
 | D3 | Delegar (comprado afuera y `.com.ar` asistido): zona con registros, nameservers, detección — ✅ hecha | S | 2 a 3 |
-| D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME entró en D1) | S | 2 |
+| D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME entró en D1) — ✅ hecha | S | 2 |
 | D5 | Correo: `DominioDeEnvio` (Resend), Email Worker + KV, pantalla Correo, remitente en `enviarCorreo` | M | 4 a 5 |
 | D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino | S | 2 |
 | D7 | `Registrador` con GoDaddy v2 + registrador falso | L | 5 a 7 |

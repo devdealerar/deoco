@@ -118,6 +118,10 @@ export class Cloudflare implements ProveedorDns {
     await this.llamar("DELETE", `/zones/${encodeURIComponent(zonaId)}/dns_records/${encodeURIComponent(registroId)}`);
   }
 
+  async borrarZona(zonaId: string): Promise<void> {
+    await this.llamar("DELETE", `/zones/${encodeURIComponent(zonaId)}`);
+  }
+
   async revisarActivacion(zonaId: string): Promise<void> {
     await this.llamar("PUT", `/zones/${encodeURIComponent(zonaId)}/activation_check`);
   }

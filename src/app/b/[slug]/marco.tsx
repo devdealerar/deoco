@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { type AccesoPanel, prendidosDelPedido } from "@/nucleo/acceso/panel";
 import { registro } from "@/nucleo/modulos";
 import { menuPanel } from "@/nucleo/modulos/navegacion";
-import { dominiosConProblema } from "@/nucleo/dominios";
+import { delegacionesPorVencer, dominiosConProblema } from "@/nucleo/dominios";
 import { bandaCobra } from "@/nucleo/pagos";
 import { Aviso } from "@/ui";
 import { BotonSalir } from "../../salir";
@@ -19,6 +19,8 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   // Dominios propios con un problema (los marca el barrido según Cloudflare): lo ve quien lo
   // puede arreglar (el staff lo ve en /admin). El sitio no se despublica.
   const conProblema = esTitular ? await dominiosConProblema(acceso.tenantId) : [];
+  // Delegaciones que vencen en un par de días si la banda no cambia los nameservers.
+  const porVencer = esTitular ? await delegacionesPorVencer(acceso.tenantId) : [];
   // Suspendida: solo se puede pagar (el resto del panel da 403). El sitio público sigue.
   const suspendida = acceso.estado === "SUSPENDIDO";
   const conPago = esTitular && Boolean(reg.gestor);
@@ -111,6 +113,23 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
               >
                 {conProblema.length === 1 ? `${conProblema[0].problema} ` : ""}El sitio sigue publicado, pero quien entra
                 por ese dominio puede no llegar. <Link href={`/b/${slug}/dominios`} className="font-semibold underline">Ver dominios</Link>
+              </Aviso>
+            </div>
+          )}
+          {porVencer.length > 0 && (
+            <div className="mb-6">
+              <Aviso
+                titulo={
+                  porVencer.length === 1
+                    ? `La delegación de ${porVencer[0].dominio} está por vencer`
+                    : `Las delegaciones de ${porVencer.map((d) => d.dominio).join(", ")} están por vencer`
+                }
+                data-delegacion-por-vencer
+              >
+                {porVencer.length === 1
+                  ? `Si no cambiás los nameservers antes del ${porVencer[0].vence.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long" })}, el pedido vence y se libera. `
+                  : "Si no cambiás los nameservers, los pedidos vencen y se liberan. "}
+                <Link href={`/b/${slug}/dominios`} className="font-semibold underline">Ver dominios</Link>
               </Aviso>
             </div>
           )}

@@ -14,12 +14,14 @@ export function ListaDominios({
   principal,
   quitar,
   agregar,
+  delegar,
 }: {
   dominios: DominioBanda[];
   verificar: (dominioId: string) => Accion;
   principal: (dominioId: string) => Accion;
   quitar: (dominioId: string) => Accion;
   agregar: Accion;
+  delegar: (dominioId: string) => Accion;
 }) {
   const enLinea = { puedeEditar: true, enLinea: true, variante: "secundario" as const };
   return (
@@ -35,6 +37,7 @@ export function ListaDominios({
               {d.esPrincipal && <Insignia color="marca">Principal</Insignia>}
               {d.dePlataforma && <Insignia>Subdominio de Deoco</Insignia>}
               {d.via === "zona" && <Insignia>Delegado</Insignia>}
+              {d.delegacion?.migrando && <Insignia>Pasando a delegado</Insignia>}
               {d.estado === "sin-verificar" && (
                 <Insignia color="advertencia">{d.delegacion ? "Esperando los nameservers" : "Sin verificar"}</Insignia>
               )}
@@ -73,6 +76,19 @@ export function ListaDominios({
           )}
 
           {d.delegacion && <Delegacion dominio={d.dominio} delegacion={d.delegacion} verificar={verificar(d.id)} />}
+
+          {d.via === "cname" && !d.delegacion && (
+            <div className="flex flex-col gap-2 rounded-lg p-4 ring-1 ring-secondary" data-pasar-a-delegado>
+              <p className="text-sm text-secondary">
+                <strong>Pasarme a delegar:</strong> Deoco maneja el DNS y el sitio anda también sin www. Preparamos todo antes
+                (con lo que ya tiene tu DNS, por ejemplo el correo) y mientras cambiás los nameservers este dominio sigue
+                andando por CNAME: no se corta.
+              </p>
+              <div>
+                <Formulario {...enLinea} accion={delegar(d.id)} etiqueta="Pasarme a delegar" />
+              </div>
+            </div>
+          )}
 
           {d.registros && (
             <>
@@ -144,15 +160,24 @@ export function ListaDominios({
   );
 }
 
+const FECHA: Intl.DateTimeFormatOptions = { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long" };
+
 /** Un dominio delegado esperando que la banda cambie los nameservers. */
 function Delegacion({ dominio, delegacion: g, verificar }: { dominio: string; delegacion: NonNullable<DominioBanda["delegacion"]>; verificar: Accion }) {
   if (g.acompanaA) {
     return (
       <p className="text-sm text-secondary">
-        Se activa junto con <strong>{g.acompanaA}</strong>: cuando cambies sus nameservers, este anda solo y redirige al principal.
+        {g.migrando ? "Se pasa a delegado" : "Se activa"} junto con <strong>{g.acompanaA}</strong>: cuando cambies sus nameservers, este anda
+        solo{g.migrando ? ". Mientras tanto sigue andando por CNAME, como hasta ahora" : " y redirige al principal"}.
       </p>
     );
   }
+  const vence = (
+    <p className="text-xs text-tertiary" data-vence>
+      Si no cambiás los nameservers antes del {g.vence.toLocaleDateString("es-AR", FECHA)}, el pedido vence y {g.migrando ? "todo queda como estaba" : "se libera"} (lo
+      podés volver a pedir).
+    </p>
+  );
   if (g.sinRegistrar || g.nameservers.length === 0) {
     return (
       <div className="flex flex-col gap-3" data-delegacion="sin-registrar">
@@ -177,6 +202,7 @@ function Delegacion({ dominio, delegacion: g, verificar }: { dominio: string; de
             "Estamos preparando el dominio en Cloudflare. Si en unos minutos no aparecen los nameservers, tocá el botón."
           )}
         </p>
+        {vence}
         <div>
           <Formulario puedeEditar accion={verificar} etiqueta={g.sinRegistrar ? "Ya lo registré" : "Reintentar"} />
         </div>
@@ -228,6 +254,7 @@ function Delegacion({ dominio, delegacion: g, verificar }: { dominio: string; de
         El cambio puede tardar unas horas (a veces hasta un día). Lo revisamos solos cada pocos minutos: cuando se active, el dominio queda verificado y el
         sitio anda con y sin www. Hasta entonces, todo sigue como estaba.
       </p>
+      {vence}
       <div>
         <Formulario puedeEditar accion={verificar} etiqueta="Ya cambié los nameservers" />
       </div>

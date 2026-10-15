@@ -24,6 +24,14 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   exige `DEOCO_CLOUDFLARE_CUENTA` y `DEOCO_IP_PUBLICA`. Quedó afuera: el mail de "listo" (el
   núcleo no tiene cómo mandar un mail propio sin un módulo; va con los avisos de D11) y el
   vencimiento de una delegación pendiente que nadie completa (ver diseño §12).
+- D4: `pasarADelegado()` ("Pasarme a delegar"): prepara la zona (con lo que tenía su DNS),
+  agrega lo que falte (el dominio sin www) y marca el conectado `migrandoA`; sigue andando por
+  su custom hostname. Al activarse la zona pasa a `via: "zona"` (`dominio.delegado` en la
+  auditoría) y el custom hostname se borra recién con el certificado de la zona activo
+  (`hostnameViejo`). Vencimiento (decidido): 14 días sin cambiar los nameservers → se libera
+  sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
+  (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
+  `hostnameViejo`). El mail del aviso, con D11.
 - D2 (parte de código): `ipDelVisitante()` lee `CF-Connecting-IP` (el freno del alta era el único
   lugar que leía la IP). Vuelta atrás si Cloudflare se cae: `docs/despliegue.md`.
 
@@ -33,7 +41,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D1 | Revisión, verificación y principal según el estado de Cloudflare; `ProveedorDns` mínimo + falso; alta por CNAME | 3,5–4,5 | ✅ hecha |
 | D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | decidido A (todo por Cloudflare); ensayo local ✅; `CF-Connecting-IP` ✅; vuelta atrás documentada; **falta confirmar en Easypanel** archivo propio de Traefik y TLS `default`, y el ensayo con dominio real |
 | D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | ✅ hecha |
-| D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME ya está en D1) | 2 | pendiente |
+| D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME ya está en D1) + vencimiento de delegaciones | 2 | ✅ hecha |
 | D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | pendiente |
 | D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | pendiente |
 | D7 | `Registrador` GoDaddy v2 + falso | 5–7 | pendiente |

@@ -348,7 +348,10 @@ Dos caminos. **Delegar** (recomendado; también el `.com.ar`):
    todavía no está registrado, el panel lo dice y espera.
 3. El barrido mira cada 10 minutos: cuando Cloudflare activa la zona, los dos quedan
    verificados solos. El certificado universal lo emite Cloudflare; con él activo, "Usar como
-   principal".
+   principal". Si en 14 días nadie cambió los nameservers, el pedido vence: se borran la zona y
+   el dominio (queda libre para otra banda); el panel lo avisa 2 días antes.
+4. Un dominio conectado por CNAME se pasa a delegado con "Pasarme a delegar", sin corte: sigue
+   andando por CNAME hasta que la zona se activa.
 
 **Conectar por CNAME** (la banda conserva su DNS; solo con `www`):
 

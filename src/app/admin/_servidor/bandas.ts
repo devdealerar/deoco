@@ -7,6 +7,7 @@ import {
   ErrorDominio,
   agregarDominio as agregarDominioNucleo,
   marcarPrincipal as marcarPrincipalNucleo,
+  pasarADelegado as pasarADelegadoNucleo,
   quitarDominio as quitarDominioNucleo,
   verificarDominio as verificarDominioNucleo,
 } from "@/nucleo/dominios";
@@ -217,6 +218,11 @@ export async function agregarDominio(staffId: string, tenantId: string, dominio:
 /** Consulta a Cloudflare y al DNS, y lo verifica si los registros están. */
 export async function verificarDominio(staffId: string, tenantId: string, dominioId: string) {
   return dominios(() => verificarDominioNucleo(staffId, tenantId, dominioId));
+}
+
+/** Pasa un dominio conectado por CNAME a delegado (sin corte). */
+export async function pasarADelegado(staffId: string, tenantId: string, dominioId: string) {
+  return dominios(() => pasarADelegadoNucleo(staffId, tenantId, dominioId));
 }
 
 /** Quita un dominio propio (confirmado; nunca el principal ni el subdominio). */

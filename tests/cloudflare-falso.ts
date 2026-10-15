@@ -120,6 +120,10 @@ export class CloudflareFalso {
           return ok(z.certificado ? [{ id: `cp-${z.id}`, type: "universal", status: z.certificado }] : []);
         }
         const zona = url.pathname.match(/^\/zones\/([^/]+)$/);
+        if (zona && req.method === "DELETE") {
+          if (!this.zonas.delete(zona[1])) return error(404, 1001, "Invalid zone identifier");
+          return ok({ id: zona[1] });
+        }
         if (zona && req.method === "GET") {
           const z = this.zonas.get(zona[1]);
           if (!z) return error(404, 1001, "Invalid zone identifier");

@@ -14,7 +14,7 @@ beforeAll(async () => {
   await abrirNavegador();
 });
 afterEach(async () => {
-  await dueno.dominio.deleteMany({ where: { dominio: { in: ["www.lossatelites.com.ar", "lossatelites.com.ar"] } } });
+  await dueno.dominio.deleteMany({ where: { dominio: { in: ["www.lossatelites.com.ar", "lossatelites.com.ar", "www.lossatelites.com", "lossatelites.com"] } } });
   await dueno.auditoria.deleteMany({ where: { accion: { startsWith: "dominio." } } });
   await dueno.dominio.updateMany({ where: { dominio: { endsWith: ".lvh.me" } }, data: { esPrincipal: true } });
   cf.limpiar();
@@ -115,6 +115,29 @@ describe("dominio propio desde el panel de la banda", () => {
     await tarjeta.getByText("Emitiendo el certificado", { exact: true }).waitFor();
     expect(await tarjeta.textContent()).toContain("Delegado");
     expect(await dueno.dominio.count({ where: { tenantId: e.a.id, via: "zona", verificado: true } })).toBe(2);
+  });
+
+  it("de CNAME a delegado: el botón prepara todo y el conectado sigue andando; una delegación por vencer avisa en el panel", async () => {
+    cf.hostnames.set("ch-www", { id: "ch-www", hostname: "www.lossatelites.com", status: "active", ssl: { status: "active" } });
+    await dueno.dominio.create({
+      data: { tenantId: e.a.id, dominio: "www.lossatelites.com", verificado: true, via: "cname", proveedorId: "ch-www", estadoProveedor: "active", certificado: "active" },
+    });
+    const { page } = await logueado("multi@x.com");
+    await page.goto(DOMINIOS);
+    const www = page.locator('[data-dominio="www.lossatelites.com"]');
+    expect(await www.textContent()).toContain("Listo");
+    const pasar = www.locator("[data-pasar-a-delegado] form[data-hidratado]");
+    await pasar.getByRole("button", { name: "Pasarme a delegar" }).click();
+    await www.getByText("Pasando a delegado", { exact: true }).waitFor();
+    expect(await www.textContent()).toContain("Mientras tanto sigue andando por CNAME");
+    const apex = page.locator('[data-dominio="lossatelites.com"]');
+    expect(await apex.locator("[data-delegacion] [data-copiable]").allTextContents()).toEqual(NAMESERVERS);
+    expect(await apex.locator("[data-vence]").textContent()).toMatch(/^Si no cambiás los nameservers antes del \d+ de \w+, el pedido vence y se libera/);
+
+    // Doce días después, sin cambiar los nameservers: aviso arriba del panel.
+    await dueno.dominio.updateMany({ where: { tenantId: e.a.id, via: "zona" }, data: { creadoEn: new Date(Date.now() - 12.5 * 86_400_000) } });
+    await page.goto(`${APP}/b/banda-a`);
+    expect(await page.locator("[data-delegacion-por-vencer]").textContent()).toContain("La delegación de lossatelites.com está por vencer");
   });
 
   it("quitar pide confirmación; el principal y el subdominio no ofrecen quitar", async () => {

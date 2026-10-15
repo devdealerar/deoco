@@ -4,8 +4,10 @@ import { prisma } from "@/nucleo/db/cliente";
 import {
   agregarDominio,
   type ConsultaDns,
+  delegacionesPorVencer,
   dominiosDeBanda,
   marcarPrincipal,
+  pasarADelegado,
   quitarDominio,
   verificarDominio,
 } from "@/nucleo/dominios";
@@ -403,6 +405,110 @@ describe("delegar (la zona es nuestra; la banda cambia los nameservers)", () => 
     delete process.env.DEOCO_IP_PUBLICA;
     await expect(agregarDominio(ua.id, a.id, "otro.com", "zona")).rejects.toThrow(/todavía no están habilitados/);
     expect(cf.zonas.size).toBe(0);
+  });
+});
+
+describe("de conectado (CNAME) a delegado, sin corte", () => {
+  it("prepara la zona y agrega el dominio sin www; el conectado sigue andando hasta que se activa; el custom hostname se va con el certificado listo", async () => {
+    const www = await conectado("www.lossatelites.com");
+    await marcarPrincipal(ua.id, a.id, www);
+    const hostname = cf.de("www.lossatelites.com")!.id;
+    cf.dnsAnterior.set("lossatelites.com", [
+      { type: "CNAME", name: "www.lossatelites.com", content: "customers.deocoartist.com", proxied: false },
+      { type: "MX", name: "lossatelites.com", content: "aspmx.l.google.com", proxied: false },
+    ]);
+
+    await pasarADelegado(ua.id, a.id, www);
+    const z = cf.zonaDe("lossatelites.com")!;
+    expect(z.registros!.find((r) => r.name === "www.lossatelites.com")).toMatchObject({ type: "CNAME", content: "lossatelites.com", proxied: true });
+    const [apex, w] = await dueno.dominio.findMany({ where: { tenantId: a.id, dominio: { in: ["lossatelites.com", "www.lossatelites.com"] } }, orderBy: { dominio: "asc" } });
+    expect(apex).toMatchObject({ via: "zona", verificado: false, proveedorId: z.id });
+    expect(w).toMatchObject({ via: "cname", verificado: true, esPrincipal: true, proveedorId: hostname, migrandoA: z.id });
+    // Sin corte: el principal sigue resolviendo por el CNAME.
+    expect((await proxy(pedido("www.lossatelites.com"))).status).toBe(200);
+    const lista = await dominiosDeBanda(a.id);
+    expect(lista.find((x) => x.dominio === "www.lossatelites.com")).toMatchObject({ estado: "listo", delegacion: { migrando: true, acompanaA: "lossatelites.com" } });
+    expect(lista.find((x) => x.dominio === "lossatelites.com")?.delegacion).toMatchObject({ nameservers: NAMESERVERS, importados: [{ tipo: "MX" }] });
+
+    // La banda cambió los nameservers; el certificado de la zona todavía no está.
+    cf.activarZona("lossatelites.com", "pending_validation");
+    expect(await verificarDominio(ua.id, a.id, apex.id)).toEqual({ verificado: true });
+    expect(await dueno.dominio.findUniqueOrThrow({ where: { id: www } })).toMatchObject({
+      via: "zona",
+      proveedorId: z.id,
+      hostnameViejo: hostname,
+      migrandoA: null,
+      verificado: true,
+      esPrincipal: true,
+    });
+    expect(cf.de("www.lossatelites.com")).toBeDefined(); // todavía: hay quien resuelve con los nameservers viejos
+    expect((await proxy(pedido("www.lossatelites.com"))).status).toBe(200);
+
+    // Certificado listo: se borra el custom hostname viejo.
+    cf.activarZona("lossatelites.com", "active");
+    await marcarPrincipal(ua.id, a.id, apex.id);
+    expect(cf.de("www.lossatelites.com")).toBeUndefined();
+    expect((await dueno.dominio.findUniqueOrThrow({ where: { id: www } })).hostnameViejo).toBeNull();
+    expect((await dueno.auditoria.findMany({ where: { tenantId: a.id, accion: "dominio.delegado" } })).map((x) => x.detalle)).toEqual([
+      { dominio: "www.lossatelites.com", desde: "cname" },
+    ]);
+  });
+
+  it("si otra banda ya está conectando la zona, queda todo como estaba", async () => {
+    await agregarDominio(ub.id, b.id, "lossatelites.com", "zona");
+    const www = await conectado("www.lossatelites.com");
+    await expect(pasarADelegado(ua.id, a.id, www)).rejects.toThrow(/Otra banda de Deoco ya está conectando/);
+    expect(await dueno.dominio.findMany({ where: { tenantId: a.id, dominio: { in: ["lossatelites.com", "www.lossatelites.com"] } } })).toMatchObject([
+      { dominio: "www.lossatelites.com", via: "cname", migrandoA: null },
+    ]);
+  });
+});
+
+describe("una delegación que nadie completa vence a los 14 días", () => {
+  const dias = (n: number, desde = new Date()) => new Date(desde.getTime() + n * 86_400_000);
+
+  it("se avisa dos días antes; vencida, se libera (zona y filas) y otra banda puede pedirla", async () => {
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com", "zona");
+    const creado = (await dueno.dominio.findUniqueOrThrow({ where: { id } })).creadoEn;
+    expect((await dominiosDeBanda(a.id)).find((x) => x.id === id)?.delegacion?.vence).toEqual(dias(14, creado));
+    expect(await delegacionesPorVencer(a.id, dias(11, creado))).toEqual([]);
+    expect(await delegacionesPorVencer(a.id, dias(12, creado))).toEqual([{ dominio: "lossatelites.com", vence: dias(14, creado) }]);
+
+    await barrer({ ahora: dias(13, creado) });
+    expect(await dueno.dominio.count({ where: { tenantId: a.id, via: "zona" } })).toBe(2);
+    await barrer({ ahora: dias(14.1, creado) });
+    expect(await dueno.dominio.count({ where: { tenantId: a.id, via: "zona" } })).toBe(0);
+    expect(cf.zonaDe("lossatelites.com")).toBeUndefined();
+    expect(await dueno.auditoria.findFirst({ where: { tenantId: a.id, accion: "dominio.delegacion_vencida" } })).toMatchObject({
+      usuarioId: null,
+      detalle: { dominio: "lossatelites.com", por: "revision" },
+    });
+    // Disponible para otra banda.
+    await agregarDominio(ub.id, b.id, "lossatelites.com", "zona");
+    expect(await dueno.dominio.count({ where: { tenantId: b.id, via: "zona" } })).toBe(2);
+  });
+
+  it("si se activó, aunque la revisión llegue pasado el plazo, queda verificado (no se libera)", async () => {
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com", "zona");
+    const creado = (await dueno.dominio.findUniqueOrThrow({ where: { id } })).creadoEn;
+    cf.activarZona("lossatelites.com");
+    await barrer({ ahora: dias(15, creado) });
+    expect((await dueno.dominio.findUniqueOrThrow({ where: { id } })).verificado).toBe(true);
+    expect(cf.zonaDe("lossatelites.com")).toBeDefined();
+  });
+
+  it("un .com.ar que nunca registró también vence; un conectado que se estaba pasando queda como estaba", async () => {
+    cf.sinRegistrar.add("lossatelites.com.ar");
+    const ar = await agregarDominio(ua.id, a.id, "lossatelites.com.ar", "zona");
+    const www = await conectado("www.lossatelites.com");
+    await pasarADelegado(ua.id, a.id, www);
+    const creado = (await dueno.dominio.findUniqueOrThrow({ where: { id: ar } })).creadoEn;
+    await barrer({ ahora: dias(15, creado) });
+    expect(await dueno.dominio.findMany({ where: { tenantId: a.id, NOT: { dominio: { endsWith: ".deocoartist.com" } } } })).toMatchObject([
+      { dominio: "www.lossatelites.com", via: "cname", verificado: true, migrandoA: null },
+    ]);
+    expect(cf.de("www.lossatelites.com")).toBeDefined();
+    expect(cf.zonaDe("lossatelites.com")).toBeUndefined();
   });
 });
 

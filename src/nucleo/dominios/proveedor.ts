@@ -60,6 +60,8 @@ export interface ProveedorDns {
   borrarRegistro(zonaId: string, registroId: string): Promise<void>;
   /** Le pide a Cloudflare que mire ya los nameservers (si no, lo hace cada tanto). */
   revisarActivacion(zonaId: string): Promise<void>;
+  /** Borra la zona (si no existe, no hace nada). */
+  borrarZona(zonaId: string): Promise<void>;
 }
 
 /** El proveedor configurado, o null si este servidor no tiene dominios propios habilitados. */

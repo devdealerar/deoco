@@ -102,7 +102,10 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - Delegar (`agregarDominio(…, "zona")`): zona en nuestra cuenta (`DEOCO_CLOUDFLARE_CUENTA`) con
   `jump_start` (trae el DNS anterior), registros del sitio a `DEOCO_IP_PUBLICA`, filas del
   dominio y su www. Una zona es de una sola banda (`zona_de_otra_banda()`). `.com.ar` sin
-  registrar → `estadoProveedor: "sin-registrar"`, se reintenta.
+  registrar → `estadoProveedor: "sin-registrar"`, se reintenta. Sin completar a los 14 días, se
+  libera sola (aviso en el panel 2 días antes, `delegacionesPorVencer`).
+- De CNAME a delegado sin corte: `pasarADelegado()` (`migrandoA` → al activarse, `via: "zona"`;
+  el custom hostname viejo se borra con el certificado de la zona activo, `hostnameViejo`).
 - Cloudflare detrás de `ProveedorDns` (`proveedor.ts`, `cloudflare.ts`): `DEOCO_CLOUDFLARE_TOKEN`
   + `DEOCO_CLOUDFLARE_ZONA` (las dos o ninguna; sin ellas no se agregan dominios). Pruebas:
   `tests/cloudflare-falso.ts` (`DEOCO_CLOUDFLARE_API`).

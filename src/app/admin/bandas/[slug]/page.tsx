@@ -8,6 +8,7 @@ import { exigirStaff } from "../../_servidor/acceso";
 import { detalleBanda } from "../../_servidor/bandas";
 import {
   apagarAccion,
+  delegarAccion,
   dominioAccion,
   estadoAccion,
   invitarAccion,
@@ -107,6 +108,7 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
           principal={(d) => principalAccion.bind(null, id, d)}
           quitar={(d) => quitarDominioAccion.bind(null, id, d)}
           agregar={dominioAccion.bind(null, id)}
+          delegar={(d) => delegarAccion.bind(null, id, d)}
         />
       </section>
 

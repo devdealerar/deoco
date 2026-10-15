@@ -115,6 +115,12 @@ model Dominio {
   validacion      Json      @default("[]")
   /// Delegado: los nameservers de la zona (los que la banda pone en su registrador).
   nameservers     String[]  @default([])
+  /// Desde cuándo está en la banda (una delegación que nadie completa vence a los 14 días).
+  creadoEn        DateTime  @default(now())
+  /// Conectado por CNAME pasándose a delegado: la zona a la que va (sigue andando por CNAME).
+  migrandoA       String?
+  /// Ya delegado: el custom hostname viejo, a borrar cuando el certificado de la zona esté activo.
+  hostnameViejo   String?
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, dominio])

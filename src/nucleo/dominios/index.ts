@@ -123,7 +123,9 @@ async function consultar(tenantId: string, d: Fila, p: ProveedorDns): Promise<Es
         data: { estadoProveedor: zona.estado, certificado: zona.certificado, nameservers: zona.nameservers },
       }),
     );
-    return { llega: zona.estado === ACTIVO, certificado: zona.estado === ACTIVO && zona.certificado === ACTIVO };
+    const lista = zona.estado === ACTIVO && zona.certificado === ACTIVO;
+    if (lista) await soltarHostnamesViejos(tenantId, zona.id, p);
+    return { llega: zona.estado === ACTIVO, certificado: lista };
   }
   const h = (d.proveedorId ? await p.hostname(d.proveedorId) : null) ?? (await p.crearHostname(d.dominio));
   await conTenant(tenantId, (tx) =>
@@ -173,9 +175,32 @@ async function prepararZona(tenantId: string, apex: string, p: ProveedorDns): Pr
       where: { via: "zona", dominio: { in: nombresDelSitio(apex) } },
       data: { proveedorId: z.id, estadoProveedor: z.estado, nameservers: z.nameservers },
     });
+    // Los conectados por CNAME que se están pasando: siguen con su custom hostname hasta que se active.
+    await tx.dominio.updateMany({
+      where: { via: "cname", migrandoA: { not: null }, dominio: { in: nombresDelSitio(apex) } },
+      data: { migrandoA: z.id, nameservers: z.nameservers },
+    });
     await tx.dominio.updateMany({ where: { via: "zona", dominio: apex }, data: { validacion: importados } });
   });
   return z;
+}
+
+/**
+ * Los custom hostnames de los dominios que pasaron de CNAME a delegado: se borran recién con
+ * la zona activa y su certificado listo (hasta ahí, quien todavía resuelve con los nameservers
+ * viejos sigue llegando por el CNAME). Salvo que otra banda haya registrado el mismo dominio.
+ */
+async function soltarHostnamesViejos(tenantId: string, zonaId: string, p: ProveedorDns) {
+  const filas = await conTenant(tenantId, (tx) => tx.dominio.findMany({ where: { proveedorId: zonaId, hostnameViejo: { not: null } } }));
+  for (const f of filas) {
+    const [{ compartido }] = await prisma.$queryRaw<{ compartido: boolean }[]>`SELECT dominio_compartido(${f.dominio}, ${f.id}::uuid) AS compartido`;
+    try {
+      if (!compartido) await p.borrarHostname(f.hostnameViejo!);
+      await conTenant(tenantId, (tx) => tx.dominio.update({ where: { id: f.id }, data: { hostnameViejo: null } }));
+    } catch (e) {
+      console.warn(`[dominios] no se pudo borrar el custom hostname viejo de ${f.dominio}:`, e instanceof Error ? e.message : e);
+    }
+  }
 }
 
 /** El problema, como lo lee la banda. */
@@ -218,6 +243,10 @@ export type DominioBanda = {
     nicAr: boolean;
     /** La fila de www: se activa con el dominio, no tiene pasos propios. */
     acompanaA: string | null;
+    /** Conectado por CNAME pasándose a delegado: sigue andando por CNAME hasta que se active. */
+    migrando: boolean;
+    /** Si para entonces no cambió los nameservers, el pedido vence y se libera. */
+    vence: Date;
   } | null;
 };
 
@@ -248,16 +277,18 @@ export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]>
       via,
       estado,
       registros: via === "cname" && (!d.verificado || problema) ? registrosDns(d.dominio, d.token) : null,
-      validacion: via === "cname" && !d.verificado && Array.isArray(d.validacion) ? (d.validacion as RegistroDns[]) : [],
+      validacion: via === "cname" && !d.verificado && !d.migrandoA && Array.isArray(d.validacion) ? (d.validacion as RegistroDns[]) : [],
       problema,
       delegacion:
-        via === "zona" && !d.verificado
+        (via === "zona" && !d.verificado) || (via === "cname" && d.migrandoA)
           ? {
               nameservers: d.nameservers,
               importados: Array.isArray(d.validacion) ? (d.validacion as RegistroDns[]) : [],
               sinRegistrar: d.estadoProveedor === "sin-registrar",
               nicAr: /\.ar$/.test(d.dominio),
               acompanaA: d.dominio.startsWith("www.") ? apexDe(d.dominio) : null,
+              migrando: via === "cname",
+              vence: venceDelegacion(d.creadoEn),
             }
           : null,
     };
@@ -352,6 +383,18 @@ async function agregarDelegado(usuarioId: string, tenantId: string, crudo: strin
  * banda (el dominio y su www). `usuarioId` null: lo detectó la revisión.
  */
 async function verificarZona(tenantId: string, zonaId: string, usuarioId: string | null): Promise<number> {
+  // Los que estaban conectados por CNAME pasan a la zona (su custom hostname se borra cuando el
+  // certificado de la zona esté listo: soltarHostnamesViejos).
+  const migrando = await conTenant(tenantId, (tx) => tx.dominio.findMany({ where: { via: "cname", migrandoA: zonaId } }));
+  for (const m of migrando) {
+    await conTenant(tenantId, async (tx) => {
+      await tx.dominio.update({
+        where: { id: m.id },
+        data: { via: "zona", proveedorId: zonaId, hostnameViejo: m.proveedorId, migrandoA: null, validacion: [], estadoProveedor: null, certificado: null },
+      });
+      await tx.auditoria.create({ data: { usuarioId, tenantId, accion: "dominio.delegado", detalle: { dominio: m.dominio, desde: "cname" } } });
+    });
+  }
   const filas = await conTenant(tenantId, (tx) => tx.dominio.findMany({ where: { via: "zona", proveedorId: zonaId, verificado: false } }));
   let verificadas = 0;
   for (const f of filas) {
@@ -369,6 +412,94 @@ async function verificarZona(tenantId: string, zonaId: string, usuarioId: string
     }
   }
   return verificadas;
+}
+
+/** Una delegación que nadie completa (la banda nunca cambió los nameservers) vence a los 14 días. */
+export const PLAZO_DELEGACION_DIAS = 14;
+/** Desde cuántos días antes de vencer se avisa en el panel. */
+export const AVISAR_VENCIMIENTO_DIAS = 2;
+const venceDelegacion = (creadoEn: Date) => new Date(creadoEn.getTime() + PLAZO_DELEGACION_DIAS * 86_400_000);
+
+/**
+ * Un dominio conectado por CNAME pasa a delegado, sin corte (docs/diseno-dominios.md §3.2):
+ * se prepara la zona completa (con lo que tenía su DNS) y se agrega lo que falte (el dominio sin
+ * www); el conectado sigue andando por su custom hostname mientras la banda cambia los
+ * nameservers. Cuando la zona se activa, pasa a la zona; su custom hostname se borra recién con
+ * el certificado de la zona listo.
+ */
+export async function pasarADelegado(usuarioId: string, tenantId: string, dominioId: string): Promise<void> {
+  const d = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { id: dominioId } }));
+  if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
+  if (esDePlataforma(d.dominio)) throw new ErrorDominio("El subdominio de Deoco no se delega.");
+  if (d.via === "zona") throw new ErrorDominio(`${d.dominio} ya está delegado.`);
+  if (d.migrandoA) return;
+  const p = proveedor();
+  if (!ipDelServidor()) throw new ErrorDominio(NO_HABILITADO);
+  const apex = apexDe(d.dominio);
+  const nombres = nombresDelSitio(apex);
+  const creadas = await conTenant(tenantId, async (tx) => {
+    const filas = await tx.dominio.findMany({ where: { dominio: { in: nombres } } });
+    const nuevas: string[] = [];
+    for (const n of nombres) {
+      if (!filas.some((f) => f.dominio === n)) nuevas.push((await tx.dominio.create({ data: { tenantId, dominio: n, via: "zona" }, select: { id: true } })).id);
+    }
+    await tx.dominio.updateMany({ where: { via: "cname", dominio: { in: nombres } }, data: { migrandoA: "pendiente" } });
+    await auditar(tx, usuarioId, tenantId, "dominio.pasando_a_delegado", { dominio: apex });
+    return nuevas;
+  });
+  const deshacer = () =>
+    conTenant(tenantId, async (tx) => {
+      await tx.dominio.deleteMany({ where: { id: { in: creadas } } });
+      await tx.dominio.updateMany({ where: { via: "cname", dominio: { in: nombres } }, data: { migrandoA: null, nameservers: [] } });
+    });
+  try {
+    await prepararZona(tenantId, apex, p);
+  } catch (e) {
+    if (e instanceof ErrorDominio) {
+      await deshacer();
+      throw e;
+    }
+    if (e instanceof ErrorProveedor && e.tipo !== "temporal") {
+      await deshacer();
+      console.warn(`[dominios] Cloudflare rechazó la zona ${apex}: ${e.message}`);
+      throw new ErrorDominio(`No pudimos preparar ${apex} para delegarlo. Escribinos y lo vemos.`);
+    }
+    // Cloudflare no respondió: queda pedido y la revisión lo reintenta.
+    console.warn(`[dominios] ${apex}: la zona queda para la revisión:`, e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * La delegación de `apex` venció sin que la banda cambiara los nameservers: se libera (se
+ * borran la zona y las filas sin verificar; un conectado por CNAME que se estaba pasando queda
+ * como estaba). El dominio queda disponible para otra banda.
+ */
+async function liberarDelegacion(tenantId: string, apex: string, p: ProveedorDns): Promise<void> {
+  const nombres = nombresDelSitio(apex);
+  const zonaId = await conTenant(tenantId, async (tx) => {
+    const filas = await tx.dominio.findMany({ where: { via: "zona", verificado: false, dominio: { in: nombres } } });
+    const zona = filas.find((f) => f.proveedorId)?.proveedorId ?? null;
+    await tx.dominio.deleteMany({ where: { id: { in: filas.map((f) => f.id) } } });
+    await tx.dominio.updateMany({ where: { via: "cname", dominio: { in: nombres }, migrandoA: { not: null } }, data: { migrandoA: null, nameservers: [] } });
+    await tx.auditoria.create({ data: { usuarioId: null, tenantId, accion: "dominio.delegacion_vencida", detalle: { dominio: apex, por: "revision" } } });
+    // Si algo de la zona quedó verificado (no debería), la zona sigue.
+    const enUso = zona ? await tx.dominio.count({ where: { proveedorId: zona } }) : 0;
+    return enUso ? null : zona;
+  });
+  console.log(`[dominios] ${apex}: la delegación venció sin completarse, se liberó.`);
+  if (zonaId) await p.borrarZona(zonaId).catch((e) => console.warn(`[dominios] no se pudo borrar la zona de ${apex}:`, e instanceof Error ? e.message : e));
+}
+
+/** Delegaciones de la banda que vencen en los próximos días (para el aviso del panel). */
+export async function delegacionesPorVencer(tenantId: string, ahora = new Date()): Promise<{ dominio: string; vence: Date }[]> {
+  const desde = new Date(ahora.getTime() - (PLAZO_DELEGACION_DIAS - AVISAR_VENCIMIENTO_DIAS) * 86_400_000);
+  const filas = await conTenant(tenantId, (tx) =>
+    tx.dominio.findMany({
+      where: { via: "zona", verificado: false, creadoEn: { lte: desde }, NOT: { dominio: { startsWith: "www." } } },
+      orderBy: { dominio: "asc" },
+    }),
+  );
+  return filas.map((f) => ({ dominio: f.dominio, vence: venceDelegacion(f.creadoEn) }));
 }
 
 // ── Verificar ───────────────────────────────────────────────────────────────────────────────
@@ -535,6 +666,7 @@ async function revisarDelegaciones(ahora: Date): Promise<number> {
   const antes = new Date(ahora.getTime() - REVISAR_DELEGACIONES_CADA_MS);
   const bandas = await prisma.$queryRaw<{ id: string }[]>`SELECT b AS id FROM bandas_con_zonas_pendientes(${antes}::timestamp) AS b`;
   let verificadas = 0;
+  let liberadas = 0;
   for (const { id: tenantId } of bandas) {
     const filas = await conTenant(tenantId, (tx) =>
       tx.dominio.findMany({
@@ -553,7 +685,14 @@ async function revisarDelegaciones(ahora: Date): Promise<number> {
         await conTenant(tenantId, (tx) =>
           tx.dominio.updateMany({ where: { via: "zona", dominio: { in: nombresDelSitio(apex) } }, data: { revisadoEn: ahora } }),
         );
-        if (!e.llega) continue;
+        if (!e.llega) {
+          const creado = Math.min(...filas.filter((x) => apexDe(x.dominio) === apex).map((x) => x.creadoEn.getTime()));
+          if (ahora.getTime() >= venceDelegacion(new Date(creado)).getTime()) {
+            await liberarDelegacion(tenantId, apex, p);
+            liberadas++;
+          }
+          continue;
+        }
         const { proveedorId } = await conTenant(tenantId, (tx) => tx.dominio.findUniqueOrThrow({ where: { id: f.id }, select: { proveedorId: true } }));
         const n = await verificarZona(tenantId, proveedorId!, null);
         if (n) console.log(`[dominios] ${apex}: la banda cambió los nameservers, quedó verificado.`);
@@ -563,6 +702,7 @@ async function revisarDelegaciones(ahora: Date): Promise<number> {
       }
     }
   }
+  if (liberadas) console.log(`[dominios] delegaciones vencidas y liberadas: ${liberadas}`);
   return verificadas;
 }
 

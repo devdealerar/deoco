@@ -2,7 +2,7 @@ import { exigirTitular } from "@/nucleo/acceso/panel";
 import { dominiosDeBanda } from "@/nucleo/dominios";
 import { ListaDominios } from "../../../_dominios/lista";
 import { MarcoPanel } from "../marco";
-import { agregarAccion, principalAccion, quitarAccion, verificarAccion } from "./acciones";
+import { agregarAccion, delegarAccion, principalAccion, quitarAccion, verificarAccion } from "./acciones";
 
 // Dominios de la banda. Lo define el núcleo (no es de ningún módulo). Solo el titular.
 export default async function Dominios({ params }: { params: Promise<{ slug: string }> }) {
@@ -23,6 +23,7 @@ export default async function Dominios({ params }: { params: Promise<{ slug: str
           principal={(d) => principalAccion.bind(null, slug, d)}
           quitar={(d) => quitarAccion.bind(null, slug, d)}
           agregar={agregarAccion.bind(null, slug)}
+          delegar={(d) => delegarAccion.bind(null, slug, d)}
         />
       </div>
     </MarcoPanel>
