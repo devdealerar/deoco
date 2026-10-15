@@ -14,6 +14,7 @@ import {
   fijarVenceAccion,
   llevarseAccion,
   pedirCodigoAccion,
+  ponerNameserversAccion,
   principalAccion,
   quedarseAccion,
   quitarAccion,
@@ -74,6 +75,7 @@ export default async function Dominios({ params }: { params: Promise<{ slug: str
           quedarse={(d) => quedarseAccion.bind(null, slug, d)}
           renovar={(d) => renovarAccion.bind(null, slug, d)}
           pedirCodigo={(d) => pedirCodigoAccion.bind(null, slug, d)}
+          ponerNameservers={(d) => ponerNameserversAccion.bind(null, slug, d)}
           cambiarTitular={(d) => cambiarTitularAccion.bind(null, slug, d)}
           fijarVence={(d) => fijarVenceAccion.bind(null, slug, d)}
           precios={Object.fromEntries(terminaciones.map((t) => [t.tld, t.precio]))}

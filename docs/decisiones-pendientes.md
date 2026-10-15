@@ -39,6 +39,26 @@ túnel. Pide un ensayo con Cloudflare real.
 5. **Los mails del gestor salen siempre desde Deoco**, aunque la banda tenga su dirección
    verificada (antes, la cuota habría salido desde merch@labanda.com: era un bug).
 
+## D12 · Las cinco salidas, sin staff
+
+1. **Comprado que se lleva solo el DNS**: no existía. Como el dominio está en la subcuenta de Deoco, la
+   banda no puede cambiar los nameservers: "Llevarme solo el DNS" arma la lista (como un delegado) y
+   después la banda pega los nameservers de su proveedor nuevo y **Deoco los pone por ella** (operación
+   `dns` de la máquina, sin cobro). Cuando se propagan, la zona se da de baja como siempre y la fila del
+   dominio queda como "solo registro" (`soloRegistro`): no llega a Deoco, pero se renueva, se transfiere
+   y se le cambia el titular desde el panel.
+2. **Ese comprado nunca queda sin DNS**: si pide llevarse el DNS y en 90 días no pasa los nameservers, la
+   salida se cancela sola (no se da de baja la zona, que sigue siendo la que usa). El aviso de la semana
+   antes lo dice así.
+3. **"Me quedo en Deoco" después de que pusimos sus nameservers**: Deoco vuelve a poner los de la zona.
+4. **Pendiente**: un comprado con el DNS afuera que quiere volver a tener el DNS en Deoco. Hoy no hay
+   botón (no queda presa: el dominio es suyo, lo maneja en su proveedor). Se puede sumar con la misma
+   máquina (zona → nameservers → activación).
+5. **"Transferir a Deoco" (delegado → comprado), el D12 del plan original, no se hizo**: esta parte se
+   redefinió como el repaso de las salidas. No deja a nadie presa (es para entrar, no para salir) y el
+   diseño ya decía que puede quedar para después del lanzamiento. `transferirAca` del registrador existe
+   y está sin confirmar.
+
 ## D11 · Renovación y salida de los comprados
 
 1. **Calendario**: el barrido mira una vez por hora; manda el aviso que toca (45, 30, 15, 7, 3 o 1

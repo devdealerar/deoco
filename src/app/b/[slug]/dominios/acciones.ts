@@ -6,7 +6,7 @@ import { exigirTitular } from "@/nucleo/acceso/panel";
 import { agregarDominio, dominiosDeBanda, ErrorDominio, marcarPrincipal, pasarADelegado, quitarDominio, verificarDominio } from "@/nucleo/dominios";
 import { cambiarTitularRegistral } from "@/nucleo/dominios/compra";
 import type { Contacto } from "@/nucleo/dominios/registrador";
-import { llevarseElDns, quedarseEnDeoco } from "@/nucleo/dominios/salida";
+import { llevarseElDns, ponerMisNameservers, quedarseEnDeoco } from "@/nucleo/dominios/salida";
 import { pedirCodigoDeTransferencia } from "@/nucleo/dominios/transferencia";
 import { fijarVencimiento } from "@/nucleo/dominios/vencimiento";
 import { normalizarTelefono, pagarRenovacion } from "@/nucleo/dominios/venta";
@@ -127,5 +127,13 @@ export async function fijarVenceAccion(slug: string, dominioId: string, _: Estad
     if (fecha && Number.isNaN(fecha.getTime())) throw new ErrorFormulario("Fecha inválida.");
     await fijarVencimiento(c.usuarioId, c.tenantId, dominioId, fecha);
     return { ok: fecha ? "Listo: te avisamos antes de que venza." : "Listo: no te avisamos." };
+  });
+}
+
+/** Comprado que se lleva el DNS: los nameservers de su proveedor nuevo (los pone Deoco por la banda). */
+export async function ponerNameserversAccion(slug: string, dominioId: string, _: EstadoFormulario, fd: FormData) {
+  return comoTitular(slug, async (c) => {
+    const ns = await ponerMisNameservers(c.usuarioId, c.tenantId, dominioId, ["ns1", "ns2", "ns3", "ns4"].map((k) => texto(fd, k, 253)));
+    return { ok: `Listo: estamos poniendo ${ns.join(", ")}. Cuando se propaguen, el DNS es tuyo.` };
   });
 }

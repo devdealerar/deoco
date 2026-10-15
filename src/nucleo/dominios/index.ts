@@ -232,7 +232,8 @@ function textoProblema(via: string | null, e: Estado): string {
  * - `listo`: verificado y con certificado: puede ser el principal.
  * - `problema`: verificado, pero dos revisiones seguidas no llegó a Deoco o perdió el certificado.
  */
-export type EstadoDominio = "plataforma" | "sin-verificar" | "certificado" | "listo" | "problema";
+/** `afuera`: comprado en Deoco cuyo DNS se llevó la banda (sigue registrado acá, ya no llega a Deoco). */
+export type EstadoDominio = "plataforma" | "sin-verificar" | "certificado" | "listo" | "problema" | "afuera";
 
 export type DominioBanda = {
   id: string;
@@ -285,18 +286,21 @@ export type DominioBanda = {
     acompanaA: string | null;
     /** La dirección cuyo reenvío deja de andar al cambiar los nameservers. */
     pierdeRecepcion: string | null;
+    /** Comprado en Deoco: los nameservers los pone Deoco. Los que pidió la banda (null: todavía no) y si ya quedaron. */
+    comprado: { nameservers: string[] | null; puestos: boolean } | null;
   } | null;
 };
 
 /** Los dominios de la banda, el principal primero. Lee lo guardado: no consulta a Cloudflare. */
 export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]> {
-  const [filas, salidas, correo, titulares] = await conTenant(tenantId, (tx) =>
+  const [filas, salidas, correo, titulares, pedidosDns] = await conTenant(tenantId, (tx) =>
     Promise.all([
       tx.dominio.findMany({ orderBy: [{ esPrincipal: "desc" }, { verificado: "desc" }, { dominio: "asc" }] }),
       tx.zonaSaliente.findMany({ where: { seLlevaElDns: true } }),
       tx.correoDominio.findFirst({ where: { recepcion: "activa" }, select: { local: true, dominio: true } }),
       // A nombre de quién está cada comprado: la última alta o cambio de titular terminado.
       tx.dominioCompra.findMany({ where: { tipo: { in: ["alta", "titular"] }, estado: "listo" }, orderBy: { terminadoEn: "desc" }, select: { dominio: true, contacto: true, terminadoEn: true } }),
+      tx.dominioCompra.findMany({ where: { tipo: "dns", estado: { in: ["en-curso", "listo"] } }, orderBy: { creadoEn: "desc" }, select: { dominio: true, operacion: true, estado: true, creadoEn: true } }),
     ]),
   );
   const ahora = new Date();
@@ -309,11 +313,13 @@ export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]>
     const aNombreDe = ultimo ? `${(ultimo.contacto as { nombre?: string }).nombre ?? ""} ${(ultimo.contacto as { apellido?: string }).apellido ?? ""}`.trim() : null;
     const fechaCorta = (f: Date) => f.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
     const dePlataforma = esDePlataforma(d.dominio);
-    const via = dePlataforma ? null : d.via === "zona" ? "zona" : "cname";
+    const via = dePlataforma || d.soloRegistro ? null : d.via === "zona" ? "zona" : "cname";
     const problema = d.verificado && d.problemaDesde ? { desde: d.problemaDesde, texto: d.problema ?? "" } : null;
     const estado: EstadoDominio = dePlataforma
       ? "plataforma"
-      : !d.verificado
+      : d.soloRegistro
+        ? "afuera"
+        : !d.verificado
         ? "sin-verificar"
         : problema
           ? "problema"
@@ -373,6 +379,12 @@ export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]>
           registros: Array.isArray(s.registros) ? (s.registros as RegistroDns[]) : [],
           acompanaA: d.dominio === s.dominio ? null : s.dominio,
           pierdeRecepcion: correo && correo.dominio === s.dominio ? `${correo.local}@${correo.dominio}` : null,
+          comprado: d.comprado
+            ? (() => {
+                const pedido = pedidosDns.find((x) => x.dominio === s.dominio && x.creadoEn >= s.desde);
+                return { nameservers: pedido ? ((pedido.operacion as { nameservers?: string[] } | null)?.nameservers ?? []) : null, puestos: pedido?.estado === "listo" };
+              })()
+            : null,
         };
       })(),
     };

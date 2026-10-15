@@ -47,7 +47,8 @@ export async function seguimientoDeCompras(tenantId: string, reg: Registro = reg
   const desde = new Date(Date.now() - DIAS * 86_400_000);
   const [cobros, compras] = await Promise.all([
     reg.gestor?.gestion.dominios?.cobros(tenantId, DIAS) ?? Promise.resolve([] as CobroDominioVisible[]),
-    conTenant(tenantId, (tx) => tx.dominioCompra.findMany({ where: { OR: [{ creadoEn: { gte: desde } }, { estado: { in: ["en-curso", "datos"] } }] }, orderBy: { creadoEn: "desc" } })),
+    // Los nameservers de un comprado se siguen en su tarjeta (la salida), no acá.
+    conTenant(tenantId, (tx) => tx.dominioCompra.findMany({ where: { tipo: { not: "dns" }, OR: [{ creadoEn: { gte: desde } }, { estado: { in: ["en-curso", "datos"] } }] }, orderBy: { creadoEn: "desc" } })),
   ]);
   const porPago = new Map(compras.map((c) => [c.cobroId, c]));
   const usadas = new Set<string>();

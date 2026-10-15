@@ -138,6 +138,9 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   (`revisarCompras`). `dominio.comprado`: no se quita ni se "lleva el DNS". Staff: `/admin/dominios`.
 - Venta (D9, `venta.ts`): `cotizarDominio` / `buscarDominios` / `pagarDominio` / `pagarRenovacion` → el
   gestor cobra; la compra pide la devolución al gestor (`devolucion` pendiente → pedida).
+- Salidas (D12, sin staff): delegado y .com.ar cambian los nameservers; comprado: código de
+  transferencia, o "solo el DNS" (`ponerMisNameservers`: Deoco pone los de su proveedor; queda
+  `soloRegistro`); CNAME: quitar. `tests/salidas.test.ts` las recorre todas.
 - Renovación y salida (D11): `vencimiento.ts` (calendario, vencer, gracia, pérdida), `transferencia.ts`
   (código en el panel, nunca por mail), `plazos.ts`; `cambiarTitularRegistral` (tipo `titular`).
 - Pantallas de compra (D10): `/b/<slug>/dominios/comprar[/<dominio>[/resumen]]` y el progreso

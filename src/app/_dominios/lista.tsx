@@ -21,6 +21,7 @@ export function ListaDominios({
   quedarse,
   renovar,
   pedirCodigo,
+  ponerNameservers,
   cambiarTitular,
   fijarVence,
   precios = {},
@@ -37,6 +38,8 @@ export function ListaDominios({
   /** Comprados: renovar (va a pagar), pedir el código para llevárselo, cambiar el titular. Solo el panel de la banda. */
   renovar?: (dominioId: string) => Accion;
   pedirCodigo?: (dominioId: string) => Accion;
+  /** Comprado que se lleva el DNS: los nameservers de su proveedor nuevo (los pone Deoco). */
+  ponerNameservers?: (dominioId: string) => Accion;
   cambiarTitular?: (dominioId: string) => Accion;
   /** Delegados: cargar cuándo vence (para avisarle). */
   fijarVence?: (dominioId: string) => Accion;
@@ -68,6 +71,7 @@ export function ListaDominios({
               {d.estado === "certificado" && <Insignia color="advertencia">Emitiendo el certificado</Insignia>}
               {d.estado === "listo" && <Insignia color="exito">Listo</Insignia>}
               {d.estado === "problema" && <Insignia color="error">Con un problema</Insignia>}
+              {d.estado === "afuera" && <Insignia>DNS en tu proveedor</Insignia>}
             </>
           }
           acciones={
@@ -181,7 +185,12 @@ export function ListaDominios({
             </>
           )}
 
-          {d.salida && !d.salida.acompanaA && <Salida dominio={d.dominio} salida={d.salida} quedarse={quedarse(d.id)} />}
+          {d.salida && !d.salida.acompanaA && <Salida dominio={d.dominio} salida={d.salida} quedarse={quedarse(d.id)} ponerNameservers={ponerNameservers?.(d.id)} />}
+          {d.estado === "afuera" && (
+            <p className="text-sm text-secondary" data-afuera>
+              Te llevaste el DNS: {d.dominio} sigue registrado en Deoco (lo renovás acá), pero ya no lo maneja Deoco. Si seguiste con el sitio, está en www.{d.dominio}.
+            </p>
+          )}
           {d.salida?.acompanaA && (
             <p className="text-sm text-secondary">
               Va con <strong>{d.salida.acompanaA}</strong>: {d.salida.seguirConSitio ? "cuando cambies los nameservers, sigue en Deoco por CNAME." : "cuando cambies los nameservers, deja de llegar a Deoco."}
@@ -197,6 +206,19 @@ export function ListaDominios({
                   llevártelo a otro registrador usás el código de transferencia: Deoco no cobra nada; el registrador nuevo te cobra la transferencia (suele incluir un año
                   más). Mientras se transfiere, el sitio y el correo siguen andando.
                 </p>
+                {llevarse && d.via === "zona" && d.verificado && !d.salida && !d.vencido && (
+                  <div className="flex flex-col gap-2 rounded-lg p-4 ring-1 ring-secondary" data-solo-dns>
+                    <p>
+                      <strong>O dejarlo registrado acá y llevarte solo el DNS</strong> (sin costo): te damos la lista de registros para tu proveedor nuevo y, cuando la
+                      cargues, ponemos sus nameservers por vos. Lo seguís renovando en Deoco.
+                    </p>
+                    <div>
+                      <Formulario {...enLinea} accion={llevarse(d.id)} etiqueta="Llevarme solo el DNS">
+                        <Casilla name="seguirConSitio" etiqueta={`Seguir con el sitio en Deoco (www.${d.dominio})`} marcada />
+                      </Formulario>
+                    </div>
+                  </div>
+                )}
                 {d.transferencia?.puedeDesde ? (
                   <p data-transferencia-bloqueada>
                     Por las reglas del registro, se puede llevar desde el {d.transferencia.puedeDesde.toLocaleDateString("es-AR", FECHA_LARGA)} (60 días después de registrarlo o
@@ -435,7 +457,7 @@ function Delegacion({ dominio, delegacion: g, verificar }: { dominio: string; de
 }
 
 /** Un delegado del que la banda se está llevando el DNS: qué cargar, qué cambiar, hasta cuándo. */
-function Salida({ dominio, salida: s, quedarse }: { dominio: string; salida: NonNullable<DominioBanda["salida"]>; quedarse: Accion }) {
+function Salida({ dominio, salida: s, quedarse, ponerNameservers }: { dominio: string; salida: NonNullable<DominioBanda["salida"]>; quedarse: Accion; ponerNameservers?: Accion }) {
   const nicAr = /\.ar$/.test(dominio);
   return (
     <div className="flex flex-col gap-4" data-salida>
@@ -463,14 +485,43 @@ function Salida({ dominio, salida: s, quedarse }: { dominio: string; salida: Non
             vayas a tener tu correo. El envío desde esa dirección sigue (sus registros están en la lista).
           </li>
         )}
-        <li>
-          Cambiá los nameservers {nicAr ? "en nic.ar (Delegar)" : "donde registraste el dominio"} por los de tu proveedor nuevo.
-        </li>
+        {s.comprado ? (
+          <li data-nameservers-comprado>
+            {s.comprado.nameservers === null ? (
+              <>
+                Cuando hayas cargado todo, pasanos los nameservers de tu proveedor nuevo: como {dominio} está registrado en Deoco, los ponemos nosotros.
+                {ponerNameservers && (
+                  <div className="mt-3">
+                    <Formulario puedeEditar accion={ponerNameservers} etiqueta="Poner estos nameservers">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Campo name="ns1" etiqueta="Nameserver 1" placeholder="ns1.tuproveedor.com" required />
+                        <Campo name="ns2" etiqueta="Nameserver 2" placeholder="ns2.tuproveedor.com" required />
+                        <Campo name="ns3" etiqueta="Nameserver 3 (opcional)" />
+                        <Campo name="ns4" etiqueta="Nameserver 4 (opcional)" />
+                      </div>
+                    </Formulario>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {s.comprado.puestos ? "Pusimos" : "Estamos poniendo"} estos nameservers en el registrador: <strong>{s.comprado.nameservers.join(", ")}</strong>.{" "}
+                {s.comprado.puestos ? "Cuando se propaguen (unas horas), damos de baja el DNS en Deoco." : "El registrador lo procesa en unos minutos."}
+              </>
+            )}
+          </li>
+        ) : (
+          <li>
+            Cambiá los nameservers {nicAr ? "en nic.ar (Delegar)" : "donde registraste el dominio"} por los de tu proveedor nuevo.
+          </li>
+        )}
       </ol>
       <p className="text-xs text-tertiary">
         Lo revisamos solos: cuando los nameservers cambien, damos de baja el DNS en Deoco
-        {s.seguirConSitio ? ` y el sitio sigue en www.${dominio}` : " y el sitio queda en tu subdominio de Deoco"}. Si el{" "}
-        {s.bajaEn.toLocaleDateString("es-AR", FECHA)} todavía no cambiaron, lo damos de baja igual (te avisamos una semana antes).
+        {s.seguirConSitio ? ` y el sitio sigue en www.${dominio}` : " y el sitio queda en tu subdominio de Deoco"}.{" "}
+        {s.comprado
+          ? `Si el ${s.bajaEn.toLocaleDateString("es-AR", FECHA)} todavía no nos pasaste los nameservers, cancelamos la salida y sigue todo como está.`
+          : `Si el ${s.bajaEn.toLocaleDateString("es-AR", FECHA)} todavía no cambiaron, lo damos de baja igual (te avisamos una semana antes).`}
       </p>
       <div>
         <Formulario puedeEditar variante="secundario" accion={quedarse} etiqueta="Me quedo en Deoco" />

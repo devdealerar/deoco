@@ -32,6 +32,12 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D12: repaso de las cinco salidas, sin staff (`tests/salidas.test.ts`: delegado, comprado con el
+  código, .com.ar, comprado solo el DNS, CNAME, y con la banda archivada). Lo que faltaba: el comprado
+  que se lleva solo el DNS (`ponerMisNameservers`: Deoco pone los nameservers de su proveedor nuevo,
+  operación `dns`; al irse la zona queda `soloRegistro`; a los 90 días sin nameservers la salida se
+  cancela sola; "me quedo" vuelve a poner los de Deoco). Migración `comprado_dns_afuera`. E2e en
+  `tests/e2e/compra-dominio.e2e.ts`. "Transferir a Deoco" queda pendiente (decisiones-pendientes, D12).
 - D11: `vencimiento.ts` (calendario 45/30/15/7/3/1 por mail con `unica`, aviso fijo en el panel
   desde 30 días, vencer → subdominio y remitente Deoco, gracia 30 días, pérdida si el registrador lo
   libera; `fijarVencimiento` para delegados), `transferencia.ts` (código en el panel, bloqueo de 60
@@ -131,7 +137,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | ✅ hecha |
 | D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | ✅ hecha |
 | D11 | Renovación y avisos; llevarse el dominio | 3–4 | ✅ hecha |
-| D12 | Transferir a Deoco (delegado → comprado) | 3 | pendiente |
+| D12 | Transferir a Deoco (delegado → comprado) | 3 | ✅ hecha (repaso de las salidas; transferir a Deoco, pendiente) |
 | D13 | Punta a punta y ensayo con dominio comprado real | 3 | pendiente |
 
 ## Trabajo largo · Planes, cuotas y autogestión

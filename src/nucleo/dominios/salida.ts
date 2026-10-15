@@ -81,7 +81,7 @@ export async function llevarseElDns(usuarioId: string, tenantId: string, dominio
   const d = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { id: dominioId } }));
   if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
   if (d.via !== "zona" || !d.verificado || !d.proveedorId) throw new ErrorDominio(`${d.dominio} no está delegado en Deoco: su DNS ya es tuyo.`);
-  if (d.comprado) throw new ErrorDominio(`${d.dominio} lo compraste en Deoco: para llevártelo se usa el código de transferencia.`);
+  if (d.vencidoEn) throw new ErrorDominio(`${d.dominio} está vencido: renovalo primero.`);
   const zonaId = d.proveedorId;
   const apex = apexDe(d.dominio);
   if (await conTenant(tenantId, (tx) => tx.zonaSaliente.findFirst({ where: { zonaId } }))) return; // ya en curso
@@ -120,6 +120,31 @@ export async function llevarseElDns(usuarioId: string, tenantId: string, dominio
   }
 }
 
+/** Nombres de servidor DNS que escribe la banda (ns1.proveedor.com). */
+const NAMESERVER = /^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+
+/**
+ * Comprado en Deoco: la banda no puede cambiar los nameservers (el dominio está en la subcuenta de
+ * Deoco), así que los pone Deoco por ella. Antes tiene que haber pedido "Llevarme el DNS" (la
+ * lista de registros para su proveedor nuevo). Cuando los nameservers se propagan, el barrido
+ * termina la salida como en cualquier delegado; el dominio sigue registrado acá.
+ */
+export async function ponerMisNameservers(usuarioId: string, tenantId: string, dominioId: string, crudos: string[]): Promise<string[]> {
+  const d = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { id: dominioId } }));
+  if (!d?.comprado || !d.proveedorId) throw new ErrorDominio("Ese dominio no está registrado en Deoco: los nameservers los cambiás en tu registrador.");
+  const s = await conTenant(tenantId, (tx) => tx.zonaSaliente.findFirst({ where: { zonaId: d.proveedorId!, seLlevaElDns: true } }));
+  if (!s) throw new ErrorDominio("Primero tocá \"Llevarme el DNS\": te damos la lista de registros para tu proveedor nuevo.");
+  const ns = [...new Set(crudos.map((x) => x.trim().toLowerCase().replace(/\.$/, "")).filter(Boolean))];
+  if (ns.length < 2 || ns.length > 13) throw new ErrorDominio("Escribí los nameservers de tu proveedor nuevo (al menos dos).");
+  const malo = ns.find((x) => !NAMESERVER.test(x));
+  if (malo) throw new ErrorDominio(`"${malo}" no parece un nameserver (p. ej. ns1.tuproveedor.com).`);
+  const propios = (await proveedor().zona(d.proveedorId))?.nameservers ?? [];
+  if (ns.every((x) => propios.includes(x))) throw new ErrorDominio("Esos son los nameservers de Deoco: si te querés quedar, tocá \"Me quedo en Deoco\".");
+  const { ponerNameserversComprado } = await import("./compra");
+  await ponerNameserversComprado(usuarioId, tenantId, s.dominio, ns);
+  return ns;
+}
+
 /** Si el principal es de esta zona, pasa al subdominio de Deoco. */
 async function volverAlSubdominioSiHaceFalta(tx: Prisma.TransactionClient, zonaId: string) {
   const principal = await tx.dominio.findFirst({ where: { esPrincipal: true } });
@@ -136,6 +161,15 @@ export async function quedarseEnDeoco(usuarioId: string, tenantId: string, domin
   if (!d?.proveedorId) throw new ErrorDominio("Ese dominio no es de esta banda.");
   const s = await conTenant(tenantId, (tx) => tx.zonaSaliente.findFirst({ where: { zonaId: d.proveedorId! } }));
   if (!s) return;
+  // Comprado al que Deoco ya le había puesto los nameservers de afuera: vuelven los de la zona.
+  if (d.comprado) {
+    const puestos = await conTenant(tenantId, (tx) => tx.dominioCompra.findFirst({ where: { dominio: s.dominio, tipo: "dns", creadoEn: { gte: s.desde }, estado: { in: ["en-curso", "listo"] } } }));
+    if (puestos) {
+      const propios = (await proveedor().zona(s.zonaId))?.nameservers ?? [];
+      const { ponerNameserversComprado } = await import("./compra");
+      await ponerNameserversComprado(usuarioId, tenantId, s.dominio, propios);
+    }
+  }
   await conTenant(tenantId, async (tx) => {
     await tx.zonaSaliente.delete({ where: { id: s.id } });
     await tx.auditoria.create({ data: { usuarioId, tenantId, accion: "dominio.se_queda", detalle: { dominio: s.dominio } } });
@@ -179,13 +213,46 @@ async function revisarSalida(tenantId: string, s: Salida, p: ProveedorDns, ahora
   const seFueron = !z || z.estado === "moved" || z.estado === "deleted";
   if (s.seguirConSitio && s.hostnameId) await sitioPorCname(tenantId, s, p, z?.estado === "active", seFueron);
 
+  if (!seFueron && ahora >= s.bajaEn) {
+    // Comprado en Deoco: sus nameservers son los nuestros hasta que Deoco ponga otros. Dar de baja la
+    // zona lo dejaría sin DNS: la salida se cancela sola y sigue todo como estaba.
+    const comprado = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { dominio: s.dominio, comprado: true } }));
+    if (comprado) {
+      await conTenant(tenantId, async (tx) => {
+        await tx.zonaSaliente.delete({ where: { id: s.id } });
+        await tx.auditoria.create({ data: { usuarioId: null, tenantId, accion: "dominio.se_queda", detalle: { dominio: s.dominio, por: "plazo" } } });
+      });
+      if (s.hostnameId) await p.borrarHostname(s.hostnameId).catch(() => {});
+      await avisarAlTitular(tenantId, {
+        clave: `zona-salida-cancelada:${s.zonaId}:${s.desde.toISOString()}`,
+        asunto: () => `${s.dominio} sigue con el DNS en Deoco`,
+        parrafos: () => [
+          `Pasaron ${PLAZO_SALIDA_DIAS} días desde que pediste llevarte el DNS de ${s.dominio} y no nos pasaste los nameservers de tu proveedor nuevo. Para no dejarlo sin DNS, sigue todo como estaba.`,
+          "Cuando quieras, lo volvés a pedir desde Dominios → Cómo me lo llevo.",
+        ],
+        boton: { texto: "Ver Dominios", ruta: "/dominios" },
+      }).catch((e) => console.error(`[dominios] aviso de ${s.dominio}:`, e));
+      return true;
+    }
+  }
   if (seFueron || ahora >= s.bajaEn) {
     await terminar(tenantId, s, p, seFueron ? "nameservers" : "plazo");
     return true;
   }
   const avisar = !s.avisadoEn && ahora.getTime() >= s.bajaEn.getTime() - AVISO_BAJA_DIAS * DIA;
   await conTenant(tenantId, (tx) => tx.zonaSaliente.update({ where: { id: s.id }, data: { revisadoEn: ahora, ...(avisar ? { avisadoEn: ahora } : {}) } }));
-  if (avisar) {
+  const esComprado = avisar && (await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { dominio: s.dominio, comprado: true } })));
+  if (esComprado) {
+    await avisarAlTitular(tenantId, {
+      clave: `zona-baja-aviso:${s.zonaId}:${s.desde.toISOString()}`,
+      asunto: () => `${s.dominio}: ¿seguís llevándote el DNS?`,
+      parrafos: () => [
+        `Pediste llevarte el DNS de ${s.dominio}, pero todavía no nos pasaste los nameservers de tu proveedor nuevo (los ponemos nosotros, porque el dominio está registrado en Deoco).`,
+        `Si no los cargás antes del ${fechaLarga(s.bajaEn)}, cancelamos la salida y sigue todo como está: no se corta nada.`,
+      ],
+      boton: { texto: "Ver Dominios", ruta: "/dominios" },
+    }).catch((e) => console.error(`[dominios] aviso de baja de ${s.dominio}:`, e));
+  } else if (avisar) {
     await avisarAlTitular(tenantId, {
       clave: `zona-baja-aviso:${s.zonaId}:${s.desde.toISOString()}`,
       asunto: () => `${s.dominio}: el ${fechaLarga(s.bajaEn)} damos de baja su DNS en Deoco`,
@@ -237,6 +304,12 @@ async function terminar(tenantId: string, s: Salida, p: ProveedorDns, por: "name
   const borrarZona = await conTenant(tenantId, async (tx) => {
     // Lo que quede en la zona deja de llegar a Deoco: si era el principal, vuelve el subdominio.
     await volverAlSubdominioSiHaceFalta(tx, s.zonaId);
+    // Comprado en Deoco: sigue registrado acá (Deoco lo renueva, se lo puede llevar, cambiar el
+    // titular), pero ya no llega a Deoco. La fila del dominio queda; la de www, si no quedó por CNAME, no.
+    await tx.dominio.updateMany({
+      where: { via: "zona", proveedorId: s.zonaId, comprado: true, dominio: s.dominio },
+      data: { via: null, proveedorId: null, verificado: false, esPrincipal: false, soloRegistro: true, estadoProveedor: null, certificado: null, nameservers: [], problemaDesde: null, problema: null },
+    });
     await tx.dominio.deleteMany({ where: { via: "zona", proveedorId: s.zonaId } });
     await tx.zonaSaliente.delete({ where: { id: s.id } });
     await tx.auditoria.create({ data: { usuarioId: null, tenantId, accion: "dominio.salio", detalle: { dominio: s.dominio, por } } });

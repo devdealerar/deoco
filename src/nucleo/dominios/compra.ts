@@ -5,6 +5,7 @@
 //   alta:       cliente → registrar → zona → nameservers → activacion → [principal] → listo
 //   renovacion: renovar → listo
 //   titular:    titular → listo   (cambio de titular registral; sin cobro)
+//   dns:        dns → listo       (los nameservers que eligió la banda al llevarse el DNS; sin cobro)
 //
 // Reglas que no se rompen:
 //   - Nunca se registra antes de cobrar: la compra la crea el gestor de cuenta con el cobro hecho.
@@ -38,7 +39,7 @@ export type PedidoCompra = {
 };
 
 type Compra = Awaited<ReturnType<typeof prisma.dominioCompra.findFirstOrThrow>>;
-type Paso = "cliente" | "registrar" | "zona" | "nameservers" | "activacion" | "principal" | "renovar" | "titular" | "listo";
+type Paso = "cliente" | "registrar" | "zona" | "nameservers" | "activacion" | "principal" | "renovar" | "titular" | "dns" | "listo";
 
 const MIN = 60_000;
 const HORA = 60 * MIN;
@@ -116,11 +117,11 @@ async function crear(
     const ya = await tx.dominioCompra.findFirst({ where: { cobroId: cobro.id }, select: { id: true } });
     if (ya) return { compraId: ya.id, repetida: true };
     const c = await tx.dominioCompra.create({ data: { tenantId, cobroId: cobro.id, monto: cobro.monto, ...datos }, select: { id: true } });
-    const accion = datos.tipo === "titular" ? "dominio.titular_pedido" : `dominio.${datos.tipo === "alta" ? "compra" : "renovacion"}_pagada`;
+    const accion = datos.tipo === "titular" ? "dominio.titular_pedido" : datos.tipo === "dns" ? "dominio.nameservers_pedidos" : `dominio.${datos.tipo === "alta" ? "compra" : "renovacion"}_pagada`;
     await tx.auditoria.create({ data: { usuarioId: datos.usuarioId ?? null, tenantId, accion, detalle: { dominio: datos.dominio, cobroId: cobro.id } } });
     return { compraId: c.id, repetida: false };
   });
-  if (!r.repetida && datos.tipo === "titular") programar(tenantId);
+  if (!r.repetida && (datos.tipo === "titular" || datos.tipo === "dns")) programar(tenantId);
   else if (!r.repetida) {
     // Que pueda cerrar la página: en el mail va adónde ver en qué está.
     await avisarAlTitular(tenantId, {
@@ -385,9 +386,38 @@ async function paso(tenantId: string, c: Compra, r: Registrador, ahora: Date): P
       if (o.estado === "fallida") throw new ErrorRegistrador(`El registrador no pudo cambiar el titular: ${o.motivo ?? ""}`, "desconocido");
       return { tipo: "siguiente", paso: "listo", operacion: null };
     }
+    case "dns": {
+      const clienteId = await clienteDe(tenantId, c.registrador);
+      const previo = c.operacion as { nameservers?: string[] } & Partial<Operacion>;
+      const o = previo?.id ? (previo.estado === "lista" ? (previo as Operacion) : await r.operacion(clienteId, previo as Operacion)) : await r.ponerNameservers(clienteId, c.dominio, previo?.nameservers ?? []);
+      if (o.estado === "en-curso") return { tipo: "esperar", ms: ESPERA_OPERACION, datos: { operacion: { ...o, nameservers: previo?.nameservers ?? [] } as unknown as Prisma.InputJsonValue } };
+      if (o.estado === "fallida") throw new ErrorRegistrador(`El registrador no pudo poner los nameservers: ${o.motivo ?? ""}`, "desconocido");
+      return { tipo: "siguiente", paso: "listo", operacion: { nameservers: previo?.nameservers ?? [] } as unknown as Prisma.InputJsonValue };
+    }
     case "listo":
       return terminarBien(tenantId, c);
   }
+}
+
+/**
+ * Poner en el registrador los nameservers de un comprado (al llevarse el DNS, los de su proveedor
+ * nuevo; al quedarse, los de nuestra zona). Va por la máquina, sin cobro.
+ */
+export async function ponerNameserversComprado(usuarioId: string | null, tenantId: string, dominio: string, nameservers: string[]): Promise<{ compraId: string }> {
+  const { r } = piezas();
+  const abierta = await conTenant(tenantId, (tx) => tx.dominioCompra.findFirst({ where: { dominio, tipo: "dns", estado: "en-curso" } }));
+  if (abierta) {
+    // Una nueva pisa a la anterior (p. ej. "me quedo" mientras se ponían los de afuera).
+    await conTenant(tenantId, (tx) => tx.dominioCompra.update({ where: { id: abierta.id }, data: { estado: "fallido", motivo: "reemplazada", error: "Reemplazada por un pedido nuevo.", terminadoEn: new Date() } }));
+  }
+  return crear(tenantId, { id: `dns:${randomUUID()}`, monto: 0 }, {
+    usuarioId,
+    tipo: "dns",
+    dominio,
+    registrador: r.nombre,
+    paso: "dns",
+    operacion: { nameservers } as unknown as Prisma.InputJsonValue,
+  });
 }
 
 /**
@@ -416,6 +446,11 @@ export async function cambiarTitularRegistral(usuarioId: string, tenantId: strin
 async function terminarBien(tenantId: string, c: Compra): Promise<Resultado> {
   const vence = c.venceEn;
   const contacto = c.contacto as unknown as Contacto;
+  if (c.tipo === "dns") {
+    const ns = (c.operacion as { nameservers?: string[] } | null)?.nameservers ?? [];
+    await conTenant(tenantId, (tx) => tx.auditoria.create({ data: { usuarioId: c.usuarioId, tenantId, accion: "dominio.nameservers_puestos", detalle: { dominio: c.dominio, nameservers: ns } } }));
+    return { tipo: "fin", datos: { estado: "listo", terminadoEn: new Date() } };
+  }
   if (c.tipo === "titular") {
     await conTenant(tenantId, (tx) => tx.auditoria.create({ data: { usuarioId: c.usuarioId, tenantId, accion: "dominio.titular_cambiado", detalle: { dominio: c.dominio, titular: `${contacto.nombre} ${contacto.apellido}` } } }));
     await avisarAlTitular(tenantId, {
@@ -459,6 +494,14 @@ async function fallar(tenantId: string, c: Compra, motivo: string, error: string
   const sinRegistrar = (c.tipo === "alta" && (c.paso === "cliente" || c.paso === "registrar")) || (c.tipo === "renovacion" && c.paso === "renovar");
   console.error(`[compra] ${c.dominio} (${tenantId}) falló: ${motivo}: ${error}`);
   await conTenant(tenantId, (tx) => tx.auditoria.create({ data: { usuarioId: null, tenantId, accion: "dominio.compra_fallida", detalle: { dominio: c.dominio, motivo, error } } }));
+  if (c.tipo === "dns" && motivo !== "reemplazada") {
+    await avisarAlTitular(tenantId, {
+      clave: `dominio-dns-fallido:${c.id}`,
+      asunto: () => `No pudimos cambiar los nameservers de ${c.dominio}`,
+      parrafos: () => [`El registrador no aceptó los nameservers nuevos de ${c.dominio}. Todo sigue andando como antes. Revisalos y probá de nuevo desde Dominios, o escribinos.`],
+      boton: { texto: "Ir a Dominios", ruta: "/dominios" },
+    }).catch((e) => console.error(`[compra] aviso de ${c.dominio}:`, e));
+  }
   if (c.tipo === "titular") {
     await avisarAlTitular(tenantId, {
       clave: `dominio-titular-fallido:${c.id}`,
@@ -523,8 +566,8 @@ async function falla(tenantId: string, c: Compra, r: Registrador, e: unknown, ah
     if (d && c.venceEn && d.venceEn > c.venceEn) return { tipo: "siguiente", paso: "listo", operacion: null, datos: { venceEn: d.venceEn } };
     return fallar(tenantId, c, err.tipo, err.message);
   }
-  // Cambio de titular sin poder en 24 h: queda como estaba (no hay plata en juego).
-  if (c.tipo === "titular" && ahora.getTime() - primer.getTime() >= TOPE_SIN_REGISTRAR) return fallar(tenantId, c, err.tipo, err.message);
+  // Cambio de titular o de nameservers sin poder en 24 h: queda como estaba (no hay plata en juego).
+  if ((c.tipo === "titular" || c.tipo === "dns") && ahora.getTime() - primer.getTime() >= TOPE_SIN_REGISTRAR) return fallar(tenantId, c, err.tipo, err.message);
   if (!c.motivo || c.motivo !== err.tipo) console.error(`[compra] ${c.dominio} (${tenantId}), paso ${c.paso}: ${err.tipo}: ${err.message}`);
   const espera = REINTENTOS[Math.min(c.intentos, REINTENTOS.length - 1)];
   return {

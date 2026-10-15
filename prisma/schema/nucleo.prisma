@@ -135,6 +135,8 @@ model Dominio {
   vencidoEraPrincipal   Boolean   @default(false)
   /// La banda pidió el código para llevárselo a otro registrador.
   transferenciaPedidaEn DateTime?
+  /// Comprado cuyo DNS se llevó la banda: sigue registrado en Deoco, pero ya no llega acá.
+  soloRegistro          Boolean   @default(false)
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   correo       CorreoDominio[]
 
@@ -449,7 +451,7 @@ model DominioCompra {
   tenantId       String    @db.Uuid
   tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   usuarioId      String?   @db.Uuid
-  /// alta | renovacion | titular (cambio de titular registral, sin cobro)
+  /// alta | renovacion | titular (cambio de titular registral) | dns (nameservers de la banda); los dos últimos sin cobro
   tipo           String
   dominio        String
   registrador    String

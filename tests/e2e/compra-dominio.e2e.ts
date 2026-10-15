@@ -227,3 +227,43 @@ describe("un dominio comprado: renovar, llevárselo, cambiar el titular, vencer"
     await captura(page, "dominio-vencido");
   });
 });
+
+describe("comprado: llevarse solo el DNS", () => {
+  it("la lista y los nameservers de su proveedor nuevo, que pone Deoco", async () => {
+    await dominioPagado(e.a.id, {
+      dominio: "solodns.com",
+      anios: 1,
+      contacto: { nombre: "Ana", apellido: "Pérez", email: "multi@x.com", telefono: "+54.1145678900", direccion: "Av. Corrientes 1234", ciudad: "CABA", provincia: "Buenos Aires", codigoPostal: "C1043", pais: "AR" },
+      aceptacion: { fecha: new Date(), ip: "203.0.113.7", claves: ["DNRA"] },
+      hacerPrincipal: false,
+      cobro: { id: "e2e-solodns", monto: 2500000 },
+      usuarioId: null,
+    });
+    await esperarCompras();
+    gd.terminar("REGISTER");
+    await avanzarCompras(e.a.id, new Date(Date.now() + 2 * MIN));
+    gd.terminar();
+    await avanzarCompras(e.a.id, new Date(Date.now() + 4 * MIN));
+    cf.activarZona("solodns.com");
+    await barrer({ ahora: new Date(Date.now() + 20 * MIN) });
+    await avanzarCompras(e.a.id, new Date(Date.now() + 40 * MIN));
+    await esperarCompras();
+
+    const { page } = await logueado("multi@x.com");
+    await page.goto(`${APP}/b/banda-a/dominios`);
+    const tarjeta = page.locator('[data-dominio="solodns.com"]');
+    await tarjeta.locator("[data-como-me-lo-llevo] summary").click();
+    const solo = tarjeta.locator("[data-solo-dns] form[data-hidratado]");
+    await solo.waitFor();
+    await solo.getByRole("button", { name: "Llevarme solo el DNS" }).click();
+    const ns = tarjeta.locator("[data-nameservers-comprado] form[data-hidratado]");
+    await ns.waitFor();
+    await captura(page, "dominio-solo-dns");
+    await ns.locator('input[name="ns1"]').fill("ns1.otro.com");
+    await ns.locator('input[name="ns2"]').fill("ns2.otro.com");
+    await ns.getByRole("button", { name: "Poner estos nameservers" }).click();
+    await tarjeta.locator("[data-nameservers-comprado]").getByText("ns1.otro.com, ns2.otro.com").waitFor();
+    await esperarCompras();
+    expect(await dueno.dominioCompra.findFirstOrThrow({ where: { tipo: "dns", dominio: "solodns.com" } })).toMatchObject({ operacion: { nameservers: ["ns1.otro.com", "ns2.otro.com"] } });
+  });
+});

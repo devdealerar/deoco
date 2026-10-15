@@ -216,11 +216,12 @@ describe("después", () => {
     expect((await mails()).at(-1)).toBe("Renovamos lossatelites.com");
   });
 
-  it("un comprado no se quita ni se 'lleva el DNS' como un delegado, ni vence como una delegación", async () => {
+  it("un comprado no se quita (se lleva con el código), pero sí se puede llevar solo el DNS (D12)", async () => {
     await comprado();
     const d = await dueno.dominio.findFirstOrThrow({ where: { dominio: "lossatelites.com" } });
     await expect(quitarDominio(ua.id, a.id, d.id, true)).rejects.toThrow(/código de transferencia/);
-    await expect(llevarseElDns(ua.id, a.id, d.id, { seguirConSitio: true })).rejects.toThrow(/código de transferencia/);
+    await llevarseElDns(ua.id, a.id, d.id, { seguirConSitio: true });
+    expect(await dueno.zonaSaliente.count({ where: { dominio: "lossatelites.com", seLlevaElDns: true } })).toBe(1);
   });
 
   it("esperando los nameservers más de 14 días no se libera (los pone la compra)", async () => {
