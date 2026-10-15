@@ -1,5 +1,29 @@
 # Tareas
 
+## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
+
+Diseño: `docs/diseno-dominios.md` (caminos, transiciones, certificado, correo, compra).
+Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certificado) y 2
+(reenvío de correo): resueltos. D1 toca lo que ya funciona (revisión de dominios, verificación,
+"Usar como principal"): va primera y sola.
+
+| # | Parte | Días | Estado |
+| --- | --- | --- | --- |
+| D0 | Preparación única en Cloudflare (staff): fallback origin, `customers.<raíz>`, token, Email Routing, Worker y KV | — | pendiente (vos) |
+| D1 | Revisión, verificación y principal según el estado de Cloudflare; `ProveedorDns` mínimo + falso | 3,5–4,5 | pendiente |
+| D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | pendiente |
+| D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | pendiente |
+| D4 | Conectar por CNAME (Cloudflare for SaaS) y pasar de conectado a delegado sin corte | 3 | pendiente |
+| D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | pendiente |
+| D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | pendiente |
+| D7 | `Registrador` GoDaddy v2 + falso | 5–7 | pendiente |
+| D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | pendiente |
+| D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | pendiente |
+| D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | pendiente |
+| D11 | Renovación y avisos; llevarse el dominio | 3–4 | pendiente |
+| D12 | Transferir a Deoco (delegado → comprado) | 3 | pendiente |
+| D13 | Punta a punta y ensayo con dominio comprado real | 3 | pendiente |
+
 ## Trabajo largo · Planes, cuotas y autogestión
 
 Resumen y lo que hay que configurar: `docs/resumen-planes-cuotas.md`.
