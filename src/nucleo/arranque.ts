@@ -46,6 +46,10 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
   // Dominios propios (Cloudflare): las dos o ninguna (sin ellas, el panel dice que no están habilitados).
   if (Boolean(env.DEOCO_CLOUDFLARE_TOKEN?.trim()) !== Boolean(env.DEOCO_CLOUDFLARE_ZONA?.trim())) {
     p.push("Para los dominios propios hacen falta las dos variables: DEOCO_CLOUDFLARE_TOKEN y DEOCO_CLOUDFLARE_ZONA (id de la zona de DEOCO_DOMINIO_RAIZ).");
+  } else if (env.DEOCO_CLOUDFLARE_TOKEN?.trim()) {
+    // Delegar: las zonas se crean en la cuenta y sus registros apuntan al VPS.
+    if (!env.DEOCO_CLOUDFLARE_CUENTA?.trim()) p.push("Con Cloudflare configurado falta DEOCO_CLOUDFLARE_CUENTA (id de la cuenta, para crear las zonas de los dominios delegados).");
+    if (!env.DEOCO_IP_PUBLICA?.trim()) p.push("Con Cloudflare configurado falta DEOCO_IP_PUBLICA (la IP del VPS, a la que apuntan los dominios delegados).");
   }
   if (build.generadoPara !== "produccion") {
     p.push("La lista de módulos no es de producción (incluiría módulos de desarrollo): construí con `next build`.");

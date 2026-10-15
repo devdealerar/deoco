@@ -210,8 +210,8 @@ async function dominios<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 /** Registra un dominio propio, sin verificar (no resuelve hasta verificarlo). */
-export async function agregarDominio(staffId: string, tenantId: string, dominio: string) {
-  return dominios(() => agregarDominioNucleo(staffId, tenantId, dominio));
+export async function agregarDominio(staffId: string, tenantId: string, dominio: string, via: "cname" | "zona" = "cname") {
+  return dominios(() => agregarDominioNucleo(staffId, tenantId, dominio, via));
 }
 
 /** Consulta a Cloudflare y al DNS, y lo verifica si los registros están. */

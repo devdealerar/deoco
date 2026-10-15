@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { dueno, escenarioAcceso } from "../apoyo";
-import { CloudflareFalso } from "../cloudflare-falso";
+import { CloudflareFalso, NAMESERVERS } from "../cloudflare-falso";
 import { APP, abrirNavegador, captura, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado } from "./navegador";
 import { PUERTO_CF } from "./servidor";
 
@@ -15,6 +15,7 @@ beforeAll(async () => {
 });
 afterEach(async () => {
   await dueno.dominio.deleteMany({ where: { dominio: { in: ["www.lossatelites.com.ar", "lossatelites.com.ar"] } } });
+  await dueno.auditoria.deleteMany({ where: { accion: { startsWith: "dominio." } } });
   await dueno.dominio.updateMany({ where: { dominio: { endsWith: ".lvh.me" } }, data: { esPrincipal: true } });
   cf.limpiar();
   await cerrarContextos();
@@ -84,6 +85,36 @@ describe("dominio propio desde el panel de la banda", () => {
     // Ya es el principal: la página se rehace con la insignia.
     await tarjeta.getByText("Principal", { exact: true }).waitFor();
     expect((await dueno.dominio.findFirstOrThrow({ where: { tenantId: e.a.id, esPrincipal: true } })).dominio).toBe("www.lossatelites.com.ar");
+  });
+
+  it("delegar un .com.ar: los nameservers para nic.ar, lo que trajimos de su DNS y, al activarse, verificado", async () => {
+    cf.dnsAnterior.set("lossatelites.com.ar", [{ type: "MX", name: "lossatelites.com.ar", content: "aspmx.l.google.com", proxied: false }]);
+    const { page } = await logueado("multi@x.com");
+    await page.goto(DOMINIOS);
+    const alta = page.locator('[data-agregar="zona"] form[data-hidratado]');
+    await alta.locator('input[name="dominio"]').fill("lossatelites.com.ar");
+    await alta.getByRole("button", { name: "Delegar dominio" }).click();
+    await alta.getByRole("status").waitFor();
+
+    const tarjeta = page.locator('[data-dominio="lossatelites.com.ar"]');
+    await tarjeta.waitFor();
+    expect(await tarjeta.textContent()).toContain("Esperando los nameservers");
+    expect(await tarjeta.textContent()).toContain("elegí Delegar y pegá estos dos nameservers");
+    expect(await tarjeta.locator("[data-delegacion] [data-copiable]").allTextContents()).toEqual(NAMESERVERS);
+    await tarjeta.locator("[data-importados] summary").click();
+    expect(await tarjeta.locator("[data-importados]").textContent()).toContain("MX lossatelites.com.ar → aspmx.l.google.com");
+    expect(await page.locator('[data-dominio="www.lossatelites.com.ar"]').textContent()).toContain("Se activa junto con lossatelites.com.ar");
+
+    const ya = tarjeta.locator("form[data-hidratado]", { has: page.getByRole("button", { name: "Ya cambié los nameservers" }) });
+    await ya.getByRole("button", { name: "Ya cambié los nameservers" }).click();
+    expect(await ya.getByRole("alert").textContent()).toMatch(/^Todavía no vemos los nameservers de Deoco/);
+    await captura(page, "dominios-delegar");
+
+    cf.activarZona("lossatelites.com.ar", "pending_validation");
+    await ya.getByRole("button", { name: "Ya cambié los nameservers" }).click();
+    await tarjeta.getByText("Emitiendo el certificado", { exact: true }).waitFor();
+    expect(await tarjeta.textContent()).toContain("Delegado");
+    expect(await dueno.dominio.count({ where: { tenantId: e.a.id, via: "zona", verificado: true } })).toBe(2);
   });
 
   it("quitar pide confirmación; el principal y el subdominio no ofrecen quitar", async () => {

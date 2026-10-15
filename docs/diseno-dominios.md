@@ -532,6 +532,17 @@ un registro DNS.
 
 ## 12. Lo que falta confirmar (ninguno cambia el diseño)
 
+- [ ] **Cloudflare, al crear zonas** (D3, a probar en el ensayo real): que `jump_start` traiga
+  los registros del DNS anterior, y los códigos de error que usa la app (1061 zona ya existe,
+  1049 dominio sin registrar, 81053/81057/81058 registro repetido). El `.com.ar` no se puede
+  preparar antes de que exista: si Cloudflare dice "sin registrar", el panel lo explica y se
+  reintenta (el diseño original lo creaba antes; no se puede).
+- [ ] **Delegación que nadie completa**: una banda que pide delegar un dominio ajeno y nunca
+  cambia los nameservers bloquea a la dueña real ("otra banda ya lo está conectando"). Hoy lo
+  resuelve el staff quitándolo. ¿Vencerla sola a los N días? Decisión pendiente.
+- [ ] **Mail de "listo"** al activarse una delegación: el núcleo no tiene cómo mandar un mail
+  propio (sin un módulo). Va con los avisos de renovación (D11), que necesitan lo mismo.
+
 - [ ] **Origen detrás de Cloudflare**: ruta comodín en el Traefik de Easypanel, modo SSL y
   Authenticated Origin Pulls (parte 2, con ensayo).
 - [ ] **Convivencia hostname + zona** del mismo nombre en la misma cuenta durante el paso de
@@ -560,7 +571,7 @@ quiera.
 | D0 | Preparación única (staff, sin código): fallback origin, `customers.<raíz>`, token, Email Routing, Worker y KV vacíos | — | (vos) |
 | D1 | **Revisión, verificación y principal según Cloudflare** (sección 7): `ProveedorDns` mínimo + falso; alta por CNAME — ✅ hecha | M | 3,5 a 4,5 |
 | D2 | Origen detrás de Cloudflare + ensayo con un dominio real de prueba | S | 2 a 3 |
-| D3 | Delegar (comprado afuera y `.com.ar` asistido): zona con registros, nameservers, detección | S | 2 a 3 |
+| D3 | Delegar (comprado afuera y `.com.ar` asistido): zona con registros, nameservers, detección — ✅ hecha | S | 2 a 3 |
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME entró en D1) | S | 2 |
 | D5 | Correo: `DominioDeEnvio` (Resend), Email Worker + KV, pantalla Correo, remitente en `enviarCorreo` | M | 4 a 5 |
 | D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino | S | 2 |

@@ -39,7 +39,7 @@ export async function apagarAccion(tenantId: string, moduloId: string, _: Estado
 
 export async function dominioAccion(tenantId: string, _: EstadoFormulario, fd: FormData) {
   return accionAdmin(async (staffId) => {
-    await agregarDominio(staffId, tenantId, texto(fd, "dominio", 253));
+    await agregarDominio(staffId, tenantId, texto(fd, "dominio", 253), fd.get("via") === "zona" ? "zona" : "cname");
     return "Dominio registrado (sin verificar).";
   });
 }

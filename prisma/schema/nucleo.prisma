@@ -110,8 +110,11 @@ model Dominio {
   estadoProveedor String?
   /// Último estado del certificado ("active" = listo para ser principal).
   certificado     String?
-  /// Registros de validación que pidió Cloudflare (por si tarda), [{ tipo, nombre, valor }].
+  /// cname: registros de validación que pidió Cloudflare (por si tarda). zona: los registros que
+  /// trajo de su DNS anterior (para que la banda los revise). [{ tipo, nombre, valor }]
   validacion      Json      @default("[]")
+  /// Delegado: los nameservers de la zona (los que la banda pone en su registrador).
+  nameservers     String[]  @default([])
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, dominio])

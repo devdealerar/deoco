@@ -25,8 +25,9 @@ async function comoTitular(slug: string, fn: (c: Contexto) => Promise<EstadoForm
 
 export async function agregarAccion(slug: string, _: EstadoFormulario, fd: FormData) {
   return comoTitular(slug, async (c) => {
-    await agregarDominio(c.usuarioId, c.tenantId, texto(fd, "dominio", 253));
-    return { ok: "Dominio agregado. Ahora creá los registros DNS y verificalo." };
+    const via = fd.get("via") === "zona" ? "zona" : "cname";
+    await agregarDominio(c.usuarioId, c.tenantId, texto(fd, "dominio", 253), via);
+    return { ok: via === "zona" ? "Listo. Ahora cambiá los nameservers donde está registrado (los pasos están en su tarjeta)." : "Dominio agregado. Ahora creá los registros DNS y verificalo." };
   });
 }
 

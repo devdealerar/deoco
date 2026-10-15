@@ -11,8 +11,9 @@ import {
 } from "@/nucleo/dominios";
 import { CABECERA } from "@/nucleo/tenant/cabeceras";
 import { proxy } from "@/proxy";
+import { barrer } from "@/nucleo/barrido";
 import { dosBandas, dueno } from "./apoyo";
-import { CloudflareFalso } from "./cloudflare-falso";
+import { CloudflareFalso, NAMESERVERS } from "./cloudflare-falso";
 
 process.env.DEOCO_DOMINIO_RAIZ = "deocoartist.com";
 
@@ -142,6 +143,7 @@ describe("verificar", () => {
     const id = await agregarDominio(ua.id, a.id, "www.lossatelites.com.ar");
     expect(await verificarDominio(ua.id, a.id, id, dnsFalso())).toEqual({
       verificado: false,
+      via: "cname",
       faltaCname: true,
       faltaTxt: true,
       destino: "customers.deocoartist.com",
@@ -193,7 +195,7 @@ describe("verificar", () => {
   it("delegado (zona nuestra): verificado cuando la zona está activa, sin TXT", async () => {
     const d = await dueno.dominio.create({ data: { tenantId: a.id, dominio: "lossatelites.com", via: "zona", proveedorId: "zona-1" } });
     cf.zonas.set("zona-1", { id: "zona-1", status: "pending", name_servers: ["ana.ns.cloudflare.com", "bob.ns.cloudflare.com"], certificado: null });
-    expect(await verificarDominio(ua.id, a.id, d.id, dnsFalso())).toMatchObject({ verificado: false, faltaCname: true, faltaTxt: false });
+    expect(await verificarDominio(ua.id, a.id, d.id, dnsFalso())).toMatchObject({ verificado: false, via: "zona", sinRegistrar: false });
     cf.zonas.set("zona-1", { ...cf.zonas.get("zona-1")!, status: "active", certificado: "pending_validation" });
     expect(await verificarDominio(ua.id, a.id, d.id, dnsFalso())).toEqual({ verificado: true });
     await expect(marcarPrincipal(ua.id, a.id, d.id)).rejects.toThrow(/certificado de https:\/\/lossatelites.com todavía se está emitiendo/);
@@ -279,6 +281,128 @@ describe("principal", () => {
     const id = await conectado();
     await marcarPrincipal(ua.id, a.id, id);
     expect((await proxy(pedido("banda-b.deocoartist.com"))).status).toBe(200);
+  });
+});
+
+describe("delegar (la zona es nuestra; la banda cambia los nameservers)", () => {
+  const filas = (tenantId: string) => dueno.dominio.findMany({ where: { tenantId, via: "zona" }, orderBy: { dominio: "asc" } });
+
+  it("crea la zona con los registros del sitio, trae lo que había (el correo) y agrega el dominio y su www", async () => {
+    cf.dnsAnterior.set("lossatelites.com", [
+      { type: "A", name: "lossatelites.com", content: "192.0.2.50", proxied: false }, // el sitio viejo: se reemplaza
+      { type: "CNAME", name: "www.lossatelites.com", content: "viejo.ejemplo.com", proxied: false },
+      { type: "MX", name: "lossatelites.com", content: "aspmx.l.google.com", proxied: false }, // el correo: queda
+      { type: "TXT", name: "lossatelites.com", content: "v=spf1 include:_spf.google.com ~all", proxied: false },
+    ]);
+    // Escrito con www: se delega el dominio entero.
+    const id = await agregarDominio(ua.id, a.id, "https://www.LosSatelites.com/", "zona");
+    const z = cf.zonaDe("lossatelites.com")!;
+    expect(z.registros!.map((r) => [r.type, r.name, r.content, r.proxied]).sort()).toEqual(
+      [
+        ["A", "lossatelites.com", "203.0.113.10", true],
+        ["CNAME", "www.lossatelites.com", "lossatelites.com", true],
+        ["MX", "lossatelites.com", "aspmx.l.google.com", false],
+        ["TXT", "lossatelites.com", "v=spf1 include:_spf.google.com ~all", false],
+      ].sort(),
+    );
+    expect((await filas(a.id)).map((f) => [f.dominio, f.verificado, f.proveedorId, f.nameservers])).toEqual([
+      ["lossatelites.com", false, z.id, NAMESERVERS],
+      ["www.lossatelites.com", false, z.id, NAMESERVERS],
+    ]);
+    const lista = await dominiosDeBanda(a.id);
+    expect(lista.find((x) => x.id === id)).toMatchObject({
+      via: "zona",
+      estado: "sin-verificar",
+      registros: null,
+      delegacion: {
+        nameservers: NAMESERVERS,
+        importados: [
+          { tipo: "MX", nombre: "lossatelites.com", valor: "aspmx.l.google.com" },
+          { tipo: "TXT", nombre: "lossatelites.com", valor: "v=spf1 include:_spf.google.com ~all" },
+        ],
+        sinRegistrar: false,
+        nicAr: false,
+        acompanaA: null,
+      },
+    });
+    expect(lista.find((x) => x.dominio === "www.lossatelites.com")?.delegacion?.acompanaA).toBe("lossatelites.com");
+    // Hasta que cambie los nameservers, no resuelve.
+    expect((await proxy(pedido("lossatelites.com"))).status).toBe(404);
+  });
+
+  it("'Ya cambié los nameservers': le pide a Cloudflare que mire; activa, quedan verificados el dominio y su www", async () => {
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com", "zona");
+    expect(await verificarDominio(ua.id, a.id, id)).toEqual({ verificado: false, via: "zona", sinRegistrar: false, sinRespuesta: false });
+    expect(cf.activaciones).toEqual([cf.zonaDe("lossatelites.com")!.id]);
+
+    cf.activarZona("lossatelites.com", "pending_validation");
+    expect(await verificarDominio(ua.id, a.id, id)).toEqual({ verificado: true });
+    expect((await filas(a.id)).map((f) => [f.dominio, f.verificado])).toEqual([
+      ["lossatelites.com", true],
+      ["www.lossatelites.com", true],
+    ]);
+    // Los dos muestran el sitio (no son el principal: redirigen al subdominio).
+    expect((await proxy(pedido("www.lossatelites.com"))).headers.get("location")).toBe("http://banda-a.deocoartist.com/");
+    expect((await proxy(pedido("lossatelites.com"))).status).toBe(307);
+    // Principal recién con el certificado universal activo.
+    await expect(marcarPrincipal(ua.id, a.id, id)).rejects.toThrow(/todavía se está emitiendo/);
+    cf.activarZona("lossatelites.com", "active");
+    await marcarPrincipal(ua.id, a.id, id);
+    expect((await proxy(pedido("www.lossatelites.com", "/fechas"))).headers.get("location")).toBe("http://lossatelites.com/fechas");
+  });
+
+  it("la revisión lo detecta sola: la banda no tiene que volver a tocar nada", async () => {
+    await agregarDominio(ua.id, a.id, "lossatelites.com", "zona");
+    const t0 = new Date();
+    expect((await barrer({ ahora: t0 })).dominios.delegados).toBe(0);
+    cf.activarZona("lossatelites.com");
+    // Antes de los 10 minutos no se vuelve a mirar.
+    expect((await barrer({ ahora: new Date(t0.getTime() + 60_000) })).dominios.delegados).toBe(0);
+    expect((await barrer({ ahora: new Date(t0.getTime() + 11 * 60_000) })).dominios.delegados).toBe(2);
+    expect((await filas(a.id)).every((f) => f.verificado)).toBe(true);
+    const audit = await dueno.auditoria.findMany({ where: { tenantId: a.id, accion: "dominio.verificado" } });
+    expect(audit.map((x) => [x.usuarioId, (x.detalle as { por?: string }).por])).toEqual([
+      [null, "revision"],
+      [null, "revision"],
+    ]);
+  });
+
+  it(".com.ar que todavía no registró: queda esperando; cuando lo registra, aparecen los nameservers", async () => {
+    cf.sinRegistrar.add("lossatelites.com.ar");
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com.ar", "zona");
+    expect(cf.zonaDe("lossatelites.com.ar")).toBeUndefined();
+    expect((await dominiosDeBanda(a.id)).find((x) => x.id === id)?.delegacion).toMatchObject({ sinRegistrar: true, nicAr: true, nameservers: [] });
+    expect(await verificarDominio(ua.id, a.id, id)).toMatchObject({ verificado: false, via: "zona", sinRegistrar: true });
+
+    cf.sinRegistrar.delete("lossatelites.com.ar"); // lo registró en nic.ar
+    expect(await verificarDominio(ua.id, a.id, id)).toMatchObject({ verificado: false, sinRegistrar: false });
+    expect((await dominiosDeBanda(a.id)).find((x) => x.id === id)?.delegacion).toMatchObject({ sinRegistrar: false, nameservers: NAMESERVERS });
+  });
+
+  it("una zona es de una sola banda: si otra ya lo está conectando, no queda nada a medias", async () => {
+    await agregarDominio(ua.id, a.id, "disputado.com", "zona");
+    await expect(agregarDominio(ub.id, b.id, "disputado.com", "zona")).rejects.toThrow(/Otra banda de Deoco ya está conectando disputado.com/);
+    expect(await dueno.dominio.count({ where: { tenantId: b.id, dominio: { in: ["disputado.com", "www.disputado.com"] } } })).toBe(0);
+    expect(cf.zonas.size).toBe(1);
+  });
+
+  it("quitado y vuelto a delegar, retoma la misma zona", async () => {
+    const id = await agregarDominio(ua.id, a.id, "lossatelites.com", "zona");
+    const zona = cf.zonaDe("lossatelites.com")!.id;
+    await quitarDominio(ua.id, a.id, id, true);
+    const www = await dueno.dominio.findFirstOrThrow({ where: { tenantId: a.id, dominio: "www.lossatelites.com" } });
+    await quitarDominio(ua.id, a.id, www.id, true);
+    await agregarDominio(ua.id, a.id, "lossatelites.com", "zona");
+    expect(cf.zonas.size).toBe(1);
+    expect((await filas(a.id)).map((f) => f.proveedorId)).toEqual([zona, zona]);
+  });
+
+  it("no se delega si el dominio o su www ya están en la banda, ni sin la IP del servidor", async () => {
+    await agregarDominio(ua.id, a.id, "www.lossatelites.com");
+    await expect(agregarDominio(ua.id, a.id, "lossatelites.com", "zona")).rejects.toThrow(/www.lossatelites.com ya está registrado en esta banda/);
+    delete process.env.DEOCO_IP_PUBLICA;
+    await expect(agregarDominio(ua.id, a.id, "otro.com", "zona")).rejects.toThrow(/todavía no están habilitados/);
+    expect(cf.zonas.size).toBe(0);
   });
 });
 

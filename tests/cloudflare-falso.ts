@@ -10,10 +10,13 @@ export type HostnameFalso = {
   status: string;
   ssl: { status: string; validation_records?: { txt_name: string; txt_value: string }[] };
 };
-export type ZonaFalsa = { id: string; status: string; name_servers: string[]; certificado: string | null };
+export type RegistroFalso = { id: string; type: string; name: string; content: string; proxied: boolean };
+export type ZonaFalsa = { id: string; name?: string; status: string; name_servers: string[]; certificado: string | null; registros?: RegistroFalso[] };
 
 export const TOKEN_CF = "cf-token-de-prueba";
 export const ZONA_CF = "zona-plataforma";
+export const CUENTA_CF = "cuenta-deoco";
+export const NAMESERVERS = ["ana.ns.cloudflare.com", "bob.ns.cloudflare.com"];
 
 export class CloudflareFalso {
   hostnames = new Map<string, HostnameFalso>();
@@ -21,8 +24,13 @@ export class CloudflareFalso {
   pedidos: { metodo: string; ruta: string }[] = [];
   /** Próximas respuestas forzadas (p. ej. 503), en orden. */
   fallas: number[] = [];
-  /** Hostnames que Cloudflare rechaza (error de datos). */
+  /** Hostnames o zonas que Cloudflare rechaza (error de datos). */
   rechazados = new Set<string>();
+  /** Dominios que todavía no están registrados (no se puede crear su zona). */
+  sinRegistrar = new Set<string>();
+  /** Lo que cada dominio tiene en su DNS actual: lo trae `jump_start` al crear la zona. */
+  dnsAnterior = new Map<string, Omit<RegistroFalso, "id">[]>();
+  activaciones: string[] = [];
   private servidor?: Server;
   base = "";
   private n = 0;
@@ -68,6 +76,43 @@ export class CloudflareFalso {
             return ok({ id: h.id });
           }
         }
+        if (url.pathname === "/zones" && req.method === "POST") {
+          const c = JSON.parse(cuerpo || "{}") as { name: string; account?: { id?: string }; jump_start?: boolean };
+          if (c.account?.id !== CUENTA_CF) return error(403, 1000, "Invalid account");
+          if (this.sinRegistrar.has(c.name)) return error(400, 1049, `${c.name} is not a registered domain`);
+          if (this.rechazados.has(c.name)) return error(400, 1099, "Invalid zone name");
+          if ([...this.zonas.values()].some((z) => z.name === c.name)) return error(400, 1061, `${c.name} already exists`);
+          const registros = c.jump_start ? (this.dnsAnterior.get(c.name) ?? []).map((r) => ({ ...r, id: `r-${++this.n}` })) : [];
+          const z: ZonaFalsa = { id: `z-${++this.n}`, name: c.name, status: "pending", name_servers: [...NAMESERVERS], certificado: null, registros };
+          this.zonas.set(z.id, z);
+          return ok({ id: z.id, name: z.name, status: z.status, name_servers: z.name_servers });
+        }
+        if (url.pathname === "/zones" && req.method === "GET") {
+          const nombre = url.searchParams.get("name");
+          return ok([...this.zonas.values()].filter((z) => z.name === nombre).map((z) => ({ id: z.id, name: z.name, status: z.status, name_servers: z.name_servers })));
+        }
+        const rec = url.pathname.match(/^\/zones\/([^/]+)\/dns_records(?:\/([^/]+))?$/);
+        if (rec) {
+          const z = this.zonas.get(rec[1]);
+          if (!z) return error(404, 1001, "Invalid zone identifier");
+          z.registros ??= [];
+          if (req.method === "GET") return ok(z.registros);
+          if (req.method === "POST") {
+            const c = JSON.parse(cuerpo || "{}") as { type: string; name: string; content: string; proxied?: boolean };
+            if (z.registros.some((r) => r.type === c.type && r.name === c.name && r.content === c.content)) return error(400, 81058, "An identical record already exists.");
+            z.registros.push({ id: `r-${++this.n}`, type: c.type, name: c.name, content: c.content, proxied: Boolean(c.proxied) });
+            return ok({});
+          }
+          if (req.method === "DELETE" && rec[2]) {
+            z.registros = z.registros.filter((r) => r.id !== rec[2]);
+            return ok({ id: rec[2] });
+          }
+        }
+        const act = url.pathname.match(/^\/zones\/([^/]+)\/activation_check$/);
+        if (act && req.method === "PUT") {
+          this.activaciones.push(act[1]);
+          return ok({ id: act[1] });
+        }
         const certs = url.pathname.match(/^\/zones\/([^/]+)\/ssl\/certificate_packs$/);
         if (certs && req.method === "GET") {
           const z = this.zonas.get(certs[1]);
@@ -93,6 +138,21 @@ export class CloudflareFalso {
     env.DEOCO_CLOUDFLARE_API = this.base;
     env.DEOCO_CLOUDFLARE_TOKEN = TOKEN_CF;
     env.DEOCO_CLOUDFLARE_ZONA = ZONA_CF;
+    env.DEOCO_CLOUDFLARE_CUENTA = CUENTA_CF;
+    env.DEOCO_IP_PUBLICA = "203.0.113.10";
+  }
+
+  /** La zona de `dominio`. */
+  zonaDe(dominio: string): ZonaFalsa | undefined {
+    return [...this.zonas.values()].find((z) => z.name === dominio);
+  }
+
+  /** La banda cambió los nameservers: Cloudflare activa la zona (y emite el certificado universal). */
+  activarZona(dominio: string, certificado: string | null = "active") {
+    const z = this.zonaDe(dominio);
+    if (!z) throw new Error(`no hay zona para ${dominio}`);
+    z.status = "active";
+    z.certificado = certificado;
   }
 
   /** El custom hostname de `dominio`. */
@@ -114,6 +174,9 @@ export class CloudflareFalso {
     this.pedidos = [];
     this.fallas = [];
     this.rechazados.clear();
+    this.sinRegistrar.clear();
+    this.dnsAnterior.clear();
+    this.activaciones = [];
   }
 
   async cerrar() {

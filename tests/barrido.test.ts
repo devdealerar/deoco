@@ -171,7 +171,7 @@ describe("revisión periódica de dominios propios (según Cloudflare)", () => {
     cf.activar("losbuenos.com", { status: "moved" }); // la banda borró el CNAME
     const t0 = new Date();
     const r1 = await barrer({ ahora: t0 });
-    expect(r1.dominios).toEqual({ revisados: 2, conProblema: 0 }); // una sola falla puede ser algo pasajero
+    expect(r1.dominios).toEqual({ revisados: 2, conProblema: 0, delegados: 0 }); // una sola falla puede ser algo pasajero
     expect(await dominiosConProblema(a.id)).toEqual([]);
 
     // Antes de que toque revisar de nuevo, no se revisa.
@@ -179,7 +179,7 @@ describe("revisión periódica de dominios propios (según Cloudflare)", () => {
 
     const t1 = new Date(t0.getTime() + REVISAR_DOMINIOS_CADA_MS + 1000);
     const r2 = await barrer({ ahora: t1 });
-    expect(r2.dominios).toEqual({ revisados: 2, conProblema: 1 });
+    expect(r2.dominios).toEqual({ revisados: 2, conProblema: 1, delegados: 0 });
     expect(await dominiosConProblema(a.id)).toEqual([{ dominio: "losbuenos.com", desde: t1, problema: "El CNAME de tu dominio dejó de apuntar a Deoco." }]);
     expect(await dominiosConProblema(b.id)).toEqual([]);
     const d = await dueno.dominio.findFirstOrThrow({ where: { dominio: "losbuenos.com" } });
@@ -213,7 +213,7 @@ describe("revisión periódica de dominios propios (según Cloudflare)", () => {
     await propio(a.id, "losbuenos.com");
     cf.fallas.push(503, 503, 503);
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect((await barrer()).dominios).toEqual({ revisados: 0, conProblema: 0 });
+    expect((await barrer()).dominios).toEqual({ revisados: 0, conProblema: 0, delegados: 0 });
     vi.restoreAllMocks();
     expect((await dueno.dominio.findFirstOrThrow({ where: { dominio: "losbuenos.com" } })).revisadoEn).toBeNull();
   });
@@ -222,7 +222,7 @@ describe("revisión periódica de dominios propios (según Cloudflare)", () => {
     await propio(a.id, "losbuenos.com");
     await propio(b.id, "otrabanda.com");
     await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
-    expect((await barrer()).dominios).toEqual({ revisados: 1, conProblema: 0 });
+    expect((await barrer()).dominios).toEqual({ revisados: 1, conProblema: 0, delegados: 0 });
     expect((await dueno.dominio.findFirstOrThrow({ where: { dominio: "losbuenos.com" } })).revisadoEn).toBeNull();
   });
 

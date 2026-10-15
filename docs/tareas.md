@@ -16,6 +16,14 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   Se fueron el registro A, el comprobador HTTPS y `ipPublica()`. Pruebas: `tests/dominios.test.ts`,
   `tests/barrido.test.ts`, `tests/backoffice.test.ts`, `tests/e2e/dominios.e2e.ts`, con
   `tests/cloudflare-falso.ts`.
+- D3: `agregarDominio(…, "zona")` crea la zona (`jump_start`: trae el DNS anterior), pone el
+  sitio (`A` del dominio con proxy a `DEOCO_IP_PUBLICA`, `www` CNAME), agrega el dominio y su
+  www; `.com.ar` sin registrar queda esperando; "Ya cambié los nameservers" pide
+  `activation_check`; el barrido verifica solo cada 10 min (`bandas_con_zonas_pendientes`).
+  Migración `dominios_delegados` (`nameservers`, `zona_de_otra_banda`). Arranque: con Cloudflare
+  exige `DEOCO_CLOUDFLARE_CUENTA` y `DEOCO_IP_PUBLICA`. Quedó afuera: el mail de "listo" (el
+  núcleo no tiene cómo mandar un mail propio sin un módulo; va con los avisos de D11) y el
+  vencimiento de una delegación pendiente que nadie completa (ver diseño §12).
 - D2 (parte de código): `ipDelVisitante()` lee `CF-Connecting-IP` (el freno del alta era el único
   lugar que leía la IP). Vuelta atrás si Cloudflare se cae: `docs/despliegue.md`.
 
@@ -24,7 +32,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D0 | Preparación única en Cloudflare (staff): fallback origin, `customers.<raíz>`, token, Email Routing, Worker y KV | — | pendiente (vos) |
 | D1 | Revisión, verificación y principal según el estado de Cloudflare; `ProveedorDns` mínimo + falso; alta por CNAME | 3,5–4,5 | ✅ hecha |
 | D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | decidido A (todo por Cloudflare); ensayo local ✅; `CF-Connecting-IP` ✅; vuelta atrás documentada; **falta confirmar en Easypanel** archivo propio de Traefik y TLS `default`, y el ensayo con dominio real |
-| D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | pendiente |
+| D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | ✅ hecha |
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME ya está en D1) | 2 | pendiente |
 | D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | pendiente |
 | D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | pendiente |

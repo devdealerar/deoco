@@ -202,6 +202,7 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_DB_CONEXIONES` | no | Conexiones de la app a Postgres (40). Sumadas a las del back office (5) tienen que quedar bajo `max_connections` (100 por defecto) |
 | `DEOCO_BARRIDO_SEGUNDOS` | no | Cada cuánto corre el barrido de pendientes (60; mínimo 5) |
 | `DEOCO_CLOUDFLARE_TOKEN` / `DEOCO_CLOUDFLARE_ZONA` | para dominios propios | Token de API de Cloudflare y el id de la zona de `DEOCO_DOMINIO_RAIZ` (custom hostnames). Las dos o ninguna |
+| `DEOCO_CLOUDFLARE_CUENTA` / `DEOCO_IP_PUBLICA` | con las dos anteriores | Id de la cuenta de Cloudflare (ahí se crean las zonas de los dominios delegados) e IP del VPS (a la que apuntan, con proxy) |
 | `DEOCO_CUOTA_MP_TOKEN` | para cobrar la cuota | Access token de producción de la cuenta de Mercado Pago **de Deoco** (no de una banda). Sin él, la app arranca (aviso en el log) pero nadie puede cargar su forma de pago |
 | `DEOCO_CUOTA_MP_SECRETO_AVISOS` | recomendada | Clave secreta de webhooks de esa aplicación: con ella se verifica la firma de cada aviso de la cuota |
 | `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` | no | Limpieza de correos enviados: días hasta vaciar adjuntos (7), cuerpo (90) y borrar la fila (365). Lo pendiente o fallido no se toca |
@@ -279,9 +280,12 @@ delante de Easypanel).
    - `CNAME customers` → `origen.deocoartist.com`, nube naranja: el destino del CNAME que crean
      las bandas.
    - SSL/TLS → modo **Full**. SSL/TLS → Origin Server → **Authenticated Origin Pulls** prendido.
-   - Un **token de API** con permiso de editar *SSL and Certificates* (custom hostnames) en la
-     zona → `DEOCO_CLOUDFLARE_TOKEN`; el **id de la zona** (Overview, columna derecha) →
-     `DEOCO_CLOUDFLARE_ZONA`.
+   - Un **token de API** → `DEOCO_CLOUDFLARE_TOKEN`, con permisos: en la zona `deocoartist.com`,
+     *SSL and Certificates · Edit* (custom hostnames); en la cuenta, *Zone · Edit* y
+     *DNS · Edit* sobre todas las zonas (para crear las de los dominios delegados y sus
+     registros). El **id de la zona** (Overview, columna derecha) → `DEOCO_CLOUDFLARE_ZONA`; el
+     **id de la cuenta** (misma columna) → `DEOCO_CLOUDFLARE_CUENTA`; la IP del VPS →
+     `DEOCO_IP_PUBLICA`.
 2. **Traefik** (el archivo propio): la ruta comodín y el certificado de cliente de Cloudflare.
    `cloudflare-origin-pull-ca.pem` es el certificado público de Cloudflare para Authenticated
    Origin Pulls (se baja de la documentación de Cloudflare); `deoco` es el servicio de la app
@@ -332,6 +336,21 @@ Con todo detrás de Cloudflare, si Cloudflare se cae, Deoco se cae. Para volver 
 Para volver a Cloudflare: el orden inverso (nube naranja, después `clientAuth`).
 
 ## Dominio propio de una banda
+
+Dos caminos. **Delegar** (recomendado; también el `.com.ar`):
+
+1. La banda escribe `labanda.com` en "Delegar un dominio". La app crea la zona en la cuenta de
+   Cloudflare (Cloudflare trae los registros que el dominio ya tenía, por ejemplo el MX del
+   correo), le pone los registros del sitio (`labanda.com` con proxy a `DEOCO_IP_PUBLICA`,
+   `www` como CNAME) y agrega `labanda.com` y `www.labanda.com` a la banda. Muestra los dos
+   nameservers y la lista de lo que trajo.
+2. La banda cambia los nameservers donde lo registró (en nic.ar, "Delegar"). Si el `.com.ar`
+   todavía no está registrado, el panel lo dice y espera.
+3. El barrido mira cada 10 minutos: cuando Cloudflare activa la zona, los dos quedan
+   verificados solos. El certificado universal lo emite Cloudflare; con él activo, "Usar como
+   principal".
+
+**Conectar por CNAME** (la banda conserva su DNS; solo con `www`):
 
 1. La banda (el titular, en **Panel → Dominios**) o el staff (en `/admin`, detalle de la banda)
    agrega el dominio, por ejemplo `www.labanda.com`. La app crea su **custom hostname** en

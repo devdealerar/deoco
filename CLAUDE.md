@@ -94,10 +94,15 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 
 - `src/nucleo/dominios` (bajo RLS): `agregarDominio` (crea el custom hostname), `verificarDominio`
   (custom hostname activo = el CNAME a `customers.<raiz>` llega + `TXT _deoco.<dominio>` con el
-  token de la banda; `via: "zona"`: zona activa), `marcarPrincipal` (certificado activo según
+  token de la banda; `via: "zona"`: zona activa, verifica el dominio y su www), `marcarPrincipal` (certificado activo según
   Cloudflare, consultado en el momento), `quitarDominio` (confirmado; nunca el principal ni el
   subdominio; borra el custom hostname si ninguna otra banda lo registró), `revisarDominios`
-  (barrido, 6 h; dos fallas → `problemaDesde` + `problema`).
+  (barrido, 6 h; dos fallas → `problemaDesde` + `problema`; y cada 10 min las delegaciones
+  pendientes: zona activa → verificadas solas).
+- Delegar (`agregarDominio(…, "zona")`): zona en nuestra cuenta (`DEOCO_CLOUDFLARE_CUENTA`) con
+  `jump_start` (trae el DNS anterior), registros del sitio a `DEOCO_IP_PUBLICA`, filas del
+  dominio y su www. Una zona es de una sola banda (`zona_de_otra_banda()`). `.com.ar` sin
+  registrar → `estadoProveedor: "sin-registrar"`, se reintenta.
 - Cloudflare detrás de `ProveedorDns` (`proveedor.ts`, `cloudflare.ts`): `DEOCO_CLOUDFLARE_TOKEN`
   + `DEOCO_CLOUDFLARE_ZONA` (las dos o ninguna; sin ellas no se agregan dominios). Pruebas:
   `tests/cloudflare-falso.ts` (`DEOCO_CLOUDFLARE_API`).

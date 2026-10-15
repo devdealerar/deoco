@@ -1,6 +1,6 @@
 // Cloudflare como ProveedorDns: custom hostnames (Cloudflare for SaaS) en la zona de la
 // plataforma y lectura de zonas de nuestra cuenta. Solo la API v4 y fetch.
-import { ErrorProveedor, type Hostname, type ProveedorDns, type RegistroDns, type Zona } from "./proveedor";
+import { ErrorProveedor, type Hostname, type ProveedorDns, type RegistroDns, type RegistroZona, type Zona } from "./proveedor";
 
 type Respuesta<T> = { success: boolean; errors?: { code: number; message: string }[]; result: T };
 
@@ -14,12 +14,21 @@ type HostnameCf = {
 
 /** Error de Cloudflare cuando el custom hostname ya existe en la zona. */
 const DUPLICADO = 1406;
+/** La zona ya existe en la cuenta. */
+const ZONA_DUPLICADA = 1061;
+/** "<dominio> is not a registered domain". */
+const SIN_REGISTRAR = 1049;
+/** El registro DNS ya existe (crear es idempotente). */
+const REGISTRO_DUPLICADO = [81053, 81057, 81058];
+
+type ZonaCf = { id: string; name: string; status: string; name_servers?: string[] };
+type RegistroCf = { id: string; type: string; name: string; content: string; proxied?: boolean };
 
 export class Cloudflare implements ProveedorDns {
-  constructor(private readonly cfg: { token: string; zona: string; api: string }) {}
+  constructor(private readonly cfg: { token: string; zona: string; cuenta: string; api: string }) {}
 
   /** null si respondió 404. */
-  private async llamar<T>(metodo: "GET" | "POST" | "DELETE", ruta: string, cuerpo?: unknown): Promise<Respuesta<T> | null> {
+  private async llamar<T>(metodo: "GET" | "POST" | "PUT" | "DELETE", ruta: string, cuerpo?: unknown): Promise<Respuesta<T> | null> {
     let r: Response;
     try {
       r = await fetch(`${this.cfg.api}${ruta}`, {
@@ -37,8 +46,10 @@ export class Cloudflare implements ProveedorDns {
     // El mensaje de Cloudflare sirve para diagnosticar; el token nunca aparece en él.
     const errores = datos?.errors ?? [];
     const detalle = errores.map((e) => `${e.code} ${e.message}`).join("; ") || `HTTP ${r.status}`;
-    const error = new ErrorProveedor(`Cloudflare: ${detalle} (${metodo} ${ruta.split("?")[0]})`, r.status >= 500 || r.status === 429 ? "temporal" : "datos");
-    if (errores.some((e) => e.code === DUPLICADO)) Object.assign(error, { duplicado: true });
+    const tipo = r.status >= 500 || r.status === 429 ? "temporal" : errores.some((e) => e.code === SIN_REGISTRAR) ? "sin-registrar" : "datos";
+    const error = new ErrorProveedor(`Cloudflare: ${detalle} (${metodo} ${ruta.split("?")[0]})`, tipo);
+    if (errores.some((e) => e.code === DUPLICADO || e.code === ZONA_DUPLICADA)) Object.assign(error, { duplicado: true });
+    if (errores.some((e) => REGISTRO_DUPLICADO.includes(e.code))) Object.assign(error, { registroDuplicado: true });
     throw error;
   }
 
@@ -68,11 +79,47 @@ export class Cloudflare implements ProveedorDns {
   }
 
   async zona(id: string): Promise<Zona | null> {
-    const z = await this.llamar<{ id: string; status: string; name_servers?: string[] }>("GET", `/zones/${encodeURIComponent(id)}`);
+    const z = await this.llamar<ZonaCf>("GET", `/zones/${encodeURIComponent(id)}`);
     if (!z) return null;
     const certs = await this.llamar<{ type: string; status: string }[]>("GET", `/zones/${encodeURIComponent(id)}/ssl/certificate_packs?status=all`);
     const universal = certs?.result.find((c) => c.type === "universal");
     return { id: z.result.id, estado: z.result.status, certificado: universal?.status ?? null, nameservers: z.result.name_servers ?? [] };
+  }
+
+  async crearZona(dominio: string): Promise<Zona> {
+    if (!this.cfg.cuenta) throw new ErrorProveedor("Falta DEOCO_CLOUDFLARE_CUENTA para crear zonas.", "datos");
+    try {
+      // jump_start: Cloudflare trae los registros que el dominio ya tiene en su DNS actual.
+      const r = await this.llamar<ZonaCf>("POST", "/zones", { name: dominio, account: { id: this.cfg.cuenta }, type: "full", jump_start: true });
+      return { id: r!.result.id, estado: r!.result.status, certificado: null, nameservers: r!.result.name_servers ?? [] };
+    } catch (e) {
+      if (!(e as { duplicado?: boolean }).duplicado) throw e;
+      const r = await this.llamar<ZonaCf[]>("GET", `/zones?name=${encodeURIComponent(dominio)}&account.id=${encodeURIComponent(this.cfg.cuenta)}`);
+      const z = r?.result.find((x) => x.name === dominio);
+      if (!z) throw e;
+      return { id: z.id, estado: z.status, certificado: null, nameservers: z.name_servers ?? [] };
+    }
+  }
+
+  async registros(zonaId: string): Promise<RegistroZona[]> {
+    const r = await this.llamar<RegistroCf[]>("GET", `/zones/${encodeURIComponent(zonaId)}/dns_records?per_page=500`);
+    return (r?.result ?? []).map((x) => ({ id: x.id, tipo: x.type, nombre: x.name, valor: x.content, proxy: Boolean(x.proxied) }));
+  }
+
+  async crearRegistro(zonaId: string, r: Omit<RegistroZona, "id">): Promise<void> {
+    try {
+      await this.llamar("POST", `/zones/${encodeURIComponent(zonaId)}/dns_records`, { type: r.tipo, name: r.nombre, content: r.valor, proxied: r.proxy, ttl: 1 });
+    } catch (e) {
+      if (!(e as { registroDuplicado?: boolean }).registroDuplicado) throw e;
+    }
+  }
+
+  async borrarRegistro(zonaId: string, registroId: string): Promise<void> {
+    await this.llamar("DELETE", `/zones/${encodeURIComponent(zonaId)}/dns_records/${encodeURIComponent(registroId)}`);
+  }
+
+  async revisarActivacion(zonaId: string): Promise<void> {
+    await this.llamar("PUT", `/zones/${encodeURIComponent(zonaId)}/activation_check`);
   }
 }
 

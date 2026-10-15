@@ -34,7 +34,10 @@ export function ListaDominios({
             <>
               {d.esPrincipal && <Insignia color="marca">Principal</Insignia>}
               {d.dePlataforma && <Insignia>Subdominio de Deoco</Insignia>}
-              {d.estado === "sin-verificar" && <Insignia color="advertencia">Sin verificar</Insignia>}
+              {d.via === "zona" && <Insignia>Delegado</Insignia>}
+              {d.estado === "sin-verificar" && (
+                <Insignia color="advertencia">{d.delegacion ? "Esperando los nameservers" : "Sin verificar"}</Insignia>
+              )}
               {d.estado === "certificado" && <Insignia color="advertencia">Emitiendo el certificado</Insignia>}
               {d.estado === "listo" && <Insignia color="exito">Listo</Insignia>}
               {d.estado === "problema" && <Insignia color="error">Con un problema</Insignia>}
@@ -68,6 +71,8 @@ export function ListaDominios({
               </p>
             </div>
           )}
+
+          {d.delegacion && <Delegacion dominio={d.dominio} delegacion={d.delegacion} verificar={verificar(d.id)} />}
 
           {d.registros && (
             <>
@@ -112,11 +117,120 @@ export function ListaDominios({
         </Tarjeta>
       ))}
 
-      <Tarjeta titulo="Agregar dominio propio" descripcion="Un dominio que ya tenga la banda, p. ej. www.labanda.com. Lo conectás con dos registros en su DNS.">
-        <Formulario accion={agregar} puedeEditar etiqueta="Agregar dominio" limpiarAlGuardar>
-          <Campo name="dominio" etiqueta="Dominio" placeholder="www.labanda.com" required />
-        </Formulario>
+      <Tarjeta
+        titulo="Delegar un dominio (recomendado)"
+        descripcion="Deoco maneja su DNS: el sitio con y sin www y el certificado. Cambiás dos nameservers donde registraste el dominio; lo que ya tenga (por ejemplo tu correo) lo traemos. Sirve también para un .com.ar de NIC Argentina."
+      >
+        <div data-agregar="zona">
+          <Formulario accion={agregar} puedeEditar etiqueta="Delegar dominio" limpiarAlGuardar>
+            <input type="hidden" name="via" value="zona" />
+            <Campo name="dominio" etiqueta="Dominio" placeholder="labanda.com" required />
+          </Formulario>
+        </div>
       </Tarjeta>
+
+      <Tarjeta
+        titulo="Conectar por CNAME"
+        descripcion="Seguís manejando tu DNS: lo conectás con dos registros. Solo con www adelante (p. ej. www.labanda.com): el dominio sin www lo tenés que redirigir vos."
+      >
+        <div data-agregar="cname">
+          <Formulario accion={agregar} puedeEditar etiqueta="Agregar dominio" limpiarAlGuardar>
+            <input type="hidden" name="via" value="cname" />
+            <Campo name="dominio" etiqueta="Dominio" placeholder="www.labanda.com" required />
+          </Formulario>
+        </div>
+      </Tarjeta>
+    </div>
+  );
+}
+
+/** Un dominio delegado esperando que la banda cambie los nameservers. */
+function Delegacion({ dominio, delegacion: g, verificar }: { dominio: string; delegacion: NonNullable<DominioBanda["delegacion"]>; verificar: Accion }) {
+  if (g.acompanaA) {
+    return (
+      <p className="text-sm text-secondary">
+        Se activa junto con <strong>{g.acompanaA}</strong>: cuando cambies sus nameservers, este anda solo y redirige al principal.
+      </p>
+    );
+  }
+  if (g.sinRegistrar || g.nameservers.length === 0) {
+    return (
+      <div className="flex flex-col gap-3" data-delegacion="sin-registrar">
+        <p className="text-sm text-secondary">
+          {g.sinRegistrar ? (
+            <>
+              <strong>{dominio}</strong> todavía no figura registrado.{" "}
+              {g.nicAr ? (
+                <>
+                  Registralo en{" "}
+                  <a href="https://nic.ar" target="_blank" rel="noreferrer" className="font-semibold underline">
+                    NIC Argentina
+                  </a>{" "}
+                  (con tu CUIT y clave fiscal; el arancel se paga ahí).
+                </>
+              ) : (
+                "Registralo donde quieras comprarlo."
+              )}{" "}
+              Cuando esté, tocá el botón y te mostramos los nameservers.
+            </>
+          ) : (
+            "Estamos preparando el dominio en Cloudflare. Si en unos minutos no aparecen los nameservers, tocá el botón."
+          )}
+        </p>
+        <div>
+          <Formulario puedeEditar accion={verificar} etiqueta={g.sinRegistrar ? "Ya lo registré" : "Reintentar"} />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-4" data-delegacion="nameservers">
+      <p className="text-sm text-secondary">
+        {g.nicAr ? (
+          <>
+            En{" "}
+            <a href="https://nic.ar" target="_blank" rel="noreferrer" className="font-semibold underline">
+              nic.ar
+            </a>
+            , entrá a <strong>{dominio}</strong>, elegí <strong>Delegar</strong> y pegá estos dos nameservers:
+          </>
+        ) : (
+          <>
+            Donde registraste <strong>{dominio}</strong>, cambiá los nameservers por estos dos:
+          </>
+        )}
+      </p>
+      <div className="flex flex-col gap-2">
+        {g.nameservers.map((ns, i) => (
+          <Copiable key={ns} valor={ns} etiqueta={`nameserver ${i + 1}`} />
+        ))}
+      </div>
+      {g.importados.length > 0 ? (
+        <details className="text-sm text-secondary" data-importados>
+          <summary className="cursor-pointer">
+            Trajimos {g.importados.length === 1 ? "1 registro" : `${g.importados.length} registros`} de tu DNS actual (por ejemplo el correo): siguen andando
+          </summary>
+          <ul className="mt-2 flex flex-col gap-1 font-mono text-xs">
+            {g.importados.map((r) => (
+              <li key={`${r.tipo}-${r.nombre}-${r.valor}`}>
+                {r.tipo} {r.nombre} → {r.valor}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2">Revisalos antes de cambiar los nameservers: si falta alguno, escribinos.</p>
+        </details>
+      ) : (
+        <p className="text-sm text-tertiary">
+          No encontramos otros registros en su DNS actual. Si usás correo con este dominio (Gmail, Outlook u otro), escribinos antes de cambiar los nameservers.
+        </p>
+      )}
+      <p className="text-xs text-tertiary">
+        El cambio puede tardar unas horas (a veces hasta un día). Lo revisamos solos cada pocos minutos: cuando se active, el dominio queda verificado y el
+        sitio anda con y sin www. Hasta entonces, todo sigue como estaba.
+      </p>
+      <div>
+        <Formulario puedeEditar accion={verificar} etiqueta="Ya cambié los nameservers" />
+      </div>
     </div>
   );
 }

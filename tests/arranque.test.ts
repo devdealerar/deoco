@@ -18,7 +18,8 @@ const PROD = { generadoPara: "produccion" };
 describe("verificación de arranque: entorno", () => {
   it("una configuración correcta no tiene problemas", () => {
     expect(problemasDeEntorno(BIEN, PROD)).toEqual([]);
-    expect(problemasDeEntorno({ ...BIEN, DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona" }, PROD)).toEqual([]);
+    const cf = { DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_CLOUDFLARE_CUENTA: "cuenta", DEOCO_IP_PUBLICA: "203.0.113.10" };
+    expect(problemasDeEntorno({ ...BIEN, ...cf }, PROD)).toEqual([]);
   });
 
   it.each([
@@ -32,6 +33,8 @@ describe("verificación de arranque: entorno", () => {
     [{ DATABASE_URL: BIEN.DATABASE_URL_MIGRACIONES }, /usa el rol dueño de las tablas \(deoco_owner\)/],
     [{ DEOCO_CLOUDFLARE_TOKEN: "tok" }, /las dos variables: DEOCO_CLOUDFLARE_TOKEN y DEOCO_CLOUDFLARE_ZONA/],
     [{ DEOCO_CLOUDFLARE_ZONA: "zona" }, /las dos variables: DEOCO_CLOUDFLARE_TOKEN y DEOCO_CLOUDFLARE_ZONA/],
+    [{ DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_IP_PUBLICA: "203.0.113.10" }, /falta DEOCO_CLOUDFLARE_CUENTA/],
+    [{ DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_CLOUDFLARE_CUENTA: "c" }, /falta DEOCO_IP_PUBLICA/],
   ])("%o", (cambio, problema) => {
     expect(problemasDeEntorno({ ...BIEN, ...cambio }, PROD).join("\n")).toMatch(problema);
   });
