@@ -26,6 +26,20 @@ export function menuAdmin(reg: Registro): ItemNavegacion[] {
     .map((n) => ({ etiqueta: n.etiqueta, href: `/admin/m/${n.moduloId}${n.href === "/" ? "" : n.href}`, moduloId: n.moduloId }));
 }
 
+/**
+ * Menú del back office agrupado por módulo (el nombre del módulo de título), en el orden de la
+ * primera entrada de cada uno. Así se lee igual con dos módulos que con diez.
+ */
+export function menuAdminPorModulo(reg: Registro): { moduloId: string; titulo: string; items: ItemNavegacion[] }[] {
+  const grupos = new Map<string, { moduloId: string; titulo: string; items: ItemNavegacion[] }>();
+  for (const item of menuAdmin(reg)) {
+    const g = grupos.get(item.moduloId) ?? { moduloId: item.moduloId, titulo: reg.modulo(item.moduloId)?.nombre ?? item.moduloId, items: [] };
+    g.items.push(item);
+    grupos.set(item.moduloId, g);
+  }
+  return [...grupos.values()];
+}
+
 /** Menú del portal de cuentas externas de un módulo, por orden. */
 export function menuExterno(reg: Registro, moduloId: string): ItemNavegacion[] {
   return reg.navegacion

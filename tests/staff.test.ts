@@ -5,7 +5,7 @@ import { guardarArchivo } from "@/nucleo/archivos";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
 import type { Modulo } from "@/nucleo/modulos/contrato";
-import { menuAdmin, menuPanel } from "@/nucleo/modulos/navegacion";
+import { menuAdmin, menuAdminPorModulo, menuPanel } from "@/nucleo/modulos/navegacion";
 import { crearRegistro } from "@/nucleo/modulos/registro";
 import { dueno, escenarioAcceso } from "./apoyo";
 
@@ -97,6 +97,8 @@ describe("contrato: rutasAdmin, navegación del back office y tablasGlobales", (
       },
     ]);
     expect(menuAdmin(reg).map((m) => [m.etiqueta, m.href])).toEqual([["Catálogo base", "/admin/m/tienda-falsa"]]);
+    // Agrupado por módulo, con su nombre de título (el menú del back office).
+    expect(menuAdminPorModulo(reg).map((g) => [g.moduloId, g.items.length])).toEqual([["tienda-falsa", 1]]);
     const acceso = { usuarioId: e.staff.id, tenantId: e.a.id, rol: null, esStaff: true };
     expect(menuPanel(reg, new Set(["tienda-falsa"]), acceso, "banda-a").map((m) => m.etiqueta)).toEqual(["Tienda"]);
     expect(reg.rutaAdmin("tienda-falsa", "/catalogo/remera")?.params).toEqual({ id: "remera" });
