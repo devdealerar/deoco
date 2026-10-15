@@ -1,7 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SMTPServer } from "smtp-server";
 import { problemasDeCorreo as problemasDeArranqueCorreo } from "@/nucleo/correo/transporte";
-import { bandejaDeSalida, enviarCorreo, esperarCorreos, reintentarCorreo, vaciarBandeja } from "@/nucleo/correo";
+import { bandejaDeSalida, enviarCorreo, enviarCorreoDelNucleo, esperarCorreos, reintentarCorreo, vaciarBandeja } from "@/nucleo/correo";
+import { avisarAlTitular } from "@/nucleo/correo/deoco";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
 import type { Modulo } from "@/nucleo/modulos/contrato";
@@ -125,6 +126,37 @@ describe("enviarCorreo", () => {
     await esperarCorreos();
     expect((await dueno.correo.findUniqueOrThrow({ where: { id } })).estado).toBe("PENDIENTE");
     expect(bandejaDeSalida()).toHaveLength(0);
+  });
+});
+
+describe("correos del núcleo (de Deoco, sin módulo)", () => {
+  it("mismo camino que los de los módulos: fila con origen nucleo, sale después, una sola vez con la misma clave", async () => {
+    const r1 = await enviarCorreoDelNucleo(a.id, { ...mensaje, responderA: undefined, nombreRemitente: "Deoco" }, { unica: "aviso-1" });
+    const r2 = await enviarCorreoDelNucleo(a.id, { ...mensaje, responderA: undefined, nombreRemitente: "Deoco" }, { unica: "aviso-1" });
+    expect(r2).toEqual({ id: r1.id, repetido: true });
+    await esperarCorreos();
+    expect(bandejaDeSalida()).toHaveLength(1);
+    // Sin "responder a": que no le responda al propio titular.
+    expect(await dueno.correo.findUniqueOrThrow({ where: { id: r1.id } })).toMatchObject({ moduloId: "nucleo", estado: "ENVIADO", responderA: null, nombreRemitente: "Deoco" });
+  });
+
+  it("avisarAlTitular: al titular, con el botón al panel de la banda y la casilla de Deoco para responder", async () => {
+    process.env.DEOCO_CUOTA_RESPONDER_A = "hola@deocoartist.com";
+    try {
+      await avisarAlTitular(a.id, {
+        clave: "prueba",
+        asunto: (banda) => `${banda}: algo pasó`,
+        parrafos: () => ["Primer párrafo con <html>."],
+        boton: { texto: "Ir a Dominios", ruta: "/dominios" },
+      });
+    } finally {
+      delete process.env.DEOCO_CUOTA_RESPONDER_A;
+    }
+    await esperarCorreos();
+    const [m] = bandejaDeSalida();
+    expect(m).toMatchObject({ para: "a@x.com", asunto: "Banda A: algo pasó", responderA: "hola@deocoartist.com", de: { nombre: "Deoco" } });
+    expect(m.html).toContain("Primer párrafo con &lt;html&gt;.");
+    expect(m.texto).toMatch(/Ir a Dominios: https?:\/\/app\.[^/]+\/b\/banda-a\/dominios/);
   });
 });
 

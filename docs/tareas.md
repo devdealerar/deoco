@@ -32,6 +32,12 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- Correo del núcleo (adelantado de D11): `enviarCorreoDelNucleo()` (origen `nucleo`, mismo camino
+  que los de los módulos: fila en `correo`, barrido, `unica`) y `avisarAlTitular()`
+  (`src/nucleo/correo/deoco.ts`, remitente "Deoco", responde a `DEOCO_CUOTA_RESPONDER_A` o a
+  nadie). Mails de dominios: "falta cambiar los nameservers" 2 días antes de vencer (con los
+  nameservers) y "ya está conectado" al activarse una delegación; uno solo cada uno.
+- Zonas que crea la app: SSL "Full" y siempre HTTPS (`ajustarZona`).
 - D2 (parte de código): `ipDelVisitante()` lee `CF-Connecting-IP` (el freno del alta era el único
   lugar que leía la IP). Vuelta atrás si Cloudflare se cae: `docs/despliegue.md`.
 
@@ -39,7 +45,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | --- | --- | --- | --- |
 | D0 | Preparación única en Cloudflare (staff): fallback origin, `customers.<raíz>`, token, Email Routing, Worker y KV | — | pendiente (vos) |
 | D1 | Revisión, verificación y principal según el estado de Cloudflare; `ProveedorDns` mínimo + falso; alta por CNAME | 3,5–4,5 | ✅ hecha |
-| D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | decidido A (todo por Cloudflare); ensayo local ✅; `CF-Connecting-IP` ✅; vuelta atrás documentada; **falta confirmar en Easypanel** archivo propio de Traefik y TLS `default`, y el ensayo con dominio real |
+| D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | A acotada: `aop` solo en `app.`, lista de IPs de Cloudflare en todas las rutas de Deoco, certificado de origen; ensayado con Traefik 3.6.7; YAML, pasos y vuelta atrás en `docs/despliegue.md`; **falta el ensayo con dominio real** |
 | D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | ✅ hecha |
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME ya está en D1) + vencimiento de delegaciones | 2 | ✅ hecha |
 | D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | pendiente |

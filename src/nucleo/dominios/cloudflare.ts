@@ -28,7 +28,7 @@ export class Cloudflare implements ProveedorDns {
   constructor(private readonly cfg: { token: string; zona: string; cuenta: string; api: string }) {}
 
   /** null si respondió 404. */
-  private async llamar<T>(metodo: "GET" | "POST" | "PUT" | "DELETE", ruta: string, cuerpo?: unknown): Promise<Respuesta<T> | null> {
+  private async llamar<T>(metodo: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", ruta: string, cuerpo?: unknown): Promise<Respuesta<T> | null> {
     let r: Response;
     try {
       r = await fetch(`${this.cfg.api}${ruta}`, {
@@ -116,6 +116,12 @@ export class Cloudflare implements ProveedorDns {
 
   async borrarRegistro(zonaId: string, registroId: string): Promise<void> {
     await this.llamar("DELETE", `/zones/${encodeURIComponent(zonaId)}/dns_records/${encodeURIComponent(registroId)}`);
+  }
+
+  async ajustarZona(zonaId: string): Promise<void> {
+    const z = encodeURIComponent(zonaId);
+    await this.llamar("PATCH", `/zones/${z}/settings/ssl`, { value: "full" });
+    await this.llamar("PATCH", `/zones/${z}/settings/always_use_https`, { value: "on" });
   }
 
   async borrarZona(zonaId: string): Promise<void> {

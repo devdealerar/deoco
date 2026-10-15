@@ -14,6 +14,7 @@ import {
 import { CABECERA } from "@/nucleo/tenant/cabeceras";
 import { proxy } from "@/proxy";
 import { barrer } from "@/nucleo/barrido";
+import { bandejaDeSalida, esperarCorreos, vaciarBandeja } from "@/nucleo/correo";
 import { dosBandas, dueno } from "./apoyo";
 import { CloudflareFalso, NAMESERVERS } from "./cloudflare-falso";
 
@@ -34,10 +35,13 @@ beforeEach(async () => {
   await dueno.dominio.deleteMany({ where: { NOT: { dominio: { endsWith: ".deocoartist.com" } } } });
   await dueno.dominio.updateMany({ where: { dominio: { endsWith: ".deocoartist.com" } }, data: { esPrincipal: true } });
   await dueno.auditoria.deleteMany();
+  await dueno.correo.deleteMany();
+  vaciarBandeja();
   cf.limpiar();
   cf.usar();
 });
 afterAll(async () => {
+  await esperarCorreos();
   await cf.cerrar();
   await prisma.$disconnect();
   await dueno.$disconnect();
@@ -299,6 +303,8 @@ describe("delegar (la zona es nuestra; la banda cambia los nameservers)", () => 
     // Escrito con www: se delega el dominio entero.
     const id = await agregarDominio(ua.id, a.id, "https://www.LosSatelites.com/", "zona");
     const z = cf.zonaDe("lossatelites.com")!;
+    // SSL "Full": Cloudflare le habla al servidor por HTTPS (con "Flexible" sería por HTTP).
+    expect(z.ajustes).toEqual({ ssl: "full", always_use_https: "on" });
     expect(z.registros!.map((r) => [r.type, r.name, r.content, r.proxied]).sort()).toEqual(
       [
         ["A", "lossatelites.com", "203.0.113.10", true],
@@ -367,6 +373,13 @@ describe("delegar (la zona es nuestra; la banda cambia los nameservers)", () => 
       [null, "revision"],
       [null, "revision"],
     ]);
+    // Y un mail de "listo" al titular, uno solo.
+    await barrer({ ahora: new Date(t0.getTime() + 30 * 60_000) });
+    await esperarCorreos();
+    const mails = bandejaDeSalida().filter((m) => m.asunto === "lossatelites.com ya está conectado a Deoco");
+    expect(mails).toHaveLength(1);
+    expect(mails[0]).toMatchObject({ para: "a@x.com", de: { nombre: "Deoco" } });
+    expect(mails[0].texto).toContain("anda en lossatelites.com y en www.lossatelites.com");
   });
 
   it(".com.ar que todavía no registró: queda esperando; cuando lo registra, aparecen los nameservers", async () => {
@@ -474,7 +487,18 @@ describe("una delegación que nadie completa vence a los 14 días", () => {
     expect(await delegacionesPorVencer(a.id, dias(11, creado))).toEqual([]);
     expect(await delegacionesPorVencer(a.id, dias(12, creado))).toEqual([{ dominio: "lossatelites.com", vence: dias(14, creado) }]);
 
+    // Dos días antes: mail al titular con los nameservers (uno solo, aunque la revisión pase de nuevo).
+    await barrer({ ahora: dias(11.5, creado) });
+    await esperarCorreos();
+    expect(bandejaDeSalida()).toHaveLength(0);
+    await barrer({ ahora: dias(12.1, creado) });
     await barrer({ ahora: dias(13, creado) });
+    await esperarCorreos();
+    const [aviso, ...otros] = bandejaDeSalida();
+    expect(otros).toHaveLength(0);
+    expect(aviso).toMatchObject({ para: "a@x.com", asunto: "lossatelites.com: falta cambiar los nameservers" });
+    expect(aviso.texto).toContain(`estos dos: ${NAMESERVERS.join(" y ")}`);
+    expect(aviso.texto).toMatch(/Si no los cambiás antes del \d+ de \w+, el pedido vence/);
     expect(await dueno.dominio.count({ where: { tenantId: a.id, via: "zona" } })).toBe(2);
     await barrer({ ahora: dias(14.1, creado) });
     expect(await dueno.dominio.count({ where: { tenantId: a.id, via: "zona" } })).toBe(0);

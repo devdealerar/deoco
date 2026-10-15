@@ -11,7 +11,15 @@ export type HostnameFalso = {
   ssl: { status: string; validation_records?: { txt_name: string; txt_value: string }[] };
 };
 export type RegistroFalso = { id: string; type: string; name: string; content: string; proxied: boolean };
-export type ZonaFalsa = { id: string; name?: string; status: string; name_servers: string[]; certificado: string | null; registros?: RegistroFalso[] };
+export type ZonaFalsa = {
+  id: string;
+  name?: string;
+  status: string;
+  name_servers: string[];
+  certificado: string | null;
+  registros?: RegistroFalso[];
+  ajustes?: Record<string, string>;
+};
 
 export const TOKEN_CF = "cf-token-de-prueba";
 export const ZONA_CF = "zona-plataforma";
@@ -107,6 +115,13 @@ export class CloudflareFalso {
             z.registros = z.registros.filter((r) => r.id !== rec[2]);
             return ok({ id: rec[2] });
           }
+        }
+        const ajuste = url.pathname.match(/^\/zones\/([^/]+)\/settings\/([a-z_]+)$/);
+        if (ajuste && req.method === "PATCH") {
+          const z = this.zonas.get(ajuste[1]);
+          if (!z) return error(404, 1001, "Invalid zone identifier");
+          z.ajustes = { ...z.ajustes, [ajuste[2]]: (JSON.parse(cuerpo || "{}") as { value: string }).value };
+          return ok({ id: ajuste[2], value: z.ajustes[ajuste[2]] });
         }
         const act = url.pathname.match(/^\/zones\/([^/]+)\/activation_check$/);
         if (act && req.method === "PUT") {

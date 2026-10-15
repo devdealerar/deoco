@@ -1,4 +1,5 @@
-// Correo del núcleo: lo usan los módulos (confirmación al fan, orden al proveedor).
+// Correo del núcleo: lo usan los módulos (confirmación al fan, orden al proveedor) y el propio
+// núcleo para avisarle algo a una banda de parte de Deoco (enviarCorreoDelNucleo).
 // enviarCorreo() guarda la fila (en la transacción de quien lo pide, si la pasa) y el envío
 // sale después de responder, como los eventos. Con `unica`, el mismo correo sale una vez.
 import { after } from "next/server";
@@ -153,6 +154,31 @@ export async function enviarCorreo(
   reg: Registro = registroGlobal(),
 ): Promise<{ id: string; repetido: boolean }> {
   moduloRegistrado(modulo, reg);
+  return pedirCorreo(modulo.id, tenantId, correo, opciones);
+}
+
+/** Origen de los correos que pide el núcleo (un id que ningún módulo puede tener). */
+export const ORIGEN_NUCLEO = "nucleo";
+
+/**
+ * Un correo de Deoco a una banda, sin módulo de por medio (p. ej. los avisos de dominios). Mismo
+ * camino que los de los módulos: queda en `correo`, sale después de responder, el barrido lo
+ * retoma y `unica` evita mandarlo dos veces. Solo para el núcleo.
+ */
+export async function enviarCorreoDelNucleo(
+  tenantId: string,
+  correo: Correo,
+  opciones: { tx?: TxTenant; unica?: string } = {},
+): Promise<{ id: string; repetido: boolean }> {
+  return pedirCorreo(ORIGEN_NUCLEO, tenantId, correo, opciones);
+}
+
+async function pedirCorreo(
+  origen: string,
+  tenantId: string,
+  correo: Correo,
+  opciones: { tx?: TxTenant; unica?: string },
+): Promise<{ id: string; repetido: boolean }> {
   validar(correo);
   const { tx, unica } = opciones;
   if (unica !== undefined && (!unica || unica.length > 200)) throw new ErrorCorreo("La clave única tiene que tener entre 1 y 200 caracteres.");
@@ -163,9 +189,10 @@ export async function enviarCorreo(
       (await t.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { nombre: true } })).nombre.replace(/[\r\n]/g, " ");
     const data = {
       tenantId,
-      moduloId: modulo.id,
+      moduloId: origen,
       para: correo.para,
-      responderA: correo.responderA ?? (await titularDeBanda(t))?.email,
+      // De una banda, sin "responder a": al titular. De Deoco: a nadie (no al propio titular).
+      responderA: correo.responderA ?? (origen === ORIGEN_NUCLEO ? null : (await titularDeBanda(t))?.email),
       nombreRemitente,
       asunto: correo.asunto,
       html: correo.html,

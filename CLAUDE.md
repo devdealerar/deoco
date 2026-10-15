@@ -115,6 +115,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   verificado, en una sola.
 - La IP del visitante (frenos por IP): `ipDelVisitante()` (`@/nucleo/publico/visitante`),
   `CF-Connecting-IP` primero.
+- Traefik (Easypanel): las rutas de Deoco van en el YAML propio (no en Easypanel); `aop` solo en
+  `app.` (host exacto) y lista de IPs de Cloudflare en todas (`docs/despliegue.md`).
 
 ## Secretos por banda
 
@@ -202,6 +204,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - Limpieza diaria (barrido, `src/nucleo/correo/limpieza.ts`): solo ENVIADO; adjuntos 7 d, cuerpo
   90 d, fila 365 d (`DEOCO_CORREO_DIAS_*`).
 
+- Avisos de Deoco a una banda (sin módulo): `avisarAlTitular()` (`@/nucleo/correo/deoco`) sobre
+  `enviarCorreoDelNucleo()` (origen `nucleo`; responde a `DEOCO_CUOTA_RESPONDER_A` o a nadie).
 - Correo (`src/nucleo/correo`): `enviarCorreo(contrato, tenantId, correo, { tx?, unica? })` (sin
   `responderA`, responde al titular de la banda; con
   `adjuntos` opcionales, imágenes `cid:`) guarda

@@ -254,86 +254,233 @@ primer deploy de esa versión corré una vez, en la consola de la app:
 `node scripts/mover-credenciales-de-cobro.mjs` (las recifra en su nuevo lugar; repetible). Si
 no, el titular las vuelve a cargar en Credenciales.
 
-## Todo detrás de Cloudflare (dominios propios de las bandas)
+## Todo detrás de Cloudflare (Deoco en nube naranja)
 
-Decisión (docs/diseno-dominios.md §1, opción A): `app.`, los subdominios de banda y los dominios
-propios pasan todos por Cloudflare, y el servidor solo acepta conexiones de Cloudflare
-(Authenticated Origin Pulls). Ensayado con la imagen de producción y Traefik 3.4 (§1 del diseño).
+Decisión (docs/diseno-dominios.md §1, opción A **acotada**): Deoco (`app.`, los subdominios de
+banda y los dominios propios) pasa por Cloudflare; los **otros servicios del VPS no se tocan**
+(siguen en gris con Let's Encrypt) y las opciones TLS `default` de Traefik **no se cambian**.
 
-**Antes de tocar nada, confirmá en tu Easypanel (desde el entorno de desarrollo no se pudo:
-la documentación de Easypanel está bloqueada):**
+Lo que dijo tu Easypanel: Traefik **3.6.7**; en `/etc/easypanel/traefik/config/` solo está
+`main.yaml` (lo regenera Easypanel) y no define ninguna opción TLS; el editor de
+"Configuración personalizada" escribe el YAML propio.
 
-- [ ] que deja **agregar un archivo propio de configuración dinámica a Traefik** (además de lo
-  que genera Easypanel), y
-- [ ] que deja **cambiar las opciones TLS `default`** de Traefik (en ese mismo archivo, o donde
-  Easypanel lo permita).
+**Lo que mostró el ensayo** (Traefik 3.6.7, imagen oficial; detalle en el diseño §1):
 
-Si alguna de las dos no se puede, **no sigas**: el plan cambia (opción C o un proxy propio
-delante de Easypanel).
+- Una opción TLS con nombre propio (`aop`) en una ruta solo se aplica si la ruta nombra un host
+  exacto (`Host(...)`). En `app.<raíz>` exige el certificado de Cloudflare (sin él, o con otro,
+  la conexión se corta). En las rutas `HostRegexp` (subdominios de banda y dominios propios,
+  que no se pueden enumerar) **no se aplica**: Traefik usa `default` y lo avisa en el log.
+- Por eso esas rutas llevan además una **lista de IPs de Cloudflare** (`ipAllowList`): no
+  depende del SNI. Quien entra directo a la IP recibe 403; el servicio ajeno no se entera.
+- Si la ruta que genera Easypanel para `app.<raíz>` queda, hay dos rutas con el mismo host y
+  opciones distintas: Traefik usa `default` para las dos y **`aop` se pierde sin avisar** (solo
+  en el log). Por eso los dominios de Deoco **se sacan de Easypanel** y sus rutas quedan solo
+  en el YAML propio.
 
-### Una vez
+Resultado: `app.` (panel, back office, webhooks de pagos) con certificado de cliente **y**
+lista de IPs; los sitios de las bandas (públicos) con la lista de IPs. Lo que queda abierto:
+alguien con su propia cuenta de Cloudflare apuntando a nuestra IP pasa la lista, pero solo
+llega a hosts que la app no conoce (404): no puede usar el host de una banda (esas zonas y
+custom hostnames son nuestros).
 
-1. **Cloudflare, zona `deocoartist.com`**:
-   - `A *` y `A app` a la IP del VPS con **nube naranja** (proxy).
-   - `A origen` a la IP del VPS, nube naranja: **fallback origin** de Cloudflare for SaaS
-     (SSL/TLS → Custom Hostnames → Fallback Origin).
-   - `CNAME customers` → `origen.deocoartist.com`, nube naranja: el destino del CNAME que crean
-     las bandas.
-   - SSL/TLS → modo **Full**. SSL/TLS → Origin Server → **Authenticated Origin Pulls** prendido.
-   - Un **token de API** → `DEOCO_CLOUDFLARE_TOKEN`, con permisos: en la zona `deocoartist.com`,
-     *SSL and Certificates · Edit* (custom hostnames); en la cuenta, *Zone · Edit* y
-     *DNS · Edit* sobre todas las zonas (para crear las de los dominios delegados y sus
-     registros). El **id de la zona** (Overview, columna derecha) → `DEOCO_CLOUDFLARE_ZONA`; el
-     **id de la cuenta** (misma columna) → `DEOCO_CLOUDFLARE_CUENTA`; la IP del VPS →
-     `DEOCO_IP_PUBLICA`.
-2. **Traefik** (el archivo propio): la ruta comodín y el certificado de cliente de Cloudflare.
-   `cloudflare-origin-pull-ca.pem` es el certificado público de Cloudflare para Authenticated
-   Origin Pulls (se baja de la documentación de Cloudflare); `deoco` es el servicio de la app
-   tal como lo nombra Easypanel.
+### Una vez, en orden
+
+1. **Anotá dos datos de `main.yaml` antes de tocar nada** (en la consola del VPS):
+
+   ```sh
+   grep -n "entryPoints" /etc/easypanel/traefik/config/main.yaml | sort -u | head
+   grep -n -B2 -A6 "app.deocoartist.com" /etc/easypanel/traefik/config/main.yaml
+   ```
+
+   El nombre del entrypoint del 443 (en el YAML de abajo, `https`) y la URL del servicio de la
+   app (`url: "http://<proyecto>_<servicio>:3000/"` o parecida). Si son distintos, cambialos
+   en el YAML.
+2. **Dónde ve Traefik los archivos**: `/etc/easypanel/traefik/certs/` tiene que estar montado
+   en el contenedor de Traefik. Confirmalo y anotá la ruta de adentro:
+
+   ```sh
+   docker inspect $(docker ps -q -f name=traefik) --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
+   ```
+
+   El YAML usa `/etc/easypanel/traefik/certs/...`; si adentro es otra ruta, usá esa.
+3. **Certificado de origen de Cloudflare** (lo que presenta el VPS a Cloudflare para Deoco):
+   - Cloudflare → `deocoartist.com` → SSL/TLS → Origin Server → **Create Certificate** →
+     "Generate private key and CSR with Cloudflare", RSA (2048), hostnames
+     `deocoartist.com` y `*.deocoartist.com`, validez 15 años → Create.
+   - Copiá el **certificado** (PEM) a `/etc/easypanel/traefik/certs/deocoartist-origen.pem` y la
+     **clave** a `/etc/easypanel/traefik/certs/deocoartist-origen.key` (`chmod 600` la clave). La
+     clave se muestra una sola vez.
+   - Bajá el certificado de la CA de **Authenticated Origin Pulls** (zone-level) de la
+     documentación de Cloudflare ("Zone-level authenticated origin pulls", archivo
+     `authenticated_origin_pull_ca.pem`) a
+     `/etc/easypanel/traefik/certs/cloudflare-origin-pull-ca.pem`.
+
+   Este certificado solo lo acepta Cloudflare (un navegador directo lo rechaza): sirve
+   únicamente con la nube naranja. Para los dominios propios Traefik presenta el suyo por
+   defecto; por eso esas zonas van en modo **Full** (no estricto), que la app pone sola en las
+   zonas que crea.
+4. **Lista de IPs de Cloudflare**, generada en el VPS (la de abajo es la que conocíamos al
+   escribir esto; desde el entorno de desarrollo no se pudo bajar: compará antes de pegar):
+
+   ```sh
+   curl -s https://api.cloudflare.com/client/v4/ips | jq -r '.result.ipv4_cidrs[], .result.ipv6_cidrs[]'
+   ```
+5. **Configuración personalizada** de Traefik en Easypanel (el editor): pegá esto, con los
+   datos de los pasos 1, 2 y 4.
 
    ```yaml
    http:
      routers:
-       deoco-comodin:
+       # Panel, back office y webhooks: host exacto → acá sí se exige el certificado de Cloudflare.
+       deoco-app:
+         rule: "Host(`app.deocoartist.com`)"
+         entryPoints: [https]
+         service: deoco
+         middlewares: [deoco-solo-cloudflare]
+         tls:
+           options: aop
+       # Subdominios de banda y dominios propios: no se pueden enumerar (HostRegexp), así que
+       # el certificado de cliente no aplica; los protege la lista de IPs de Cloudflare.
+       deoco-sitios:
          rule: "HostRegexp(`.+`)"
          priority: 1
-         entryPoints: [websecure]   # el nombre del entrypoint 443 en Easypanel
+         entryPoints: [https]
          service: deoco
+         middlewares: [deoco-solo-cloudflare]
          tls: {}
+     middlewares:
+       deoco-solo-cloudflare:
+         ipAllowList:
+           sourceRange:
+             - 173.245.48.0/20
+             - 103.21.244.0/22
+             - 103.22.200.0/22
+             - 103.31.4.0/22
+             - 141.101.64.0/18
+             - 108.162.192.0/18
+             - 190.93.240.0/20
+             - 188.114.96.0/20
+             - 197.234.240.0/22
+             - 198.41.128.0/17
+             - 162.158.0.0/15
+             - 104.16.0.0/13
+             - 104.24.0.0/14
+             - 172.64.0.0/13
+             - 131.0.72.0/22
+             - 2400:cb00::/32
+             - 2606:4700::/32
+             - 2803:f800::/32
+             - 2405:b500::/32
+             - 2405:8100::/32
+             - 2a06:98c0::/29
+             - 2c0f:f248::/32
+     services:
+       deoco:
+         loadBalancer:
+           servers:
+             - url: "http://<proyecto>_<servicio>:3000/"   # la del paso 1
    tls:
      options:
-       default:
+       aop:
          clientAuth:
-           caFiles: [/ruta/a/cloudflare-origin-pull-ca.pem]
+           caFiles:
+             - /etc/easypanel/traefik/certs/cloudflare-origin-pull-ca.pem
            clientAuthType: RequireAndVerifyClientCert
+     certificates:
+       - certFile: /etc/easypanel/traefik/certs/deocoartist-origen.pem
+         keyFile: /etc/easypanel/traefik/certs/deocoartist-origen.key
    ```
-3. **Firewall del VPS**: 443 solo desde los rangos de IP de Cloudflare (cloudflare.com/ips).
-   Con el certificado de cliente ya no entra nadie más, pero así ni siquiera llegan.
-4. Verificá: `https://app.deocoartist.com` y el sitio de una banda abren; `curl -k
-   --resolve app.deocoartist.com:443:<IP del VPS> https://app.deocoartist.com/` **falla** (sin
-   pasar por Cloudflare no se entra).
+
+   `deoco-sitios` tiene la prioridad mínima: los servicios ajenos (con su `Host(...)`) le ganan
+   siempre. No hay `tls.options.default` en ningún lado.
+6. **Cloudflare, zona `deocoartist.com`**:
+   - SSL/TLS → modo **Full (strict)** (el VPS presenta el certificado de origen para
+     `deocoartist.com` y `*.deocoartist.com`). Los custom hostnames de las bandas usan la
+     configuración de esta zona: si en el ensayo real Cloudflare no acepta el certificado por
+     defecto de Traefik para ellos, una **Configuration Rule** con SSL "Full" para los hosts que
+     no terminan en `.deocoartist.com`.
+   - SSL/TLS → Origin Server → **Authenticated Origin Pulls**: prendido.
+   - `A app` y `A *` → nube **naranja**. `A origen` (naranja, **fallback origin** de Custom
+     Hostnames) y `CNAME customers` → `origen.deocoartist.com` (naranja).
+   - El token de API (`DEOCO_CLOUDFLARE_TOKEN`), con: en la zona `deocoartist.com`, *SSL and
+     Certificates · Edit* (custom hostnames); en la cuenta, *Zone · Edit*, *Zone Settings ·
+     Edit* y *DNS · Edit* sobre todas las zonas (crear las de los dominios delegados, ponerlas
+     en Full y cargar sus registros). Id de la zona → `DEOCO_CLOUDFLARE_ZONA`; id de la cuenta
+     → `DEOCO_CLOUDFLARE_CUENTA`; IP del VPS → `DEOCO_IP_PUBLICA`.
+7. **Easypanel, servicio de la app**: sacá sus dominios (`app.deocoartist.com` y
+   `*.deocoartist.com`). Así Easypanel no genera rutas para Deoco (que pisarían `aop`) ni pide
+   certificados a Let's Encrypt para ellos. Los otros servicios, igual que antes.
+8. **El resolver de Let's Encrypt por DNS** (sección B): te sugiero **no** sacarlo. Ya no lo usa
+   Deoco, pero es lo que hace rápida la vuelta atrás (abajo): con él, Traefik vuelve a sacar el
+   certificado de `*.deocoartist.com` en un par de minutos. Si lo sacás, la vuelta atrás tiene
+   que volver a configurarlo.
+
+### Verificar
+
+- `https://app.deocoartist.com` y el sitio de una banda abren (por Cloudflare).
+- Directo a la IP, salteando Cloudflare, **no** se entra:
+
+  ```sh
+  curl -sk --resolve app.deocoartist.com:443:<IP del VPS> https://app.deocoartist.com/      # corta en TLS
+  curl -sk --resolve labanda.deocoartist.com:443:<IP del VPS> https://labanda.deocoartist.com/  # 403
+  ```
+- **Que la lista vea la IP real**: si Traefik recibe las conexiones por la red interna de Docker
+  (puertos publicados en modo "ingress"), vería una IP interna y **todo** daría 403. Si al
+  aplicar el YAML los sitios dan 403 por Cloudflare, sacá `middlewares` (vuelta atrás, paso 1)
+  y avisame: hay que publicar los puertos de Traefik en modo `host`.
+- En los logs de Traefik no tiene que aparecer "Found different TLS options for routers on the
+  same host app.deocoartist.com" (señal de que quedó una ruta de Easypanel para `app.`).
+- Los servicios ajenos, igual que antes (gris, Let's Encrypt).
 
 ### Vuelta atrás rápida (si Cloudflare se cae)
 
-Con todo detrás de Cloudflare, si Cloudflare se cae, Deoco se cae. Para volver a servir directo
-(unos minutos, más lo que tarde el DNS):
+Con Deoco detrás de Cloudflare, si Cloudflare se cae, Deoco se cae (los otros servicios no). Para
+servir Deoco directo (minutos, más lo que tarde el DNS):
 
-1. **Traefik**: sacá el bloque `tls.options.default.clientAuth` del archivo propio (o comentalo).
-   Sin eso, Traefik acepta conexiones directas otra vez. La ruta comodín puede quedar.
-2. **Cloudflare, zona `deocoartist.com`**: pasá `A *`, `A app` y `A origen` a **nube gris**
-   (solo DNS). Si el panel de Cloudflare no responde, el DNS lo sirve Cloudflare igual: sin
-   panel no se puede cambiar, y la única salida es cambiar los nameservers de `deocoartist.com`
-   en el registrador (lento: horas).
-3. **Certificado**: con nube gris, el de `*.deocoartist.com` lo vuelve a poner Traefik (el
-   resolver DNS de la sección B sigue configurado). Mirá que `app.` abra con candado.
-4. **Dominios propios de las bandas**: los conectados por CNAME apuntan a
-   `customers.deocoartist.com`; en nube gris resuelve a la IP del VPS, pero **no tienen
-   certificado** en Traefik (lo daba Cloudflare): abren con advertencia hasta volver. El
-   subdominio de cada banda sigue andando, con candado: si la caída va a ser larga, el staff
-   puede pasar las bandas afectadas a su subdominio como principal.
+1. **Editor de Traefik**: reemplazá el YAML propio por la versión **directa** (sin `aop`, sin
+   lista de IPs y con el certificado de Let's Encrypt por el resolver de la sección B):
+
+   ```yaml
+   http:
+     routers:
+       deoco-app:
+         rule: "Host(`app.deocoartist.com`)"
+         entryPoints: [https]
+         service: deoco
+         tls:
+           certResolver: cloudflare
+           domains:
+             - main: deocoartist.com
+               sans: ["*.deocoartist.com"]
+       deoco-sitios:
+         rule: "HostRegexp(`.+`)"
+         priority: 1
+         entryPoints: [https]
+         service: deoco
+         tls:
+           certResolver: cloudflare
+           domains:
+             - main: deocoartist.com
+               sans: ["*.deocoartist.com"]
+     services:
+       deoco:
+         loadBalancer:
+           servers:
+             - url: "http://<proyecto>_<servicio>:3000/"
+   ```
+
+   (`cloudflare` es el nombre del resolver de la sección B. Pide el certificado por DNS, que
+   anda aunque el proxy de Cloudflare esté caído, si la API de Cloudflare responde.)
+2. **Cloudflare, zona `deocoartist.com`**: `A app`, `A *` y `A origen` a **nube gris**. Si el
+   panel y la API de Cloudflare no responden, no hay cómo cambiar el DNS (lo sirve Cloudflare):
+   la única salida es cambiar los nameservers de `deocoartist.com` en el registrador (horas).
+3. Mirá que `https://app.deocoartist.com` abra con candado (Let's Encrypt).
+4. **Dominios propios de las bandas**: no tienen certificado sin Cloudflare (abren con
+   advertencia hasta volver). El subdominio de cada banda sigue con candado: si la caída va
+   para largo, el staff puede pasar las bandas afectadas a su subdominio como principal.
 5. La app no necesita cambios: sin Cloudflare lee la IP del visitante de `x-forwarded-for`.
 
-Para volver a Cloudflare: el orden inverso (nube naranja, después `clientAuth`).
+Para volver a Cloudflare: nube naranja y después el YAML de arriba (con `aop` y la lista).
 
 ## Dominio propio de una banda
 

@@ -152,6 +152,44 @@ archivos propios y las opciones TLS `default`.
 Montaje del ensayo (fuera del repo): Postgres en `:5434`, app en `:3000`, Traefik en `:443`,
 certificados de prueba generados con `openssl`.
 
+#### Opción A acotada (15/10/2026): sin tocar `default`
+
+Easypanel confirmado: Traefik 3.6.7; `main.yaml` sin opciones TLS; el editor de configuración
+personalizada escribe el YAML propio. En el VPS hay otros servicios (el panel de Easypanel y
+otros sitios) que **no** pasan por Cloudflare, así que exigir el certificado de cliente en
+`default` los rompería. Decisión: opción TLS con nombre (`aop`) solo en las rutas de Deoco; Deoco
+a nube naranja con certificado de origen de Cloudflare; los demás servicios, sin cambios.
+
+Ensayo con Traefik **3.6.7** (`main.yaml` que imita a Easypanel con un servicio ajeno + el YAML de
+`docs/despliegue.md` tal cual, solo cambiando la URL del servicio):
+
+| Pedido | Sin certificado de cliente | Con el de "Cloudflare" | Con uno ajeno |
+| --- | --- | --- | --- |
+| Servicio ajeno (`Host` en `main.yaml`) | 200 | 200 | 200 |
+| `app.deocoartist.com` (`Host` exacto, `aop`) | se corta en TLS | 200 (403 si no viene de una IP de Cloudflare) | se corta en TLS |
+| `labanda.deocoartist.com`, dominio propio (`HostRegexp`) | 200 desde IP de Cloudflare / 403 si no | ídem | ídem |
+
+- `aop` **solo se aplica en rutas con host exacto**: en las `HostRegexp` Traefik usa `default`
+  (lo avisa en el log). Los subdominios de banda y los dominios propios no se pueden enumerar,
+  así que ahí el certificado de cliente no se puede exigir sin tocar `default`.
+- Por eso todas las rutas de Deoco llevan una **lista de IPs de Cloudflare** (`ipAllowList`),
+  que no depende del SNI: directo a la IP, 403. El servicio ajeno no se entera.
+- Si queda la ruta que Easypanel genera para `app.`, Traefik ve dos rutas con el mismo host y
+  opciones distintas y usa `default` para las dos: `aop` se pierde. Los dominios de Deoco se
+  sacan de Easypanel.
+- El certificado de origen (`deocoartist.com`, `*.deocoartist.com`) se presenta para `app.` y los
+  subdominios; para los dominios propios, el de Traefik por defecto (por eso sus zonas van en
+  **Full**, no estricto: la app lo pone sola al crearlas).
+- El YAML de la vuelta atrás (sin `aop` ni lista, con el resolver de Let's Encrypt) también se
+  cargó sin errores.
+
+Lo que queda abierto: con la lista de IPs, alguien con su propia cuenta de Cloudflare apuntando a
+nuestra IP la pasa, pero solo llega a hosts que la app no conoce (404). Si algún día hace falta
+cerrar eso, el camino es un Cloudflare Tunnel para Deoco (sin puerto abierto); no hace falta
+ahora. Y a confirmar en el ensayo real: que Traefik vea la IP real de Cloudflare (puertos en modo
+`host`, no "ingress") y que los custom hostnames acepten el certificado por defecto con la zona en
+Full (strict) (si no, una Configuration Rule con Full para ellos).
+
 ## 2. Principio: ninguna banda queda presa
 
 La banda, cuando quiera, desde el panel y sin pedir nada a nadie, puede:

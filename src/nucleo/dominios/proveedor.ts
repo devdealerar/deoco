@@ -60,6 +60,11 @@ export interface ProveedorDns {
   borrarRegistro(zonaId: string, registroId: string): Promise<void>;
   /** Le pide a Cloudflare que mire ya los nameservers (si no, lo hace cada tanto). */
   revisarActivacion(zonaId: string): Promise<void>;
+  /**
+   * Ajustes de una zona nuestra: SSL "Full" (Cloudflare habla con el servidor por HTTPS; con
+   * "Flexible" lo haría por HTTP) y siempre HTTPS para los visitantes.
+   */
+  ajustarZona(zonaId: string): Promise<void>;
   /** Borra la zona (si no existe, no hace nada). */
   borrarZona(zonaId: string): Promise<void>;
 }

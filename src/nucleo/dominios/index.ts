@@ -14,6 +14,8 @@ import { resolveTxt } from "node:dns/promises";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
+import { avisarAlTitular } from "@/nucleo/correo/deoco";
+import { ZONA } from "@/nucleo/fechas";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
 import { destinoCname, ErrorProveedor, ipDelServidor, type ProveedorDns, proveedorDns, type RegistroDns, type Zona } from "./proveedor";
 
@@ -154,6 +156,7 @@ async function prepararZona(tenantId: string, apex: string, p: ProveedorDns): Pr
   const [{ deOtra }] = await prisma.$queryRaw<{ deOtra: boolean }[]>`SELECT zona_de_otra_banda(${z.id}, ${tenantId}::uuid) AS "deOtra"`;
   if (deOtra) throw new ErrorDominio(`Otra banda de Deoco ya está conectando ${apex}. Si el dominio es tuyo, escribinos.`);
 
+  await p.ajustarZona(z.id);
   const [, www] = nombresDelSitio(apex);
   const nuestros = [
     { tipo: "A", nombre: apex, valor: ip, proxy: true },
@@ -411,7 +414,46 @@ async function verificarZona(tenantId: string, zonaId: string, usuarioId: string
       console.warn(`[dominios] ${f.dominio} ya está verificado por otra banda.`);
     }
   }
+  if (verificadas) {
+    const apex = apexDe(filas[0].dominio);
+    // El mail no frena la verificación: si falla, el dominio igual queda andando.
+    await avisarDelegacionLista(tenantId, apex, zonaId).catch((e) => console.error(`[dominios] aviso de ${apex} activo:`, e));
+  }
   return verificadas;
+}
+
+const fechaLarga = (d: Date) => d.toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: ZONA });
+
+/** Mail al titular: la delegación se activó (una vez por zona). */
+function avisarDelegacionLista(tenantId: string, apex: string, zonaId: string) {
+  return avisarAlTitular(tenantId, {
+    clave: `dominio-delegado:${zonaId}`,
+    asunto: () => `${apex} ya está conectado a Deoco`,
+    parrafos: (banda) => [
+      `Cambiaste los nameservers de ${apex} y ya está conectado: el sitio de ${banda} anda en ${apex} y en www.${apex}.`,
+      "Cloudflare está terminando el certificado HTTPS (suele tardar unos minutos). Cuando esté, podés elegir el dominio como principal en Dominios: desde ahí, tu subdominio de Deoco redirige a él.",
+    ],
+    boton: { texto: "Ir a Dominios", ruta: "/dominios" },
+  });
+}
+
+/** Mail al titular: la delegación vence en un par de días si no cambia los nameservers (una vez). */
+function avisarDelegacionPorVencer(tenantId: string, apex: string, creadoEn: Date, nameservers: string[], migrando: boolean) {
+  const vence = venceDelegacion(creadoEn);
+  const nicAr = /\.ar$/.test(apex);
+  return avisarAlTitular(tenantId, {
+    clave: `dominio-por-vencer:${apex}:${creadoEn.toISOString()}`,
+    asunto: () => `${apex}: falta cambiar los nameservers`,
+    parrafos: () => [
+      `Pediste conectar ${apex} a Deoco, pero todavía no vemos los nameservers de Deoco en el dominio.`,
+      `Si no los cambiás antes del ${fechaLarga(vence)}, el pedido vence: lo liberamos y, para conectarlo, hay que pedirlo de nuevo.${migrando ? ` Mientras tanto, www.${apex} sigue andando como hasta ahora.` : ""}`,
+      ...(nameservers.length
+        ? [`${nicAr ? "En nic.ar, entrá al dominio, elegí Delegar y pegá" : "Donde registraste el dominio, cambiá los nameservers por"} estos dos: ${nameservers.join(" y ")}.`]
+        : [`${apex} todavía no figura registrado: ${nicAr ? "registralo en nic.ar" : "registralo"} y después seguí los pasos de Dominios.`]),
+      "El cambio puede tardar unas horas en verse: conviene hacerlo cuanto antes.",
+    ],
+    boton: { texto: "Ver los pasos en Dominios", ruta: "/dominios" },
+  });
 }
 
 /** Una delegación que nadie completa (la banda nunca cambió los nameservers) vence a los 14 días. */
@@ -686,10 +728,18 @@ async function revisarDelegaciones(ahora: Date): Promise<number> {
           tx.dominio.updateMany({ where: { via: "zona", dominio: { in: nombresDelSitio(apex) } }, data: { revisadoEn: ahora } }),
         );
         if (!e.llega) {
-          const creado = Math.min(...filas.filter((x) => apexDe(x.dominio) === apex).map((x) => x.creadoEn.getTime()));
-          if (ahora.getTime() >= venceDelegacion(new Date(creado)).getTime()) {
+          const creado = new Date(Math.min(...filas.filter((x) => apexDe(x.dominio) === apex).map((x) => x.creadoEn.getTime())));
+          const vence = venceDelegacion(creado).getTime();
+          if (ahora.getTime() >= vence) {
             await liberarDelegacion(tenantId, apex, p);
             liberadas++;
+          } else if (ahora.getTime() >= vence - AVISAR_VENCIMIENTO_DIAS * 86_400_000) {
+            const zona = await conTenant(tenantId, (tx) => tx.dominio.findMany({ where: { dominio: { in: nombresDelSitio(apex) } } }));
+            const nameservers = zona.find((x) => x.nameservers.length)?.nameservers ?? [];
+            const migrando = zona.some((x) => x.via === "cname" && x.migrandoA);
+            await avisarDelegacionPorVencer(tenantId, apex, creado, nameservers, migrando).catch((err) =>
+              console.error(`[dominios] aviso de ${apex} por vencer:`, err),
+            );
           }
           continue;
         }
