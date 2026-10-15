@@ -37,7 +37,7 @@ export async function elegirPlanAccion(slug: string, planId: string, _: EstadoFo
 
 export async function cancelarAccion(slug: string, _: EstadoFormulario, fd: FormData) {
   return comoTitular(slug, async (tenantId) => {
-    if (fd.get("confirmar") !== "on") throw new ErrorComercial("Para cancelar, confirmalo.");
+    if (fd.get("confirmar") !== "on") throw new ErrorComercial("Para cancelar, confirmalo: marcá la casilla de arriba del botón.");
     return cancelar(tenantId);
   });
 }

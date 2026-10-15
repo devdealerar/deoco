@@ -76,17 +76,38 @@ export async function solicitarRegistro(d: DatosRegistro, ip: string | null): Pr
 
   const app = origenPlataforma();
   const estilo = "font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1c1917;line-height:1.5;max-width:560px";
-  const [asunto, lineas, link] =
+  // A quién responde la persona: la casilla de Deoco, si está configurada.
+  const responderA = process.env.DEOCO_CUOTA_RESPONDER_A?.trim() || undefined;
+  const [asunto, lineas, link, boton] =
     r === "existe"
-      ? ["Ya tenés una cuenta en Deoco", ["Alguien (seguramente vos) quiso crear una cuenta en Deoco con este email, pero ya tenés una.", "Si no te acordás la contraseña, escribinos."], `${app}/ingresar`]
-      : ["Confirmá tu email para crear tu banda en Deoco", [`Hola, ${nombre}: para terminar de crear tu cuenta, confirmá tu email con este link (vale ${VALIDEZ_LINK_HORAS} horas).`, "Si no fuiste vos, ignorá este mail."], `${app}/registro/verificar#${token}`];
+      ? [
+          "Ya tenés una cuenta en Deoco",
+          [
+            `Hola: alguien (seguramente vos) quiso crear una cuenta nueva en Deoco con ${email}, pero ese email ya tiene una.`,
+            "Entrá con tu email y tu contraseña de siempre.",
+            responderA ? "Si no te acordás la contraseña, respondé este mail y te ayudamos." : "Si no fuiste vos, ignorá este mail: no cambió nada.",
+          ],
+          `${app}/ingresar`,
+          "Ingresar a Deoco",
+        ]
+      : [
+          "Confirmá tu email para crear tu banda en Deoco",
+          [
+            `Hola, ${nombre}: ya casi está. Confirmá tu email con el botón de abajo y después armás tu banda.`,
+            `El link vale ${VALIDEZ_LINK_HORAS} horas. Si vence, registrate de nuevo y te mandamos otro.`,
+            "Si no fuiste vos, ignorá este mail: sin confirmar no se crea ninguna cuenta.",
+          ],
+          `${app}/registro/verificar#${token}`,
+          "Confirmar mi email",
+        ];
   await envio.enviar({
     id: randomBytes(8).toString("hex"),
     de: { nombre: "Deoco", direccion: remitente() },
     para: email,
+    ...(responderA ? { responderA } : {}),
     asunto,
-    html: `<div style="${estilo}">${lineas.map((l) => `<p>${h(l)}</p>`).join("")}<p><a href="${h(link)}">${r === "existe" ? "Ingresar" : "Confirmar mi email"}</a></p></div>`,
-    texto: [...lineas, "", link].join("\n"),
+    html: `<div style="${estilo}">${lineas.map((l) => `<p>${h(l)}</p>`).join("")}<p><a href="${h(link)}">${h(boton)}</a></p></div>`,
+    texto: [...lineas, "", `${boton}: ${link}`].join("\n"),
   });
 }
 

@@ -88,7 +88,7 @@ export async function EventoPublico({ tenantId, params }: PropsRutaPublica) {
               <span className="tabular-nums">
                 {formatearPesos(t.precio)}{" "}
                 <span className={c.suave}>
-                  {t.venta === "agotada" ? "· agotada" : t.venta === "antes" ? "· todavía no" : t.venta === "despues" ? "· venta cerrada" : ""}
+                  {t.venta === "agotada" ? "· agotada" : t.venta === "antes" ? "· todavía no está a la venta" : t.venta === "despues" ? "· venta cerrada" : ""}
                 </span>
               </span>
             </li>

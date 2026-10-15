@@ -157,7 +157,8 @@ export async function limiteDe(modulo: Modulo, tenantId: string, clave: string, 
 export async function mensajeDeLimite(id: string, tenantId: string, maximo: number, necesarios: number, reg: Registro = registroGlobal()) {
   const l = reg.limites.find((x) => x.id === id);
   const etiqueta = l?.definicion.etiqueta ?? id;
-  const base = `Llegaste al máximo de ${etiqueta} de tu cuenta (${maximo}).`;
+  // Lo ya publicado no cambia: solo no se puede sumar más.
+  const base = `Tu plan permite hasta ${maximo} ${etiqueta} y ya llegaste. Lo que ya está publicado sigue igual.`;
   const como = await reg.gestor?.gestion.comoAmpliar(tenantId, id, necesarios).catch((e) => {
     console.error(`[cuenta] comoAmpliar(${id}): ${e instanceof Error ? e.message : e}`);
     return null;

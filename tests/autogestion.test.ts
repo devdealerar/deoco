@@ -127,7 +127,7 @@ describe("crear la banda", () => {
     for (const sub of ["app", "admin", "soporte", "pagos", "www"]) {
       await expect(crearBandaPropia(usuarioId, { nombre: "X", subdominio: sub }, null)).rejects.toThrow("reservado");
     }
-    await expect(crearBandaPropia(usuarioId, { nombre: "X", subdominio: "Con Espacios" }, null)).rejects.toThrow("no es válido");
+    await expect(crearBandaPropia(usuarioId, { nombre: "X", subdominio: "Con Espacios" }, null)).rejects.toThrow("no sirve");
     const otra = await dueno.tenant.create({ data: { nombre: "Tomada", slug: "tomada" } });
     await dueno.dominio.create({ data: { tenantId: otra.id, dominio: "tomada.lvh.me", esPrincipal: true, verificado: true } });
     await expect(crearBandaPropia(usuarioId, { nombre: "X", subdominio: "tomada" }, null)).rejects.toThrow("ya está tomado");

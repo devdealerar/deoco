@@ -29,7 +29,7 @@ function validarTipo(d: DatosTipo): DatosTipo {
   if (!nombre || nombre.length > 60) throw new ErrorTicketera("El tipo de entrada necesita un nombre (hasta 60 caracteres).");
   if (!Number.isInteger(d.precio) || d.precio <= 0) throw new ErrorTicketera("El precio tiene que ser mayor a cero.");
   if (!Number.isInteger(d.cupo) || d.cupo < 1 || d.cupo > 100000) throw new ErrorTicketera("El cupo va de 1 a 100.000.");
-  if (d.ventaDesde && d.ventaHasta && d.ventaDesde >= d.ventaHasta) throw new ErrorTicketera("La venta tiene que empezar antes de terminar.");
+  if (d.ventaDesde && d.ventaHasta && d.ventaDesde >= d.ventaHasta) throw new ErrorTicketera("La fecha de inicio de la venta tiene que ser anterior a la de cierre.");
   return { ...d, nombre };
 }
 

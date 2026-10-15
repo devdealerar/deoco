@@ -157,7 +157,7 @@ describe("límites", () => {
     expect(usados.get(e.a.id)).toBe(3);
     const error = (r.find((x) => x.status === "rejected") as PromiseRejectedResult).reason;
     expect(error).toBeInstanceOf(ErrorLimite);
-    expect(error.message).toBe("Llegaste al máximo de cosas publicadas de tu cuenta (3). Para 4 contador.cosas, cambiá de plan.");
+    expect(error.message).toBe("Tu plan permite hasta 3 cosas publicadas y ya llegaste. Lo que ya está publicado sigue igual. Para 4 contador.cosas, cambiá de plan.");
     // La otra banda no tiene tope.
     await conTenant(e.b.id, (tx) => exigirLimite(tx, contador, e.b.id, "cosas", async () => 99, reg));
     await expect(conTenant(e.a.id, (tx) => exigirLimite(tx, base, e.a.id, "cosas", async () => 1, reg))).rejects.toThrow(/no declara el límite/);

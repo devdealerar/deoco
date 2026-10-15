@@ -52,7 +52,7 @@ describe("autogestión del alta", () => {
     await b.locator('input[name="nombre"]').fill("Vera y los Nuevos");
     await b.locator('input[name="subdominio"]').fill("admin");
     await b.getByRole("button", { name: "Crear banda" }).click();
-    await page.locator("text=está reservado para la plataforma").waitFor();
+    await page.locator("text=está reservado").waitFor();
     await b.locator('input[name="subdominio"]').fill("vera-nuevos");
     await captura(page, "registro-banda");
     await Promise.all([page.waitForURL(`${APP}/b/vera-nuevos`), b.getByRole("button", { name: "Crear banda" }).click()]);

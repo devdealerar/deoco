@@ -142,8 +142,8 @@ describe("planes", () => {
     await publicarProducto(e.a.id, ids[1], true);
     const error = await publicarProducto(e.a.id, ids[2], true).catch((x) => x);
     expect(error).toBeInstanceOf(ErrorLimite);
-    expect(error.message).toContain("Llegaste al máximo de productos publicados de tu cuenta (2)");
-    expect(error.message).toContain("El plan Premium permite hasta 100");
+    expect(error.message).toContain("Tu plan permite hasta 2 productos publicados y ya llegaste.");
+    expect(error.message).toContain("pasate al plan Premium (hasta 100)");
     // No se rompió nada: los dos publicados siguen publicados.
     expect(await dueno.tiendaProducto.count({ where: { tenantId: e.a.id, publicado: true } })).toBe(2);
   });
@@ -225,7 +225,7 @@ describe("cuota", () => {
     await revisarVencimientos(new Date(Date.now() + 10 * DIA + 60_000));
     expect(await estado(e.a.id)).toBe("SUSPENDIDO");
     await esperarCorreos();
-    expect(bandejaDeSalida().some((m) => m.asunto.includes("quedó suspendido"))).toBe(true);
+    expect(bandejaDeSalida().some((m) => m.asunto.includes("suspendimos el panel"))).toBe(true);
   });
 
   it("SUSPENDIDO: el sitio público sigue online y el panel queda bloqueado salvo el pago (solo titular)", () => {
@@ -277,7 +277,7 @@ describe("cuota", () => {
   it("cancelar deja de cobrar; la cuenta sigue hasta el vencimiento", async () => {
     await alCrearBanda(e.a.id);
     const id = await suscribir(e.a.id, "banda-a", "medium");
-    expect(await cancelar(e.a.id)).toContain("Tu cuenta sigue hasta el");
+    expect(await cancelar(e.a.id)).toContain("El panel sigue funcionando hasta el");
     expect(mp.suscripciones.get(id)!.status).toBe("cancelled");
     expect(await estado(e.a.id)).toBe("ACTIVO");
   });

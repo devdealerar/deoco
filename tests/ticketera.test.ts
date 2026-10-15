@@ -82,7 +82,7 @@ describe("panel: shows y tipos", () => {
     const id = await crearEvento(e.a.id, datosShow());
     await expect(publicarEvento(e.a.id, id, true)).rejects.toThrow(/al menos un tipo/);
     await expect(crearTipo(e.a.id, id, { ...tipo, precio: 0 })).rejects.toThrow(/mayor a cero/);
-    await expect(crearTipo(e.a.id, id, { ...tipo, ventaDesde: EN_UN_MES, ventaHasta: new Date() })).rejects.toThrow(/empezar antes/);
+    await expect(crearTipo(e.a.id, id, { ...tipo, ventaDesde: EN_UN_MES, ventaHasta: new Date() })).rejects.toThrow(/anterior a la de cierre/);
     await crearTipo(e.a.id, id, tipo);
     await publicarEvento(e.a.id, id, true);
     const t = (await evento(e.a.id, id))!.tipos[0];

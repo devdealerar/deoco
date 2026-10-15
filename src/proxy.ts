@@ -9,7 +9,19 @@ import {
 } from "@/nucleo/tenant/resolver";
 
 const noEncontrado = () => new NextResponse("No encontrado", { status: 404 });
-const prohibido = () => new NextResponse("Prohibido", { status: 403 });
+// El único 403 del proxy: el panel de una banda SUSPENDIDA (salvo Plan y pago). Una página que
+// explica qué pasó y qué hacer, no un "Prohibido" pelado.
+const panelSuspendido = (slug: string) =>
+  new NextResponse(
+    `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Panel suspendido · Deoco</title></head>
+<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1c1917;background:#fafaf9;margin:0">
+<main style="max-width:480px;margin:15vh auto;padding:0 24px;line-height:1.5">
+<h1 style="font-size:22px">El panel de esta banda está en pausa</h1>
+<p>La cuota de Deoco está pendiente. El sitio público sigue online y no se borró nada.</p>
+<p>Quien es titular de la banda puede regularizarlo en <a href="/b/${encodeURIComponent(slug)}/pago" style="color:#6941c6;font-weight:600">Plan y pago</a>: apenas se acredita el pago, el panel vuelve a funcionar.</p>
+</main></body></html>`,
+    { status: 403, headers: { "content-type": "text/html; charset=utf-8" } },
+  );
 
 /**
  * Resolución de tenant, dos caminos:
@@ -46,7 +58,8 @@ export async function proxy(request: NextRequest) {
 
   const decision = decidirPorEstado(tenant.estado, superficie, esPago);
   if (decision.tipo === "no-encontrado") return noEncontrado();
-  if (decision.tipo === "prohibido") return prohibido();
+  // "prohibido" solo sale del panel (por slug) de una banda suspendida.
+  if (decision.tipo === "prohibido") return panelSuspendido(rutaPanelBanda(request.nextUrl.pathname)?.slug ?? "");
 
   // Un solo dominio canónico: los demás de la banda (el subdominio, otros propios)
   // redirigen al principal, con la misma ruta. Temporal (307): si la banda cambia de

@@ -116,8 +116,8 @@ export async function guardarArchivo(
           .gestor?.gestion.comoAmpliar(tenantId, LIMITE_ALMACENAMIENTO, Number(usado + total))
           .catch(() => null);
         throw new ErrorArchivo(
-          `No hay espacio para "${nombre}" (${formatearBytes(total)}): la banda usa ${formatearBytes(usado)} ` +
-            `de ${formatearBytes(limite)}. Borrá archivos que no uses${como ? `. ${como}` : " o ampliá el espacio."}`,
+          `No hay espacio para "${nombre}" (${formatearBytes(total)}): la banda ya usa ${formatearBytes(usado)} ` +
+            `de ${formatearBytes(limite)}. Borrá archivos que no uses${como ? `. ${como}` : " o escribinos para tener más espacio."}`,
         );
       }
       await tx.archivo.create({

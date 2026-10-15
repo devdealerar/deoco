@@ -24,6 +24,8 @@ const EXCEPCIONES: Record<string, string> = {
   "modulos/ticketera/panel/puerta-cliente.tsx":
     "Puerta: pantalla a medida para un celular en el venue (botones enormes, resultado a pantalla completa).",
   "src/app/error.tsx": "Error global: lo comparten el panel y el sitio público, con estilo neutro.",
+  "src/app/admin/menu.tsx":
+    "Menú lateral del back office agrupado por módulo, como la barra del panel de la banda (marco.tsx): no son pestañas; aria-current marca la página actual.",
 };
 
 const REGLAS: { usar: string; marca: RegExp }[] = [

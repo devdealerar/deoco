@@ -81,7 +81,7 @@ ${filasEnvio.map(([t, m]) => `<tr><td style="${celda}">${h(t)}</td><td style="${
     linea2,
     "",
     "¿Qué sigue? Tu pedido se produce especialmente para vos y te lo envía el fabricante a esa dirección.",
-    ...(url ? [`En qué anda: ${url}`] : []),
+    ...(url ? [`Seguí tu pedido acá: ${url}`] : []),
     `¿Alguna consulta? Respondé este mail: le llega a ${contacto.nombre}.`,
   ].join("\n");
 
@@ -207,7 +207,7 @@ export async function alDespacharseOrden(evento: Evento) {
 <h1 style="font-size:20px">${parte} ya salió</h1>
 <p>${h(pedido.nombre)}, despacharon lo siguiente de tu pedido <strong>#${numero(pedido.id)}</strong> en la tienda de <strong>${h(banda.nombre)}</strong>:</p>
 <ul>${renglones.map((r) => `<li>${h(r)}</li>`).join("")}</ul>
-${orden.seguimiento ? `<p>Número de seguimiento: <strong>${h(orden.seguimiento)}</strong></p>` : "<p>El envío no tiene número de seguimiento.</p>"}
+${orden.seguimiento ? `<p>Número de seguimiento: <strong>${h(orden.seguimiento)}</strong></p>` : "<p>Este envío no tiene número de seguimiento. Si tenés dudas, respondé este mail.</p>"}
 ${faltan > 0 ? "<p>El resto de tu pedido sale por separado: te avisamos cuando se despache.</p>" : ""}
 ${url ? `<p>Tu pedido: <a href="${h(url)}">${h(url)}</a></p>` : ""}
 <p>¿Alguna consulta? Respondé este mail: le llega a ${h(contacto.nombre)}.</p>
@@ -217,7 +217,7 @@ ${url ? `<p>Tu pedido: <a href="${h(url)}">${h(url)}</a></p>` : ""}
     `${pedido.nombre}, despacharon lo siguiente de tu pedido #${numero(pedido.id)} en la tienda de ${banda.nombre}:`,
     ...renglones.map((r) => `- ${r}`),
     "",
-    orden.seguimiento ? `Número de seguimiento: ${orden.seguimiento}` : "El envío no tiene número de seguimiento.",
+    orden.seguimiento ? `Número de seguimiento: ${orden.seguimiento}` : "Este envío no tiene número de seguimiento. Si tenés dudas, respondé este mail.",
     ...(faltan > 0 ? ["El resto de tu pedido sale por separado: te avisamos cuando se despache."] : []),
     ...(url ? [`Tu pedido: ${url}`] : []),
     `¿Alguna consulta? Respondé este mail: le llega a ${contacto.nombre}.`,

@@ -22,8 +22,8 @@ export function Confirmar({ confirmar }: { confirmar: (token: string) => Promise
   if (estado === "mal") {
     return (
       <div className="flex flex-col gap-4">
-        <Aviso tono="error" titulo="Este link no sirve.">
-          Puede que haya vencido o que ya lo hayas usado. Si ya confirmaste, ingresá; si no, registrate de nuevo.
+        <Aviso tono="error" titulo="Este link ya no sirve.">
+          Puede que haya vencido (dura 24 horas) o que ya lo hayas usado. Si ya confirmaste tu email, ingresá; si no, registrate de nuevo y te mandamos otro.
         </Aviso>
         <Boton href="/ingresar">Ingresar</Boton>
       </div>

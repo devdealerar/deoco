@@ -43,7 +43,7 @@ ${c.entradas
 </div>`,
   )
   .join("\n")}
-${url ? `<p>¿Perdiste este mail? Tus entradas están siempre en <a href="${h(url)}">${h(url)}</a> (no compartas ese link).</p>` : ""}
+${url ? `<p>Si perdés este mail, tus entradas están siempre en <a href="${h(url)}">${h(url)}</a> (no compartas ese link: es tu acceso).</p>` : ""}
 <p>¿Alguna consulta? Respondé este mail: le llega a ${h(banda.nombre)}.</p>
 </div>`;
   const texto = [
@@ -53,7 +53,7 @@ ${url ? `<p>¿Perdiste este mail? Tus entradas están siempre en <a href="${h(ur
     "Mostrá el QR de cada entrada en la puerta. Si no se ve, el código se puede tipear:",
     ...c.entradas.map((e) => `- ${e.nombre} (documento ${e.documento}) · ${c.tipo.nombre}: ${e.codigo}`),
     "",
-    ...(url ? [`Tus entradas, siempre: ${url} (no compartas ese link)`] : []),
+    ...(url ? [`Si perdés este mail, tus entradas están acá: ${url} (no compartas ese link: es tu acceso)`] : []),
     "",
     `¿Alguna consulta? Respondé este mail: le llega a ${banda.nombre}.`,
   ].join("\n");

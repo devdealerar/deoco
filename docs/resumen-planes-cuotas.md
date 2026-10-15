@@ -37,8 +37,8 @@ sigue igual en `docs/despliegue.md`. **Nuevo**:
 2. En esa aplicación → **Webhooks**: URL
    `https://app.deoco.com/avisos/plataforma/comercial/cuota/mercadopago`, eventos de
    suscripciones; la **clave secreta** → `DEOCO_CUOTA_MP_SECRETO_AVISOS`.
-3. Opcional: `DEOCO_CUOTA_RESPONDER_A` (casilla a la que responden los titulares los mails de la
-   cuota) y `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` (plazos de limpieza).
+3. Recomendada: `DEOCO_CUOTA_RESPONDER_A` (casilla de Deoco a la que responden las bandas los
+   mails del alta, la mora y la suspensión). Opcional: y `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` (plazos de limpieza).
 4. `DEOCO_CORREO=smtp` ya no es opcional en la práctica: sin mail no hay alta sola.
 5. Con tu usuario de staff, en `/admin/m/comercial/planes`: **precios en pesos** de Esencial,
    Medium y Premium (sin precio no se pueden elegir); revisar espacio y topes de cada plan
@@ -62,8 +62,6 @@ sigue igual en `docs/despliegue.md`. **Nuevo**:
   instalar `openssl` en la imagen no se pudo desde este entorno) y `pg` avisa una vez de una
   consulta en paralelo dentro de una transacción: es del intérprete de Prisma con `adapter-pg`, no
   de nuestro código; revisarlo al pasar a `pg@9`.
-- **Menú del back office**: con más módulos se amontona (una fila de entradas). Agruparlo por
-  módulo es lo siguiente si molesta.
 - **Antiabuso de la alta sola**: sin captcha; si aparece abuso real, es el próximo paso.
 
 ## Próximo paso sugerido

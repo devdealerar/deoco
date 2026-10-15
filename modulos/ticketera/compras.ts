@@ -124,7 +124,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
       const { count } = await tx.ticketeraCompra.updateMany({ where: { id: compra.id, estado: "RESERVADA" }, data: { estado: "VENCIDA", observacion: "No se pudo crear el cobro." } });
       if (count) await sumarOcupadas(tx, compra.tipoId, -compra.cantidad);
     });
-    if (e instanceof ErrorPasarela) throw new ErrorTicketera("No pudimos conectar con la pasarela de pago. Probá de nuevo en un rato.");
+    if (e instanceof ErrorPasarela) throw new ErrorTicketera("No pudimos abrir el pago. Probá de nuevo en un rato: no se te cobró nada.");
     throw e;
   }
 }

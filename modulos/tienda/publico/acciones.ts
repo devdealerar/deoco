@@ -66,7 +66,8 @@ export async function confirmarAccion(_: EstadoCheckout, fd: FormData): Promise<
     }
   } catch (e) {
     if (e instanceof ErrorCompra) return { problemas: e.problemas };
-    if (e instanceof ErrorPasarela) return { problemas: [e.message] };
+    // La banda no puede cobrar (sin cuenta conectada): el fan no tiene por qué saber más.
+    if (e instanceof ErrorPasarela) return { problemas: ["La tienda no está recibiendo pedidos en este momento. Probá más tarde."] };
     return { problemas: [mensajeParaElPublico(e, "tienda: checkout")] };
   }
 }
@@ -80,7 +81,7 @@ export async function pagarAccion(pedidoId: string): Promise<{ redireccion?: str
   try {
     return { redireccion: await iniciarCobro(tienda, tenantId, pedidoId, await origenDelPedido()) };
   } catch (e) {
-    if (e instanceof ErrorPasarela) return { error: "No pudimos conectar con la pasarela de pago. Probá de nuevo en un rato." };
+    if (e instanceof ErrorPasarela) return { error: "No pudimos abrir el pago. Probá de nuevo en un rato: no se te cobró nada." };
     return { error: mensajeParaElPublico(e, "tienda: pagar") };
   }
 }

@@ -117,7 +117,7 @@ describe("alta de banda (y prueba 5: deja su auditoría)", () => {
   });
 
   it.each([
-    [{ slug: "Mal Slug" }, /El slug "mal slug" no es válido/],
+    [{ slug: "Mal Slug" }, /El slug "mal slug" no sirve/],
     [{ slug: "app" }, /está reservado/],
     [{ subdominio: "www" }, /El subdominio "www" está reservado/],
     [{ slug: "banda-a" }, /Ya existe una banda con el slug "banda-a"/],

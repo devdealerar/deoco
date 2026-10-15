@@ -18,7 +18,7 @@ export function Pagar({ pedidoId }: { pedidoId: string }) {
           empezar(async () => {
             const r = await pagarAccion(pedidoId);
             if (r.redireccion) window.location.assign(r.redireccion);
-            else setError(r.error ?? "No se pudo iniciar el pago.");
+            else setError(r.error ?? "No pudimos abrir el pago. Probá de nuevo en un rato: no se te cobró nada.");
           })
         }
       >

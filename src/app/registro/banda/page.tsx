@@ -16,7 +16,7 @@ export default async function CrearBanda() {
     <main className="flex min-h-dvh items-center justify-center bg-secondary px-4 py-12">
       <div className="flex w-full max-w-md flex-col gap-8">
         <span className="text-center text-display-sm font-bold tracking-tight text-primary">deoco</span>
-        <Tarjeta titulo="Creá tu banda" descripcion="Tu sitio queda en línea en tu subdominio; después lo armás desde el panel.">
+        <Tarjeta titulo="Creá tu banda" descripcion="Elegí el nombre y la dirección de tu sitio. Queda en línea enseguida y lo armás desde el panel.">
           {ya ? (
             <>
               <Aviso tono="info">Tu cuenta ya creó una banda. Para sumar otra, escribinos.</Aviso>
@@ -31,7 +31,7 @@ export default async function CrearBanda() {
                 required
                 maxLength={40}
                 placeholder="labanda"
-                ayuda={`Tu sitio: <subdominio>.${dominioRaiz()} (minúsculas, números y guiones).`}
+                ayuda={`Así queda la dirección de tu sitio: labanda.${dominioRaiz()}. Solo minúsculas, números y guiones.`}
               />
               {opciones.length > 0 && <Selector name="opcion" etiqueta="Cómo empezás" opciones={opciones.map((o) => ({ valor: o.valor, texto: o.texto }))} />}
               {opciones.length > 0 && (

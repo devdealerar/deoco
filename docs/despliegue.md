@@ -205,7 +205,7 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_CUOTA_MP_TOKEN` | para cobrar la cuota | Access token de producción de la cuenta de Mercado Pago **de Deoco** (no de una banda). Sin él, la app arranca (aviso en el log) pero nadie puede cargar su forma de pago |
 | `DEOCO_CUOTA_MP_SECRETO_AVISOS` | recomendada | Clave secreta de webhooks de esa aplicación: con ella se verifica la firma de cada aviso de la cuota |
 | `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` | no | Limpieza de correos enviados: días hasta vaciar adjuntos (7), cuerpo (90) y borrar la fila (365). Lo pendiente o fallido no se toca |
-| `DEOCO_CUOTA_RESPONDER_A` | no | Casilla a la que responden los titulares los mails de la cuota (mora, suspensión) |
+| `DEOCO_CUOTA_RESPONDER_A` | recomendada | Casilla de Deoco a la que responden las bandas los mails de Deoco (alta sola, mora, suspensión). Sin ella, esos mails no ofrecen "respondé este mail" |
 
 ## Correo (Resend por SMTP)
 

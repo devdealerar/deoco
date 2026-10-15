@@ -29,7 +29,7 @@ export async function guardarAccion(slug: string, moduloId: string, clave: strin
 
 export async function borrarAccion(slug: string, moduloId: string, clave: string, _: EstadoFormulario, fd: FormData) {
   return comoTitular(slug, async (usuarioId, tenantId) => {
-    if (fd.get("confirmar") !== "on") throw new ErrorSecreto("Para borrarla, confirmalo: el módulo deja de poder usarla.");
+    if (fd.get("confirmar") !== "on") throw new ErrorSecreto("Para borrarla, confirmalo: sin esta credencial, lo que la usa (por ejemplo, cobrar) deja de funcionar.");
     await borrarSecreto(usuarioId, tenantId, moduloId, clave);
     return "Borrada.";
   });

@@ -113,7 +113,7 @@ describe("prueba 9: cuota", () => {
     await guardar(a.id, "dos.jpg", datos);
     const error = await guardar(a.id, "tres.jpg", datos).catch((e) => e);
     expect(error).toBeInstanceOf(ErrorArchivo);
-    expect(error.message).toMatch(/^No hay espacio para "tres.jpg" \(.+\): la banda usa .+ de .+\. Borrá archivos que no uses( o ampliá el espacio\.|\. .+)$/);
+    expect(error.message).toMatch(/^No hay espacio para "tres.jpg" \(.+\): la banda ya usa .+ de .+\. Borrá archivos que no uses( o escribinos para tener más espacio\.|\. .+)$/);
     expect(await dueno.archivo.count({ where: { tenantId: a.id } })).toBe(2);
   });
 

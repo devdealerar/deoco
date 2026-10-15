@@ -198,7 +198,7 @@ describe("despacho", () => {
     expect((await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id } })).estado).toBe("DESPACHADO");
     [m] = bandejaDeSalida();
     expect(m.asunto).toMatch(/^El resto de tu pedido .* ya salió/);
-    expect(m.texto).toContain("El envío no tiene número de seguimiento.");
+    expect(m.texto).toContain("Este envío no tiene número de seguimiento.");
     expect(await dueno.auditoria.count({ where: { accion: "tienda.orden_despachada", tenantId: e.a.id } })).toBe(2);
   });
 });

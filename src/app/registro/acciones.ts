@@ -25,7 +25,7 @@ export async function registrarseAccion(_: EstadoFormulario, fd: FormData): Prom
     if (e instanceof ErrorAutogestion) return { error: e.message };
     throw e;
   }
-  return { ok: `Te mandamos un mail a ${email}. Abrí el link para confirmar tu email y seguir.` };
+  return { ok: `Te mandamos un mail a ${email}. Abrí el link que tiene para confirmar tu email y seguir (si no lo ves en unos minutos, revisá el spam).` };
 }
 
 /** El token del link (llega desde el navegador, nunca en la URL). true: cuenta creada. */

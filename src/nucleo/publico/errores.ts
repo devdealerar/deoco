@@ -15,7 +15,7 @@ export function esSaturacion(e: unknown): boolean {
 }
 
 export const MENSAJE_SATURACION = "Hay mucha gente comprando en este momento. Probá de nuevo en unos segundos.";
-export const MENSAJE_FALLA = "No pudimos completar la operación. Probá de nuevo en unos segundos.";
+export const MENSAJE_FALLA = "No pudimos completar lo que pediste. Probá de nuevo en unos segundos.";
 
 /** La frase para el público ante un error inesperado. Loguea el detalle (nunca al público). */
 export function mensajeParaElPublico(e: unknown, donde: string): string {

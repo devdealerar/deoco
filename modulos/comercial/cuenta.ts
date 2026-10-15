@@ -9,7 +9,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ContextoStaff } from "@/nucleo/acceso/staff";
 import { catalogoDeCuenta, fijarEstado, fijarLimites, fijarModulos } from "@/nucleo/cuenta";
-import { LIMITE_ALMACENAMIENTO } from "@/nucleo/archivos";
+import { formatearBytes, LIMITE_ALMACENAMIENTO } from "@/nucleo/archivos";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
 import { formatearPesos } from "@/nucleo/dinero";
@@ -22,6 +22,7 @@ import {
   consultarSuscripcion,
   crearSuscripcion,
   cuotaConfigurada,
+  pasarelaDeLaCuota,
 } from "@/nucleo/pagos/cuota";
 import { titularDeBanda } from "@/nucleo/personas";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
@@ -105,7 +106,7 @@ export function planEfectivo(cuenta: Pick<Cuenta, "planId" | "pro">, todos: Plan
 export async function aplicarPlan(tenantId: string): Promise<{ prendidos: string[]; apagados: string[]; despublicados: Record<string, number> }> {
   const modulo = await comercial();
   const cuenta = await cuentaDe(tenantId);
-  if (!cuenta) throw new ErrorComercial("La banda no tiene cuenta.");
+  if (!cuenta) throw new ErrorComercial("Tu banda todavía no tiene un plan asignado. Escribinos y lo resolvemos.");
   const plan = planEfectivo(cuenta, await planes());
   const reg = catalogoDeCuenta();
   // Un plan puede nombrar un módulo que no está en este build: no se prende (no rompe).
@@ -148,13 +149,13 @@ export async function alCrearBanda(tenantId: string, opcion?: string, ahora = ne
 export async function opcionesDeAlta() {
   const [cfg, todos] = await Promise.all([plazos(), planes()]);
   const prueba = todos.find((p) => p.id === cfg.planPrueba);
-  const opciones = [{ valor: OPCION_PRUEBA, texto: `Probar ${cfg.diasPrueba} días gratis${prueba ? ` (plan ${prueba.nombre})` : ""}`, detalle: "Sin tarjeta. Al terminar, elegís un plan." }];
+  const opciones = [{ valor: OPCION_PRUEBA, texto: `Probar ${cfg.diasPrueba} días gratis${prueba ? ` (plan ${prueba.nombre})` : ""}`, detalle: "sin tarjeta. Al terminar, elegís un plan para seguir." }];
   if (!cuotaConfigurada()) return opciones;
   return [
     ...opciones,
     ...todos
       .filter((p) => p.aLaVenta && p.precio !== null)
-      .map((p) => ({ valor: p.id, texto: `Plan ${p.nombre} · ${formatearPesos(p.precio!)}/mes`, detalle: `${p.descripcion}. El primer cobro, al terminar la prueba.` })),
+      .map((p) => ({ valor: p.id, texto: `Plan ${p.nombre} · ${formatearPesos(p.precio!)}/mes`, detalle: `${p.descripcion ? `${p.descripcion.charAt(0).toLowerCase()}${p.descripcion.slice(1)}. ` : ""}Ahora cargás la forma de pago en ${pasarelaDeLaCuota().nombre}; igual empezás con ${cfg.diasPrueba} días gratis y el primer cobro es al terminar la prueba.` })),
   ];
 }
 
@@ -169,12 +170,17 @@ export async function comoAmpliar(tenantId: string, limite: string, necesarios: 
     return p.modulos.includes(moduloDelLimite) && (p.topes[limite] === undefined || p.topes[limite] >= necesarios);
   };
   const candidato = todos.filter((p) => p.aLaVenta && p.precio !== null && p.id !== actual?.id && alcanza(p)).sort((a, b) => a.precio! - b.precio!)[0];
+  const espacio = limite === LIMITE_ALMACENAMIENTO;
   if (candidato) {
-    const cuanto = limite === LIMITE_ALMACENAMIENTO ? "más espacio" : candidato.topes[limite] === undefined ? "sin tope" : `hasta ${candidato.topes[limite]}`;
-    return `El plan ${candidato.nombre} permite ${cuanto}: cambialo en Plan y pago.`;
+    const cuanto = espacio
+      ? formatearBytes(candidato.almacenamiento!)
+      : candidato.topes[limite] === undefined
+        ? "sin tope"
+        : `hasta ${candidato.topes[limite]}`;
+    return `Para ${espacio ? "tener más espacio" : "sumar más"}, pasate al plan ${candidato.nombre} (${cuanto}): quien es titular lo cambia en Plan y pago.`;
   }
   const pro = todos.find((p) => !p.aLaVenta);
-  return pro ? `Para más, escribinos por el plan ${pro.nombre}.` : null;
+  return pro ? `Si necesitás más, escribinos y lo vemos con el plan ${pro.nombre}.` : null;
 }
 
 // ── Suscripción: elegir, cambiar y cancelar (el titular, en /pago) ──────────────────────────────
@@ -197,10 +203,10 @@ export type ResultadoEleccion = { redireccion: string } | { mensaje: string };
 export async function elegirPlan(tenantId: string, slug: string, planId: string, ahora = new Date()): Promise<ResultadoEleccion> {
   const modulo = await comercial();
   const plan = (await planes()).find((p) => p.id === planId);
-  if (!plan || !plan.aLaVenta) throw new ErrorComercial("Ese plan no se puede elegir.");
-  if (plan.precio === null) throw new ErrorComercial(`El plan ${plan.nombre} todavía no tiene precio. Probá más tarde.`);
+  if (!plan || !plan.aLaVenta) throw new ErrorComercial("Ese plan no se puede elegir desde acá. Si te interesa, escribinos.");
+  if (plan.precio === null) throw new ErrorComercial(`El plan ${plan.nombre} todavía no está disponible. Probá más tarde o elegí otro.`);
   const cuenta = await cuentaDe(tenantId);
-  if (!cuenta) throw new ErrorComercial("La banda no tiene cuenta.");
+  if (!cuenta) throw new ErrorComercial("Tu banda todavía no tiene un plan asignado. Escribinos y lo resolvemos.");
   if (cuenta.pro) throw new ErrorComercial("Tu cuenta tiene un plan a medida: el cambio lo hace el equipo de Deoco.");
 
   if (cuenta.suscripcionId && cuenta.suscripcionEstado === "activa") {
@@ -215,7 +221,7 @@ export async function elegirPlan(tenantId: string, slug: string, planId: string,
     titular: await titularDeBanda(tx),
     nombre: (await tx.tenant.findUnique({ where: { id: tenantId }, select: { nombre: true } }))?.nombre ?? slug,
   }));
-  if (!banda.titular) throw new ErrorComercial("La banda no tiene titular.");
+  if (!banda.titular) throw new ErrorComercial("La banda no tiene titular. Escribinos y lo resolvemos.");
   // Una suscripción que quedó sin terminar (volvió de la pasarela sin cargar nada) se descarta.
   if (cuenta.suscripcionId && cuenta.suscripcionEstado === "pendiente") {
     await cancelarSuscripcion(modulo, cuenta.suscripcionId).catch((e) => console.error(`[comercial] no se pudo cancelar ${cuenta.suscripcionId}:`, e));
@@ -267,13 +273,13 @@ export async function sincronizar(tenantId: string, consultada?: SuscripcionCons
 /** El titular cancela: deja de cobrarse. La cuenta sigue hasta el vencimiento; después, mora. */
 export async function cancelar(tenantId: string): Promise<string> {
   const cuenta = await cuentaDe(tenantId);
-  if (!cuenta?.suscripcionId || cuenta.suscripcionEstado === "cancelada") throw new ErrorComercial("No tenés una suscripción para cancelar.");
+  if (!cuenta?.suscripcionId || cuenta.suscripcionEstado === "cancelada") throw new ErrorComercial("No tenés una suscripción activa: no hay nada para cancelar.");
   await cancelarSuscripcion(await comercial(), cuenta.suscripcionId);
   await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { suscripcionEstado: "cancelada", planElegido: null } }));
   const hasta = cuenta.pagoHasta ?? cuenta.pruebaHasta;
   return hasta
-    ? `Cancelada: no se cobra más. Tu cuenta sigue hasta el ${hasta.toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}.`
-    : "Cancelada: no se cobra más.";
+    ? `Listo, cancelaste la suscripción: no se cobra más. El panel sigue funcionando hasta el ${hasta.toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" })}.`
+    : "Listo, cancelaste la suscripción: no se cobra más.";
 }
 
 // ── Cobros y vencimientos ───────────────────────────────────────────────────────────────────
@@ -323,13 +329,13 @@ export function decidir(
   c: Pick<Cuenta, "pruebaHasta" | "pagoHasta" | "moraDesde" | "suscripcionEstado">,
   cfg: { diasGracia: number; diasMoraASuspender: number },
   ahora: Date,
-): { accion: "nada" } | { accion: "mora"; desde: Date } | { accion: "suspender"; motivo: string } {
+): { accion: "nada" } | { accion: "mora"; desde: Date } | { accion: "suspender"; motivo: string; causa: "prueba" | "mora" } {
   if (c.pruebaHasta && !c.pagoHasta && c.pruebaHasta <= ahora && c.suscripcionEstado !== "activa") {
-    return { accion: "suspender", motivo: "terminó la prueba sin forma de pago" };
+    return { accion: "suspender", motivo: "terminó la prueba sin forma de pago", causa: "prueba" };
   }
   if (c.moraDesde) {
     return ahora.getTime() >= c.moraDesde.getTime() + cfg.diasMoraASuspender * DIA
-      ? { accion: "suspender", motivo: `${cfg.diasMoraASuspender} días de mora` }
+      ? { accion: "suspender", motivo: `${cfg.diasMoraASuspender} días de mora`, causa: "mora" }
       : { accion: "nada" };
   }
   const vence = c.pagoHasta ?? c.pruebaHasta;
@@ -353,7 +359,7 @@ export async function revisarCuenta(tenantId: string, ahora: Date, cfg: { diasGr
   }
   if (d.accion === "suspender") {
     if (await fijarEstado(modulo, tenantId, "SUSPENDIDO", d.motivo)) {
-      await avisarSuspension(tenantId, d.motivo).catch((e) => console.error(`[comercial] mail de suspensión a ${tenantId}:`, e));
+      await avisarSuspension(tenantId, d.causa).catch((e) => console.error(`[comercial] mail de suspensión a ${tenantId}:`, e));
     }
     return "suspender";
   }
