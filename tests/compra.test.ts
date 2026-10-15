@@ -72,6 +72,7 @@ afterAll(async () => {
 });
 
 const compra = () => dueno.dominioCompra.findFirstOrThrow({ where: { tenantId: a.id } });
+const RECIBIDO = "Recibimos tu pago: estamos registrando lossatelites.com";
 const mails = async () => (await esperarCorreos(), bandejaDeSalida().map((m) => m.asunto));
 /** Una vuelta de la compra "más tarde" (lo que haría el barrido). */
 const despues = async (ms: number) => avanzarCompras(a.id, new Date(Date.now() + ms));
@@ -107,9 +108,10 @@ describe("alta", () => {
     expect(c).toMatchObject({ estado: "listo", paso: "listo" });
     expect(c.venceEn).toBeInstanceOf(Date);
     expect((await dueno.dominio.findFirstOrThrow({ where: { tenantId: a.id, esPrincipal: true } })).dominio).toBe("lossatelites.com");
-    // Un solo mail: el de la compra (no el de "cambiaste los nameservers" de una delegación).
-    expect(await mails()).toEqual(["lossatelites.com ya es tuyo"]);
-    expect(bandejaDeSalida()[0].texto).toContain("quedó registrado a nombre de Ana Pérez");
+    // El del pago y el de la compra (no el de "cambiaste los nameservers" de una delegación).
+    expect(await mails()).toEqual([RECIBIDO, "lossatelites.com ya es tuyo"]);
+    expect(bandejaDeSalida()[1].texto).toContain("quedó registrado a nombre de Ana Pérez");
+    expect(bandejaDeSalida()[0].texto).toContain("/b/banda-a/dominios/compras");
     expect((await dueno.auditoria.findMany({ where: { tenantId: a.id }, orderBy: { fecha: "asc" } })).map((x) => x.accion)).toEqual(
       expect.arrayContaining(["dominio.compra_pagada", "dominio.registrado", "dominio.verificado", "dominio.principal_marcado", "dominio.compra_lista"]),
     );
@@ -129,8 +131,8 @@ describe("alta", () => {
     await dominioPagado(a.id, pedido());
     await esperarCompras();
     expect(await compra()).toMatchObject({ estado: "fallido", motivo: "no-disponible", devolucion: "pendiente" });
-    expect(await mails()).toEqual(["No pudimos registrar lossatelites.com"]);
-    expect(bandejaDeSalida()[0].texto).toContain("Alguien registró lossatelites.com antes que nosotros. Te devolvemos el pago completo.");
+    expect(await mails()).toEqual([RECIBIDO, "No pudimos registrar lossatelites.com"]);
+    expect(bandejaDeSalida()[1].texto).toContain("Alguien registró lossatelites.com antes que nosotros. Te devolvemos el pago completo.");
   });
 
   it("sin saldo en la cuenta de Deoco: reintenta (el staff lo ve); al recargar, sigue; 24 h sin poder, devolución", async () => {
@@ -159,7 +161,7 @@ describe("alta", () => {
     await esperarCompras();
     const c = await compra();
     expect(c).toMatchObject({ estado: "datos", campo: "telefono" });
-    expect(await mails()).toEqual(["Revisá un dato para registrar lossatelites.com"]);
+    expect(await mails()).toEqual([RECIBIDO, "Revisá un dato para registrar lossatelites.com"]);
     await corregirDatosCompra(a.id, c.id, titular);
     await esperarCompras();
     expect(await compra()).toMatchObject({ estado: "en-curso", paso: "registrar", operacion: { estado: "en-curso" } });

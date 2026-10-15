@@ -5,6 +5,7 @@
 // La disponibilidad se consulta al registrador al cotizar y otra vez justo antes de cobrar. Igual
 // alguien lo puede registrar mientras la banda paga: entonces la compra falla sin registrar y el
 // pago se devuelve entero (compra.ts → `devolucion` → el gestor devuelve).
+import { usuarioPropio } from "@/nucleo/acceso/usuario";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { CobroDeDominios } from "@/nucleo/modulos/contrato";
@@ -69,6 +70,46 @@ export async function cotizarDominio(tenantId: string, crudo: string, anios = 1,
   return cotizarCon(cobro, crudo, anios);
 }
 
+/** Etiqueta de un dominio ("labanda"): letras, números y guiones, sin guion en las puntas. */
+const ETIQUETA = /^(?!-)[a-z0-9-]{1,63}(?<!-)$/;
+
+/**
+ * Buscar: "labanda" (o "labanda.com") en cada terminación a la venta, con su precio. Si escribió
+ * una terminación que no se vende, también aparece (sin precio), para decírselo.
+ */
+export async function buscarDominios(tenantId: string, texto: string, reg: Registro = registroGlobal()): Promise<Cotizacion[]> {
+  const { cobro } = piezas(reg);
+  const { banda } = await bandaQueCompra(tenantId);
+  if (banda.estado === "ARCHIVADO") throw new ErrorDominio("La banda está archivada: no puede sumar dominios.");
+  const limpio = texto.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/[/?#].*$/, "");
+  const [etiqueta, ...resto] = limpio.split(".");
+  if (!ETIQUETA.test(etiqueta ?? "")) throw new ErrorDominio("Escribí el nombre que querés, con letras, números o guiones (p. ej. labanda).");
+  const pedida = resto.join(".");
+  const tlds = (await cobro.terminaciones()).map((t) => t.tld);
+  const todas = pedida && !tlds.includes(pedida) ? [pedida, ...tlds] : pedida ? [pedida, ...tlds.filter((t) => t !== pedida)] : tlds;
+  return Promise.all(todas.map((tld) => cotizarCon(cobro, `${etiqueta}.${tld}`, 1)));
+}
+
+/** Las condiciones del registrador para ese dominio (hay que aceptarlas todas para comprar). */
+export async function condicionesDe(dominio: string) {
+  const r = registrador();
+  if (!r) throw new ErrorDominio(NO_HABILITADO);
+  return r.condiciones(terminacion(normalizarDominio(dominio)));
+}
+
+/**
+ * Teléfono en el formato del registro (+54.1145678900). Acepta "+54 11 4567-8900" y, sin código
+ * de país, lo toma como de Argentina ("011 4567-8900" → +54.1145678900).
+ */
+export function normalizarTelefono(crudo: string): string {
+  const t = crudo.replace(/[\s().-]/g, (c) => (c === "." ? "." : ""));
+  if (/^\+\d{1,3}\.\d{4,14}$/.test(t)) return t;
+  const solo = t.replace(/\./g, "");
+  if (/^\+54\d{6,13}$/.test(solo)) return `+54.${solo.slice(3)}`;
+  if (/^0?\d{6,13}$/.test(solo)) return `+54.${solo.replace(/^0/, "")}`;
+  throw new ErrorDominio("Teléfono: con código de área, p. ej. 11 4567-8900 (o +54.1145678900).");
+}
+
 const CAMPOS: (keyof Contacto)[] = ["nombre", "apellido", "email", "telefono", "direccion", "ciudad", "provincia", "codigoPostal", "pais"];
 
 /**
@@ -82,7 +123,12 @@ export async function pagarDominio(tenantId: string, usuarioId: string, p: Pedid
   if (!titular) throw new ErrorDominio("La banda no tiene titular.");
   const falta = CAMPOS.find((c) => !String(p.contacto[c] ?? "").trim());
   if (falta) throw new ErrorDominio(`Falta un dato del titular del dominio (${falta}).`);
-  if (!p.aceptacion.claves.length) throw new ErrorDominio("Falta aceptar las condiciones.");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.contacto.email)) throw new ErrorDominio("El email del titular del dominio no es válido.");
+  if (!/^\+\d{1,3}\.\d{4,14}$/.test(p.contacto.telefono)) throw new ErrorDominio("El teléfono va con el código de país, p. ej. +54.1145678900.");
+  if (!/^[A-Z]{2}$/.test(p.contacto.pais)) throw new ErrorDominio("El país va con su código de dos letras, p. ej. AR.");
+  // Todas las condiciones del registrador, aceptadas (las vigentes, no las que mandó el formulario).
+  const faltan = (await condicionesDe(p.dominio)).filter((x) => !p.aceptacion.claves.includes(x.clave));
+  if (faltan.length || !p.aceptacion.claves.length) throw new ErrorDominio("Falta aceptar las condiciones.");
   const c = await cotizarCon(cobro, p.dominio, p.anios);
   if (!c.disponible) throw new ErrorDominio(`${c.dominio} ya no está disponible.`);
   if (c.precio === null) throw new ErrorDominio(`Los dominios .${terminacion(c.dominio)} no se venden en Deoco.`);
@@ -97,8 +143,8 @@ export async function pagarDominio(tenantId: string, usuarioId: string, p: Pedid
       hacerPrincipal: p.hacerPrincipal,
     },
     usuarioId,
-    email: titular.email,
-    vuelta: `${origenPlataforma()}/b/${banda.slug}/dominios`,
+    email: (await usuarioPropio(usuarioId))?.email ?? titular.email,
+    vuelta: `${origenPlataforma()}/b/${banda.slug}/dominios/compras`,
   });
 }
 
@@ -122,7 +168,7 @@ export async function pagarRenovacion(tenantId: string, usuarioId: string, crudo
     clave: `renovacion:${dominio}:${vence.venceEn.toISOString().slice(0, 10)}`,
     datos: {},
     usuarioId,
-    email: titular.email,
-    vuelta: `${origenPlataforma()}/b/${banda.slug}/dominios`,
+    email: (await usuarioPropio(usuarioId))?.email ?? titular.email,
+    vuelta: `${origenPlataforma()}/b/${banda.slug}/dominios/compras`,
   });
 }

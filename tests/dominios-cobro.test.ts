@@ -4,9 +4,10 @@ import { atenderAvisoPlataforma } from "@/nucleo/avisos";
 import { bandejaDeSalida, esperarCorreos, vaciarBandeja } from "@/nucleo/correo";
 import { prisma } from "@/nucleo/db/cliente";
 import { formatearPesos } from "@/nucleo/dinero";
-import { avanzarCompras, esperarCompras, pedirDevoluciones } from "@/nucleo/dominios/compra";
+import { avanzarCompras, corregirDatosCompra, esperarCompras, pedirDevoluciones, vencerDatos } from "@/nucleo/dominios/compra";
 import type { Contacto } from "@/nucleo/dominios/registrador";
-import { cotizarDominio, pagarDominio, type PedidoDominio } from "@/nucleo/dominios/venta";
+import { seguimientoDeCompras } from "@/nucleo/dominios/seguimiento";
+import { buscarDominios, cotizarDominio, normalizarTelefono, pagarDominio, type PedidoDominio } from "@/nucleo/dominios/venta";
 import type { ComoStaff } from "../modulos/comercial/cuenta";
 import { alertasDeDominios, esperarDominios, guardarPrecioDominio, marcarDevueltaAMano, revisarDominios } from "../modulos/comercial/dominios";
 import { dosBandas, dueno } from "./apoyo";
@@ -149,7 +150,7 @@ describe("primero se cobra, después se registra", () => {
       notification_url: expect.stringMatching(/^https?:\/\/app\.deocoartist\.com(:\d+)?\/avisos\/plataforma\/comercial\/dominio\/mercadopago$/),
       items: [{ title: "Dominio lossatelites.com · 1 año", quantity: 1, unit_price: 25000, currency_id: "ARS" }],
       payer: { email: "a@x.com" },
-      back_urls: { success: expect.stringMatching(/\/b\/banda-a\/dominios\?pago=hecho$/) },
+      back_urls: { success: expect.stringMatching(/\/b\/banda-a\/dominios\/compras\?pago=hecho$/) },
     });
     const vence = new Date(String(pref.cuerpo.expiration_date_to)).getTime() - Date.now();
     expect(vence).toBeGreaterThan(HORA);
@@ -360,5 +361,99 @@ describe("un cobro ya pagado", () => {
     // El registrador todavía lo da libre (la compra está en curso): igual no se cobra otra vez.
     await expect(pagarDominio(a.id, ua.id, pedido())).rejects.toThrow(/ya está pago/);
     await avanzarCompras(a.id);
+  });
+});
+
+describe("D10: buscar, titular, progreso", () => {
+  it("buscar: cada terminación a la venta con su precio (.com primero); la que escribió aunque no se venda; las tomadas", async () => {
+    await guardarPrecioDominio(comoStaff, { tld: "ar", precio: 900_000, aLaVenta: true });
+    gd.precios.ar = 5_000_000;
+    gd.tomados.add("lossatelites.ar");
+    const r = await buscarDominios(a.id, "  LosSatelites ");
+    expect(r).toEqual([
+      { dominio: "lossatelites.com", disponible: true, precio: 2_500_000, anios: 1 },
+      { dominio: "lossatelites.ar", disponible: false },
+    ]);
+    expect((await buscarDominios(a.id, "https://www.lossatelites.org/")).map((x) => [x.dominio, x.disponible && x.precio])).toEqual([
+      ["lossatelites.org", null],
+      ["lossatelites.com", 2_500_000],
+      ["lossatelites.ar", false],
+    ]);
+    await expect(buscarDominios(a.id, "-mal-")).rejects.toThrow(/letras, números o guiones/);
+    await expect(buscarDominios(a.id, "con espacio")).rejects.toThrow(/letras, números o guiones/);
+  });
+
+  it("teléfono en el formato del registro; condiciones y datos se validan al pagar", async () => {
+    expect(normalizarTelefono("11 4567-8900")).toBe("+54.1145678900");
+    expect(normalizarTelefono("011 4567 8900")).toBe("+54.1145678900");
+    expect(normalizarTelefono("+54 9 11 4567-8900")).toBe("+54.91145678900");
+    expect(normalizarTelefono("+1.2025550100")).toBe("+1.2025550100");
+    expect(() => normalizarTelefono("llamame")).toThrow(/código de área/);
+    await expect(pagarDominio(a.id, ua.id, pedido({ aceptacion: { fecha: new Date(), ip: "1.2.3.4", claves: [] } }))).rejects.toThrow(/condiciones/);
+    await expect(pagarDominio(a.id, ua.id, pedido({ aceptacion: { fecha: new Date(), ip: "1.2.3.4", claves: ["OTRA"] } }))).rejects.toThrow(/condiciones/);
+    await expect(pagarDominio(a.id, ua.id, pedido({ contacto: { ...titular, telefono: "1145678900" } }))).rejects.toThrow(/código de país/);
+    await expect(pagarDominio(a.id, ua.id, pedido({ contacto: { ...titular, ciudad: " " } }))).rejects.toThrow(/ciudad/);
+    expect(mp.preferencias).toHaveLength(0);
+    // Una banda archivada no compra; suspendida, la pantalla no lo ofrece (la acción tampoco).
+    await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
+    try {
+      await expect(pagarDominio(a.id, ua.id, pedido())).rejects.toThrow(/archivada/);
+      await expect(buscarDominios(a.id, "x")).rejects.toThrow(/archivada/);
+    } finally {
+      await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ACTIVO" } });
+    }
+  });
+
+  it("el progreso sale de la base: se puede cerrar la página y volver en cualquier paso", async () => {
+    const paso = async () => {
+      const [i] = await seguimientoDeCompras(a.id);
+      return { mensaje: i.mensaje, pasos: i.pasos.map((p) => `${p.nombre}:${p.estado}`).join(" · "), enCurso: i.enCurso };
+    };
+    await pagarDominio(a.id, ua.id, pedido());
+    expect(await paso()).toEqual({ mensaje: "Esperando la confirmación del pago (suele tardar segundos).", pasos: expect.stringMatching(/^Pago:en-curso · Registro a tu nombre:pendiente/), enCurso: true });
+    await pagarYAvisar({ aprobado: false });
+    expect((await paso()).mensaje).toBe("El pago no salió: no se te cobró nada. Podés volver a intentarlo.");
+    await pagarYAvisar();
+    expect(await paso()).toMatchObject({ pasos: expect.stringMatching(/^Pago:hecho · Registro a tu nombre:en-curso/), enCurso: true });
+    expect((await paso()).mensaje).toMatch(/^Pago recibido. Estamos registrando lossatelites.com/);
+    expect(asuntos()).toContain("Recibimos tu pago: estamos registrando lossatelites.com");
+    gd.terminar("REGISTER");
+    await avanzarCompras(a.id, new Date(Date.now() + 2 * MIN));
+    gd.terminar();
+    await avanzarCompras(a.id, new Date(Date.now() + 4 * MIN));
+    expect(await paso()).toMatchObject({ pasos: "Pago:hecho · Registro a tu nombre:hecho · Conectando el sitio:en-curso · Certificado:pendiente · Listo:pendiente" });
+    expect((await paso()).mensaje).toMatch(/^Registrado: lossatelites.com ya es tuyo/);
+    // Un link de pago abandonado del mismo dominio no ensucia la lista.
+    expect(await seguimientoDeCompras(a.id)).toHaveLength(1);
+  });
+
+  it("un dato rechazado: la banda lo ve, lo corrige y sigue; sin corregir en 7 días, se devuelve", async () => {
+    // Pasa nuestra validación pero el registrador lo rechaza (en la prueba, un teléfono sin "+").
+    const rechazable = async (dominio: string) => {
+      await pagarDominio(a.id, ua.id, pedido({ dominio }));
+      const c = await dueno.comercialDominioCobro.findFirstOrThrow({ where: { dominio, estado: "esperando" } });
+      await dueno.comercialDominioCobro.update({ where: { id: c.id }, data: { datos: { ...(c.datos as object), contacto: { ...titular, telefono: "1145678900" } } } });
+    };
+    await rechazable("lossatelites.com");
+    await pagarYAvisar();
+    const [i] = await seguimientoDeCompras(a.id);
+    expect(i.corregir).toMatchObject({ campo: "telefono", contacto: { telefono: "1145678900" } });
+    expect(i.mensaje).toMatch(/rechazó un dato/);
+    expect(asuntos()).toContain("Revisá un dato para registrar lossatelites.com");
+    const texto = bandejaDeSalida().find((m) => m.asunto === "Revisá un dato para registrar lossatelites.com")!.texto;
+    expect(texto).toContain("no aceptó el teléfono del titular");
+    await corregirDatosCompra(a.id, i.corregir!.compraId, titular);
+    await esperar();
+    expect((await seguimientoDeCompras(a.id))[0]).toMatchObject({ corregir: null, enCurso: true });
+
+    // Otra que nadie corrige: a los 7 días falla sin registrar y el pago vuelve.
+    await rechazable("otra.com");
+    const id = await pagarYAvisar();
+    expect(await vencerDatos(new Date(Date.now() + 6 * 24 * HORA))).toBe(0);
+    expect(await vencerDatos(new Date(Date.now() + 8 * 24 * HORA))).toBe(1);
+    await esperar();
+    expect(await dueno.dominioCompra.findFirstOrThrow({ where: { cobroId: id } })).toMatchObject({ estado: "fallido", devolucion: "pedida", datosDesde: null });
+    expect((await pagos()).find((p) => p.pagoId === id)).toMatchObject({ devolucion: "hecha" });
+    expect((await seguimientoDeCompras(a.id)).find((x) => x.dominio === "otra.com")!.mensaje).toBe("No pudimos registrar otra.com. Te devolvimos el pago completo.");
   });
 });

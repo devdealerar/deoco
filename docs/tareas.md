@@ -32,6 +32,17 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D10: pantallas de compra (núcleo, solo titular): `/b/<slug>/dominios/comprar` (buscar: cada
+  terminación a la venta con su precio, `buscarDominios`), `…/comprar/<dominio>` (a nombre de quién,
+  precargado con quien compra; teléfono normalizado), `…/comprar/<dominio>/resumen` (precio,
+  vencimiento, titular, **lo que cuesta irse, antes de pagar**, condiciones del registrador a
+  aceptar todas) → Mercado Pago. Entre pasos, cookie del panel (`borrador.ts`). Progreso:
+  `/b/<slug>/dominios/compras` (`seguimiento.ts`: junta el cobro del gestor y la compra; se arma de
+  la base, sirve aunque se cierre la página; se refresca sola) con la corrección del dato que
+  rechazó el registrador. Dominios muestra "Comprar un dominio" y las compras en marcha. Mail
+  "Recibimos tu pago" con el link al progreso. "Falta un dato" vence a los 7 días → devolución
+  (`vencerDatos`, migración `compra_datos`). Contrato: `dominios.terminaciones` y `.cobros`.
+  Pruebas: `tests/dominios-cobro.test.ts`, e2e `tests/e2e/compra-dominio.e2e.ts`.
 - D9: el cobro, en el gestor (`modulos/comercial/dominios.ts`) por `gestionaCuenta.dominios`
   (`precio`, `cobrar`, `devolver`). Núcleo: `src/nucleo/dominios/venta.ts` (`cotizarDominio`,
   `pagarDominio`, `pagarRenovacion`: disponibilidad al cotizar y otra vez antes de cobrar) y
@@ -109,7 +120,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D7 | `Registrador` GoDaddy v2 + falso | 5–7 | ✅ hecha |
 | D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | ✅ hecha |
 | D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | ✅ hecha |
-| D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | pendiente |
+| D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | ✅ hecha |
 | D11 | Renovación y avisos; llevarse el dominio | 3–4 | pendiente |
 | D12 | Transferir a Deoco (delegado → comprado) | 3 | pendiente |
 | D13 | Punta a punta y ensayo con dominio comprado real | 3 | pendiente |

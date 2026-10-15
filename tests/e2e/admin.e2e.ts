@@ -312,13 +312,12 @@ describe("dominios comprados", () => {
       expect(await page.getByRole("row").filter({ hasText: "sinsaldo.com" }).textContent()).toContain("Sin saldo en la cuenta");
       expect(await page.locator("body").textContent()).toContain("listo.com"); // solo en "Vencen en 30 días"
       await captura(page, "admin-dominios");
-      // Sin registrador configurado (como en este servidor), reintentar lo dice y no toca nada.
-      const antes = await dueno.dominioCompra.findFirstOrThrow({ where: { cobroId: "e2e-1" } });
+      // Reintentar corre la compra ya (acá GoDaddy no responde: suma un intento) y queda auditado.
       const fila = page.getByRole("row").filter({ hasText: "sinsaldo.com" });
       await fila.locator("form[data-hidratado]").waitFor();
       await fila.getByRole("button", { name: "Reintentar" }).click();
-      await page.getByText("La compra de dominios todavía no está habilitada en Deoco.").first().waitFor();
-      expect((await dueno.dominioCompra.findFirstOrThrow({ where: { cobroId: "e2e-1" } })).proximoIntento).toEqual(antes.proximoIntento);
+      await expect.poll(async () => (await dueno.dominioCompra.findFirstOrThrow({ where: { cobroId: "e2e-1" } })).intentos, { timeout: 20_000 }).toBeGreaterThan(0);
+      await expect.poll(() => dueno.auditoria.count({ where: { accion: "dominio.compra_reintentada" } }), { timeout: 20_000 }).toBe(1);
       await page.goto(`${APP}/admin/dominios?banda=banda-b`);
       expect(await page.locator("[data-compra]").count()).toBe(1);
     } finally {

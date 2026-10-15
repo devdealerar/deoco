@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { request } from "node:http";
 import { CUENTA_CF, KV_CF, TOKEN_CF, ZONA_CF } from "../cloudflare-falso";
+import { CLAVE_GD, SECRETO_GD } from "../registrador-falso";
 import { TOKEN_RESEND } from "../resend-falso";
 
 export const PUERTO = 3200;
@@ -10,6 +11,8 @@ export const PUERTO_MP = 3299;
 export const PUERTO_CF = 3298;
 /** Resend falso (tests/resend-falso.ts): dominios de envío de las bandas. */
 export const PUERTO_RESEND = 3297;
+/** GoDaddy falso (tests/registrador-falso.ts): la compra de dominios. */
+export const PUERTO_GD = 3296;
 /** La cuenta de Mercado Pago de Deoco (cuotas) en el servidor de pruebas. */
 export const TOKEN_CUOTA = "APP_USR-DEOCO-cuota-e2e";
 let servidor: ChildProcess | undefined;
@@ -85,6 +88,12 @@ async function precalentar() {
     [app, `/b/${slug}/sitio`],
     [app, `/b/${slug}/credenciales`],
     [app, `/b/${slug}/dominios`],
+    [app, `/b/${slug}/dominios/comprar`],
+    [app, `/b/${slug}/dominios/comprar/precalentar.com`],
+    [app, `/b/${slug}/dominios/comprar/precalentar.com/resumen`],
+    [app, `/b/${slug}/dominios/compras`],
+    [app, "/admin/dominios"],
+    [app, "/admin/m/comercial/dominios"],
     [app, `/b/${slug}/correo`],
     [app, `/b/${slug}/pago`],
     [app, `/b/${slug}/archivos/00000000-0000-0000-0000-000000000000/x`],
@@ -112,7 +121,7 @@ async function precalentar() {
 /** Levanta next dev contra la base de pruebas (el env ya viene de .env.test). */
 export async function setup() {
   servidor = spawn("npx", ["next", "dev", "-p", String(PUERTO)], {
-    env: { ...process.env, DEOCO_DOMINIO_RAIZ: "lvh.me", DEOCO_MERCADOPAGO_API: `http://127.0.0.1:${PUERTO_MP}`, DEOCO_CUOTA_MP_TOKEN: TOKEN_CUOTA, DEOCO_CLOUDFLARE_API: `http://127.0.0.1:${PUERTO_CF}`, DEOCO_CLOUDFLARE_TOKEN: TOKEN_CF, DEOCO_CLOUDFLARE_ZONA: ZONA_CF, DEOCO_CLOUDFLARE_CUENTA: CUENTA_CF, DEOCO_IP_PUBLICA: "203.0.113.10", DEOCO_CLOUDFLARE_KV: KV_CF, DEOCO_RESEND_API: `http://127.0.0.1:${PUERTO_RESEND}`, DEOCO_RESEND_TOKEN: TOKEN_RESEND, NODE_ENV: "development" },
+    env: { ...process.env, DEOCO_DOMINIO_RAIZ: "lvh.me", DEOCO_MERCADOPAGO_API: `http://127.0.0.1:${PUERTO_MP}`, DEOCO_CUOTA_MP_TOKEN: TOKEN_CUOTA, DEOCO_CLOUDFLARE_API: `http://127.0.0.1:${PUERTO_CF}`, DEOCO_CLOUDFLARE_TOKEN: TOKEN_CF, DEOCO_CLOUDFLARE_ZONA: ZONA_CF, DEOCO_CLOUDFLARE_CUENTA: CUENTA_CF, DEOCO_IP_PUBLICA: "203.0.113.10", DEOCO_CLOUDFLARE_KV: KV_CF, DEOCO_RESEND_API: `http://127.0.0.1:${PUERTO_RESEND}`, DEOCO_RESEND_TOKEN: TOKEN_RESEND, DEOCO_REGISTRADOR: "godaddy", DEOCO_GODADDY_KEY: CLAVE_GD, DEOCO_GODADDY_SECRET: SECRETO_GD, DEOCO_GODADDY_API: `http://127.0.0.1:${PUERTO_GD}`, DEOCO_GODADDY_POR_MINUTO: "100000", NODE_ENV: "development" },
     stdio: process.env.E2E_LOG ? "inherit" : "ignore",
     detached: true,
   });

@@ -24,7 +24,7 @@ import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { formatearPesos } from "@/nucleo/dinero";
 import { ErrorDominio } from "@/nucleo/dominios";
 import { dominioPagado, renovacionPagada } from "@/nucleo/dominios/compra";
-import type { AlertaAdmin, PedidoDeCobroDominio } from "@/nucleo/modulos/contrato";
+import type { AlertaAdmin, CobroDominioVisible, PedidoDeCobroDominio } from "@/nucleo/modulos/contrato";
 import type { PagoConsultado } from "@/nucleo/pagos/cuota";
 import { buscarPagosDominio, consultarPagoDominio, crearPagoDominio, devolverPagoDominio, urlAvisoDominio } from "@/nucleo/pagos/cuota";
 import { mandar } from "./correos";
@@ -67,6 +67,39 @@ export async function precioDominio(tld: string, anios: number): Promise<number 
 }
 
 export const preciosDominio = () => prisma.comercialDominioPrecio.findMany({ orderBy: { tld: "asc" } });
+
+/** Las terminaciones a la venta: "com" primero, el resto por orden alfabético. */
+export async function terminacionesDominio(): Promise<{ tld: string; precio: number }[]> {
+  const t = await prisma.comercialDominioPrecio.findMany({ where: { aLaVenta: true }, select: { tld: true, precio: true }, orderBy: { tld: "asc" } });
+  return t.sort((x, y) => Number(y.tld === "com") - Number(x.tld === "com"));
+}
+
+/** Los cobros de dominios de la banda, para que vea en qué está cada uno (pago, devolución). */
+export async function cobrosDeBanda(tenantId: string, dias: number): Promise<CobroDominioVisible[]> {
+  const cobros = await conTenant(tenantId, (tx) =>
+    tx.comercialDominioCobro.findMany({
+      where: { creadoEn: { gte: new Date(Date.now() - dias * 86_400_000) } },
+      include: { pagos: { select: { pagoId: true, estado: true, devolucion: true } } },
+      orderBy: { creadoEn: "desc" },
+    }),
+  );
+  return cobros.map((c) => {
+    const aceptado = c.pagos.find((p) => p.pagoId === c.pagoId);
+    const devolucion = aceptado?.devolucion;
+    const estado: CobroDominioVisible["estado"] =
+      devolucion === "hecha" || devolucion === "a-mano" ? "devuelto" : devolucion ? "devolviendo" : c.estado === "devuelto" ? "devolviendo" : (c.estado as "esperando" | "pagado" | "sin-pagar");
+    return {
+      id: c.id,
+      tipo: c.tipo as "alta" | "renovacion",
+      dominio: c.dominio,
+      monto: c.monto,
+      estado,
+      pagoId: c.pagoId,
+      rechazado: !c.pagoId && c.pagos.some((p) => p.estado === "rechazado"),
+      creadoEn: c.creadoEn,
+    };
+  });
+}
 
 /** Staff: fija el precio de una terminación ("com", "com.ar"). */
 export async function guardarPrecioDominio(comoStaff: ComoStaff, d: { tld: string; precio: number; aLaVenta: boolean }) {

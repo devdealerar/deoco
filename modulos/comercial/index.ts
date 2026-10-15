@@ -10,7 +10,7 @@ import { AdminCobros, AdminCuenta, AdminCuentas, AdminPlanes } from "./admin/pan
 import { AdminDominios } from "./admin/dominios";
 import { avisoDeCuota, avisoDeDominio } from "./aviso";
 import { alCrearBanda, comoAmpliar, opcionesDeAlta, revisarVencimientos } from "./cuenta";
-import { alertasDeDominios, cobrarDominio, pedirDevolucion, precioDominio, revisarDominios } from "./dominios";
+import { alertasDeDominios, cobrarDominio, cobrosDeBanda, pedirDevolucion, precioDominio, revisarDominios, terminacionesDominio } from "./dominios";
 import { inicioComercial } from "./inicio";
 import { PantallaPago } from "./panel/pago";
 
@@ -25,7 +25,7 @@ const comercial: Modulo = {
     pantallaPago: PantallaPago,
     comoAmpliar,
     // Dominios comprados en Deoco: misma cuenta de Deoco, pero aparte de la cuota (./dominios.ts).
-    dominios: { precio: precioDominio, cobrar: cobrarDominio, devolver: pedirDevolucion },
+    dominios: { precio: precioDominio, terminaciones: terminacionesDominio, cobrar: cobrarDominio, devolver: pedirDevolucion, cobros: cobrosDeBanda },
   },
   // Avisos de la cuenta de Mercado Pago de Deoco: app.<raiz>/avisos/plataforma/comercial/cuota/mercadopago.
   // Y, aparte, los pagos de dominios: …/avisos/plataforma/comercial/dominio/mercadopago (la URL va en cada cobro).

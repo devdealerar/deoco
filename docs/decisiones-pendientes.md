@@ -22,6 +22,43 @@ Deoco: `cloudflared` sale del VPS hacia Cloudflare y el tráfico de Deoco ya no 
 (ni ruta comodín ni lista de IPs). Los custom hostnames y las zonas delegadas apuntarían al
 túnel. Pide un ensayo con Cloudflare real.
 
+## D9 · El cobro de los dominios
+
+1. **Medios diferidos: excluidos, no hizo falta otra salida.** Checkout Pro con `binary_mode: true`
+   (aprobado o rechazado, nunca pendiente) y `excluded_payment_types` `ticket`, `atm` y
+   `bank_transfer`. El link de pago vence a las 2 h. Igual, si algo se cuela, no se pierde plata:
+   un dominio tomado en el medio hace fallar la compra y el pago se devuelve solo.
+2. **La plata es del gestor; los pasos, del núcleo.** El núcleo solo marca "devolución pendiente"
+   y se la pasa al gestor (`pedida`); el gestor la corre, la reintenta (5 min → 12 h) y a los 3
+   intentos la pone "fallida" en rojo arriba de todo el back office (`alertasAdmin`), sin dejar
+   de reintentar. Salida manual: "devuelta a mano", con nota obligatoria.
+3. **Un pago aprobado de más se devuelve solo** (repetido, de otro cobro de lo mismo, otro monto).
+   No se le pregunta a nadie: la banda no pidió dos dominios.
+4. **24 h sin poder arrancar la compra** (la configuración del registrador rota, por ejemplo) →
+   se devuelve. Antes, el staff lo ve en rojo a los 30 minutos.
+5. **Los mails del gestor salen siempre desde Deoco**, aunque la banda tenga su dirección
+   verificada (antes, la cuota habría salido desde merch@labanda.com: era un bug).
+
+## D10 · Las pantallas de compra
+
+1. **Entre "titular" y "pago", los datos viajan en una cookie del panel** (httpOnly, solo la ruta de
+   compra de esa banda, una hora), no en una tabla ni en la URL. Al pagar se valida todo de nuevo
+   (precio, disponibilidad, condiciones vigentes del registrador), así que tocarla no da nada.
+2. **Teléfono**: se acepta como lo escribe la gente ("11 4567-8900") y se pasa al formato del
+   registro (+54.1145678900); sin código de país se asume Argentina.
+3. **Precargado con quien compra** (un titular de la banda), no con "el primer titular". El mail
+   de Mercado Pago también es el de quien compra.
+4. **Suspendida o archivada no compra dominios nuevos**; sí los renueva y se los lleva (D11). Una
+   cuota impaga no puede hacer perder un dominio.
+5. **"Falta un dato" no espera para siempre**: si la banda no corrige el dato que rechazó el
+   registrador en 7 días, la compra falla y se devuelve el pago (antes se mira la subcuenta: si
+   quedó registrado igual, sigue).
+6. **Mail al recibir el pago** ("Recibimos tu pago: estamos registrando…") con el link a "Tus
+   compras": la banda puede cerrar la página y volver. La pantalla se arma de la base cada vez y
+   se refresca sola mientras algo está en curso.
+7. **El paso "Correo" del diseño no está en el progreso**: el correo desde el dominio lo elige la
+   banda después (Panel → Correo); al terminar, la pantalla la manda ahí.
+
 ## P1 · Planes, cuotas y estados (módulo comercial)
 
 1. **Cómo se reparte**: el núcleo no sabe de planes. Ofrece capacidades genéricas para UN

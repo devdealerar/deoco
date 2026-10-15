@@ -48,10 +48,25 @@ const ESPERA_ACTIVACION = 10 * MIN;
 const REINTENTOS = [MIN, 5 * MIN, 15 * MIN, 30 * MIN, HORA, 2 * HORA, 4 * HORA, 6 * HORA];
 /** Sin poder registrar en este tiempo, se devuelve el pago. */
 const TOPE_SIN_REGISTRAR = 24 * HORA;
+/** Esperando un dato del titular más que esto, la compra falla sin registrar y se devuelve. */
+const TOPE_DATOS = 7 * 24 * HORA;
 /** Esperando el certificado para el principal más que esto, queda listo sin principal. */
 const TOPE_PRINCIPAL = 24 * HORA;
 /** Un paso tomado hace más que esto quedó colgado (el proceso murió mientras corría). */
 const COLGADO = 5 * MIN;
+
+/** Cómo se nombra cada dato del titular en un mensaje ("el teléfono"). */
+export const DATOS_DEL_TITULAR: Record<keyof Contacto, string> = {
+  nombre: "el nombre",
+  apellido: "el apellido",
+  email: "el email",
+  telefono: "el teléfono",
+  direccion: "la dirección",
+  ciudad: "la ciudad",
+  provincia: "la provincia",
+  codigoPostal: "el código postal",
+  pais: "el país",
+};
 
 const fechaLarga = (d: Date) => d.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: ZONA });
 
@@ -102,7 +117,21 @@ async function crear(
     await tx.auditoria.create({ data: { usuarioId: datos.usuarioId ?? null, tenantId, accion: `dominio.${datos.tipo === "alta" ? "compra" : "renovacion"}_pagada`, detalle: { dominio: datos.dominio, cobroId: cobro.id } } });
     return { compraId: c.id, repetida: false };
   });
-  if (!r.repetida) programar(tenantId);
+  if (!r.repetida) {
+    // Que pueda cerrar la página: en el mail va adónde ver en qué está.
+    await avisarAlTitular(tenantId, {
+      clave: `dominio-pago-recibido:${cobro.id}`,
+      asunto: () => (datos.tipo === "alta" ? `Recibimos tu pago: estamos registrando ${datos.dominio}` : `Recibimos tu pago: estamos renovando ${datos.dominio}`),
+      parrafos: () => [
+        datos.tipo === "alta"
+          ? `Ya está pago ${datos.dominio}. Lo estamos registrando a nombre del titular y después conectamos el sitio: suele tardar menos de una hora.`
+          : `Ya está paga la renovación de ${datos.dominio}. La estamos haciendo.`,
+        "No tenés que hacer nada: te avisamos cuando esté. Mientras tanto, podés ver en qué va desde el panel.",
+      ],
+      boton: { texto: "Ver en qué va", ruta: "/dominios/compras" },
+    }).catch((e) => console.error(`[compra] aviso de pago de ${datos.dominio}:`, e));
+    programar(tenantId);
+  }
   return r;
 }
 
@@ -129,6 +158,7 @@ export async function esperarCompras() {
 
 /** Barrido: las compras que toca avanzar, de todas las bandas. Devuelve cuántas terminaron (listas o fallidas). */
 export async function revisarCompras(ahora = new Date()): Promise<number> {
+  await vencerDatos(ahora).catch((e) => console.error("[compra] datos vencidos:", e));
   await pedirDevoluciones().catch((e) => console.error("[compra] devoluciones:", e));
   if (!registrador()) return 0;
   const bandas = await prisma.$queryRaw<{ id: string }[]>`SELECT b AS id FROM bandas_con_compras_pendientes(${ahora}::timestamp) AS b`;
@@ -160,6 +190,30 @@ export async function avanzarCompras(tenantId: string, ahora = new Date()): Prom
   }
   if (terminadas) await pedirDevolucionesDe(tenantId);
   return terminadas;
+}
+
+/** Compras que esperan un dato del titular hace más de 7 días: fallan sin registrar y se devuelven. */
+export async function vencerDatos(ahora = new Date()): Promise<number> {
+  const limite = new Date(ahora.getTime() - TOPE_DATOS);
+  const bandas = await prisma.$queryRaw<{ id: string }[]>`SELECT b AS id FROM bandas_con_datos_vencidos(${limite}::timestamp) AS b`;
+  let vencidas = 0;
+  for (const { id: tenantId } of bandas) {
+    const compras = await conTenant(tenantId, (tx) => tx.dominioCompra.findMany({ where: { estado: "datos", datosDesde: { lt: limite } } }));
+    for (const c of compras) {
+      // ¿Quedó registrado igual (una operación que respondió tarde)? Entonces es de la banda: sigue, no se devuelve.
+      const r = registrador();
+      const clienteId = r ? await clienteDe(tenantId, c.registrador).catch(() => null) : null;
+      if (r && clienteId && (await r.dominio(clienteId, c.dominio).catch(() => null))) {
+        await conTenant(tenantId, (tx) => tx.dominioCompra.updateMany({ where: { id: c.id, estado: "datos" }, data: { estado: "en-curso", paso: "zona", operacion: Prisma.DbNull, datosDesde: null, proximoIntento: ahora } }));
+        continue;
+      }
+      const fin = await fallar(tenantId, c, "datos-invalidos", `Nadie corrigió el dato rechazado en 7 días: ${c.error ?? ""}`);
+      const { count } = await conTenant(tenantId, (tx) => tx.dominioCompra.updateMany({ where: { id: c.id, estado: "datos" }, data: { ...(fin.datos as Prisma.DominioCompraUpdateManyMutationInput), datosDesde: null } }));
+      vencidas += count;
+    }
+    if (compras.length) await pedirDevolucionesDe(tenantId);
+  }
+  return vencidas;
 }
 
 // ── Devoluciones ─────────────────────────────────────────────────────────────────────────────
@@ -381,11 +435,11 @@ async function falla(tenantId: string, c: Compra, r: Registrador, e: unknown, ah
       clave: `dominio-compra-datos:${c.id}:${err.campo ?? "?"}:${c.intentos}`,
       asunto: () => `Revisá un dato para registrar ${c.dominio}`,
       parrafos: () => [
-        `El registrador no aceptó ${err.campo ? `el dato "${err.campo}"` : "uno de los datos"} del titular de ${c.dominio}. Ya pagaste: corregilo y seguimos solos.`,
+        `El registrador no aceptó ${err.campo && err.campo in DATOS_DEL_TITULAR ? DATOS_DEL_TITULAR[err.campo as keyof Contacto] : "uno de los datos"} del titular de ${c.dominio}. Ya pagaste: corregilo y seguimos solos.`,
       ],
-      boton: { texto: "Corregir en Dominios", ruta: "/dominios" },
+      boton: { texto: "Corregir el dato", ruta: "/dominios/compras" },
     }).catch((x) => console.error(`[compra] aviso de datos de ${c.dominio}:`, x));
-    return { tipo: "fin", datos: { estado: "datos", motivo: "datos-invalidos", campo: err.campo ?? null, error: err.message.slice(0, 500) } };
+    return { tipo: "fin", datos: { estado: "datos", motivo: "datos-invalidos", campo: err.campo ?? null, error: err.message.slice(0, 500), datosDesde: ahora } };
   }
   const primer = c.primerFalloEn ?? ahora;
   // Sin registrar, 24 h sin poder: se devuelve. (Con una operación aceptada, se mira antes la subcuenta.)
@@ -409,7 +463,7 @@ export async function corregirDatosCompra(tenantId: string, compraId: string, co
   const { count } = await conTenant(tenantId, (tx) =>
     tx.dominioCompra.updateMany({
       where: { id: compraId, estado: "datos" },
-      data: { contacto: contacto as unknown as Prisma.InputJsonValue, estado: "en-curso", proximoIntento: new Date(), motivo: null, campo: null, error: null, operacion: undefined },
+      data: { contacto: contacto as unknown as Prisma.InputJsonValue, estado: "en-curso", proximoIntento: new Date(), motivo: null, campo: null, error: null, operacion: undefined, datosDesde: null },
     }),
   );
   if (count === 0) throw new ErrorDominio("Esa compra no está esperando datos.");

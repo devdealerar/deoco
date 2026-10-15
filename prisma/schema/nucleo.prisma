@@ -465,6 +465,8 @@ model DominioCompra {
   error          String?
   motivo         String?
   campo          String?
+  /// Desde cuándo espera un dato del titular (estado "datos"): a los 7 días se devuelve.
+  datosDesde     DateTime?
   /// pendiente (sin pedir al gestor) | pedida (la tiene el gestor)
   devolucion     String?
   venceEn        DateTime?

@@ -255,6 +255,10 @@ export type GestionCuenta = {
 export type CobroDeDominios = {
   /** Precio en centavos por `anios` para la terminación ("com"). null: no se vende. */
   precio: (tld: string, anios: number) => Promise<number | null>;
+  /** Las terminaciones a la venta, con su precio por año (centavos). Para buscar. */
+  terminaciones: () => Promise<{ tld: string; precio: number }[]>;
+  /** Los cobros de dominios de la banda de los últimos `dias`, para la pantalla de progreso. */
+  cobros: (tenantId: string, dias: number) => Promise<CobroDominioVisible[]>;
   /** Crea el cobro y devuelve adónde mandar al titular a pagar. */
   cobrar: (tenantId: string, pedido: PedidoDeCobroDominio) => Promise<{ redireccion: string; monto: number }>;
   /**
@@ -278,6 +282,23 @@ export type PedidoDeCobroDominio = {
   email: string;
   /** Adónde vuelve después de pagar (o de no pagar). */
   vuelta: string;
+};
+
+/**
+ * Un cobro de dominio, como lo ve la banda. `pagoId`: el pago aceptado (el `cobroId` de la compra
+ * en el núcleo). `estado`: esperando (no pagó todavía) · pagado · sin-pagar (venció el link) ·
+ * devolviendo · devuelto.
+ */
+export type CobroDominioVisible = {
+  id: string;
+  tipo: "alta" | "renovacion";
+  dominio: string;
+  monto: number;
+  estado: "esperando" | "pagado" | "sin-pagar" | "devolviendo" | "devuelto";
+  pagoId: string | null;
+  /** Hubo un pago rechazado (y ninguno aprobado). */
+  rechazado: boolean;
+  creadoEn: Date;
 };
 
 /** Algo que el staff tiene que mirar ya: se muestra arriba de todo el back office. */

@@ -136,8 +136,10 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   por cobro) → máquina de estados en `dominio_compra` (tomada en la base, reintentos, `datos`,
   `fallido` con `devolucion: "pendiente"`; ya registrado nunca se devuelve), en el barrido
   (`revisarCompras`). `dominio.comprado`: no se quita ni se "lleva el DNS". Staff: `/admin/dominios`.
-- Venta (D9, `venta.ts`): `cotizarDominio` / `pagarDominio` / `pagarRenovacion` → el gestor cobra;
-  la compra pide la devolución al gestor (`devolucion` pendiente → pedida).
+- Venta (D9, `venta.ts`): `cotizarDominio` / `buscarDominios` / `pagarDominio` / `pagarRenovacion` → el
+  gestor cobra; la compra pide la devolución al gestor (`devolucion` pendiente → pedida).
+- Pantallas de compra (D10): `/b/<slug>/dominios/comprar[/<dominio>[/resumen]]` y el progreso
+  `/b/<slug>/dominios/compras` (`seguimiento.ts`, de la base: sirve aunque cierre la página).
 - Traefik (Easypanel): las rutas de Deoco van en el YAML propio (no en Easypanel); `aop` solo en
   `app.` (host exacto) y lista de IPs de Cloudflare en todas (`docs/despliegue.md`).
 
