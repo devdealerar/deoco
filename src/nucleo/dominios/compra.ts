@@ -24,7 +24,7 @@ import { conTenant } from "@/nucleo/db/con-tenant";
 import { ZONA } from "@/nucleo/fechas";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Registro } from "@/nucleo/modulos/registro";
-import { ErrorDominio, ErrorProveedor, marcarPrincipal, normalizarDominio, proveedorDns, zonaParaComprado } from "./index";
+import { ErrorDominio, ErrorProveedor, marcarPrincipal, normalizarDominio, proveedorDns, verificarZonaDeComprado, zonaParaComprado } from "./index";
 import { type Aceptacion, type Contacto, ErrorRegistrador, type Operacion, type Registrador, registrador } from "./registrador";
 
 export type PedidoCompra = {
@@ -45,7 +45,9 @@ const MIN = 60_000;
 const HORA = 60 * MIN;
 /** Cada cuánto se consulta una operación del registrador en curso. */
 const ESPERA_OPERACION = MIN;
-/** Cada cuánto se mira si la zona ya se activó (o si ya hay certificado para el principal). */
+/** Cada cuánto se le pregunta a Cloudflare si la zona del comprado ya se activó. */
+const ESPERA_ZONA = 2 * MIN;
+/** Cada cuánto se mira si ya hay certificado para el principal. */
 const ESPERA_ACTIVACION = 10 * MIN;
 /** Espera creciente entre reintentos de un paso que falló (la última se repite). */
 const REINTENTOS = [MIN, 5 * MIN, 15 * MIN, 30 * MIN, HORA, 2 * HORA, 4 * HORA, 6 * HORA];
@@ -352,7 +354,7 @@ async function paso(tenantId: string, c: Compra, r: Registrador, ahora: Date): P
       // La verificación la hace la revisión de delegaciones (cada 10 min): acá se espera.
       const fila = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { dominio: c.dominio, comprado: true } }));
       if (!fila) throw new ErrorRegistrador(`No está la fila de ${c.dominio} en la banda.`, "desconocido");
-      if (!fila.verificado) return { tipo: "esperar", ms: ESPERA_ACTIVACION };
+      if (!fila.verificado && !(await verificarZonaDeComprado(tenantId, c.dominio))) return { tipo: "esperar", ms: ESPERA_ZONA };
       return { tipo: "siguiente", paso: c.hacerPrincipal && c.usuarioId ? "principal" : "listo", operacion: null };
     }
     case "principal": {

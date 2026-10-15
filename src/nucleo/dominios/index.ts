@@ -843,6 +843,21 @@ export async function revisarDominios(ahora = new Date()): Promise<{ revisados: 
 export const REVISAR_DELEGACIONES_CADA_MS = 10 * 60_000;
 
 /**
+ * Un dominio comprado esperando que su zona se active (la compra lo mira seguido, sin esperar la
+ * revisión de delegaciones): si Cloudflare ya la ve activa, queda verificado. true si quedó.
+ */
+export async function verificarZonaDeComprado(tenantId: string, dominio: string): Promise<boolean> {
+  const p = proveedorDns();
+  if (!p) return false;
+  const f = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { dominio, comprado: true, via: "zona" } }));
+  if (!f?.proveedorId) return false;
+  if (f.verificado) return true;
+  const e = await consultar(tenantId, f, p);
+  if (!e.llega) return false;
+  return (await verificarZona(tenantId, f.proveedorId, null)) > 0;
+}
+
+/**
  * Dominios delegados esperando que la banda cambie los nameservers: cuando Cloudflare ve la
  * zona activa, quedan verificados solos (la banda no tiene que volver a tocar nada). Devuelve
  * cuántas filas quedaron verificadas.

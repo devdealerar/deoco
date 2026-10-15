@@ -180,6 +180,20 @@ describe("alta", () => {
     expect(await compra()).toMatchObject({ estado: "en-curso", paso: "zona", devolucion: null });
   });
 
+  it("con la zona activa, la compra la verifica sola (sin esperar la revisión de delegaciones, que es cada 10 min)", async () => {
+    await dominioPagado(a.id, pedido({ hacerPrincipal: false }));
+    await esperarCompras();
+    gd.terminar("REGISTER");
+    await despues(2 * MIN);
+    gd.terminar();
+    await despues(4 * MIN);
+    expect(await compra()).toMatchObject({ paso: "activacion" });
+    cf.activarZona("lossatelites.com");
+    await despues(7 * MIN);
+    expect(await compra()).toMatchObject({ estado: "listo" });
+    expect(await dueno.dominio.count({ where: { tenantId: a.id, comprado: true, verificado: true } })).toBe(2);
+  });
+
   it("un paso tomado por otro proceso no corre dos veces", async () => {
     await dominioPagado(a.id, pedido());
     await esperarCompras();
