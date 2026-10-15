@@ -1,5 +1,6 @@
 import { request } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { barrer } from "@/nucleo/barrido";
 import { avanzarCompras, dominioPagado, esperarCompras } from "@/nucleo/dominios/compra";
 import { dueno, escenarioAcceso } from "../apoyo";
 import { CloudflareFalso } from "../cloudflare-falso";
@@ -159,5 +160,70 @@ describe("comprar un dominio", () => {
     await tarjeta.locator("[data-corregir]").waitFor({ state: "detached" });
     await esperarCompras();
     expect(await dueno.dominioCompra.findFirstOrThrow({ where: { cobroId: "e2e-datos" } })).toMatchObject({ estado: "en-curso", contacto: { telefono: "+54.1145678900" } });
+  });
+});
+
+describe("un dominio comprado: renovar, llevárselo, cambiar el titular, vencer", () => {
+  it("todo desde la tarjeta del dominio, sin staff", async () => {
+    await dominioPagado(e.a.id, {
+      dominio: "comprado.com",
+      anios: 1,
+      contacto: { nombre: "Ana", apellido: "Pérez", email: "multi@x.com", telefono: "+54.1145678900", direccion: "Av. Corrientes 1234", ciudad: "CABA", provincia: "Buenos Aires", codigoPostal: "C1043", pais: "AR" },
+      aceptacion: { fecha: new Date(), ip: "203.0.113.7", claves: ["DNRA"] },
+      hacerPrincipal: false,
+      cobro: { id: "e2e-comprado", monto: 2500000 },
+      usuarioId: null,
+    });
+    await esperarCompras();
+    gd.terminar("REGISTER");
+    await avanzarCompras(e.a.id, new Date(Date.now() + 2 * MIN));
+    gd.terminar();
+    await avanzarCompras(e.a.id, new Date(Date.now() + 4 * MIN));
+    cf.activarZona("comprado.com");
+    await barrer({ ahora: new Date(Date.now() + 20 * MIN) });
+    await avanzarCompras(e.a.id, new Date(Date.now() + 40 * MIN));
+    await esperarCompras();
+    // Vence en 10 días; registrado hace más de 60 (se puede llevar).
+    await dueno.dominio.updateMany({ where: { dominio: "comprado.com" }, data: { venceEn: new Date(Date.now() + 10 * 86_400_000) } });
+    await dueno.dominioCompra.updateMany({ where: { cobroId: "e2e-comprado" }, data: { terminadoEn: new Date(Date.now() - 61 * 86_400_000) } });
+
+    const { page } = await logueado("multi@x.com");
+    await page.goto(`${APP}/b/banda-a/dominios`);
+    expect(await page.locator("[data-dominio-vence]").textContent()).toContain("comprado.com vence en 10 días");
+    const tarjeta = page.locator('[data-dominio="comprado.com"]');
+    expect(await tarjeta.locator("[data-renglones]").textContent()).toContain("En Deoco (GoDaddy), a nombre de Ana Pérez");
+    await captura(page, "dominio-comprado");
+
+    // Llevárselo: el código se muestra en el panel.
+    await tarjeta.locator("[data-como-me-lo-llevo] summary").click();
+    const codigo = tarjeta.locator("[data-pedir-codigo] form[data-hidratado]");
+    await codigo.waitFor();
+    await codigo.getByRole("button", { name: "Pedir el código de transferencia" }).click();
+    expect(await codigo.getByRole("status").textContent()).toContain("AUTH-comprado.com");
+    expect(gd.dominios.get("comprado.com")!.locked).toBe(false);
+
+    // Cambiar el titular.
+    await tarjeta.locator("[data-cambiar-titular] summary").click();
+    const titular = tarjeta.locator("[data-cambiar-titular] form[data-hidratado]");
+    await titular.waitFor();
+    await titular.locator('input[name="nombre"]').fill("Juan");
+    await titular.locator('input[name="apellido"]').fill("Gómez");
+    await titular.getByRole("button", { name: "Cambiar el titular" }).click();
+    await titular.getByRole("status").waitFor();
+    expect(await dueno.dominioCompra.count({ where: { tipo: "titular", dominio: "comprado.com" } })).toBe(1);
+
+    // Renovar: va a pagar a Mercado Pago (cuenta de Deoco).
+    await page.goto(`${APP}/b/banda-a/dominios`);
+    const renovar = page.locator('[data-dominio="comprado.com"] [data-renovar] form[data-hidratado]');
+    await renovar.waitFor();
+    await Promise.all([page.waitForURL(/127\.0\.0\.1:3299\/checkout/), renovar.getByRole("button", { name: /^Renovar un año por/ }).click()]);
+    expect(mp.preferencias.at(-1)!.cuerpo).toMatchObject({ items: [{ title: "Renovación de comprado.com · 1 año" }] });
+
+    // Vencido: el aviso y la gracia en la tarjeta.
+    await dueno.dominio.updateMany({ where: { dominio: "comprado.com" }, data: { vencidoEn: new Date(), venceEn: new Date(Date.now() - 86_400_000) } });
+    await page.goto(`${APP}/b/banda-a/dominios`);
+    expect(await page.locator('[data-dominio="comprado.com"] [data-vencido]').textContent()).toContain("al precio de siempre");
+    expect(await page.locator("[data-dominio-vence]").textContent()).toContain("comprado.com venció");
+    await captura(page, "dominio-vencido");
   });
 });

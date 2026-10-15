@@ -4,6 +4,7 @@
 //
 //   alta:       cliente → registrar → zona → nameservers → activacion → [principal] → listo
 //   renovacion: renovar → listo
+//   titular:    titular → listo   (cambio de titular registral; sin cobro)
 //
 // Reglas que no se rompen:
 //   - Nunca se registra antes de cobrar: la compra la crea el gestor de cuenta con el cobro hecho.
@@ -13,6 +14,7 @@
 //     en el medio, o 24 h sin poder), la compra falla y el pago se devuelve (`devolucion`); ya
 //     registrado, el dominio es de la banda: no se devuelve, se sigue intentando.
 //   - Lo que no se resuelve solo queda a la vista del staff (/admin/dominios), nunca en silencio.
+import { randomUUID } from "node:crypto";
 import { after } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { avisarAlTitular } from "@/nucleo/correo/deoco";
@@ -36,7 +38,7 @@ export type PedidoCompra = {
 };
 
 type Compra = Awaited<ReturnType<typeof prisma.dominioCompra.findFirstOrThrow>>;
-type Paso = "cliente" | "registrar" | "zona" | "nameservers" | "activacion" | "principal" | "renovar" | "listo";
+type Paso = "cliente" | "registrar" | "zona" | "nameservers" | "activacion" | "principal" | "renovar" | "titular" | "listo";
 
 const MIN = 60_000;
 const HORA = 60 * MIN;
@@ -114,10 +116,12 @@ async function crear(
     const ya = await tx.dominioCompra.findFirst({ where: { cobroId: cobro.id }, select: { id: true } });
     if (ya) return { compraId: ya.id, repetida: true };
     const c = await tx.dominioCompra.create({ data: { tenantId, cobroId: cobro.id, monto: cobro.monto, ...datos }, select: { id: true } });
-    await tx.auditoria.create({ data: { usuarioId: datos.usuarioId ?? null, tenantId, accion: `dominio.${datos.tipo === "alta" ? "compra" : "renovacion"}_pagada`, detalle: { dominio: datos.dominio, cobroId: cobro.id } } });
+    const accion = datos.tipo === "titular" ? "dominio.titular_pedido" : `dominio.${datos.tipo === "alta" ? "compra" : "renovacion"}_pagada`;
+    await tx.auditoria.create({ data: { usuarioId: datos.usuarioId ?? null, tenantId, accion, detalle: { dominio: datos.dominio, cobroId: cobro.id } } });
     return { compraId: c.id, repetida: false };
   });
-  if (!r.repetida) {
+  if (!r.repetida && datos.tipo === "titular") programar(tenantId);
+  else if (!r.repetida) {
     // Que pueda cerrar la página: en el mail va adónde ver en qué está.
     await avisarAlTitular(tenantId, {
       clave: `dominio-pago-recibido:${cobro.id}`,
@@ -226,11 +230,11 @@ export async function vencerDatos(ahora = new Date()): Promise<number> {
 export async function pedirDevolucionesDe(tenantId: string, reg: Registro = registroGlobal()): Promise<number> {
   const cobro = reg.gestor?.gestion.dominios;
   if (!cobro) return 0;
-  const pendientes = await conTenant(tenantId, (tx) => tx.dominioCompra.findMany({ where: { devolucion: "pendiente" }, select: { id: true, cobroId: true, dominio: true, motivo: true } }));
+  const pendientes = await conTenant(tenantId, (tx) => tx.dominioCompra.findMany({ where: { devolucion: "pendiente" }, select: { id: true, cobroId: true, dominio: true, motivo: true, tipo: true } }));
   let pedidas = 0;
   for (const c of pendientes) {
     try {
-      const motivo = c.motivo === "no-disponible" ? `Alguien registró ${c.dominio} antes` : `No se pudo registrar ${c.dominio}`;
+      const motivo = c.tipo === "renovacion" ? `No se pudo renovar ${c.dominio}` : c.motivo === "no-disponible" ? `Alguien registró ${c.dominio} antes` : `No se pudo registrar ${c.dominio}`;
       await cobro.devolver(tenantId, c.cobroId, motivo);
       await conTenant(tenantId, async (tx) => {
         await tx.dominioCompra.updateMany({ where: { id: c.id, devolucion: "pendiente" }, data: { devolucion: "pedida" } });
@@ -374,13 +378,65 @@ async function paso(tenantId: string, c: Compra, r: Registrador, ahora: Date): P
       const d = await r.dominio(clienteId, c.dominio);
       return { tipo: "siguiente", paso: "listo", operacion: null, datos: { venceEn: d?.venceEn ?? null } };
     }
+    case "titular": {
+      const clienteId = await clienteDe(tenantId, c.registrador);
+      const o = await operacionDe(c, r, clienteId, () => r.cambiarTitular(clienteId, c.dominio, contacto));
+      if (o.estado === "en-curso") return { tipo: "esperar", ms: ESPERA_OPERACION, datos: { operacion: o } };
+      if (o.estado === "fallida") throw new ErrorRegistrador(`El registrador no pudo cambiar el titular: ${o.motivo ?? ""}`, "desconocido");
+      return { tipo: "siguiente", paso: "listo", operacion: null };
+    }
     case "listo":
       return terminarBien(tenantId, c);
   }
 }
 
+/**
+ * Cambio de titular registral de un dominio comprado (lo pide el titular de la banda desde el
+ * panel). Va por la misma máquina, sin cobro: reintentos, dato rechazado, progreso.
+ */
+export async function cambiarTitularRegistral(usuarioId: string, tenantId: string, crudo: string, contacto: Contacto): Promise<{ compraId: string }> {
+  const { r } = piezas();
+  const dominio = normalizarDominio(crudo);
+  const fila = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { dominio, comprado: true } }));
+  if (!fila) throw new ErrorDominio(`${dominio} no es un dominio comprado en Deoco.`);
+  if (fila.vencidoEn) throw new ErrorDominio(`${dominio} está vencido: renovalo primero.`);
+  const abierta = await conTenant(tenantId, (tx) => tx.dominioCompra.findFirst({ where: { dominio, tipo: "titular", estado: { in: ["en-curso", "datos"] } } }));
+  if (abierta) throw new ErrorDominio("Ya hay un cambio de titular en curso para ese dominio.");
+  const { compraId } = await crear(tenantId, { id: `titular:${randomUUID()}`, monto: 0 }, {
+    usuarioId,
+    tipo: "titular",
+    dominio,
+    registrador: r.nombre,
+    contacto: contacto as unknown as Prisma.InputJsonValue,
+    paso: "titular",
+  });
+  return { compraId };
+}
+
 async function terminarBien(tenantId: string, c: Compra): Promise<Resultado> {
   const vence = c.venceEn;
+  const contacto = c.contacto as unknown as Contacto;
+  if (c.tipo === "titular") {
+    await conTenant(tenantId, (tx) => tx.auditoria.create({ data: { usuarioId: c.usuarioId, tenantId, accion: "dominio.titular_cambiado", detalle: { dominio: c.dominio, titular: `${contacto.nombre} ${contacto.apellido}` } } }));
+    await avisarAlTitular(tenantId, {
+      clave: `dominio-titular:${c.id}`,
+      asunto: () => `Cambiamos el titular de ${c.dominio}`,
+      parrafos: () => [
+        `${c.dominio} ahora está registrado a nombre de ${contacto.nombre} ${contacto.apellido} (${contacto.email}).`,
+        "Por las reglas del registro, después de un cambio de titular el dominio no se puede llevar a otro registrador por 60 días.",
+      ],
+      boton: { texto: "Ver Dominios", ruta: "/dominios" },
+    }).catch((e) => console.error(`[compra] aviso de ${c.dominio}:`, e));
+    return { tipo: "fin", datos: { estado: "listo", terminadoEn: new Date(), operacion: undefined } };
+  }
+  // El vencimiento del dominio: el que informó el registrador. Renovado después de vencer, vuelve
+  // a ser el principal si lo era (sin certificado todavía, queda como secundario y la banda elige).
+  const fila = await conTenant(tenantId, async (tx) => {
+    const f = await tx.dominio.findFirst({ where: { dominio: c.dominio, comprado: true } });
+    if (f && vence) await tx.dominio.update({ where: { id: f.id }, data: { venceEn: vence, vencidoEn: null, vencidoEraPrincipal: false } });
+    return f;
+  });
+  if (fila?.vencidoEn && fila.vencidoEraPrincipal && c.usuarioId) await marcarPrincipal(c.usuarioId, tenantId, fila.id).catch(() => undefined);
   await conTenant(tenantId, (tx) => tx.auditoria.create({ data: { usuarioId: null, tenantId, accion: `dominio.${c.tipo === "alta" ? "compra" : "renovacion"}_lista`, detalle: { dominio: c.dominio } } }));
   await avisarAlTitular(tenantId, {
     clave: `dominio-compra-lista:${c.id}`,
@@ -399,17 +455,28 @@ async function terminarBien(tenantId: string, c: Compra): Promise<Resultado> {
 
 /** Termina mal: sin registrar, el pago se devuelve. */
 async function fallar(tenantId: string, c: Compra, motivo: string, error: string): Promise<Resultado> {
-  const sinRegistrar = c.tipo === "alta" && (c.paso === "cliente" || c.paso === "registrar");
+  // Se devuelve lo que no se hizo: un alta sin registrar o una renovación sin renovar.
+  const sinRegistrar = (c.tipo === "alta" && (c.paso === "cliente" || c.paso === "registrar")) || (c.tipo === "renovacion" && c.paso === "renovar");
   console.error(`[compra] ${c.dominio} (${tenantId}) falló: ${motivo}: ${error}`);
   await conTenant(tenantId, (tx) => tx.auditoria.create({ data: { usuarioId: null, tenantId, accion: "dominio.compra_fallida", detalle: { dominio: c.dominio, motivo, error } } }));
+  if (c.tipo === "titular") {
+    await avisarAlTitular(tenantId, {
+      clave: `dominio-titular-fallido:${c.id}`,
+      asunto: () => `No pudimos cambiar el titular de ${c.dominio}`,
+      parrafos: () => [`El registrador no aceptó el cambio de titular de ${c.dominio}. El dominio sigue como estaba. Podés volver a pedirlo desde Dominios o escribirnos.`],
+      boton: { texto: "Ir a Dominios", ruta: "/dominios" },
+    }).catch((e) => console.error(`[compra] aviso de ${c.dominio}:`, e));
+  }
   if (sinRegistrar) {
     await avisarAlTitular(tenantId, {
       clave: `dominio-compra-fallida:${c.id}`,
-      asunto: () => `No pudimos registrar ${c.dominio}`,
+      asunto: () => (c.tipo === "renovacion" ? `No pudimos renovar ${c.dominio}` : `No pudimos registrar ${c.dominio}`),
       parrafos: () => [
-        motivo === "no-disponible"
-          ? `Alguien registró ${c.dominio} antes que nosotros. Te devolvemos el pago completo.`
-          : `No pudimos registrar ${c.dominio}. Te devolvemos el pago completo.`,
+        c.tipo === "renovacion"
+          ? `No pudimos renovar ${c.dominio}. Te devolvemos el pago completo; si todavía no venció, probá de nuevo desde Dominios o escribinos.`
+          : motivo === "no-disponible"
+            ? `Alguien registró ${c.dominio} antes que nosotros. Te devolvemos el pago completo.`
+            : `No pudimos registrar ${c.dominio}. Te devolvemos el pago completo.`,
         "Podés buscar otro en Dominios.",
       ],
       boton: { texto: "Ir a Dominios", ruta: "/dominios" },
@@ -448,6 +515,16 @@ async function falla(tenantId: string, c: Compra, r: Registrador, e: unknown, ah
     const registrado = clienteId ? await r.dominio(clienteId, c.dominio).catch(() => null) : null;
     if (!registrado) return fallar(tenantId, c, err.tipo, err.message);
   }
+  // Renovación sin poder en 24 h (p. ej. el dominio ya no está en la subcuenta): si el registrador
+  // no muestra un vencimiento posterior al de antes de renovar, no se renovó y se devuelve.
+  if (c.tipo === "renovacion" && c.paso === "renovar" && ahora.getTime() - primer.getTime() >= TOPE_SIN_REGISTRAR) {
+    const clienteId = await clienteDe(tenantId, c.registrador).catch(() => null);
+    const d = clienteId ? await r.dominio(clienteId, c.dominio).catch(() => null) : null;
+    if (d && c.venceEn && d.venceEn > c.venceEn) return { tipo: "siguiente", paso: "listo", operacion: null, datos: { venceEn: d.venceEn } };
+    return fallar(tenantId, c, err.tipo, err.message);
+  }
+  // Cambio de titular sin poder en 24 h: queda como estaba (no hay plata en juego).
+  if (c.tipo === "titular" && ahora.getTime() - primer.getTime() >= TOPE_SIN_REGISTRAR) return fallar(tenantId, c, err.tipo, err.message);
   if (!c.motivo || c.motivo !== err.tipo) console.error(`[compra] ${c.dominio} (${tenantId}), paso ${c.paso}: ${err.tipo}: ${err.message}`);
   const espera = REINTENTOS[Math.min(c.intentos, REINTENTOS.length - 1)];
   return {

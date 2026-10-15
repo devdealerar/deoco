@@ -138,6 +138,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   (`revisarCompras`). `dominio.comprado`: no se quita ni se "lleva el DNS". Staff: `/admin/dominios`.
 - Venta (D9, `venta.ts`): `cotizarDominio` / `buscarDominios` / `pagarDominio` / `pagarRenovacion` → el
   gestor cobra; la compra pide la devolución al gestor (`devolucion` pendiente → pedida).
+- Renovación y salida (D11): `vencimiento.ts` (calendario, vencer, gracia, pérdida), `transferencia.ts`
+  (código en el panel, nunca por mail), `plazos.ts`; `cambiarTitularRegistral` (tipo `titular`).
 - Pantallas de compra (D10): `/b/<slug>/dominios/comprar[/<dominio>[/resumen]]` y el progreso
   `/b/<slug>/dominios/compras` (`seguimiento.ts`, de la base: sirve aunque cierre la página).
 - Traefik (Easypanel): las rutas de Deoco van en el YAML propio (no en Easypanel); `aop` solo en

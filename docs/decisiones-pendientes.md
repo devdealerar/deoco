@@ -39,6 +39,34 @@ túnel. Pide un ensayo con Cloudflare real.
 5. **Los mails del gestor salen siempre desde Deoco**, aunque la banda tenga su dirección
    verificada (antes, la cuota habría salido desde merch@labanda.com: era un bug).
 
+## D11 · Renovación y salida de los comprados
+
+1. **Calendario**: el barrido mira una vez por hora; manda el aviso que toca (45, 30, 15, 7, 3 o 1
+   día antes), uno por vencimiento y aviso (`unica`). Si el barrido estuvo parado, manda solo el
+   que toca ahora, no los que se saltearon. Desde los 15 días el mail dice qué se pierde; desde los
+   3, que hay gracia. En el panel, aviso fijo desde los 30 días (rojo desde los 7 y vencido).
+2. **Delegados y `.com.ar`**: la fecha la carga la banda (opcional) y se avisa igual, "renovalo en tu
+   registrador / en nic.ar". No se consulta el WHOIS/RDAP (pendiente si hace falta).
+3. **Renovar se puede con la banda en cualquier estado** (suspendida o archivada también): la cuota no
+   puede hacer perder un dominio. Pagar dos veces el mismo vencimiento no se puede (y si pasa, se
+   devuelve). Si en 24 h no se pudo renovar y el registrador no muestra un vencimiento nuevo, se
+   devuelve el pago.
+4. **Vencido sin renovar**: el principal vuelve al subdominio, el remitente vuelve a Deoco (un dominio
+   vencido no manda mails), nada se borra. **Gracia de 30 días** al precio de siempre; **30 más de
+   recuperación** con recargo (se cotiza a mano: "escribinos"). Pasado eso, si el registrador lo
+   liberó (no está en la subcuenta), se pierde: se dan de baja zona, correo y filas, con mail y
+   auditoría. Los plazos reales de GoDaddy están por confirmar (`plazos.ts`, un solo lugar).
+5. **Renovado en la gracia vuelve a ser el principal** si lo era.
+6. **El código de transferencia no va por mail ni se guarda**: se muestra en el panel al titular cada
+   vez que lo pide (un mail queda 90 días en la tabla `correo`). El mail solo avisa que se pidió.
+7. **Bloqueo de 60 días** (reglas del registro) contado desde la última alta o cambio de titular
+   terminados. No se vuelve a bloquear el dominio si la transferencia nunca se hace (pendiente:
+   re-bloquear a los 30 días).
+8. **Al irse por transferencia queda delegado**: la zona sigue (los nameservers no cambian), renueva
+   la banda y la fecha queda sin cargar.
+9. **Cambio de titular por la misma máquina** (tipo `titular`, sin cobro): reintentos, dato rechazado
+   con corrección, progreso. 24 h sin poder → queda como estaba, con mail.
+
 ## D10 · Las pantallas de compra
 
 1. **Entre "titular" y "pago", los datos viajan en una cookie del panel** (httpOnly, solo la ruta de

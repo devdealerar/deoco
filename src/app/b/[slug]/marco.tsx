@@ -5,6 +5,7 @@ import { registro } from "@/nucleo/modulos";
 import { menuPanel } from "@/nucleo/modulos/navegacion";
 import { delegacionesPorVencer, dominiosConProblema } from "@/nucleo/dominios";
 import { dominioDeEnvio } from "@/nucleo/dominios/envio";
+import { dominiosPorVencerEnPanel } from "@/nucleo/dominios/vencimiento";
 import { bandaCobra } from "@/nucleo/pagos";
 import { Aviso } from "@/ui";
 import { BotonSalir } from "../../salir";
@@ -22,6 +23,8 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   const conProblema = esTitular ? await dominiosConProblema(acceso.tenantId) : [];
   // Delegaciones que vencen en un par de días si la banda no cambia los nameservers.
   const porVencer = esTitular ? await delegacionesPorVencer(acceso.tenantId) : [];
+  // Dominios que vencen en 30 días o ya vencieron (comprados: renovar; delegados: en su registrador).
+  const vencen = esTitular ? await dominiosPorVencerEnPanel(acceso.tenantId) : [];
   // Suspendida: solo se puede pagar (el resto del panel da 403). El sitio público sigue.
   // Archivada: el panel no existe más, salvo Dominios para el titular (el dominio es suyo).
   const archivada = acceso.estado === "ARCHIVADO";
@@ -151,9 +154,24 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
               </Aviso>
             </div>
           )}
+          {vencen.length > 0 && (
+            <div className="mb-6">
+              <Aviso tono={vencen.some((d) => d.vencidoEn || d.dias <= 7) ? "error" : "advertencia"} titulo={tituloVencen(vencen)} data-dominio-vence>
+                {vencen.some((d) => d.comprado) ? "Renovalo desde Dominios: Deoco nunca lo renueva sin que lo pagues. " : "Renovalo donde lo registraste. "}
+                <Link href={`/b/${slug}/dominios`} className="font-semibold underline">Ver dominios</Link>
+              </Aviso>
+            </div>
+          )}
           {children}
         </div>
       </div>
     </div>
   );
+}
+
+function tituloVencen(v: { dominio: string; dias: number; vencidoEn: Date | null }[]) {
+  if (v.length > 1) return `${v.map((d) => d.dominio).join(", ")}: vencen pronto o ya vencieron`;
+  const [d] = v;
+  if (d.vencidoEn || d.dias <= 0) return `${d.dominio} venció`;
+  return d.dias === 1 ? `${d.dominio} vence mañana` : `${d.dominio} vence en ${d.dias} días`;
 }

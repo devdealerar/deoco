@@ -1,12 +1,25 @@
 import Link from "next/link";
 import { exigirTitular } from "@/nucleo/acceso/panel";
+import { registro } from "@/nucleo/modulos";
 import { dominiosDeBanda } from "@/nucleo/dominios";
 import { seguimientoDeCompras } from "@/nucleo/dominios/seguimiento";
 import { ventaHabilitada } from "@/nucleo/dominios/venta";
 import { Aviso, Boton, Tarjeta } from "@/ui";
 import { ListaDominios } from "../../../_dominios/lista";
 import { MarcoPanel } from "../marco";
-import { agregarAccion, delegarAccion, llevarseAccion, principalAccion, quedarseAccion, quitarAccion, verificarAccion } from "./acciones";
+import {
+  agregarAccion,
+  cambiarTitularAccion,
+  delegarAccion,
+  fijarVenceAccion,
+  llevarseAccion,
+  pedirCodigoAccion,
+  principalAccion,
+  quedarseAccion,
+  quitarAccion,
+  renovarAccion,
+  verificarAccion,
+} from "./acciones";
 
 // Dominios de la banda. Lo define el núcleo (no es de ningún módulo). Solo el titular.
 export default async function Dominios({ params }: { params: Promise<{ slug: string }> }) {
@@ -15,6 +28,7 @@ export default async function Dominios({ params }: { params: Promise<{ slug: str
   const compras = await seguimientoDeCompras(acceso.tenantId);
   const enCurso = compras.filter((c) => c.enCurso || c.corregir);
   const puedeComprar = ventaHabilitada() && (acceso.estado === "ACTIVO" || acceso.estado === "MOROSO");
+  const terminaciones = ventaHabilitada() ? ((await registro().gestor?.gestion.dominios?.terminaciones()) ?? []) : [];
   return (
     <MarcoPanel slug={slug} acceso={acceso}>
       <div className="flex flex-col gap-6">
@@ -58,6 +72,11 @@ export default async function Dominios({ params }: { params: Promise<{ slug: str
           delegar={(d) => delegarAccion.bind(null, slug, d)}
           llevarse={(d) => llevarseAccion.bind(null, slug, d)}
           quedarse={(d) => quedarseAccion.bind(null, slug, d)}
+          renovar={(d) => renovarAccion.bind(null, slug, d)}
+          pedirCodigo={(d) => pedirCodigoAccion.bind(null, slug, d)}
+          cambiarTitular={(d) => cambiarTitularAccion.bind(null, slug, d)}
+          fijarVence={(d) => fijarVenceAccion.bind(null, slug, d)}
+          precios={Object.fromEntries(terminaciones.map((t) => [t.tld, t.precio]))}
           soloSalida={acceso.estado === "ARCHIVADO"}
         />
       </div>

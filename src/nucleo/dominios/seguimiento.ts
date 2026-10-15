@@ -13,7 +13,7 @@ export type Paso = { nombre: string; estado: EstadoPaso };
 export type Seguimiento = {
   /** El id del cobro del gestor, o el de la compra si no hay cobro (compras viejas). */
   id: string;
-  tipo: "alta" | "renovacion";
+  tipo: "alta" | "renovacion" | "titular";
   dominio: string;
   monto: number | null;
   creadoEn: Date;
@@ -31,6 +31,7 @@ const DIAS = 60;
 
 const NOMBRES_ALTA = ["Pago", "Registro a tu nombre", "Conectando el sitio", "Certificado", "Listo"];
 const NOMBRES_RENOVACION = ["Pago", "Renovación", "Listo"];
+const NOMBRES_TITULAR = ["Pedido", "Cambio de titular", "Listo"];
 
 /** Índice del paso de la compra en curso (alta). */
 const ETAPA_ALTA: Record<string, number> = { cliente: 1, registrar: 1, zona: 2, nameservers: 2, activacion: 2, principal: 3, listo: 4 };
@@ -66,10 +67,10 @@ export async function seguimientoDeCompras(tenantId: string, reg: Registro = reg
 type Compra = Awaited<ReturnType<typeof import("@/nucleo/db/cliente").prisma.dominioCompra.findFirstOrThrow>>;
 
 function armar(cobro: CobroDominioVisible | null, compra: Compra | undefined | null): Seguimiento {
-  const tipo = (cobro?.tipo ?? compra?.tipo ?? "alta") as "alta" | "renovacion";
-  const nombres = tipo === "alta" ? NOMBRES_ALTA : NOMBRES_RENOVACION;
+  const tipo = (cobro?.tipo ?? compra?.tipo ?? "alta") as Seguimiento["tipo"];
+  const nombres = tipo === "alta" ? NOMBRES_ALTA : tipo === "titular" ? NOMBRES_TITULAR : NOMBRES_RENOVACION;
   const dominio = cobro?.dominio ?? compra!.dominio;
-  const base = { id: cobro?.id ?? compra!.id, tipo, dominio, monto: cobro?.monto ?? compra?.monto ?? null, creadoEn: cobro?.creadoEn ?? compra!.creadoEn, corregir: null };
+  const base = { id: cobro?.id ?? compra!.id, tipo, dominio, monto: tipo === "titular" ? null : (cobro?.monto ?? compra?.monto ?? null), creadoEn: cobro?.creadoEn ?? compra!.creadoEn, corregir: null };
 
   // Todavía sin compra: depende del pago.
   if (!compra) {
@@ -90,6 +91,12 @@ function armar(cobro: CobroDominioVisible | null, compra: Compra | undefined | n
   }
 
   const actual = tipo === "alta" ? (ETAPA_ALTA[compra.paso] ?? 1) : compra.paso === "listo" ? 2 : 1;
+  if (tipo === "titular") {
+    const t = compra.contacto as unknown as Contacto;
+    if (compra.estado === "listo") return { ...base, pasos: pasos(nombres, nombres.length, "hecho"), enCurso: false, tono: "exito", mensaje: `${dominio} ahora está a nombre de ${t.nombre} ${t.apellido}.` };
+    if (compra.estado === "fallido") return { ...base, pasos: pasos(nombres, 1, "error"), enCurso: false, tono: "error", mensaje: `No se pudo cambiar el titular de ${dominio}: sigue como estaba.` };
+    if (compra.estado !== "datos") return { ...base, pasos: pasos(nombres, 1, "en-curso"), enCurso: true, tono: compra.motivo ? "advertencia" : "info", mensaje: `Estamos cambiando el titular de ${dominio}. El registrador puede pedir que se confirme por mail.` };
+  }
   if (compra.estado === "listo") {
     return {
       ...base,

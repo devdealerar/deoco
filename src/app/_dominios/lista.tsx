@@ -1,6 +1,7 @@
 import type { DominioBanda, RegistroDns } from "@/nucleo/dominios";
 import { enFormatoBind } from "@/nucleo/dominios/bind";
-import { Campo, Casilla, Copiable, type EstadoFormulario, Formulario, Insignia, Tarjeta } from "@/ui";
+import { formatearPesos } from "@/nucleo/dinero";
+import { Aviso, Campo, Casilla, Copiable, type EstadoFormulario, Formulario, Insignia, Tarjeta } from "@/ui";
 
 type Accion = (estado: EstadoFormulario, datos: FormData) => Promise<EstadoFormulario>;
 
@@ -18,6 +19,11 @@ export function ListaDominios({
   delegar,
   llevarse,
   quedarse,
+  renovar,
+  pedirCodigo,
+  cambiarTitular,
+  fijarVence,
+  precios = {},
   soloSalida = false,
 }: {
   dominios: DominioBanda[];
@@ -28,10 +34,19 @@ export function ListaDominios({
   delegar: (dominioId: string) => Accion;
   llevarse: (dominioId: string) => Accion;
   quedarse: (dominioId: string) => Accion;
+  /** Comprados: renovar (va a pagar), pedir el código para llevárselo, cambiar el titular. Solo el panel de la banda. */
+  renovar?: (dominioId: string) => Accion;
+  pedirCodigo?: (dominioId: string) => Accion;
+  cambiarTitular?: (dominioId: string) => Accion;
+  /** Delegados: cargar cuándo vence (para avisarle). */
+  fijarVence?: (dominioId: string) => Accion;
+  /** Precio de renovación por año de cada terminación a la venta (centavos). */
+  precios?: Record<string, number>;
   /** Banda archivada: sin agregar ni pasar a delegado; solo llevarse o quitar. */
   soloSalida?: boolean;
 }) {
   const enLinea = { puedeEditar: true, enLinea: true, variante: "secundario" as const };
+  const precioDe = (dominio: string) => precios[dominio.split(".").slice(1).join(".")] ?? null;
   return (
     <div className="flex flex-col gap-6">
       {dominios.map((d) => (
@@ -60,6 +75,37 @@ export function ListaDominios({
             d.verificado && !d.esPrincipal && !(d.salida && !d.salida.acompanaA) && <Formulario {...enLinea} accion={principal(d.id)} etiqueta="Usar como principal" />
           }
         >
+          <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[14rem_1fr]" data-renglones>
+            <dt className="text-tertiary">Dónde está registrado</dt>
+            <dd className="text-primary">{d.renglones.registro}</dd>
+            <dt className="text-tertiary">Quién lo renueva</dt>
+            <dd className="text-primary">{d.renglones.renueva}</dd>
+            <dt className="text-tertiary">Quién maneja el DNS</dt>
+            <dd className="text-primary">{d.renglones.dns}</dd>
+          </dl>
+
+          {d.vencido && (
+            <div data-vencido>
+              <Aviso tono="error" titulo={`Venció el ${d.vencido.desde.toLocaleDateString("es-AR", FECHA_LARGA)}`}>
+                {d.vencido.renovable
+                  ? `El sitio volvió a tu subdominio de Deoco y no se borró nada. Renovalo hasta el ${d.vencido.graciaHasta.toLocaleDateString("es-AR", FECHA_LARGA)} al precio de siempre y vuelve todo como estaba.`
+                  : "Pasó el plazo para renovarlo al precio de siempre. Todavía se puede recuperar con un recargo del registrador: escribinos y te lo cotizamos."}
+              </Aviso>
+            </div>
+          )}
+
+          {d.comprado && renovar && !d.dominio.startsWith("www.") && (!d.vencido || d.vencido.renovable) && (
+            <div className="flex flex-wrap items-center gap-3" data-renovar>
+              <Formulario
+                {...enLinea}
+                variante={d.vencido || (d.diasParaVencer !== null && d.diasParaVencer <= 30) ? "primario" : "secundario"}
+                accion={renovar(d.id)}
+                etiqueta={precioDe(d.dominio) !== null ? `Renovar un año por ${formatearPesos(precioDe(d.dominio)!)}` : "Renovar un año"}
+              />
+              <span className="text-xs text-tertiary">Deoco nunca lo renueva sin que lo pagues: te avisamos antes de que venza.</span>
+            </div>
+          )}
+
           {d.estado === "certificado" && !d.esPrincipal && (
             <p className="text-sm text-tertiary">
               Verificado: ya muestra el sitio y, mientras no sea el principal, redirige al principal. Cloudflare está
@@ -145,10 +191,73 @@ export function ListaDominios({
           {d.comprado && !d.dominio.startsWith("www.") && (
             <details className="text-sm text-secondary" data-como-me-lo-llevo>
               <summary className="cursor-pointer font-semibold">Cómo me lo llevo</summary>
-              <p className="mt-3">
-                Lo compraste en Deoco: está registrado a nombre del titular que elegiste, en una cuenta propia de la banda. Para llevártelo a
-                otro registrador se usa el código de transferencia.
-              </p>
+              <div className="mt-3 flex flex-col gap-3">
+                <p>
+                  Lo compraste en Deoco: está registrado a nombre de {d.titular ? `${d.titular.nombre} ${d.titular.apellido}` : "su titular"}, en una cuenta propia de la banda. Para
+                  llevártelo a otro registrador usás el código de transferencia: Deoco no cobra nada; el registrador nuevo te cobra la transferencia (suele incluir un año
+                  más). Mientras se transfiere, el sitio y el correo siguen andando.
+                </p>
+                {d.transferencia?.puedeDesde ? (
+                  <p data-transferencia-bloqueada>
+                    Por las reglas del registro, se puede llevar desde el {d.transferencia.puedeDesde.toLocaleDateString("es-AR", FECHA_LARGA)} (60 días después de registrarlo o
+                    de cambiar el titular).
+                  </p>
+                ) : d.vencido ? (
+                  <p>Está vencido: renovalo primero y después te lo llevás.</p>
+                ) : (
+                  pedirCodigo && (
+                    <div data-pedir-codigo>
+                      {d.transferencia?.pedidaEn && (
+                        <p className="mb-2">
+                          Pediste el código el {d.transferencia.pedidaEn.toLocaleDateString("es-AR", FECHA_LARGA)}. Cuando la transferencia termine lo detectamos solos y el dominio
+                          sigue andando en Deoco (pasás a renovarlo en tu registrador nuevo).
+                        </p>
+                      )}
+                      <Formulario puedeEditar variante="secundario" accion={pedirCodigo(d.id)} etiqueta={d.transferencia?.pedidaEn ? "Ver el código otra vez" : "Pedir el código de transferencia"} />
+                    </div>
+                  )
+                )}
+              </div>
+            </details>
+          )}
+          {d.comprado && cambiarTitular && !d.dominio.startsWith("www.") && !d.vencido && (
+            <details className="text-sm text-secondary" data-cambiar-titular>
+              <summary className="cursor-pointer font-semibold">Cambiar el titular</summary>
+              <div className="mt-3 flex flex-col gap-3">
+                <p>
+                  El dominio pasa a estar registrado a nombre de otra persona. El registrador puede pedir que se confirme por mail, y por 60 días no se puede llevar a otro
+                  registrador.
+                </p>
+                <Formulario puedeEditar accion={cambiarTitular(d.id)} etiqueta="Cambiar el titular">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Campo name="nombre" etiqueta="Nombre" defaultValue={d.titular?.nombre} required />
+                    <Campo name="apellido" etiqueta="Apellido" defaultValue={d.titular?.apellido} required />
+                    <Campo name="email" type="email" etiqueta="Email" defaultValue={d.titular?.email} required />
+                    <Campo name="telefono" etiqueta="Teléfono" defaultValue={d.titular?.telefono} required />
+                    <Campo name="direccion" etiqueta="Dirección" defaultValue={d.titular?.direccion} required />
+                    <Campo name="ciudad" etiqueta="Ciudad" defaultValue={d.titular?.ciudad} required />
+                    <Campo name="provincia" etiqueta="Provincia" defaultValue={d.titular?.provincia} required />
+                    <Campo name="codigoPostal" etiqueta="Código postal" defaultValue={d.titular?.codigoPostal} required />
+                    <Campo name="pais" etiqueta="País (código de dos letras)" defaultValue={d.titular?.pais ?? "AR"} required />
+                  </div>
+                </Formulario>
+              </div>
+            </details>
+          )}
+          {!d.dePlataforma && !d.comprado && d.verificado && fijarVence && !d.dominio.startsWith("www.") && (
+            <details className="text-sm text-secondary" data-fijar-vence>
+              <summary className="cursor-pointer font-semibold">{d.venceEn ? "Cambiar la fecha de vencimiento" : "¿Cuándo vence? Te avisamos antes"}</summary>
+              <div className="mt-3">
+                <Formulario puedeEditar accion={fijarVence(d.id)} etiqueta="Guardar">
+                  <Campo
+                    name="venceEn"
+                    type="date"
+                    etiqueta="Vence el"
+                    defaultValue={d.venceEn?.toISOString().slice(0, 10)}
+                    ayuda="La ves en tu registrador (o en nic.ar). Te avisamos 45, 30, 15, 7, 3 y 1 día antes. Vacío: no avisar."
+                  />
+                </Formulario>
+              </div>
             </details>
           )}
           {d.via === "zona" && d.verificado && !d.salida && !d.comprado && !d.dominio.startsWith("www.") && (
@@ -223,6 +332,7 @@ export function ListaDominios({
 }
 
 const FECHA: Intl.DateTimeFormatOptions = { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long" };
+const FECHA_LARGA: Intl.DateTimeFormatOptions = { ...FECHA, year: "numeric" };
 
 /** Un dominio delegado esperando que la banda cambie los nameservers. */
 function Delegacion({ dominio, delegacion: g, verificar }: { dominio: string; delegacion: NonNullable<DominioBanda["delegacion"]>; verificar: Accion }) {

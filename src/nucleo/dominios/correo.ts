@@ -185,7 +185,7 @@ export async function revisarCorreosPendientes(ahora = new Date()): Promise<numb
 }
 
 /** Deja de usar el dominio para el correo: los mails vuelven a salir desde Deoco. */
-export async function quitarCorreo(usuarioId: string, tenantId: string): Promise<void> {
+export async function quitarCorreo(usuarioId: string | null, tenantId: string): Promise<void> {
   const c = await conTenant(tenantId, (tx) => tx.correoDominio.findFirst());
   if (!c) return;
   const p = proveedorDns();

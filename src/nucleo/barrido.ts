@@ -14,6 +14,8 @@ import { revisarDominios } from "@/nucleo/dominios";
 import { revisarCorreosPendientes } from "@/nucleo/dominios/correo";
 import { revisarCompras } from "@/nucleo/dominios/compra";
 import { revisarSalidas } from "@/nucleo/dominios/salida";
+import { revisarTransferencias } from "@/nucleo/dominios/transferencia";
+import { revisarVencimientos } from "@/nucleo/dominios/vencimiento";
 import { retomarEventos } from "@/nucleo/eventos/bus";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Registro } from "@/nucleo/modulos/registro";
@@ -27,6 +29,8 @@ export type ResultadoBarrido = {
   salidas: number;
   /** Compras y renovaciones de dominios que terminaron (listas o fallidas) en esta vuelta. */
   compras: number;
+  /** Vencimientos de dominios (una vez por hora): avisos del calendario, vencidos, perdidos y transferidos afuera. */
+  vencimientos: { avisos: number; vencidos: number; perdidos: number; transferidos: number } | null;
   tareas: string[];
 };
 
@@ -81,6 +85,20 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
     console.error("[barrido] compras de dominios:", e);
     return 0;
   });
+  // Una vez por hora (en este proceso): el calendario de vencimientos y las transferencias afuera.
+  let vencimientos: ResultadoBarrido["vencimientos"] = null;
+  if (ahora.getTime() - ultimosVencimientos >= 3_600_000) {
+    ultimosVencimientos = ahora.getTime();
+    const v = await revisarVencimientos(ahora).catch((e) => {
+      console.error("[barrido] vencimientos de dominios:", e);
+      return { avisos: 0, vencidos: 0, perdidos: 0 };
+    });
+    const transferidos = await revisarTransferencias().catch((e) => {
+      console.error("[barrido] transferencias de dominios:", e);
+      return 0;
+    });
+    vencimientos = { ...v, transferidos };
+  }
   const tareas = await correrTareas(ahora);
   // Una vez por día (en este proceso): la limpieza de correos enviados.
   if (ahora.getTime() - ultimaLimpieza >= 86_400_000) {
@@ -93,10 +111,11 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
       console.log(`[barrido] correos: ${l.adjuntos} sin adjuntos, ${l.cuerpos} sin cuerpo, ${l.borrados} borrados`);
     }
   }
-  return { bandas: bandas.length, dominios, correos, salidas, compras, tareas };
+  return { bandas: bandas.length, dominios, correos, salidas, compras, vencimientos, tareas };
 }
 
 let ultimaLimpieza = 0;
+let ultimosVencimientos = 0;
 
 let corriendo = false;
 let reloj: NodeJS.Timeout | undefined;

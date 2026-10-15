@@ -18,6 +18,8 @@ import { avisarAlTitular } from "@/nucleo/correo/deoco";
 import { ZONA } from "@/nucleo/fechas";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
 import { destinoCname, ErrorProveedor, ipDelServidor, type ProveedorDns, proveedorDns, type RegistroDns, type Zona } from "./proveedor";
+import { graciaHasta, transferibleDesde } from "./plazos";
+import type { Contacto } from "./registrador";
 
 export class ErrorDominio extends Error {}
 
@@ -261,6 +263,17 @@ export type DominioBanda = {
     /** Si para entonces no cambió los nameservers, el pedido vence y se libera. */
     vence: Date;
   } | null;
+  /** Los tres renglones fijos de la tarjeta (docs/diseno-dominios.md §2). */
+  renglones: { registro: string; renueva: string; dns: string };
+  /** Cuándo vence (comprado: del registrador; delegado: lo cargó la banda), y cuántos días faltan. */
+  venceEn: Date | null;
+  diasParaVencer: number | null;
+  /** Comprado vencido sin renovar: hasta cuándo se renueva al precio de siempre. */
+  vencido: { desde: Date; graciaHasta: Date; renovable: boolean } | null;
+  /** Comprado: el titular registral actual (para cambiarlo). */
+  titular: Contacto | null;
+  /** Comprado: si pidió el código para llevárselo y desde cuándo se puede (reglas del registro). */
+  transferencia: { pedidaEn: Date | null; puedeDesde: Date | null } | null;
   /** Delegado del que la banda se está llevando el DNS (salida.ts). */
   salida: {
     seguirConSitio: boolean;
@@ -277,14 +290,24 @@ export type DominioBanda = {
 
 /** Los dominios de la banda, el principal primero. Lee lo guardado: no consulta a Cloudflare. */
 export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]> {
-  const [filas, salidas, correo] = await conTenant(tenantId, (tx) =>
+  const [filas, salidas, correo, titulares] = await conTenant(tenantId, (tx) =>
     Promise.all([
       tx.dominio.findMany({ orderBy: [{ esPrincipal: "desc" }, { verificado: "desc" }, { dominio: "asc" }] }),
       tx.zonaSaliente.findMany({ where: { seLlevaElDns: true } }),
       tx.correoDominio.findFirst({ where: { recepcion: "activa" }, select: { local: true, dominio: true } }),
+      // A nombre de quién está cada comprado: la última alta o cambio de titular terminado.
+      tx.dominioCompra.findMany({ where: { tipo: { in: ["alta", "titular"] }, estado: "listo" }, orderBy: { terminadoEn: "desc" }, select: { dominio: true, contacto: true, terminadoEn: true } }),
     ]),
   );
-  return filas.map((d) => {
+  const ahora = new Date();
+  // La fila de www no guarda el vencimiento: es el de su dominio.
+  const vencePorDominio = new Map(filas.map((f) => [f.dominio, f.venceEn]));
+  return filas.map((d0) => {
+    const d = { ...d0, venceEn: d0.venceEn ?? (d0.dominio.startsWith("www.") ? (vencePorDominio.get(apexDe(d0.dominio)) ?? null) : null) };
+    const apex = apexDe(d.dominio);
+    const ultimo = titulares.find((t) => t.dominio === apex);
+    const aNombreDe = ultimo ? `${(ultimo.contacto as { nombre?: string }).nombre ?? ""} ${(ultimo.contacto as { apellido?: string }).apellido ?? ""}`.trim() : null;
+    const fechaCorta = (f: Date) => f.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" });
     const dePlataforma = esDePlataforma(d.dominio);
     const via = dePlataforma ? null : d.via === "zona" ? "zona" : "cname";
     const problema = d.verificado && d.problemaDesde ? { desde: d.problemaDesde, texto: d.problema ?? "" } : null;
@@ -309,6 +332,26 @@ export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]>
       registros: via === "cname" && (!d.verificado || problema) ? registrosDns(d.dominio, d.token) : null,
       validacion: via === "cname" && !d.verificado && !d.migrandoA && Array.isArray(d.validacion) ? (d.validacion as RegistroDns[]) : [],
       problema,
+      renglones: dePlataforma
+        ? { registro: "Es el subdominio de Deoco", renueva: "No vence", dns: "Deoco" }
+        : {
+            registro: d.comprado
+              ? `En Deoco (GoDaddy)${aNombreDe ? `, a nombre de ${aNombreDe}` : ""}`
+              : /\.ar$/.test(d.dominio)
+                ? "En NIC Argentina, a tu nombre"
+                : "En tu registrador (lo compraste afuera)",
+            renueva: d.comprado
+              ? `Deoco, cuando pagás la renovación${d.venceEn ? ` · vence el ${fechaCorta(d.venceEn)}` : ""}`
+              : `Vos, ${/\.ar$/.test(d.dominio) ? "en nic.ar" : "en tu registrador"} · ${d.venceEn ? `vence el ${fechaCorta(d.venceEn)} (lo cargaste vos)` : "fecha sin cargar"}`,
+            dns: via === "zona" ? "Deoco (Cloudflare)" : "Vos, en tu proveedor",
+          },
+      venceEn: d.venceEn,
+      diasParaVencer: d.venceEn ? Math.ceil((d.venceEn.getTime() - ahora.getTime()) / 86_400_000) : null,
+      titular: d.comprado && ultimo ? (ultimo.contacto as unknown as Contacto) : null,
+      vencido: d.vencidoEn ? { desde: d.vencidoEn, graciaHasta: graciaHasta(d.vencidoEn), renovable: ahora <= graciaHasta(d.vencidoEn) } : null,
+      transferencia: d.comprado
+        ? { pedidaEn: d.transferenciaPedidaEn, puedeDesde: ultimo?.terminadoEn && transferibleDesde(ultimo.terminadoEn) > ahora ? transferibleDesde(ultimo.terminadoEn) : null }
+        : null,
       delegacion:
         (via === "zona" && !d.verificado) || (via === "cname" && d.migrandoA)
           ? {

@@ -127,6 +127,14 @@ model Dominio {
   hostnameViejo   String?
   /// Comprado en Deoco: su zona la maneja la compra (no vence como una delegación).
   comprado        Boolean   @default(false)
+  /// Cuándo vence el registro (comprado: del registrador; delegado: lo carga la banda).
+  venceEn               DateTime?
+  /// Comprado que venció sin renovar: el sitio volvió al subdominio, nada se borra.
+  vencidoEn             DateTime?
+  /// Era el principal al vencer: renovado, vuelve a serlo.
+  vencidoEraPrincipal   Boolean   @default(false)
+  /// La banda pidió el código para llevárselo a otro registrador.
+  transferenciaPedidaEn DateTime?
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   correo       CorreoDominio[]
 
@@ -441,7 +449,7 @@ model DominioCompra {
   tenantId       String    @db.Uuid
   tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   usuarioId      String?   @db.Uuid
-  /// alta | renovacion
+  /// alta | renovacion | titular (cambio de titular registral, sin cobro)
   tipo           String
   dominio        String
   registrador    String

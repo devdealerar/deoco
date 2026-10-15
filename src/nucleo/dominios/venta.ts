@@ -14,6 +14,7 @@ import { titularDeBanda } from "@/nucleo/personas";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
 import { ErrorDominio, normalizarDominio, proveedorDns } from "./index";
 import { type Aceptacion, type Contacto, registrador } from "./registrador";
+import { graciaHasta } from "./plazos";
 
 export type Cotizacion =
   | { dominio: string; disponible: false }
@@ -148,24 +149,32 @@ export async function pagarDominio(tenantId: string, usuarioId: string, p: Pedid
   });
 }
 
-/** Renovar por un año un dominio comprado en Deoco. */
+/**
+ * Renovar por un año un dominio comprado en Deoco. Con la banda en cualquier estado (suspendida o
+ * archivada también: la cuota no le puede hacer perder el dominio). Vencido, durante la gracia.
+ */
 export async function pagarRenovacion(tenantId: string, usuarioId: string, crudo: string, reg: Registro = registroGlobal()) {
   const { cobro } = piezas(reg);
   const dominio = normalizarDominio(crudo);
-  const { banda, titular, vence } = await conTenant(tenantId, async (tx) => ({
+  const { banda, titular, fila } = await conTenant(tenantId, async (tx) => ({
     banda: await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { slug: true } }),
     titular: await titularDeBanda(tx),
-    vence: await tx.dominioCompra.findFirst({ where: { dominio, estado: "listo", venceEn: { not: null } }, orderBy: { venceEn: "desc" }, select: { venceEn: true } }),
+    fila: await tx.dominio.findFirst({ where: { dominio, comprado: true } }),
   }));
-  if (!vence?.venceEn) throw new ErrorDominio(`${dominio} no es un dominio comprado en Deoco.`);
+  if (!fila?.venceEn) throw new ErrorDominio(`${dominio} no es un dominio comprado en Deoco.`);
   if (!titular) throw new ErrorDominio("La banda no tiene titular.");
+  if (fila.vencidoEn && Date.now() > graciaHasta(fila.vencidoEn).getTime()) {
+    throw new ErrorDominio(`Pasó el plazo para renovar ${dominio} al precio de siempre. Todavía se puede recuperar con un recargo del registrador: escribinos y te lo cotizamos.`);
+  }
+  const renovando = await conTenant(tenantId, (tx) => tx.dominioCompra.findFirst({ where: { dominio, tipo: "renovacion", estado: { in: ["en-curso", "datos"] } } }));
+  if (renovando) throw new ErrorDominio(`La renovación de ${dominio} ya está paga: la estamos haciendo.`);
   if ((await cobro.precio(terminacion(dominio), 1)) === null) throw new ErrorDominio(`Los dominios .${terminacion(dominio)} no se renuevan en Deoco por ahora: escribinos.`);
   return cobro.cobrar(tenantId, {
     tipo: "renovacion",
     dominio,
     anios: 1,
     // Un vencimiento, una renovación: pagar dos veces el mismo año se devuelve.
-    clave: `renovacion:${dominio}:${vence.venceEn.toISOString().slice(0, 10)}`,
+    clave: `renovacion:${dominio}:${fila.venceEn.toISOString().slice(0, 10)}`,
     datos: {},
     usuarioId,
     email: (await usuarioPropio(usuarioId))?.email ?? titular.email,

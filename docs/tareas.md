@@ -32,6 +32,15 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D11: `vencimiento.ts` (calendario 45/30/15/7/3/1 por mail con `unica`, aviso fijo en el panel
+  desde 30 días, vencer → subdominio y remitente Deoco, gracia 30 días, pérdida si el registrador lo
+  libera; `fijarVencimiento` para delegados), `transferencia.ts` (código en el panel, bloqueo de 60
+  días, detección de la salida → delegado), `plazos.ts`. Renovar: `pagarRenovacion` (cualquier
+  estado de la banda, gracia) + botón en la tarjeta; renovación que no se puede hacer → devolución.
+  Cambio de titular: `cambiarTitularRegistral` (tipo `titular` en la máquina). La tarjeta de cada
+  dominio muestra los tres renglones fijos del diseño. Barrido: vencimientos y transferencias, una
+  vez por hora. Migración `dominio_vencimiento`. Pruebas: `tests/dominios-vencimiento.test.ts`, e2e
+  en `tests/e2e/compra-dominio.e2e.ts`.
 - D10: pantallas de compra (núcleo, solo titular): `/b/<slug>/dominios/comprar` (buscar: cada
   terminación a la venta con su precio, `buscarDominios`), `…/comprar/<dominio>` (a nombre de quién,
   precargado con quien compra; teléfono normalizado), `…/comprar/<dominio>/resumen` (precio,
@@ -121,7 +130,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | ✅ hecha |
 | D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | ✅ hecha |
 | D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | ✅ hecha |
-| D11 | Renovación y avisos; llevarse el dominio | 3–4 | pendiente |
+| D11 | Renovación y avisos; llevarse el dominio | 3–4 | ✅ hecha |
 | D12 | Transferir a Deoco (delegado → comprado) | 3 | pendiente |
 | D13 | Punta a punta y ensayo con dominio comprado real | 3 | pendiente |
 

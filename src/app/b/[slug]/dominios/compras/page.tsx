@@ -40,7 +40,7 @@ export default async function Compras({ params, searchParams }: { params: Promis
             titulo={i.dominio}
             data-seguimiento={i.dominio}
             data-en-curso={i.enCurso || undefined}
-            junto={<Insignia>{i.tipo === "alta" ? "Compra" : "Renovación"}</Insignia>}
+            junto={<Insignia>{i.tipo === "alta" ? "Compra" : i.tipo === "titular" ? "Cambio de titular" : "Renovación"}</Insignia>}
             acciones={i.monto !== null ? <span className="text-sm text-tertiary">{formatearPesos(i.monto)}</span> : undefined}>
             <p className="text-xs text-tertiary">{FECHA.format(i.creadoEn)}</p>
             <ol className="flex flex-wrap gap-2" aria-label="Pasos">
