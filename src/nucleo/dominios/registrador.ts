@@ -7,6 +7,7 @@
 //   DEOCO_REGISTRADOR        "godaddy" (único implementado)
 //   DEOCO_GODADDY_KEY / _SECRET  clave de API de la cuenta de revendedor de Deoco
 //   DEOCO_GODADDY_API        por defecto https://api.godaddy.com (pruebas de GoDaddy: https://api.ote-godaddy.com)
+//   DEOCO_GODADDY_POR_MINUTO tope de pedidos por minuto (59: GoDaddy permite 60)
 import { GoDaddy } from "./godaddy";
 
 /** El titular registral: a su nombre queda el dominio (no a nombre de Deoco). */
@@ -104,7 +105,13 @@ export function registrador(env: Record<string, string | undefined> = process.en
   const clave = env.DEOCO_GODADDY_KEY?.trim();
   const secreto = env.DEOCO_GODADDY_SECRET?.trim();
   if (!clave || !secreto) return null;
-  return GoDaddy.compartido({ clave, secreto, api: env.DEOCO_GODADDY_API?.trim() || "https://api.godaddy.com" });
+  const porMinuto = Number(env.DEOCO_GODADDY_POR_MINUTO);
+  return GoDaddy.compartido({
+    clave,
+    secreto,
+    api: env.DEOCO_GODADDY_API?.trim() || "https://api.godaddy.com",
+    ...(Number.isInteger(porMinuto) && porMinuto > 0 ? { porMinuto } : {}),
+  });
 }
 
 /** Problemas de configuración del registrador (para el arranque). */

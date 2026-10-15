@@ -32,6 +32,21 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D8: `src/nucleo/dominios/compra.ts`. Una fila por compra o renovación en `dominio_compra`
+  (con el paso actual; no hizo falta separar `dominio_registro` y `dominio_paso`) y la subcuenta
+  en `registrador_cliente`. Pasos del alta: cliente → registrar (sin NS) → zona → nameservers →
+  activacion → principal → listo; renovación: renovar → listo. `dominioPagado()` /
+  `renovacionPagada()` los llama el gestor (D9), idempotentes por `cobroId`. Cada compra se toma
+  en la base (`tomadoEn`, colgada a los 5 min). Reintentos 1 min → 6 h; sin saldo, cada 15 min;
+  "no disponible" falla al instante; 24 h sin registrar → `fallido` con `devolucion: "pendiente"`
+  (antes mira la subcuenta: ya registrado, nunca se devuelve). Datos inválidos → estado `datos`,
+  mail al titular, `corregirDatosCompra()` (la pantalla, en D10). Mails al titular: "ya es tuyo",
+  "renovamos", "no pudimos registrar", "revisá un dato". Barrido: `revisarCompras`
+  (`bandas_con_compras_pendientes`). `dominio.comprado`: sin quitar ni "llevarse el DNS", fuera
+  del vencimiento de delegaciones. Back office `/admin/dominios`: compras con filtros (necesitan
+  atención, en curso, datos, listas, fallidas; banda), Reintentar (auditado) y lo que vence en
+  30 días. Al staff no le llega un mail: lo ve ahí y en el log. Migración `dominio_compra`.
+  Pruebas: `tests/compra.test.ts`, e2e en `tests/e2e/admin.e2e.ts`.
 - D7: `src/nucleo/dominios/registrador.ts` (interfaz `Registrador`, `ErrorRegistrador` con cinco
   tipos, `registrador()` por `DEOCO_REGISTRADOR`), `godaddy.ts` (subcuenta por banda, registro a
   nombre del titular sin renovación automática, 202 + acciones, nunca dos registros, código de
@@ -72,7 +87,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | ✅ hecha |
 | D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | ✅ hecha |
 | D7 | `Registrador` GoDaddy v2 + falso | 5–7 | ✅ hecha |
-| D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | pendiente |
+| D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | ✅ hecha |
 | D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | pendiente |
 | D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | pendiente |
 | D11 | Renovación y avisos; llevarse el dominio | 3–4 | pendiente |

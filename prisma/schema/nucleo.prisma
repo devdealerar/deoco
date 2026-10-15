@@ -64,6 +64,8 @@ model Tenant {
   cobrosDuplicados     CobroDuplicado[]
   correoDominio        CorreoDominio?
   zonasSalientes       ZonaSaliente[]
+  registradorClientes  RegistradorCliente[]
+  comprasDeDominio     DominioCompra[]
   limites              LimiteBanda[]
 
   @@map("tenant")
@@ -123,6 +125,8 @@ model Dominio {
   migrandoA       String?
   /// Ya delegado: el custom hostname viejo, a borrar cuando el certificado de la zona esté activo.
   hostnameViejo   String?
+  /// Comprado en Deoco: su zona la maneja la compra (no vence como una delegación).
+  comprado        Boolean   @default(false)
   tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   correo       CorreoDominio[]
 
@@ -415,4 +419,59 @@ model ZonaSaliente {
 
   @@unique([tenantId, zonaId])
   @@map("zona_saliente")
+}
+
+/// La subcuenta de la banda en el registrador (una por banda y registrador).
+model RegistradorCliente {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  registrador String
+  clienteId   String
+  creadoEn    DateTime @default(now())
+
+  @@unique([tenantId, registrador])
+  @@map("registrador_cliente")
+}
+
+/// Una compra (alta) o renovación de un dominio, ya pagada, con su paso actual
+/// (src/nucleo/dominios/compra.ts). Avanza desde el barrido; nunca registra dos veces.
+model DominioCompra {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuarioId      String?   @db.Uuid
+  /// alta | renovacion
+  tipo           String
+  dominio        String
+  registrador    String
+  anios          Int       @default(1)
+  /// El titular registral (Contacto).
+  contacto       Json      @default("{}")
+  /// { fecha, ip, claves }
+  aceptacion     Json      @default("{}")
+  hacerPrincipal Boolean   @default(false)
+  cobroId        String
+  /// Centavos de peso.
+  monto          Int
+  /// en-curso | datos | listo | fallido
+  estado         String    @default("en-curso")
+  paso           String
+  /// La operación del registrador en curso: { id, estado }.
+  operacion      Json?
+  intentos       Int       @default(0)
+  proximoIntento DateTime  @default(now())
+  primerFalloEn  DateTime?
+  error          String?
+  motivo         String?
+  campo          String?
+  /// pendiente | hecha
+  devolucion     String?
+  venceEn        DateTime?
+  tomadoEn       DateTime?
+  creadoEn       DateTime  @default(now())
+  terminadoEn    DateTime?
+
+  @@unique([tenantId, cobroId])
+  @@map("dominio_compra")
 }

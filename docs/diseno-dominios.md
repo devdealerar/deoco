@@ -480,6 +480,13 @@ Ya no hacen falta `destinoEstado` ni `reglaId` por dirección (no hay destinos v
 regla por destino). El barrido recorre `dominio_paso` con una función que devuelve solo ids, y
 cada paso se "toma" en la base antes de correr, como eventos y correos.
 
+**Como quedó en D8.** Una sola tabla, `dominio_compra` (una fila por compra o renovación, con el
+`paso` actual, la `operacion` del registrador, `intentos`, `proximoIntento`, `error`/`motivo`/
+`campo`, `devolucion` y `venceEn`), en vez de `dominio_registro` + `dominio_paso`; el dominio
+comprado se marca en `dominio.comprado`. Las transiciones (transferir afuera, D11/D12) suman
+sus pasos a esta misma máquina. El barrido usa `bandas_con_compras_pendientes()` (solo ids).
+Al staff no se le manda mail: lo que necesita atención se ve en `/admin/dominios` y en el log.
+
 ## 9. Cobro, renovación y titularidad
 
 **Cobro.** Pago único anual por Checkout Pro en la cuenta de Deoco, precio en pesos por
@@ -636,7 +643,7 @@ quiera.
 | D5 | Correo: `DominioDeEnvio` (Resend), Email Worker + KV, pantalla Correo, remitente en `enviarCorreo` — ✅ hecha | M | 4 a 5 |
 | D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino — ✅ hecha | S | 2 |
 | D7 | `Registrador` con GoDaddy v2 + registrador falso — ✅ hecha | L | 5 a 7 |
-| D8 | Máquina de estados, tablas, barrido; back office de dominios | L | 5 |
+| D8 | Máquina de estados, tablas, barrido; back office de dominios — ✅ hecha | L | 5 |
 | D9 | Cobro en el gestor: precios por terminación, Checkout Pro de Deoco, aviso, devoluciones | M | 3 a 4 |
 | D10 | Pantallas de compra: buscar, titular, resumen (con el costo de salida), progreso, listo | M | 4 |
 | D11 | Renovación y avisos; llevarse el dominio (código, detección de la salida → pasa a delegado) | M | 3 a 4 |

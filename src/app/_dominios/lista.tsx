@@ -44,7 +44,7 @@ export function ListaDominios({
             <>
               {d.esPrincipal && <Insignia color="marca">Principal</Insignia>}
               {d.dePlataforma && <Insignia>Subdominio de Deoco</Insignia>}
-              {d.via === "zona" && <Insignia>Delegado</Insignia>}
+              {d.comprado ? <Insignia>Comprado en Deoco</Insignia> : d.via === "zona" && <Insignia>Delegado</Insignia>}
               {d.delegacion?.migrando && <Insignia>Pasando a delegado</Insignia>}
               {d.salida && <Insignia color="advertencia">Te estás llevando el DNS</Insignia>}
               {d.estado === "sin-verificar" && (
@@ -142,7 +142,16 @@ export function ListaDominios({
             </p>
           )}
 
-          {d.via === "zona" && d.verificado && !d.salida && !d.dominio.startsWith("www.") && (
+          {d.comprado && !d.dominio.startsWith("www.") && (
+            <details className="text-sm text-secondary" data-como-me-lo-llevo>
+              <summary className="cursor-pointer font-semibold">Cómo me lo llevo</summary>
+              <p className="mt-3">
+                Lo compraste en Deoco: está registrado a nombre del titular que elegiste, en una cuenta propia de la banda. Para llevártelo a
+                otro registrador se usa el código de transferencia.
+              </p>
+            </details>
+          )}
+          {d.via === "zona" && d.verificado && !d.salida && !d.comprado && !d.dominio.startsWith("www.") && (
             <details className="text-sm text-secondary" data-como-me-lo-llevo>
               <summary className="cursor-pointer font-semibold">Cómo me lo llevo</summary>
               <div className="mt-3 flex flex-col gap-3">
@@ -172,7 +181,7 @@ export function ListaDominios({
             </details>
           )}
 
-          {!d.dePlataforma && !d.esPrincipal && (
+          {!d.dePlataforma && !d.esPrincipal && !d.comprado && (
             <div className="border-t border-secondary pt-4" data-quitar>
               <Formulario {...enLinea} variante="peligro" accion={quitar(d.id)} etiqueta="Quitar dominio">
                 <Casilla name="confirmar" etiqueta={`Confirmo quitar ${d.dominio}`} />

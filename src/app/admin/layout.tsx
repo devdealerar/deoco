@@ -18,6 +18,7 @@ export default async function LayoutAdmin({ children }: { children: ReactNode })
         { href: "/admin", etiqueta: "Bandas" },
         { href: "/admin/usuarios", etiqueta: "Usuarios" },
         { href: "/admin/eventos", etiqueta: "Eventos fallidos" },
+        { href: "/admin/dominios", etiqueta: "Dominios comprados" },
       ],
     },
     ...menuAdminPorModulo(registro()).map((g) => ({ titulo: g.titulo, items: g.items.map((i) => ({ href: i.href, etiqueta: i.etiqueta })) })),

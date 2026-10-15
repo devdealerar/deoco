@@ -132,6 +132,10 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - Registrador (D7, sin pantallas todavía): `Registrador` (`registrador.ts`, `registrador()` por
   `DEOCO_REGISTRADOR`), GoDaddy en `godaddy.ts` (subcuenta por banda, cola de 59/min). Pruebas:
   `tests/registrador-falso.ts`.
+- Compra (D8, `compra.ts`): `dominioPagado` / `renovacionPagada` (los llama el gestor; idempotentes
+  por cobro) → máquina de estados en `dominio_compra` (tomada en la base, reintentos, `datos`,
+  `fallido` con `devolucion: "pendiente"`; ya registrado nunca se devuelve), en el barrido
+  (`revisarCompras`). `dominio.comprado`: no se quita ni se "lleva el DNS". Staff: `/admin/dominios`.
 - Traefik (Easypanel): las rutas de Deoco van en el YAML propio (no en Easypanel); `aop` solo en
   `app.` (host exacto) y lista de IPs de Cloudflare en todas (`docs/despliegue.md`).
 

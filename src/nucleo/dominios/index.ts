@@ -239,6 +239,8 @@ export type DominioBanda = {
   verificado: boolean;
   dePlataforma: boolean;
   via: "cname" | "zona" | null;
+  /** Comprado en Deoco: registrado a nombre del titular en la subcuenta de la banda. */
+  comprado: boolean;
   estado: EstadoDominio;
   /** Los registros que conectan el dominio (cname): a crear si falta verificar, a revisar si hay problema. */
   registros: RegistroDns[] | null;
@@ -302,6 +304,7 @@ export async function dominiosDeBanda(tenantId: string): Promise<DominioBanda[]>
       verificado: d.verificado,
       dePlataforma,
       via,
+      comprado: d.comprado,
       estado,
       registros: via === "cname" && (!d.verificado || problema) ? registrosDns(d.dominio, d.token) : null,
       validacion: via === "cname" && !d.verificado && !d.migrandoA && Array.isArray(d.validacion) ? (d.validacion as RegistroDns[]) : [],
@@ -450,7 +453,8 @@ async function verificarZona(tenantId: string, zonaId: string, usuarioId: string
       console.warn(`[dominios] ${f.dominio} ya está verificado por otra banda.`);
     }
   }
-  if (verificadas) {
+  // Comprado en Deoco: el aviso de "listo" lo manda la compra (compra.ts), con su vencimiento.
+  if (verificadas && !filas.some((f) => f.comprado)) {
     const apex = apexDe(filas[0].dominio);
     // El mail no frena la verificación: si falla, el dominio igual queda andando.
     await avisarDelegacionLista(tenantId, apex, zonaId).catch((e) => console.error(`[dominios] aviso de ${apex} activo:`, e));
@@ -581,6 +585,26 @@ export async function delegacionesPorVencer(tenantId: string, ahora = new Date()
   return filas.map((f) => ({ dominio: f.dominio, vence: venceDelegacion(f.creadoEn) }));
 }
 
+/**
+ * La zona de un dominio recién registrado en Deoco (lo llama la compra, compra.ts): las filas del
+ * dominio y su www (marcadas `comprado`) y la zona con los registros del sitio. Devuelve los
+ * nameservers que la compra pone en el registrador. Repetible.
+ */
+export async function zonaParaComprado(tenantId: string, apex: string): Promise<string[]> {
+  const p = proveedor();
+  const nombres = nombresDelSitio(apex);
+  await conTenant(tenantId, async (tx) => {
+    // Lo que hubiera sin verificar con esos nombres (la banda lo había cargado antes de comprarlo) se reemplaza.
+    await tx.dominio.deleteMany({ where: { dominio: { in: nombres }, verificado: false } });
+    const ya = await tx.dominio.findMany({ where: { dominio: { in: nombres } }, select: { dominio: true } });
+    for (const n of nombres) {
+      if (!ya.some((x) => x.dominio === n)) await tx.dominio.create({ data: { tenantId, dominio: n, via: "zona", comprado: true } });
+    }
+  });
+  const z = await prepararZona(tenantId, apex, p);
+  return z.nameservers;
+}
+
 // ── Verificar ───────────────────────────────────────────────────────────────────────────────
 
 export type ResultadoVerificacion =
@@ -689,6 +713,7 @@ export async function quitarDominio(usuarioId: string, tenantId: string, dominio
     if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
     if (esDePlataforma(d.dominio)) throw new ErrorDominio("El subdominio de Deoco no se puede quitar.");
     if (d.esPrincipal) throw new ErrorDominio(`${d.dominio} es el principal: elegí otro como principal antes de quitarlo.`);
+    if (d.comprado) throw new ErrorDominio(`${d.dominio} lo compraste en Deoco y está registrado a tu nombre: para dejarlo, llevátelo con el código de transferencia.`);
     if (!confirmado) {
       throw new ErrorDominio(
         d.verificado
@@ -792,6 +817,8 @@ async function revisarDelegaciones(ahora: Date): Promise<number> {
         await conTenant(tenantId, (tx) =>
           tx.dominio.updateMany({ where: { via: "zona", dominio: { in: nombresDelSitio(apex) } }, data: { revisadoEn: ahora } }),
         );
+        // Comprado en Deoco: los nameservers los pone la compra; no vence como una delegación.
+        if (!e.llega && filas.some((x) => apexDe(x.dominio) === apex && x.comprado)) continue;
         if (!e.llega) {
           const creado = new Date(Math.min(...filas.filter((x) => apexDe(x.dominio) === apex).map((x) => x.creadoEn.getTime())));
           const vence = venceDelegacion(creado).getTime();

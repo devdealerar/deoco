@@ -164,6 +164,8 @@ export class RegistradorFalso {
     env.DEOCO_GODADDY_KEY = CLAVE_GD;
     env.DEOCO_GODADDY_SECRET = SECRETO_GD;
     env.DEOCO_GODADDY_API = this.base;
+    // Las pruebas hacen muchos pedidos seguidos: sin el tope de 60 por minuto (la cola se prueba aparte).
+    env.DEOCO_GODADDY_POR_MINUTO = "100000";
   }
 
   limpiar() {

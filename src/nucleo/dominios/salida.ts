@@ -81,6 +81,7 @@ export async function llevarseElDns(usuarioId: string, tenantId: string, dominio
   const d = await conTenant(tenantId, (tx) => tx.dominio.findFirst({ where: { id: dominioId } }));
   if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
   if (d.via !== "zona" || !d.verificado || !d.proveedorId) throw new ErrorDominio(`${d.dominio} no está delegado en Deoco: su DNS ya es tuyo.`);
+  if (d.comprado) throw new ErrorDominio(`${d.dominio} lo compraste en Deoco: para llevártelo se usa el código de transferencia.`);
   const zonaId = d.proveedorId;
   const apex = apexDe(d.dominio);
   if (await conTenant(tenantId, (tx) => tx.zonaSaliente.findFirst({ where: { zonaId } }))) return; // ya en curso

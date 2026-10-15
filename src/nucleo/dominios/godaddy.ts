@@ -19,7 +19,7 @@ import {
   type Registrador,
 } from "./registrador";
 
-type Config = { clave: string; secreto: string; api: string };
+type Config = { clave: string; secreto: string; api: string; porMinuto?: number };
 type ErrorGd = { code?: string; message?: string; fields?: { path?: string; code?: string; message?: string }[] };
 
 /** El cliente de Deoco en GoDaddy: `customerId` (v2) y `shopperId` (v1). Opaco para el resto. */
@@ -57,17 +57,19 @@ export class GoDaddy implements Registrador {
   /** Una instancia (y una cola) por credencial, en este proceso. */
   private static instancias = new Map<string, GoDaddy>();
   static compartido(cfg: Config): GoDaddy {
-    const k = `${cfg.api}|${cfg.clave}`;
+    const k = `${cfg.api}|${cfg.clave}|${cfg.porMinuto ?? ""}`;
     let g = GoDaddy.instancias.get(k);
     if (!g) GoDaddy.instancias.set(k, (g = new GoDaddy(cfg)));
     return g;
   }
 
-  /** 60 pedidos por minuto por credencial: uno de margen. */
-  private readonly cola = new Cola(59, 60_000);
-  constructor(private readonly cfg: Config) {}
+  /** GoDaddy: 60 pedidos por minuto por credencial; por defecto, uno de margen. */
+  private readonly cola: Cola;
+  constructor(private readonly cfg: Config) {
+    this.cola = new Cola(cfg.porMinuto ?? 59, 60_000);
+  }
 
-  /** null si respondió 404. */
+  /** null si una consulta (GET) respondió 404. En una escritura, un 404 es un error: nunca "aceptado". */
   private async llamar<T>(metodo: "GET" | "POST" | "PUT" | "PATCH", ruta: string, cuerpo?: unknown, shopperId?: string): Promise<{ estado: number; datos: T } | null> {
     return this.cola.correr(async () => {
       let r: Response;
@@ -86,7 +88,7 @@ export class GoDaddy implements Registrador {
       } catch (e) {
         throw new ErrorRegistrador(`GoDaddy no respondió (${metodo} ${ruta.split("?")[0]}): ${e instanceof Error ? e.message : e}`, "temporal");
       }
-      if (r.status === 404) return null;
+      if (r.status === 404 && metodo === "GET") return null;
       const texto = await r.text();
       const datos = texto ? (JSON.parse(texto) as unknown) : {};
       if (r.ok) return { estado: r.status, datos: datos as T };

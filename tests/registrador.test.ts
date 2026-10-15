@@ -122,6 +122,16 @@ describe("registrar", () => {
   });
 });
 
+describe("una escritura que da 404", () => {
+  it("es un error (una subcuenta que no existe), nunca un 'aceptado'", async () => {
+    const e = await r
+      .registrar("cust-x|shop-x", { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion })
+      .catch((x) => x);
+    expect(e).toBeInstanceOf(ErrorRegistrador);
+    expect(e.tipo).toBe("desconocido");
+  });
+});
+
 describe("después del registro", () => {
   it("nameservers y renovación (con el vencimiento actual: no renueva dos veces)", async () => {
     const clienteId = await clienteConDominio();

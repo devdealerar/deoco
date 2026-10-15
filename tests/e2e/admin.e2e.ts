@@ -289,3 +289,40 @@ describe("listados largos: paginados en el servidor, con filtro y orden en la UR
     }
   });
 });
+
+describe("dominios comprados", () => {
+  it("lista las compras, filtra lo que necesita atención y muestra lo que vence", async () => {
+    const [a, b] = await Promise.all(["banda-a", "banda-b"].map((slug) => dueno.tenant.findUniqueOrThrow({ where: { slug } })));
+    const base = { registrador: "godaddy", monto: 1500000, tipo: "alta" };
+    await dueno.dominioCompra.createMany({
+      data: [
+        { ...base, tenantId: a.id, cobroId: "e2e-1", dominio: "sinsaldo.com", paso: "registrar", motivo: "sin-saldo", error: "Sin saldo en la cuenta" },
+        { ...base, tenantId: a.id, cobroId: "e2e-2", dominio: "tranquilo.com", paso: "zona" },
+        { ...base, tenantId: b.id, cobroId: "e2e-3", dominio: "listo.com", paso: "listo", estado: "listo", venceEn: new Date(Date.now() + 10 * 86400000) },
+      ],
+    });
+    try {
+      const { page } = await logueado("staff@deocoartist.com");
+      await page.goto(`${APP}/admin/dominios`);
+      expect(await page.locator("[data-compra]").count()).toBe(3);
+      await page.goto(`${APP}/admin/dominios?estado=atencion`);
+      const filas = page.locator("[data-compra]");
+      expect(await filas.count()).toBe(1);
+      expect(await filas.textContent()).toContain("sinsaldo.com");
+      expect(await page.getByRole("row").filter({ hasText: "sinsaldo.com" }).textContent()).toContain("Sin saldo en la cuenta");
+      expect(await page.locator("body").textContent()).toContain("listo.com"); // solo en "Vencen en 30 días"
+      await captura(page, "admin-dominios");
+      // Sin registrador configurado (como en este servidor), reintentar lo dice y no toca nada.
+      const antes = await dueno.dominioCompra.findFirstOrThrow({ where: { cobroId: "e2e-1" } });
+      const fila = page.getByRole("row").filter({ hasText: "sinsaldo.com" });
+      await fila.locator("form[data-hidratado]").waitFor();
+      await fila.getByRole("button", { name: "Reintentar" }).click();
+      await page.getByText("La compra de dominios todavía no está habilitada en Deoco.").first().waitFor();
+      expect((await dueno.dominioCompra.findFirstOrThrow({ where: { cobroId: "e2e-1" } })).proximoIntento).toEqual(antes.proximoIntento);
+      await page.goto(`${APP}/admin/dominios?banda=banda-b`);
+      expect(await page.locator("[data-compra]").count()).toBe(1);
+    } finally {
+      await dueno.dominioCompra.deleteMany({ where: { cobroId: { startsWith: "e2e-" } } });
+    }
+  });
+});
