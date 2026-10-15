@@ -110,3 +110,40 @@ export async function cobrosFallidos(paginaPedida: number) {
     return { filas: cobros.map((c) => ({ ...c, banda: bandas.get(c.tenantId) ?? null })), ...p };
   });
 }
+
+// ── Dominios (aparte de la cuota) ─────────────────────────────────────────────────────────────
+
+/** Qué pagos de dominios mostrar: los que el staff tiene que mirar, los devueltos o todos. */
+export const FILTROS_PAGOS_DOMINIO = ["atencion", "devoluciones", "todos"] as const;
+export type FiltroPagosDominio = (typeof FILTROS_PAGOS_DOMINIO)[number];
+
+const DONDE_PAGOS: Record<FiltroPagosDominio, Prisma.ComercialDominioPagoWhereInput> = {
+  atencion: { OR: [{ devolucion: { in: ["pendiente", "en-proceso", "fallida"] } }, { entrega: "pendiente" }] },
+  devoluciones: { devolucion: { not: null } },
+  todos: {},
+};
+
+/** Pagos de dominios de todas las bandas, los más nuevos primero (nunca mezclados con la cuota). */
+export async function pagosDeDominios(filtro: FiltroPagosDominio, paginaPedida: number) {
+  return leerComoStaff(async (tx) => {
+    const where = DONDE_PAGOS[filtro];
+    const total = await tx.comercialDominioPago.count({ where });
+    const p = paginado(total, paginaPedida);
+    const pagos = await tx.comercialDominioPago.findMany({
+      where,
+      include: { cobro: { select: { dominio: true, tipo: true, anios: true, monto: true } } },
+      orderBy: [{ creadoEn: "desc" }, { id: "asc" }],
+      skip: (p.pagina - 1) * POR_PAGINA,
+      take: POR_PAGINA,
+    });
+    const bandas = new Map(
+      (await tx.tenant.findMany({ where: { id: { in: [...new Set(pagos.map((c) => c.tenantId))] } }, select: { id: true, nombre: true, slug: true } })).map((b) => [b.id, b]),
+    );
+    return { filas: pagos.map((c) => ({ ...c, banda: bandas.get(c.tenantId) ?? null })), ...p };
+  });
+}
+
+/** Cobros de dominios creados que nadie pagó todavía (link de pago vigente). */
+export async function cobrosDominioEsperando() {
+  return leerComoStaff((tx) => tx.comercialDominioCobro.count({ where: { estado: "esperando" } }));
+}

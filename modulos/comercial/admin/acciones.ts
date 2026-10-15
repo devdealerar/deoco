@@ -7,7 +7,9 @@ import { leerPesos } from "@/nucleo/dinero";
 import { ErrorPasarela } from "@/nucleo/pagos";
 import type { EstadoFormulario } from "@/ui";
 import { ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
+import { ErrorDominio } from "@/nucleo/dominios";
 import { asignarPlan, type DatosPlan, ErrorComercial, guardarPlan, guardarPlazos, type ProAMedida } from "../cuenta";
+import { guardarPrecioDominio, marcarDevueltaAMano, reintentarDevolucion } from "../dominios";
 
 const GB = BigInt(1024 ** 3);
 
@@ -18,7 +20,7 @@ async function accion(fn: () => Promise<string>): Promise<EstadoFormulario> {
     revalidatePath("/admin", "layout");
     return { ok };
   } catch (e) {
-    if (e instanceof ErrorComercial || e instanceof ErrorFormulario || e instanceof ErrorCuenta) return { error: e.message };
+    if (e instanceof ErrorComercial || e instanceof ErrorFormulario || e instanceof ErrorCuenta || e instanceof ErrorDominio) return { error: e.message };
     if (e instanceof ErrorPasarela) return { error: `Mercado Pago: ${e.message}` };
     throw e;
   }
@@ -98,5 +100,31 @@ export async function asignarPlanAccion(tenantId: string, _: EstadoFormulario, f
     }
     await asignarPlan(conStaff, tenantId, planId, pro);
     return "Plan aplicado.";
+  });
+}
+
+// ── Dominios ─────────────────────────────────────────────────────────────────────────────────
+
+export async function guardarPrecioDominioAccion(tld: string | null, _: EstadoFormulario, fd: FormData) {
+  return accion(async () => {
+    const precio = pesosOpcional(fd, "precio", "Precio por año");
+    if (precio === null) throw new ErrorFormulario("Precio por año: escribilo en pesos.");
+    const t = tld ?? obligatorio(fd, "tld", "la terminación", 30);
+    await guardarPrecioDominio(conStaff, { tld: t, precio, aLaVenta: fd.get("aLaVenta") === "on" });
+    return "Precio guardado.";
+  });
+}
+
+export async function reintentarDevolucionAccion(tenantId: string, id: string, _: EstadoFormulario) {
+  return accion(async () => {
+    await reintentarDevolucion(conStaff, tenantId, id);
+    return "Reintentada.";
+  });
+}
+
+export async function marcarDevueltaAccion(tenantId: string, id: string, _: EstadoFormulario, fd: FormData) {
+  return accion(async () => {
+    await marcarDevueltaAMano(conStaff, tenantId, id, obligatorio(fd, "nota", "cómo se devolvió", 500));
+    return "Marcada como devuelta a mano.";
   });
 }

@@ -9,6 +9,8 @@ import {
   type EstadoDeCobro,
   type EstadoSuscripcion,
   ErrorPasarela,
+  type PagoConsultado,
+  type PagosUnicosPasarela,
   type Pasarela,
   type SuscripcionConsultada,
   type SuscripcionesPasarela,
@@ -21,12 +23,12 @@ const SECRETO_AVISOS = "mercadopago_secreto_avisos";
 
 const pesos = (centavos: number) => Math.round(centavos) / 100;
 
-async function llamar<T>(cred: Credenciales, metodo: "GET" | "POST" | "PUT", ruta: string, cuerpo?: unknown): Promise<T> {
+async function llamar<T>(cred: Credenciales, metodo: "GET" | "POST" | "PUT", ruta: string, cuerpo?: unknown, cabeceras: Record<string, string> = {}): Promise<T> {
   const token = cred[TOKEN];
   if (!token) throw new ErrorPasarela("Falta el access token de Mercado Pago.");
   const r = await fetch(`${api()}${ruta}`, {
     method: metodo,
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...cabeceras },
     body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
     signal: AbortSignal.timeout(15000),
   });
@@ -172,6 +174,78 @@ const suscripciones: SuscripcionesPasarela = {
   },
 };
 
+// ── Pagos únicos: SOLO los dominios, con la cuenta de Deoco ────────────────────────────────
+// Checkout Pro con `binary_mode` (el pago queda aprobado o rechazado; uno que quedaría pendiente
+// o en revisión se rechaza) y sin los medios diferidos: efectivo (Rapipago, Pago Fácil: "ticket"),
+// cajero ("atm") y transferencia ("bank_transfer"). Así un dominio nunca espera días un pago
+// mientras otro lo registra. La preferencia vence: después no se puede pagar a un precio viejo.
+
+/** Medios que tardan en acreditarse: no se ofrecen. */
+export const MEDIOS_DIFERIDOS = ["ticket", "atm", "bank_transfer"] as const;
+
+type Pago = {
+  id: number | string;
+  status: string;
+  external_reference: string | null;
+  transaction_amount: number;
+  transaction_amount_refunded?: number;
+  currency_id: string;
+  payment_type_id?: string | null;
+};
+
+const vistaPago = (p: Pago): PagoConsultado => ({
+  pagoId: String(p.id),
+  estado: ESTADOS[p.status] ?? "pendiente",
+  estadoPasarela: p.status,
+  referencia: p.external_reference || null,
+  monto: Math.round(Number(p.transaction_amount) * 100),
+  moneda: p.currency_id,
+  medio: p.payment_type_id || null,
+  devuelto: Math.round(Number(p.transaction_amount_refunded ?? 0) * 100),
+});
+
+const pagosUnicos: PagosUnicosPasarela = {
+  async crear(cred, p) {
+    const r = await llamar<{ id: string; init_point: string }>(cred, "POST", "/checkout/preferences", {
+      items: [{ title: p.titulo, quantity: 1, unit_price: pesos(p.monto), currency_id: "ARS" }],
+      payer: { email: p.email },
+      payment_methods: { excluded_payment_types: MEDIOS_DIFERIDOS.map((id) => ({ id })) },
+      binary_mode: true,
+      expires: true,
+      expiration_date_from: new Date().toISOString(),
+      expiration_date_to: p.vence.toISOString(),
+      back_urls: { success: p.urls.exito, failure: p.urls.fallo, pending: p.urls.pendiente },
+      auto_return: "approved",
+      notification_url: p.urls.aviso,
+      external_reference: p.referencia,
+      statement_descriptor: "DEOCO",
+    });
+    if (!r.init_point || !r.id) throw new ErrorPasarela("Mercado Pago no devolvió adónde pagar.");
+    return { redireccion: r.init_point, preferenciaId: r.id };
+  },
+
+  async consultar(cred, pagoId) {
+    return vistaPago(await llamar<Pago>(cred, "GET", `/v1/payments/${encodeURIComponent(pagoId)}`));
+  },
+
+  async buscar(cred, referencia) {
+    const q = new URLSearchParams({ external_reference: referencia, sort: "date_created", criteria: "asc", limit: "50" });
+    const r = await llamar<{ results?: Pago[] }>(cred, "GET", `/v1/payments/search?${q}`);
+    return (r.results ?? []).map(vistaPago);
+  },
+
+  async devolver(cred, pagoId, clave) {
+    // Sin monto: devolución total. La clave hace que repetirla no devuelva dos veces.
+    const r = await llamar<{ id: number | string; status?: string }>(cred, "POST", `/v1/payments/${encodeURIComponent(pagoId)}/refunds`, {}, { "x-idempotency-key": clave });
+    if (r.status === "rejected" || r.status === "cancelled") throw new ErrorPasarela(`Mercado Pago rechazó la devolución (${r.status}).`);
+    return { devolucionId: String(r.id), hecha: r.status === "approved" };
+  },
+
+  leerAviso(aviso, cred) {
+    return mercadoPago.leerAviso({ ...aviso, tenantId: "" }, cred);
+  },
+};
+
 export const mercadoPago: Pasarela = {
   id: "mercadopago",
   nombre: "Mercado Pago",
@@ -244,4 +318,5 @@ export const mercadoPago: Pasarela = {
   },
 
   suscripciones,
+  pagosUnicos,
 };

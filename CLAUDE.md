@@ -136,6 +136,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   por cobro) → máquina de estados en `dominio_compra` (tomada en la base, reintentos, `datos`,
   `fallido` con `devolucion: "pendiente"`; ya registrado nunca se devuelve), en el barrido
   (`revisarCompras`). `dominio.comprado`: no se quita ni se "lleva el DNS". Staff: `/admin/dominios`.
+- Venta (D9, `venta.ts`): `cotizarDominio` / `pagarDominio` / `pagarRenovacion` → el gestor cobra;
+  la compra pide la devolución al gestor (`devolucion` pendiente → pedida).
 - Traefik (Easypanel): las rutas de Deoco van en el YAML propio (no en Easypanel); `aop` solo en
   `app.` (host exacto) y lista de IPs de Cloudflare en todas (`docs/despliegue.md`).
 
@@ -180,6 +182,12 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   `DEOCO_CUOTA_MP_SECRETO_AVISOS` (entorno, nunca `secreto`), solo el gestor
   (`@/nucleo/pagos/cuota`); webhook `app.<raiz>/avisos/plataforma/comercial/cuota/mercadopago`
   (`avisosPlataforma`). Cobros en `comercial_cobro`. Vencimientos: `tareasPeriodicas` del barrido.
+- DOMINIOS (D9, `modulos/comercial/dominios.ts`, `gestionaCuenta.dominios`): misma cuenta de Deoco,
+  NADA en común con la cuota: tablas `comercial_dominio_*`, aviso `…/comercial/dominio/mercadopago`,
+  estados propios. Pago único solo inmediato (`binary_mode`, sin efectivo/cajero/transferencia).
+  Solo un pago aprobado del monto exacto arranca la compra; cualquier otro se devuelve solo.
+  Devoluciones con reintentos; "fallida" va a `alertasAdmin` (arriba de todo el back office).
+  Los mails del gestor salen siempre desde Deoco.
 - Las pruebas vuelven a sembrar planes y plazos en `limpiar()` (`sembrarComercial`).
 
 ## Autogestión del alta (`src/nucleo/autogestion`, `/registro`)
@@ -214,6 +222,7 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 
 ## Avisos externos (webhooks)
 
+- `alertasAdmin` (contrato): lo que el staff tiene que mirar ya, arriba de todas las páginas de `/admin`.
 - Contrato: `avisos: [{ ruta, metodos?, manejador }]`. URL de plataforma:
   `app.<raiz>/avisos/<tenantId>/<moduloId><ruta>` (`src/app/avisos/...` → `atenderAviso` en
   `src/nucleo/avisos`). En hosts de banda, 404. El núcleo resuelve banda/módulo prendido; la

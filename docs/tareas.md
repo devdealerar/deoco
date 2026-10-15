@@ -32,6 +32,26 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D9: el cobro, en el gestor (`modulos/comercial/dominios.ts`) por `gestionaCuenta.dominios`
+  (`precio`, `cobrar`, `devolver`). Núcleo: `src/nucleo/dominios/venta.ts` (`cotizarDominio`,
+  `pagarDominio`, `pagarRenovacion`: disponibilidad al cotizar y otra vez antes de cobrar) y
+  pagos únicos de Deoco en `@/nucleo/pagos/cuota` (`crearPagoDominio` con `binary_mode` y sin
+  efectivo, cajero ni transferencia, vence a las 2 h; `consultar`, `buscar`, `devolver` con clave
+  de idempotencia). Aviso propio `…/avisos/plataforma/comercial/dominio/mercadopago` (la URL va
+  en cada preferencia), referencia `dominio:<banda>:<cobro>`; se consulta el pago a la API.
+  Solo un pago aprobado del monto exacto arranca la compra (`dominioPagado` con el id del pago);
+  uno repetido, de otro cobro de lo mismo o de otro monto se devuelve solo. Tarea periódica
+  (1 min): busca los pagos de los cobros esperando (aviso perdido), arranca las compras y corre
+  las devoluciones (5 min, 30 min, 2 h, 6 h, 12 h; al tercer intento "fallida", se sigue
+  reintentando). Compra fallida sin registrar → `devolucion` pendiente → el núcleo se la pasa al
+  gestor (pedida). Compra que no arranca en 24 h → se devuelve. Mail "Te devolvimos $X".
+  Back office: `/admin/m/comercial/dominios` (precios, pagos, Reintentar ya, Marcar devuelta a
+  mano con nota), aparte de "Cuotas fallidas"; `alertasAdmin` (contrato) arriba de todo el back
+  office: devolución fallida, demorada (> 1 h) o compra pagada sin arrancar. Arranque: con
+  registrador, exige gestor que cobre dominios y `DEOCO_CUOTA_MP_TOKEN`. Arreglo de paso: los
+  mails del gestor salen desde Deoco aunque la banda tenga su dirección verificada. Migraciones
+  `dominio_devolucion` y `comercial_dominios`. Pruebas: `tests/dominios-cobro.test.ts`, e2e en
+  `tests/e2e/admin.e2e.ts`.
 - D8: `src/nucleo/dominios/compra.ts`. Una fila por compra o renovación en `dominio_compra`
   (con el paso actual; no hizo falta separar `dominio_registro` y `dominio_paso`) y la subcuenta
   en `registrador_cliente`. Pasos del alta: cliente → registrar (sin NS) → zona → nameservers →
@@ -88,7 +108,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | ✅ hecha |
 | D7 | `Registrador` GoDaddy v2 + falso | 5–7 | ✅ hecha |
 | D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | ✅ hecha |
-| D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | pendiente |
+| D9 | Cobro en el gestor (precios, Checkout Pro de Deoco, devoluciones) | 3–4 | ✅ hecha |
 | D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | pendiente |
 | D11 | Renovación y avisos; llevarse el dominio | 3–4 | pendiente |
 | D12 | Transferir a Deoco (delegado → comprado) | 3 | pendiente |

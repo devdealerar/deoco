@@ -326,3 +326,66 @@ describe("dominios comprados", () => {
     }
   });
 });
+
+describe("dominios: precios y pagos (aparte de la cuota)", () => {
+  it("una devolución fallida se ve arriba de todo el back office hasta que el staff la resuelve", async () => {
+    const a = await dueno.tenant.findUniqueOrThrow({ where: { slug: "banda-a" } });
+    const cobro = await dueno.comercialDominioCobro.create({
+      data: { tenantId: a.id, tipo: "alta", dominio: "sinvuelta.com", anios: 1, monto: 2500000, clave: "alta:sinvuelta.com", datos: {}, vence: new Date(), estado: "devuelto", pagoId: "e2e-pago-1" },
+    });
+    await dueno.comercialDominioPago.create({
+      data: {
+        tenantId: a.id,
+        cobroId: cobro.id,
+        pagoId: "e2e-pago-1",
+        estado: "aprobado",
+        monto: 2500000,
+        entrega: "hecha",
+        devolucion: "fallida",
+        devolucionMotivo: "Alguien registró sinvuelta.com antes",
+        devolucionIntentos: 3,
+        devolucionError: "Mercado Pago respondió 400: insufficient_balance",
+        devolucionProxima: new Date(Date.now() + 3_600_000),
+        devolucionDesde: new Date(Date.now() - 7_200_000),
+      },
+    });
+    try {
+      const { page } = await logueado("staff@deocoartist.com");
+      await page.goto(`${APP}/admin/usuarios`);
+      const alerta = page.locator("[data-alertas-admin]");
+      expect(await alerta.textContent()).toContain("Una devolución de un dominio no sale");
+      await Promise.all([page.waitForURL(`${APP}/admin/m/comercial/dominios`), alerta.getByRole("link").first().click()]);
+      const fila = page.getByRole("row").filter({ hasText: "sinvuelta.com" });
+      expect(await fila.textContent()).toContain("Devolución fallida");
+      expect(await fila.textContent()).toContain("insufficient_balance");
+      await captura(page, "admin-dominios-pagos");
+      // La cuota tiene su propia pantalla: el pago del dominio no aparece ahí.
+      await page.goto(`${APP}/admin/m/comercial/cobros`);
+      expect(await page.locator("body").textContent()).not.toContain("sinvuelta.com");
+
+      await page.goto(`${APP}/admin/m/comercial/dominios`);
+      const form = fila.locator("form[data-hidratado]").filter({ has: page.locator('input[name="nota"]') });
+      await form.waitFor();
+      await form.locator('input[name="nota"]').fill("Desde Mercado Pago, el 16/10");
+      await form.getByRole("button", { name: "Marcar devuelta a mano" }).click();
+      // Resuelta, sale de "necesitan atención" (y su formulario con ella).
+      await fila.waitFor({ state: "detached" });
+      expect(await dueno.comercialDominioPago.findUniqueOrThrow({ where: { pagoId: "e2e-pago-1" } })).toMatchObject({ devolucion: "a-mano", devolucionNota: "Desde Mercado Pago, el 16/10" });
+      await page.goto(`${APP}/admin/usuarios`);
+      expect(await page.locator("[data-alertas-admin]").count()).toBe(0);
+
+      // Precio de una terminación.
+      await page.goto(`${APP}/admin/m/comercial/dominios`);
+      const nuevo = page.locator("form[data-hidratado]").filter({ has: page.locator('input[name="tld"]') });
+      await nuevo.waitFor();
+      await nuevo.locator('input[name="tld"]').fill("com");
+      await nuevo.locator('input[name="precio"]').fill("25.000");
+      await nuevo.getByRole("button", { name: "Agregar" }).click();
+      await nuevo.getByRole("status").waitFor();
+      expect(await dueno.comercialDominioPrecio.findUniqueOrThrow({ where: { tld: "com" } })).toMatchObject({ precio: 2500000, aLaVenta: true });
+    } finally {
+      await dueno.comercialDominioCobro.deleteMany({ where: { clave: "alta:sinvuelta.com" } });
+      await dueno.comercialDominioPrecio.deleteMany();
+    }
+  });
+});

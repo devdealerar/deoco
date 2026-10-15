@@ -95,8 +95,10 @@ function programar(tenantId: string) {
 async function entregarPendientes(tenantId: string) {
   const t = transporte();
   if (!t) return; // sin transporte: quedan PENDIENTES hasta que se configure
-  // Con su dominio verificado, los correos de la banda salen desde su dirección; los de Deoco, no.
+  // Con su dominio verificado, los correos de la banda salen desde su dirección; los de Deoco
+  // (núcleo y gestor de cuenta: la cuota, los dominios), no.
   const propia = await direccionDeEnvio(tenantId);
+  const deDeoco = new Set([ORIGEN_NUCLEO, registroGlobal().gestor?.moduloId]);
   for (;;) {
     const fila = await conTenant(tenantId, async (tx) => {
       const c = await tx.correo.findFirst({ where: { estado: "PENDIENTE" }, orderBy: { creadoEn: "asc" } });
@@ -113,7 +115,7 @@ async function entregarPendientes(tenantId: string) {
     try {
       await t.enviar({
         id: fila.id,
-        de: { nombre: fila.nombreRemitente, direccion: (fila.moduloId !== ORIGEN_NUCLEO && propia) || remitente() },
+        de: { nombre: fila.nombreRemitente, direccion: (!deDeoco.has(fila.moduloId) && propia) || remitente() },
         para: fila.para,
         responderA: fila.responderA ?? undefined,
         asunto: fila.asunto,

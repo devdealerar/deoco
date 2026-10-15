@@ -487,11 +487,22 @@ comprado se marca en `dominio.comprado`. Las transiciones (transferir afuera, D1
 sus pasos a esta misma máquina. El barrido usa `bandas_con_compras_pendientes()` (solo ids).
 Al staff no se le manda mail: lo que necesita atención se ve en `/admin/dominios` y en el log.
 
+**Como quedó en D9 (gestor).** `comercial_dominio_precio` (global), `comercial_dominio_cobro`
+(uno por intento de pago: `clave` "alta:x.com" / "renovacion:x.com:<vence>", `vence`, `estado`
+esperando → pagado | sin-pagar | devuelto, `pagoId` aceptado; índice único por banda y clave
+mientras está pagado) y `comercial_dominio_pago` (uno por pago de la pasarela: `entrega` a la
+compra, y la devolución con `devolucion` pendiente → en-proceso → hecha | fallida | a-mano,
+intentos, próximo intento, error, nota). La compra del núcleo solo marca `devolucion` pendiente
+→ pedida (se la pasó al gestor por `gestionaCuenta.dominios.devolver`); la plata y su estado
+son del gestor. Nada de esto toca `comercial_cobro` ni la cuenta de la banda.
+
 ## 9. Cobro, renovación y titularidad
 
 **Cobro.** Pago único anual por Checkout Pro en la cuenta de Deoco, precio en pesos por
-terminación (lo fija el staff: costo + comisión + colchón por el dólar). Solo medios inmediatos
-(a confirmar que Checkout Pro deje excluir los diferidos). Primero se cobra, después se
+terminación (lo fija el staff: costo + comisión + colchón por el dólar). Solo medios inmediatos:
+**confirmado (D9)**, la preferencia va con `binary_mode: true` (el pago queda aprobado o
+rechazado; uno que quedaría pendiente o en revisión se rechaza) y `excluded_payment_types`
+`ticket` (Rapipago, Pago Fácil), `atm` y `bank_transfer`, y vence a las 2 h. Primero se cobra, después se
 registra; si no se puede registrar, devolución total automática (`Pasarela.devolver`). No es una
 suscripción: el precio cambia con el dólar y el dominio no se ata a la cuota.
 
@@ -621,8 +632,14 @@ un registro DNS.
 - [ ] **GoDaddy v2**: clave de idempotencia; campos de aceptación de condiciones; endpoint de
   transferencia entrante a una subcuenta; mail de verificación del titular (ICANN) y qué pasa si
   no lo confirma; plazos de bloqueo, gracia y recuperación; privacidad de datos.
-- [ ] **Mercado Pago**: excluir medios diferidos en Checkout Pro; API de devoluciones sobre la
-  cuenta de Deoco.
+- [x] **Mercado Pago, medios diferidos**: Checkout Pro los excluye (`excluded_payment_types`
+  `ticket`, `atm`, `bank_transfer`) y `binary_mode: true` no deja ningún pago pendiente
+  (documentación de Mercado Pago, "Modo binario" y "Medios de pago" de Checkout Pro).
+- [ ] **Mercado Pago, en el ensayo real (D13)**: que la cuenta de Deoco AR no ofrezca otro medio
+  diferido que no esté en esa lista; devolución total por `POST /v1/payments/<id>/refunds` con
+  `X-Idempotency-Key` y qué contesta sin saldo; que los avisos de `notification_url` lleguen
+  firmados con la clave de la aplicación (si no, se rechazan y el pago entra igual por la
+  búsqueda del barrido, a lo sumo un par de minutos después).
 - [ ] **Cloudflare**: que la regla de Email Routing (MX en el apex) conviva con los registros de
   Resend en el subdominio de envío.
 
@@ -644,7 +661,7 @@ quiera.
 | D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino — ✅ hecha | S | 2 |
 | D7 | `Registrador` con GoDaddy v2 + registrador falso — ✅ hecha | L | 5 a 7 |
 | D8 | Máquina de estados, tablas, barrido; back office de dominios — ✅ hecha | L | 5 |
-| D9 | Cobro en el gestor: precios por terminación, Checkout Pro de Deoco, aviso, devoluciones | M | 3 a 4 |
+| D9 | Cobro en el gestor: precios por terminación, Checkout Pro de Deoco, aviso, devoluciones — ✅ hecha | M | 3 a 4 |
 | D10 | Pantallas de compra: buscar, titular, resumen (con el costo de salida), progreso, listo | M | 4 |
 | D11 | Renovación y avisos; llevarse el dominio (código, detección de la salida → pasa a delegado) | M | 3 a 4 |
 | D12 | Transferir a Deoco (delegado → comprado) | M | 3 |

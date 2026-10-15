@@ -1,9 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { registro } from "@/nucleo/modulos";
+import type { AlertaAdmin } from "@/nucleo/modulos/contrato";
+import { Aviso } from "@/ui";
 import { menuAdminPorModulo } from "@/nucleo/modulos/navegacion";
 import { BotonSalir } from "../salir";
 import { exigirStaff } from "./_servidor/acceso";
+import { devolucionesSinPedir } from "./_servidor/compras";
 import { type GrupoMenu, MenuAdmin } from "./menu";
 
 // Back office de Deoco: app.<raiz>/admin, solo staff. Cada página y acción vuelve a
@@ -11,6 +14,7 @@ import { type GrupoMenu, MenuAdmin } from "./menu";
 // Menú lateral agrupado: lo de Deoco arriba y un bloque por módulo (crece hacia abajo, no de costado).
 export default async function LayoutAdmin({ children }: { children: ReactNode }) {
   await exigirStaff();
+  const alertas = await alertasDelBackOffice();
   const grupos: GrupoMenu[] = [
     {
       titulo: "Deoco",
@@ -53,8 +57,43 @@ export default async function LayoutAdmin({ children }: { children: ReactNode })
         </div>
       </aside>
       <main className="min-w-0 flex-1 px-4 py-8 lg:px-10">
-        <div className="mx-auto max-w-6xl">{children}</div>
+        <div className="mx-auto max-w-6xl">
+          {alertas.length > 0 && (
+            <div className="mb-6 flex flex-col gap-2" data-alertas-admin>
+              {alertas.map((a) => (
+                <Aviso key={a.texto} tono="error">
+                  <Link href={a.href} className="font-semibold underline">
+                    {a.texto}
+                  </Link>
+                </Aviso>
+              ))}
+            </div>
+          )}
+          {children}
+        </div>
       </main>
     </div>
   );
+}
+
+/**
+ * Lo que el staff tiene que mirar ya, en todas las páginas (p. ej. plata que no se pudo devolver):
+ * del núcleo y de cada módulo (`alertasAdmin`). Si un módulo falla al contestar, también se avisa.
+ */
+async function alertasDelBackOffice(): Promise<AlertaAdmin[]> {
+  const sinPedir = await devolucionesSinPedir();
+  const propias: AlertaAdmin[] = sinPedir
+    ? [{ texto: `${sinPedir === 1 ? "Una compra de dominio fallida no pudo pedir" : `${sinPedir} compras de dominios fallidas no pudieron pedir`} la devolución del pago.`, href: "/admin/dominios?estado=atencion" }]
+    : [];
+  const deModulos = await Promise.all(
+    registro()
+      .modulos.filter((m) => m.alertasAdmin)
+      .map((m) =>
+        m.alertasAdmin!().catch((e) => {
+          console.error(`[admin] alertas de ${m.id}:`, e);
+          return [{ texto: `No se pudieron leer las alertas de "${m.id}": revisá el log.`, href: "/admin" }];
+        }),
+      ),
+  );
+  return [...propias, ...deModulos.flat()];
 }

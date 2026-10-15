@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════════════════
-// LA EXCEPCIÓN A LA REGLA DEL DINERO: la cuota mensual de Deoco.
+// LA EXCEPCIÓN A LA REGLA DEL DINERO: la cuota mensual de Deoco (y los dominios que la banda le
+// compra a Deoco, más abajo).
 //
 // Todo lo demás de @/nucleo/pagos es plata de la BANDA: el fan le paga a la banda, en la cuenta
 // de la banda, con las credenciales que cargó el titular (tabla `secreto`). Deoco no toca nada.
@@ -20,11 +21,15 @@ import {
   type CobroDeSuscripcion,
   type Credenciales,
   ErrorPasarela,
+  type PagoConsultado,
+  type PagosUnicosPasarela,
+  type PagoUnico,
   type Suscripcion,
   type SuscripcionConsultada,
   type SuscripcionesPasarela,
 } from "./tipos";
 
+export type { PagoConsultado, PagoUnico } from "./tipos";
 export type { AvisoDeSuscripcion, CobroDeSuscripcion, EstadoSuscripcion, Suscripcion, SuscripcionConsultada } from "./tipos";
 
 /** La pasarela de la cuota: hoy, la cuenta de Mercado Pago de Deoco. */
@@ -90,4 +95,44 @@ export function leerAvisoCuota(modulo: Modulo, aviso: Omit<AvisoEntrante, "tenan
 export async function consultarCobroCuota(modulo: Modulo, cobroId: string, reg: Registro = registroGlobal()): Promise<CobroDeSuscripcion> {
   const { cred, sus: api } = paraElGestor(modulo, reg);
   return api.consultarCobro(cred, cobroId);
+}
+
+// ── Dominios: pagos únicos a Deoco ─────────────────────────────────────────────────────────
+// Misma cuenta de Deoco, pero NADA en común con la cuota: otro tipo de cobro (pago único, no
+// suscripción), otra URL de aviso (/dominio/<pasarela>, nunca /cuota), otras tablas del gestor.
+// Solo medios inmediatos (ver mercadopago.ts): un dominio no espera un pago en efectivo.
+
+function pagosDeDeoco(modulo: Modulo, reg: Registro): { cred: Credenciales; api: PagosUnicosPasarela } {
+  const { cred } = paraElGestor(modulo, reg);
+  return { cred, api: PASARELA_CUOTA.pagosUnicos! };
+}
+
+/** Donde la pasarela avisa los pagos de dominios: app.<raiz>/avisos/plataforma/<gestor>/dominio/<pasarela>. */
+export const urlAvisoDominio = (modulo: Pick<Modulo, "id">) => urlAvisoPlataforma(modulo, `/dominio/${PASARELA_CUOTA.id}`);
+
+export async function crearPagoDominio(modulo: Modulo, p: PagoUnico, reg: Registro = registroGlobal()) {
+  const { cred, api } = pagosDeDeoco(modulo, reg);
+  return api.crear(cred, p);
+}
+
+export async function consultarPagoDominio(modulo: Modulo, pagoId: string, reg: Registro = registroGlobal()): Promise<PagoConsultado> {
+  const { cred, api } = pagosDeDeoco(modulo, reg);
+  return api.consultar(cred, pagoId);
+}
+
+export async function buscarPagosDominio(modulo: Modulo, referencia: string, reg: Registro = registroGlobal()): Promise<PagoConsultado[]> {
+  const { cred, api } = pagosDeDeoco(modulo, reg);
+  return api.buscar(cred, referencia);
+}
+
+/** Devolución total de un pago de dominio. Idempotente por `clave`. */
+export async function devolverPagoDominio(modulo: Modulo, pagoId: string, clave: string, reg: Registro = registroGlobal()) {
+  const { cred, api } = pagosDeDeoco(modulo, reg);
+  return api.devolver(cred, pagoId, clave);
+}
+
+/** El id del pago que avisa la pasarela (firma inválida → ErrorPasarela; otra cosa → null). */
+export function leerAvisoDominio(modulo: Modulo, aviso: Omit<AvisoEntrante, "tenantId">, reg: Registro = registroGlobal()): string | null {
+  const { cred, api } = pagosDeDeoco(modulo, reg);
+  return api.leerAviso(aviso, cred);
 }

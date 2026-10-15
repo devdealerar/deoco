@@ -1,4 +1,4 @@
-// Mails de la cuota al titular de la banda: cuando entra en mora y cuando se suspende el panel.
+// Mails del gestor al titular de la banda: la cuota (mora, suspensión) y los dominios (`mandar`).
 // Los manda Deoco (no la banda): remitente "Deoco". Cada uno con clave única por día, así un
 // barrido repetido o un aviso duplicado no lo manda dos veces.
 import { enviarCorreo, escaparHtml as h } from "@/nucleo/correo";
@@ -21,10 +21,17 @@ async function banda(tenantId: string) {
   }));
 }
 
-async function mandar(tenantId: string, clave: string, asunto: (nombre: string) => string, parrafos: (nombre: string) => string[], boton: string) {
+export async function mandar(
+  tenantId: string,
+  clave: string,
+  asunto: (nombre: string) => string,
+  parrafos: (nombre: string) => string[],
+  boton: string,
+  ruta = "/pago",
+) {
   const { titular, banda: b } = await banda(tenantId);
   if (!titular) return;
-  const url = `${origenPlataforma()}/b/${b.slug}/pago`;
+  const url = `${origenPlataforma()}/b/${b.slug}${ruta}`;
   const lineas = parrafos(b.nombre);
   // A quién le responde el titular: la casilla de Deoco si está configurada.
   const responderA = process.env.DEOCO_CUOTA_RESPONDER_A?.trim() || undefined;

@@ -6,6 +6,7 @@ import { configurarCorreo, correoDeBanda, dominiosParaCorreo, probarCorreo, quit
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { crearRegistro } from "@/nucleo/modulos/registro";
 import { dosBandas, dueno } from "./apoyo";
+import comercial from "../modulos/comercial";
 import { CloudflareFalso } from "./cloudflare-falso";
 import { ResendFalso } from "./resend-falso";
 
@@ -102,12 +103,15 @@ describe("dirección de envío", () => {
     expect((await correoDeBanda(a.id))?.estado).toBe("verificado");
     await mailDeLaTienda();
     await enviarCorreoDelNucleo(a.id, { para: "a@x.com", asunto: "Aviso de Deoco", html: "<p>x</p>", texto: "x", nombreRemitente: "Deoco" });
+    // El gestor de cuenta (cuota, dominios) también es Deoco, aunque sea un módulo.
+    await enviarCorreo(comercial, a.id, { para: "a@x.com", asunto: "Tu cuota", html: "<p>x</p>", texto: "x", nombreRemitente: "Deoco" });
     await esperarCorreos();
     const salida = bandejaDeSalida();
     expect(salida.find((m) => m.asunto === "Tus mails ya salen desde merch@lossatelites.com")).toMatchObject({ para: "a@x.com", de: { direccion: "tiendas@deocoartist.com" } });
     expect(salida.find((m) => m.asunto === "Tu pedido")?.de).toEqual({ nombre: "Banda A", direccion: "merch@lossatelites.com" });
     // Los avisos de Deoco siguen saliendo desde Deoco.
     expect(salida.find((m) => m.asunto === "Aviso de Deoco")?.de.direccion).toBe("tiendas@deocoartist.com");
+    expect(salida.find((m) => m.asunto === "Tu cuota")?.de.direccion).toBe("tiendas@deocoartist.com");
   });
 
   it("delegado que ya tiene su correo (MX de Google): no se toca la recepción", async () => {

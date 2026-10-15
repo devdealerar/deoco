@@ -92,6 +92,53 @@ export interface SuscripcionesPasarela {
   consultarCobro(cred: Credenciales, cobroId: string): Promise<CobroDeSuscripcion>;
 }
 
+// ── Pagos únicos a Deoco: SOLO los dominios (ver ./cuota.ts) ─────────────────────────────────
+// La banda le paga a Deoco un dominio. Solo medios inmediatos: el dominio no se reserva mientras
+// se espera un pago en efectivo, y en el medio otro lo podría registrar.
+
+export type PagoUnico = {
+  /** Lo que vuelve en el pago consultado (identifica el cobro). */
+  referencia: string;
+  /** Lo que ve quien paga: "Dominio lossatelites.com · 1 año". */
+  titulo: string;
+  /** Centavos. */
+  monto: number;
+  email: string;
+  /** Hasta cuándo se puede pagar (después, la pasarela no lo acepta). */
+  vence: Date;
+  urls: { exito: string; fallo: string; pendiente: string; aviso: string };
+};
+
+/** Un pago a Deoco, tal como lo informa la API (la fuente de verdad). */
+export type PagoConsultado = {
+  pagoId: string;
+  estado: EstadoDeCobro;
+  estadoPasarela: string;
+  referencia: string | null;
+  /** Centavos. */
+  monto: number;
+  moneda: string;
+  /** Tipo de medio ("credit_card", "account_money"…), para mostrar. */
+  medio: string | null;
+  /** Centavos ya devueltos. */
+  devuelto: number;
+};
+
+export interface PagosUnicosPasarela {
+  /** Solo medios de aprobación inmediata; un pago queda aprobado o rechazado, nunca pendiente. */
+  crear(cred: Credenciales, p: PagoUnico): Promise<{ preferenciaId: string; redireccion: string }>;
+  consultar(cred: Credenciales, pagoId: string): Promise<PagoConsultado>;
+  /** Los pagos hechos con esa referencia (por si un aviso se perdió). */
+  buscar(cred: Credenciales, referencia: string): Promise<PagoConsultado[]>;
+  /**
+   * Devolución total. `clave`: idempotencia (repetida, la pasarela no devuelve dos veces).
+   * `hecha`: la plata ya volvió; si no, quedó en proceso (se vuelve a consultar el pago).
+   */
+  devolver(cred: Credenciales, pagoId: string, clave: string): Promise<{ devolucionId: string; hecha: boolean }>;
+  /** Del aviso, solo el id del pago (verifica la firma si hay secreto). null: no es de un pago. */
+  leerAviso(aviso: Omit<AvisoEntrante, "tenantId">, cred: Credenciales): string | null;
+}
+
 export interface Pasarela {
   id: string;
   nombre: string;
@@ -115,4 +162,6 @@ export interface Pasarela {
   probarConexion(cred: Credenciales): Promise<{ cuenta: string }>;
   /** Suscripciones mensuales: solo las usa la cuota de Deoco, con la cuenta de Deoco. */
   suscripciones?: SuscripcionesPasarela;
+  /** Pagos únicos: solo los dominios que la banda le compra a Deoco, con la cuenta de Deoco. */
+  pagosUnicos?: PagosUnicosPasarela;
 }

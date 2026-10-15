@@ -8,6 +8,7 @@ import { generadoPara } from "@/generated/modulos";
 import { prisma } from "@/nucleo/db/cliente";
 import { registro } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
+import type { Registro } from "@/nucleo/modulos/registro";
 import { problemasDeCorreo } from "@/nucleo/correo/transporte";
 import { problemasDeRegistrador } from "@/nucleo/dominios/registrador";
 import { cuotaConfigurada } from "@/nucleo/pagos/cuota";
@@ -67,6 +68,14 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
   return p;
 }
 
+/** Vender dominios: alguien tiene que cobrarlos (el gestor de cuenta, en la cuenta de Deoco). */
+export function problemasDeVenta(reg: Pick<Registro, "gestor">, env: Entorno): string[] {
+  if (!env.DEOCO_REGISTRADOR?.trim()) return [];
+  if (!reg.gestor?.gestion.dominios) return ["DEOCO_REGISTRADOR está configurado pero ningún gestor de cuenta cobra dominios (gestionaCuenta.dominios)."];
+  if (!cuotaConfigurada(env)) return ["DEOCO_REGISTRADOR necesita la cuenta de Mercado Pago de Deoco (DEOCO_CUOTA_MP_TOKEN): los dominios se cobran ahí."];
+  return [];
+}
+
 /** Problemas que solo se ven conectando a la base (con la conexión de la app). */
 /** La clave de cifrado de secretos hace falta solo si algún módulo declara secretos. */
 export function problemasDeSecretos(modulos: readonly Modulo[], env: Entorno): string[] {
@@ -122,6 +131,7 @@ export async function verificarArranque(env: Entorno = process.env) {
   const problemas = problemasDeEntorno(env, { generadoPara });
   try {
     problemas.push(...problemasDeSecretos(registro().modulos, env)); // registro() valida el contrato
+    problemas.push(...problemasDeVenta(registro(), env));
   } catch (e) {
     problemas.push(`Registro de módulos inválido: ${e instanceof Error ? e.message : e}`);
   }

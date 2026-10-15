@@ -79,7 +79,9 @@ export default async function DominiosComprados({ searchParams }: { searchParams
               {c.estado === "listo" ? (
                 <Insignia color="exito">Lista</Insignia>
               ) : c.estado === "fallido" ? (
-                <Insignia color="error">{c.devolucion === "pendiente" ? "Fallida · devolución pendiente" : "Fallida"}</Insignia>
+                <Insignia color="error">
+                  {c.devolucion === "pendiente" ? "Fallida · devolución sin pedir al cobro" : c.devolucion === "pedida" ? "Fallida · devolución pedida" : "Fallida"}
+                </Insignia>
               ) : c.estado === "datos" ? (
                 <Insignia color="advertencia">Esperando datos ({c.campo ?? "?"})</Insignia>
               ) : (

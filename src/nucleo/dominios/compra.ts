@@ -19,6 +19,8 @@ import { avisarAlTitular } from "@/nucleo/correo/deoco";
 import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { ZONA } from "@/nucleo/fechas";
+import { registro as registroGlobal } from "@/nucleo/modulos";
+import type { Registro } from "@/nucleo/modulos/registro";
 import { ErrorDominio, ErrorProveedor, marcarPrincipal, normalizarDominio, proveedorDns, zonaParaComprado } from "./index";
 import { type Aceptacion, type Contacto, ErrorRegistrador, type Operacion, type Registrador, registrador } from "./registrador";
 
@@ -127,6 +129,7 @@ export async function esperarCompras() {
 
 /** Barrido: las compras que toca avanzar, de todas las bandas. Devuelve cuántas terminaron (listas o fallidas). */
 export async function revisarCompras(ahora = new Date()): Promise<number> {
+  await pedirDevoluciones().catch((e) => console.error("[compra] devoluciones:", e));
   if (!registrador()) return 0;
   const bandas = await prisma.$queryRaw<{ id: string }[]>`SELECT b AS id FROM bandas_con_compras_pendientes(${ahora}::timestamp) AS b`;
   let terminadas = 0;
@@ -155,7 +158,45 @@ export async function avanzarCompras(tenantId: string, ahora = new Date()): Prom
       await conTenant(tenantId, (tx) => tx.dominioCompra.update({ where: { id: c.id }, data: { tomadoEn: null } }));
     }
   }
+  if (terminadas) await pedirDevolucionesDe(tenantId);
   return terminadas;
+}
+
+// ── Devoluciones ─────────────────────────────────────────────────────────────────────────────
+// La plata es del gestor (la cobró en la cuenta de Deoco): acá solo se le pide que devuelva. Una
+// compra fallida sin registrar queda `devolucion: "pendiente"` hasta que el gestor la anota
+// ("pedida"); desde ahí la corre y la reintenta él, y si no sale lo muestra al staff. Si el gestor
+// no la pudo anotar, sigue pendiente: el barrido vuelve a pedirla y el back office la muestra.
+
+/** Pide las devoluciones pendientes de una banda. Devuelve cuántas pidió. */
+export async function pedirDevolucionesDe(tenantId: string, reg: Registro = registroGlobal()): Promise<number> {
+  const cobro = reg.gestor?.gestion.dominios;
+  if (!cobro) return 0;
+  const pendientes = await conTenant(tenantId, (tx) => tx.dominioCompra.findMany({ where: { devolucion: "pendiente" }, select: { id: true, cobroId: true, dominio: true, motivo: true } }));
+  let pedidas = 0;
+  for (const c of pendientes) {
+    try {
+      const motivo = c.motivo === "no-disponible" ? `Alguien registró ${c.dominio} antes` : `No se pudo registrar ${c.dominio}`;
+      await cobro.devolver(tenantId, c.cobroId, motivo);
+      await conTenant(tenantId, async (tx) => {
+        await tx.dominioCompra.updateMany({ where: { id: c.id, devolucion: "pendiente" }, data: { devolucion: "pedida" } });
+        await tx.auditoria.create({ data: { usuarioId: null, tenantId, accion: "dominio.devolucion_pedida", detalle: { dominio: c.dominio, cobroId: c.cobroId } } });
+      });
+      pedidas++;
+    } catch (e) {
+      console.error(`[compra] no se pudo pedir la devolución de ${c.dominio} (${tenantId}):`, e);
+    }
+  }
+  return pedidas;
+}
+
+/** Barrido: las devoluciones que todavía no se le pidieron al gestor, de todas las bandas. */
+export async function pedirDevoluciones(reg: Registro = registroGlobal()): Promise<number> {
+  if (!reg.gestor?.gestion.dominios) return 0;
+  const bandas = await prisma.$queryRaw<{ id: string }[]>`SELECT b AS id FROM bandas_con_devoluciones_pendientes() AS b`;
+  let pedidas = 0;
+  for (const { id } of bandas) pedidas += await pedirDevolucionesDe(id, reg);
+  return pedidas;
 }
 
 /** Corre los pasos de una compra hasta que uno tenga que esperar. true si terminó. */

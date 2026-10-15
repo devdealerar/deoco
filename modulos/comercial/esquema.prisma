@@ -7,6 +7,8 @@
 //
 //  - Globales (/// @global): planes y plazos. Las escribe el staff (conStaff).
 //  - De banda (tenantId, RLS): la cuenta de cada banda y sus cobros de cuota.
+//  - Dominios (comercial_dominio_*): lo que la banda le compra a Deoco. Misma cuenta de Mercado
+//    Pago de Deoco, pero NADA en común con la cuota: otras filas, otro aviso, otros estados.
 // Dinero: en centavos (Int), pesos argentinos.
 
 /// @global
@@ -102,4 +104,91 @@ model ComercialCobro {
   @@index([tenantId, fecha])
   @@index([estado, fecha])
   @@map("comercial_cobro")
+}
+
+/// @global
+/// Precio de venta de un dominio por terminación ("com"). Lo fija el staff: costo del
+/// registrador + comisión + colchón por el dólar. Sin fila (o no a la venta): no se vende.
+model ComercialDominioPrecio {
+  tld           String   @id
+  /// Por año, en centavos de peso.
+  precio        Int
+  aLaVenta      Boolean  @default(true)
+  actualizadoEn DateTime @default(now()) @updatedAt
+
+  @@map("comercial_dominio_precio")
+}
+
+/// Un cobro de un dominio (compra o renovación) en la cuenta de Deoco. NO es la cuota.
+model ComercialDominioCobro {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  /// alta | renovacion
+  tipo          String
+  dominio       String
+  anios         Int
+  /// Centavos.
+  monto         Int
+  /// Lo mismo no se cobra dos veces: "alta:x.com", "renovacion:x.com:2027-10-15".
+  clave         String
+  /// Lo que la compra necesita después del pago (titular, aceptación, principal).
+  datos         Json
+  usuarioId     String?   @db.Uuid
+  preferenciaId String?
+  /// Hasta cuándo se puede pagar.
+  vence         DateTime
+  /// esperando | pagado | sin-pagar | devuelto (se devolvió el pago aceptado)
+  estado        String    @default("esperando")
+  /// El pago aceptado: el que arrancó la compra.
+  pagoId        String?
+  /// Última vez que se buscaron sus pagos en la pasarela (por si un aviso se perdió).
+  revisadoEn    DateTime?
+  creadoEn      DateTime  @default(now())
+  pagadoEn      DateTime?
+
+  pagos ComercialDominioPago[]
+
+  @@index([tenantId, clave])
+  @@map("comercial_dominio_cobro")
+}
+
+/// Un pago de la pasarela de Deoco contra un cobro de dominio. Uno aceptado arranca la compra;
+/// cualquier otro aprobado (repetido, monto distinto) se devuelve. Las devoluciones se reintentan
+/// y, si no salen, quedan a la vista del staff (nunca en silencio).
+model ComercialDominioPago {
+  id                 String                @id @default(uuid()) @db.Uuid
+  tenantId           String                @db.Uuid
+  cobroId            String                @db.Uuid
+  cobro              ComercialDominioCobro @relation(fields: [cobroId], references: [id], onDelete: Cascade)
+  /// Id en la pasarela. Una fila por pago.
+  pagoId             String                @unique
+  /// aprobado | rechazado | pendiente | devuelto (lo que dice la pasarela)
+  estado             String
+  estadoPasarela     String                @default("")
+  medio              String?
+  /// Centavos.
+  monto              Int
+  moneda             String                @default("ARS")
+  /// Arrancar la compra en el núcleo: pendiente | hecha. null: no corresponde.
+  entrega            String?
+  entregaIntentos    Int                   @default(0)
+  entregaError       String?
+  /// pendiente | en-proceso | hecha | fallida | a-mano. null: no se devuelve.
+  devolucion         String?
+  devolucionMotivo   String?
+  devolucionIntentos Int                   @default(0)
+  devolucionProxima  DateTime?
+  devolucionError    String?
+  devolucionId       String?
+  /// Desde cuándo se está devolviendo (para avisar si tarda).
+  devolucionDesde    DateTime?
+  devueltoEn         DateTime?
+  /// Lo anotó el staff al marcarla devuelta a mano.
+  devolucionNota     String?
+  tomadoEn           DateTime?
+  creadoEn           DateTime              @default(now())
+  actualizadoEn      DateTime              @default(now()) @updatedAt
+
+  @@index([tenantId, creadoEn])
+  @@map("comercial_dominio_pago")
 }

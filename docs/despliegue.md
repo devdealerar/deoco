@@ -132,6 +132,14 @@ ventas de las bandas siguen yendo a la cuenta de cada banda.
     Esencial, Medium y Premium (sin precio no se pueden elegir) y revisá los plazos (prueba 14
     días de Medium, gracia 3, suspensión a los 10 días de mora).
 
+Dominios (cuando se vendan, `DEOCO_REGISTRADOR`): se cobran en la misma cuenta de Deoco, pero
+aparte de la cuota. No hay que configurar otro webhook: cada cobro le dice a Mercado Pago adónde
+avisar (`…/avisos/plataforma/comercial/dominio/mercadopago`), y además Deoco busca cada minuto
+los pagos de los cobros abiertos. Precios por terminación en
+`https://app.deocoartist.com/admin/m/comercial/dominios`, donde también se ven los pagos y las
+devoluciones. La cuenta tiene que tener **saldo para devolver**: si una devolución no sale, queda
+en rojo arriba de todo el back office hasta que salga o la marques "devuelta a mano".
+
 ### F. Primer acceso
 
 16. En la **consola del servicio de la app**:
@@ -202,7 +210,7 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_DB_CONEXIONES` | no | Conexiones de la app a Postgres (40). Sumadas a las del back office (5) tienen que quedar bajo `max_connections` (100 por defecto) |
 | `DEOCO_BARRIDO_SEGUNDOS` | no | Cada cuánto corre el barrido de pendientes (60; mínimo 5) |
 | `DEOCO_CLOUDFLARE_TOKEN` / `DEOCO_CLOUDFLARE_ZONA` | para dominios propios | Token de API de Cloudflare y el id de la zona de `DEOCO_DOMINIO_RAIZ` (custom hostnames). Las dos o ninguna |
-| `DEOCO_REGISTRADOR` | para vender dominios (todavía sin pantallas: D8–D10) | `godaddy`. Con él: `DEOCO_GODADDY_KEY` y `DEOCO_GODADDY_SECRET` (clave de API de la cuenta de **revendedor** de Deoco) y Cloudflare configurado. `DEOCO_GODADDY_API`: por defecto producción; `https://api.ote-godaddy.com` para el entorno de pruebas de GoDaddy. `DEOCO_GODADDY_POR_MINUTO`: tope de pedidos por minuto (por defecto 59, el límite de GoDaddy es 60) |
+| `DEOCO_REGISTRADOR` | para vender dominios (todavía sin pantallas: D10) | `godaddy`. Con él: `DEOCO_CUOTA_MP_TOKEN` (los dominios se cobran en la cuenta de Deoco), `DEOCO_GODADDY_KEY` y `DEOCO_GODADDY_SECRET` (clave de API de la cuenta de **revendedor** de Deoco) y Cloudflare configurado. `DEOCO_GODADDY_API`: por defecto producción; `https://api.ote-godaddy.com` para el entorno de pruebas de GoDaddy. `DEOCO_GODADDY_POR_MINUTO`: tope de pedidos por minuto (por defecto 59, el límite de GoDaddy es 60) |
 | `DEOCO_RESEND_TOKEN` | para el correo desde el dominio de las bandas | API key de Resend con acceso completo (alta de dominios). Sin ella, la pantalla Correo no aparece |
 | `DEOCO_CLOUDFLARE_KV` | con `DEOCO_RESEND_TOKEN` y Cloudflare | Id del namespace de KV del reenvío (el mismo del Email Worker) |
 | `DEOCO_CLOUDFLARE_CUENTA` / `DEOCO_IP_PUBLICA` | con las dos anteriores | Id de la cuenta de Cloudflare (ahí se crean las zonas de los dominios delegados) e IP del VPS (a la que apuntan, con proxy) |

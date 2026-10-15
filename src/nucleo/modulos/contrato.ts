@@ -243,7 +243,45 @@ export type GestionCuenta = {
    * permite 50."). null si no hay forma.
    */
   comoAmpliar: (tenantId: string, limite: string, necesarios: number) => Promise<string | null>;
+  /** Cobrar los dominios que la banda compra en Deoco (sin esto, no se venden). */
+  dominios?: CobroDeDominios;
 };
+
+/**
+ * Lo que una compra o renovación de dominio necesita del gestor: precio, cobro y devolución. El
+ * gestor cobra en la cuenta de Deoco y, con el pago APROBADO (consultado a la pasarela), llama a
+ * `dominioPagado` / `renovacionPagada` (`@/nucleo/dominios/compra`) con el id del pago. Nunca antes.
+ */
+export type CobroDeDominios = {
+  /** Precio en centavos por `anios` para la terminación ("com"). null: no se vende. */
+  precio: (tld: string, anios: number) => Promise<number | null>;
+  /** Crea el cobro y devuelve adónde mandar al titular a pagar. */
+  cobrar: (tenantId: string, pedido: PedidoDeCobroDominio) => Promise<{ redireccion: string; monto: number }>;
+  /**
+   * La compra no se pudo hacer (sin registrar): devolver ese pago entero. Solo lo anota (rápido,
+   * idempotente); la devolución la corre y la reintenta el gestor, y si no sale queda a la vista
+   * del staff.
+   */
+  devolver: (tenantId: string, pagoId: string, motivo: string) => Promise<void>;
+};
+
+export type PedidoDeCobroDominio = {
+  tipo: "alta" | "renovacion";
+  dominio: string;
+  anios: number;
+  /** Lo mismo no se cobra dos veces: "alta:x.com", "renovacion:x.com:2027-10-15". */
+  clave: string;
+  /** Lo que la compra necesita después del pago (titular, aceptación, principal). */
+  datos: Record<string, unknown>;
+  usuarioId: string | null;
+  /** Mail de quien paga. */
+  email: string;
+  /** Adónde vuelve después de pagar (o de no pagar). */
+  vuelta: string;
+};
+
+/** Algo que el staff tiene que mirar ya: se muestra arriba de todo el back office. */
+export type AlertaAdmin = { texto: string; href: string };
 
 /**
  * Aviso de plataforma: no es de una banda (p. ej. la suscripción de la cuota, que la pasarela
@@ -343,4 +381,6 @@ export type Modulo = {
   avisosPlataforma?: DefinicionAvisoPlataforma[];
   /** Tareas que corre el barrido cada tanto. */
   tareasPeriodicas?: DefinicionTareaPeriodica[];
+  /** Lo que el staff tiene que mirar ya (p. ej. una devolución que no salió). Rápido: corre en cada página del back office. */
+  alertasAdmin?: () => Promise<AlertaAdmin[]>;
 };

@@ -3,7 +3,17 @@
 import { createServer, type Server } from "node:http";
 
 export type PreferenciaRecibida = { token: string; cuerpo: Record<string, unknown>; id: string };
-export type PagoFalso = { status: string; external_reference: string; transaction_amount: number; currency_id: string; token: string };
+export type PagoFalso = {
+  status: string;
+  external_reference: string;
+  transaction_amount: number;
+  currency_id: string;
+  token: string;
+  payment_type_id?: string;
+  transaction_amount_refunded?: number;
+};
+/** Una devolución pedida: con su clave de idempotencia (repetida, no devuelve dos veces). */
+export type DevolucionFalsa = { pagoId: string; clave: string; id: string; status: string };
 
 /** Una suscripción (preapproval) de la cuenta de Deoco. `status`: pending | authorized | paused | cancelled. */
 export type SuscripcionFalsa = {
@@ -28,6 +38,9 @@ export class MercadoPagoFalso {
   pagos = new Map<string, PagoFalso>();
   cuentas = new Map<string, { nickname: string; email: string }>();
   consultas: { token: string; ruta: string }[] = [];
+  devoluciones: DevolucionFalsa[] = [];
+  /** Lo que contesta la próxima devolución: un error HTTP, "in_process" o lo normal ("approved"). */
+  devolucionResponde: { estado: number; cuerpo: unknown } | "in_process" | "approved" = "approved";
   private servidor?: Server;
   base = "";
 
@@ -98,6 +111,28 @@ export class MercadoPagoFalso {
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
           return res.end(`<!doctype html><title>Mercado Pago (falso)</title><h1 data-pasarela>Pagá con Mercado Pago</h1><p>${url.searchParams.get("pref")}</p>`);
         }
+        if (req.method === "GET" && url.pathname === "/v1/payments/search") {
+          const ref = url.searchParams.get("external_reference");
+          const results = [...this.pagos.entries()]
+            .filter(([, p]) => p.token === token && p.external_reference === ref)
+            .map(([id, { token: _, ...visible }]) => ({ id: Number(id), ...visible }));
+          return json(200, { results, paging: { total: results.length } });
+        }
+        const devolucion = /^\/v1\/payments\/(\d+)\/refunds$/.exec(url.pathname);
+        if (req.method === "POST" && devolucion) {
+          const p = this.pagos.get(devolucion[1]);
+          if (!p || p.token !== token) return json(404, { message: "Payment not found" });
+          const clave = String(req.headers["x-idempotency-key"] ?? "");
+          if (!clave) return json(400, { message: "X-Idempotency-Key requerido" });
+          const ya = this.devoluciones.find((d) => d.clave === clave);
+          if (ya) return json(201, { id: Number(ya.id), status: ya.status });
+          const r = this.devolucionResponde;
+          if (typeof r === "object") return json(r.estado, r.cuerpo);
+          const d: DevolucionFalsa = { pagoId: devolucion[1], clave, id: String(9000 + this.devoluciones.length), status: r };
+          this.devoluciones.push(d);
+          if (r === "approved") Object.assign(p, { status: "refunded", transaction_amount_refunded: p.transaction_amount });
+          return json(201, { id: Number(d.id), status: r });
+        }
         const pago = /^\/v1\/payments\/(\d+)$/.exec(url.pathname);
         if (req.method === "GET" && pago) {
           this.consultas.push({ token, ruta: url.pathname });
@@ -152,7 +187,36 @@ export class MercadoPagoFalso {
     return id;
   }
 
+  /**
+   * Quien paga completa el pago de una preferencia (de pagos únicos): devuelve el id del pago.
+   * `monto` en pesos (por defecto, el de la preferencia).
+   */
+  pagar(prefId: string, opciones: { aprobado?: boolean; monto?: number; medio?: string } = {}) {
+    const pref = this.preferencias.find((p) => p.id === prefId)!;
+    const item = (pref.cuerpo.items as { unit_price: number }[])[0];
+    const id = String(1_000_000 + this.pagos.size + 1);
+    this.pagos.set(id, {
+      token: pref.token,
+      status: opciones.aprobado === false ? "rejected" : "approved",
+      external_reference: String(pref.cuerpo.external_reference),
+      transaction_amount: opciones.monto ?? item.unit_price,
+      currency_id: "ARS",
+      payment_type_id: opciones.medio ?? "credit_card",
+      transaction_amount_refunded: 0,
+    });
+    return id;
+  }
+
+  /** Termina una devolución que había quedado en proceso. */
+  terminarDevolucion(pagoId: string) {
+    const p = this.pagos.get(pagoId)!;
+    Object.assign(p, { status: "refunded", transaction_amount_refunded: p.transaction_amount });
+    for (const d of this.devoluciones) if (d.pagoId === pagoId) d.status = "approved";
+  }
+
   limpiar() {
+    this.devoluciones = [];
+    this.devolucionResponde = "approved";
     this.suscripciones.clear();
     this.cobros.clear();
     this.preferencias = [];

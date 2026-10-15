@@ -119,6 +119,10 @@ para staff (cualquier otro: 404). El componente recibe `{ usuarioId, params, con
 el menú del back office: `navegacion: [{ etiqueta, href: "/", admin: true, orden }]`. Lo que
 escribe, por `conStaff()`. Ejemplo: `modulos/prueba/admin.tsx`.
 
+Lo que el staff tiene que mirar ya (p. ej. plata que no se pudo devolver): `alertasAdmin: () =>
+Promise<{ texto, href }[]>`. Sale en rojo arriba de todas las páginas de `/admin`, así que tiene
+que ser rápida (un conteo con `leerComoStaff`). Si tira, el back office avisa que no se pudo leer.
+
 ### Archivos
 
 Los bytes nunca los maneja el módulo: usa `src/nucleo/archivos`.

@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { problemasDeBase, problemasDeEntorno } from "@/nucleo/arranque";
+import { problemasDeBase, problemasDeEntorno, problemasDeVenta } from "@/nucleo/arranque";
+import type { GestionCuenta } from "@/nucleo/modulos/contrato";
 import { prisma } from "@/nucleo/db/cliente";
 
 afterAll(async () => {
@@ -90,5 +91,17 @@ describe("el dominio raíz sale de DEOCO_DOMINIO_RAIZ, nunca del código", () =>
       // git grep sale con 1 cuando no encuentra nada: es lo esperado.
     }
     expect(salida).toBe("");
+  });
+});
+
+describe("vender dominios", () => {
+  it("con registrador hace falta un gestor que cobre dominios y la cuenta de Deoco", () => {
+    const sinCobro = { gestor: { moduloId: "comercial", gestion: {} as GestionCuenta } };
+    const conCobro = { gestor: { moduloId: "comercial", gestion: { dominios: {} } as GestionCuenta } };
+    expect(problemasDeVenta(sinCobro, {})).toEqual([]);
+    expect(problemasDeVenta({}, { DEOCO_REGISTRADOR: "godaddy" })[0]).toMatch(/ningún gestor de cuenta cobra dominios/);
+    expect(problemasDeVenta(sinCobro, { DEOCO_REGISTRADOR: "godaddy" })[0]).toMatch(/ningún gestor de cuenta cobra dominios/);
+    expect(problemasDeVenta(conCobro, { DEOCO_REGISTRADOR: "godaddy" })[0]).toMatch(/DEOCO_CUOTA_MP_TOKEN/);
+    expect(problemasDeVenta(conCobro, { DEOCO_REGISTRADOR: "godaddy", DEOCO_CUOTA_MP_TOKEN: "APP_USR-x" })).toEqual([]);
   });
 });

@@ -59,6 +59,11 @@ export async function vencenPronto(ahora = new Date()) {
 }
 
 /** Reintenta ya una compra en curso (después de recargar saldo, por ejemplo). Queda en la auditoría. */
+/** Compras fallidas cuya devolución todavía no se le pudo pedir al gestor (lleva más de 10 minutos). */
+export async function devolucionesSinPedir(): Promise<number> {
+  return dbAdmin().dominioCompra.count({ where: { devolucion: "pendiente", terminadoEn: { lt: new Date(Date.now() - 10 * 60_000) } } });
+}
+
 export async function reintentar(staffId: string, tenantId: string, compraId: string) {
   try {
     await reintentarCompra(tenantId, compraId);

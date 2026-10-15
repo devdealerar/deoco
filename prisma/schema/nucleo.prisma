@@ -465,7 +465,7 @@ model DominioCompra {
   error          String?
   motivo         String?
   campo          String?
-  /// pendiente | hecha
+  /// pendiente (sin pedir al gestor) | pedida (la tiene el gestor)
   devolucion     String?
   venceEn        DateTime?
   tomadoEn       DateTime?
