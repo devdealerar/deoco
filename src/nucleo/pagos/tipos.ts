@@ -130,10 +130,7 @@ export interface PagosUnicosPasarela {
   consultar(cred: Credenciales, pagoId: string): Promise<PagoConsultado>;
   /** Los pagos hechos con esa referencia (por si un aviso se perdió). */
   buscar(cred: Credenciales, referencia: string): Promise<PagoConsultado[]>;
-  /**
-   * Devolución total. `clave`: idempotencia (repetida, la pasarela no devuelve dos veces).
-   * `hecha`: la plata ya volvió; si no, quedó en proceso (se vuelve a consultar el pago).
-   */
+  /** Devolución total (la de `Pasarela.devolver`, con la cuenta de Deoco). */
   devolver(cred: Credenciales, pagoId: string, clave: string): Promise<{ devolucionId: string; hecha: boolean }>;
   /** Del aviso, solo el id del pago (verifica la firma si hay secreto). null: no es de un pago. */
   leerAviso(aviso: Omit<AvisoEntrante, "tenantId">, cred: Credenciales): string | null;
@@ -158,6 +155,12 @@ export interface Pasarela {
   leerAviso(aviso: AvisoEntrante, cred: Credenciales): string | null;
   /** Consulta el cobro a la API de la pasarela, con las credenciales de la banda. */
   consultarCobro(cred: Credenciales, cobroId: string): Promise<CobroConsultado>;
+  /**
+   * Devolución total de un cobro, con las credenciales de quien cobró (la plata vuelve desde esa
+   * cuenta). `clave`: idempotencia, repetirla nunca devuelve dos veces. `hecha`: ya volvió; si
+   * no, quedó en proceso (se vuelve a consultar el cobro).
+   */
+  devolver(cred: Credenciales, cobroId: string, clave: string): Promise<{ devolucionId: string; hecha: boolean }>;
   /** A nombre de quién cobra (para que el titular confirme que es su cuenta). */
   probarConexion(cred: Credenciales): Promise<{ cuenta: string }>;
   /** Suscripciones mensuales: solo las usa la cuota de Deoco, con la cuenta de Deoco. */

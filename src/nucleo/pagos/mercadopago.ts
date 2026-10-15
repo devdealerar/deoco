@@ -204,6 +204,13 @@ const vistaPago = (p: Pago): PagoConsultado => ({
   devuelto: Math.round(Number(p.transaction_amount_refunded ?? 0) * 100),
 });
 
+/** Devolución total. Sin monto: todo. La clave hace que repetirla no devuelva dos veces. */
+async function devolverPago(cred: Credenciales, pagoId: string, clave: string) {
+  const r = await llamar<{ id: number | string; status?: string }>(cred, "POST", `/v1/payments/${encodeURIComponent(pagoId)}/refunds`, {}, { "x-idempotency-key": clave });
+  if (r.status === "rejected" || r.status === "cancelled") throw new ErrorPasarela(`Mercado Pago rechazó la devolución (${r.status}).`);
+  return { devolucionId: String(r.id), hecha: r.status === "approved" };
+}
+
 const pagosUnicos: PagosUnicosPasarela = {
   async crear(cred, p) {
     const r = await llamar<{ id: string; init_point: string }>(cred, "POST", "/checkout/preferences", {
@@ -234,12 +241,7 @@ const pagosUnicos: PagosUnicosPasarela = {
     return (r.results ?? []).map(vistaPago);
   },
 
-  async devolver(cred, pagoId, clave) {
-    // Sin monto: devolución total. La clave hace que repetirla no devuelva dos veces.
-    const r = await llamar<{ id: number | string; status?: string }>(cred, "POST", `/v1/payments/${encodeURIComponent(pagoId)}/refunds`, {}, { "x-idempotency-key": clave });
-    if (r.status === "rejected" || r.status === "cancelled") throw new ErrorPasarela(`Mercado Pago rechazó la devolución (${r.status}).`);
-    return { devolucionId: String(r.id), hecha: r.status === "approved" };
-  },
+  devolver: (cred, pagoId, clave) => devolverPago(cred, pagoId, clave),
 
   leerAviso(aviso, cred) {
     return mercadoPago.leerAviso({ ...aviso, tenantId: "" }, cred);
@@ -311,6 +313,8 @@ export const mercadoPago: Pasarela = {
       moneda: p.currency_id,
     };
   },
+
+  devolver: devolverPago,
 
   async probarConexion(cred) {
     const u = await llamar<{ nickname?: string; email?: string; id?: number }>(cred, "GET", "/users/me");
