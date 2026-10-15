@@ -70,7 +70,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   (con cualquier comando) y npm antes de test/typecheck.
   El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
 - El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
-  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios`, `/credenciales` en el panel;
+  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios`, `/correo`, `/credenciales` en el panel;
   `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos`, `/clave`, `/descargas`, `/portal` en el sitio), navegación que apunta a rutas propias.
 - Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
@@ -115,6 +115,12 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   verificado, en una sola.
 - La IP del visitante (frenos por IP): `ipDelVisitante()` (`@/nucleo/publico/visitante`),
   `CF-Connecting-IP` primero.
+- Correo desde el dominio (`src/nucleo/dominios/correo.ts`, pantalla `/b/<slug>/correo`, solo
+  titular): una dirección por banda (`correo_dominio`), dominio de envío en Resend
+  (`DominioDeEnvio`, `envio.ts`, `DEOCO_RESEND_TOKEN`; delegado: Deoco carga los registros). Verificada,
+  los correos de los módulos de la banda salen desde ahí (`direccionDeEnvio`); los de origen
+  `nucleo`, desde Deoco. Recepción solo en delegados sin MX propio: Email Routing → Email Worker
+  (`infra/cloudflare/reenvio`, lee el destino del KV `DEOCO_CLOUDFLARE_KV`) → Resend.
 - Traefik (Easypanel): las rutas de Deoco van en el YAML propio (no en Easypanel); `aop` solo en
   `app.` (host exacto) y lista de IPs de Cloudflare en todas (`docs/despliegue.md`).
 

@@ -96,7 +96,7 @@ type Estado = { llega: boolean; certificado: boolean; sinRegistrar?: boolean };
 const ACTIVO = "active";
 
 /** El dominio de la zona de una fila delegada: `www.x.com` → `x.com`. */
-const apexDe = (dominio: string) => dominio.replace(/^www\./, "");
+export const apexDe = (dominio: string) => dominio.replace(/^www\./, "");
 
 /**
  * Pregunta a Cloudflare por el dominio y guarda lo que dijo. Lo que falta del lado de Cloudflare

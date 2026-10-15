@@ -570,6 +570,11 @@ un registro DNS.
 
 ## 12. Lo que falta confirmar (ninguno cambia el diseño)
 
+- [ ] **Correo (D5, a probar en el ensayo real)**: la API de Resend (alta de dominio, registros
+  que devuelve, verificación, "ya existe"), la de Email Routing (`/email/routing/enable` y la
+  regla `catch_all` hacia un Worker) y de KV; que si el Worker falla, Cloudflare no dé el mensaje
+  por entregado; tamaños máximos (el Worker reenvía sin adjuntos por encima de 20 MB).
+
 - [ ] **Cloudflare, al crear zonas** (D3, a probar en el ensayo real): que `jump_start` traiga
   los registros del DNS anterior, y los códigos de error que usa la app (1061 zona ya existe,
   1049 dominio sin registrar, 81053/81057/81058 registro repetido). El `.com.ar` no se puede
@@ -611,7 +616,7 @@ quiera.
 | D2 | Origen detrás de Cloudflare + ensayo con un dominio real de prueba | S | 2 a 3 |
 | D3 | Delegar (comprado afuera y `.com.ar` asistido): zona con registros, nameservers, detección — ✅ hecha | S | 2 a 3 |
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME entró en D1) — ✅ hecha | S | 2 |
-| D5 | Correo: `DominioDeEnvio` (Resend), Email Worker + KV, pantalla Correo, remitente en `enviarCorreo` | M | 4 a 5 |
+| D5 | Correo: `DominioDeEnvio` (Resend), Email Worker + KV, pantalla Correo, remitente en `enviarCorreo` — ✅ hecha | M | 4 a 5 |
 | D6 | Salir: exportar la zona, sacar de gestión sin transferir, volver al subdominio, 90 días, "Cómo me lo llevo" por camino | S | 2 |
 | D7 | `Registrador` con GoDaddy v2 + registrador falso | L | 5 a 7 |
 | D8 | Máquina de estados, tablas, barrido; back office de dominios | L | 5 |

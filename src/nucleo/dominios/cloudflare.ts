@@ -25,16 +25,16 @@ type ZonaCf = { id: string; name: string; status: string; name_servers?: string[
 type RegistroCf = { id: string; type: string; name: string; content: string; proxied?: boolean };
 
 export class Cloudflare implements ProveedorDns {
-  constructor(private readonly cfg: { token: string; zona: string; cuenta: string; api: string }) {}
+  constructor(private readonly cfg: { token: string; zona: string; cuenta: string; kv: string; worker: string; api: string }) {}
 
   /** null si respondió 404. */
-  private async llamar<T>(metodo: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", ruta: string, cuerpo?: unknown): Promise<Respuesta<T> | null> {
+  private async llamar<T>(metodo: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", ruta: string, cuerpo?: unknown, texto = false): Promise<Respuesta<T> | null> {
     let r: Response;
     try {
       r = await fetch(`${this.cfg.api}${ruta}`, {
         method: metodo,
-        headers: { authorization: `Bearer ${this.cfg.token}`, "content-type": "application/json" },
-        body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+        headers: { authorization: `Bearer ${this.cfg.token}`, "content-type": texto ? "text/plain" : "application/json" },
+        body: cuerpo === undefined ? undefined : texto ? String(cuerpo) : JSON.stringify(cuerpo),
         signal: AbortSignal.timeout(10_000),
       });
     } catch (e) {
@@ -108,7 +108,14 @@ export class Cloudflare implements ProveedorDns {
 
   async crearRegistro(zonaId: string, r: Omit<RegistroZona, "id">): Promise<void> {
     try {
-      await this.llamar("POST", `/zones/${encodeURIComponent(zonaId)}/dns_records`, { type: r.tipo, name: r.nombre, content: r.valor, proxied: r.proxy, ttl: 1 });
+      await this.llamar("POST", `/zones/${encodeURIComponent(zonaId)}/dns_records`, {
+        type: r.tipo,
+        name: r.nombre,
+        content: r.valor,
+        proxied: r.proxy,
+        ttl: 1,
+        ...(r.prioridad !== undefined ? { priority: r.prioridad } : {}),
+      });
     } catch (e) {
       if (!(e as { registroDuplicado?: boolean }).registroDuplicado) throw e;
     }
@@ -122,6 +129,23 @@ export class Cloudflare implements ProveedorDns {
     const z = encodeURIComponent(zonaId);
     await this.llamar("PATCH", `/zones/${z}/settings/ssl`, { value: "full" });
     await this.llamar("PATCH", `/zones/${z}/settings/always_use_https`, { value: "on" });
+  }
+
+  async prenderRecepcion(zonaId: string): Promise<void> {
+    const z = encodeURIComponent(zonaId);
+    await this.llamar("POST", `/zones/${z}/email/routing/enable`, {});
+    await this.llamar("PUT", `/zones/${z}/email/routing/rules/catch_all`, {
+      enabled: true,
+      matchers: [{ type: "all" }],
+      actions: [{ type: "worker", value: [this.cfg.worker] }],
+    });
+  }
+
+  async fijarReenvio(direccion: string, destino: string | null): Promise<void> {
+    if (!this.cfg.cuenta || !this.cfg.kv) throw new ErrorProveedor("Faltan DEOCO_CLOUDFLARE_CUENTA o DEOCO_CLOUDFLARE_KV para el reenvío.", "datos");
+    const ruta = `/accounts/${encodeURIComponent(this.cfg.cuenta)}/storage/kv/namespaces/${encodeURIComponent(this.cfg.kv)}/values/${encodeURIComponent(direccion)}`;
+    if (destino === null) await this.llamar("DELETE", ruta);
+    else await this.llamar("PUT", ruta, destino, true);
   }
 
   async borrarZona(zonaId: string): Promise<void> {

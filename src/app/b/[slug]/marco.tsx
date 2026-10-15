@@ -4,6 +4,7 @@ import { type AccesoPanel, prendidosDelPedido } from "@/nucleo/acceso/panel";
 import { registro } from "@/nucleo/modulos";
 import { menuPanel } from "@/nucleo/modulos/navegacion";
 import { delegacionesPorVencer, dominiosConProblema } from "@/nucleo/dominios";
+import { dominioDeEnvio } from "@/nucleo/dominios/envio";
 import { bandaCobra } from "@/nucleo/pagos";
 import { Aviso } from "@/ui";
 import { BotonSalir } from "../../salir";
@@ -52,6 +53,13 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                 <li>
                   <Link href={`/b/${slug}/dominios`} className={item}>
                     Dominios
+                  </Link>
+                </li>
+              )}
+              {esTitular && !suspendida && dominioDeEnvio() && (
+                <li>
+                  <Link href={`/b/${slug}/correo`} className={item}>
+                    Correo
                   </Link>
                 </li>
               )}

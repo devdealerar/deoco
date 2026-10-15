@@ -11,11 +11,18 @@ import { prisma } from "@/nucleo/db/cliente";
 import { CORREO_COLGADO_MS, retomarCorreos } from "@/nucleo/correo";
 import { limpiarCorreos } from "@/nucleo/correo/limpieza";
 import { revisarDominios } from "@/nucleo/dominios";
+import { revisarCorreosPendientes } from "@/nucleo/dominios/correo";
 import { retomarEventos } from "@/nucleo/eventos/bus";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Registro } from "@/nucleo/modulos/registro";
 
-export type ResultadoBarrido = { bandas: number; dominios: { revisados: number; conProblema: number; delegados: number }; tareas: string[] };
+export type ResultadoBarrido = {
+  bandas: number;
+  dominios: { revisados: number; conProblema: number; delegados: number };
+  /** Direcciones de correo de bandas que quedaron verificadas en esta vuelta. */
+  correos: number;
+  tareas: string[];
+};
 
 /** Última vez que corrió cada tarea periódica (`<modulo>.<nombre>`), en este proceso. */
 const ultimaVez = new Map<string, number>();
@@ -56,6 +63,10 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
     console.error("[barrido] revisión de dominios:", e);
     return { revisados: 0, conProblema: 0, delegados: 0 };
   });
+  const correos = await revisarCorreosPendientes(ahora).catch((e) => {
+    console.error("[barrido] revisión de direcciones de correo:", e);
+    return 0;
+  });
   const tareas = await correrTareas(ahora);
   // Una vez por día (en este proceso): la limpieza de correos enviados.
   if (ahora.getTime() - ultimaLimpieza >= 86_400_000) {
@@ -68,7 +79,7 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
       console.log(`[barrido] correos: ${l.adjuntos} sin adjuntos, ${l.cuerpos} sin cuerpo, ${l.borrados} borrados`);
     }
   }
-  return { bandas: bandas.length, dominios, tareas };
+  return { bandas: bandas.length, dominios, correos, tareas };
 }
 
 let ultimaLimpieza = 0;

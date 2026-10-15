@@ -50,6 +50,10 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
     // Delegar: las zonas se crean en la cuenta y sus registros apuntan al VPS.
     if (!env.DEOCO_CLOUDFLARE_CUENTA?.trim()) p.push("Con Cloudflare configurado falta DEOCO_CLOUDFLARE_CUENTA (id de la cuenta, para crear las zonas de los dominios delegados).");
     if (!env.DEOCO_IP_PUBLICA?.trim()) p.push("Con Cloudflare configurado falta DEOCO_IP_PUBLICA (la IP del VPS, a la que apuntan los dominios delegados).");
+    // Correo desde el dominio de las bandas: el reenvío (Email Worker) lee los destinos del KV.
+    if (env.DEOCO_RESEND_TOKEN?.trim() && !env.DEOCO_CLOUDFLARE_KV?.trim()) {
+      p.push("Con DEOCO_RESEND_TOKEN y Cloudflare falta DEOCO_CLOUDFLARE_KV (el namespace de KV del reenvío de correo).");
+    }
   }
   if (build.generadoPara !== "produccion") {
     p.push("La lista de módulos no es de producción (incluiría módulos de desarrollo): construí con `next build`.");

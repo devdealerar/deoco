@@ -67,6 +67,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
     "playwright-core": "^1.64.0",
+    "postal-mime": "^4.0.7",
     "postcss": "^8.5.30",
     "smtp-server": "3.19.15",
     "tailwindcss": "^4",

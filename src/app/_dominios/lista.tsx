@@ -263,7 +263,7 @@ function Delegacion({ dominio, delegacion: g, verificar }: { dominio: string; de
 }
 
 /** Registros DNS exactos, listos para copiar. */
-function Registros({ registros }: { registros: RegistroDns[] }) {
+export function Registros({ registros }: { registros: RegistroDns[] }) {
   return (
     <dl className="flex flex-col gap-4">
       {registros.map((r) => (

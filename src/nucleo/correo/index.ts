@@ -9,6 +9,7 @@ import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
 import { titularDeBanda } from "@/nucleo/personas";
 import { esEmail } from "./direccion";
+import { direccionDeEnvio } from "./remitente-banda";
 import { remitente, transporte } from "./transporte";
 
 export { esEmail } from "./direccion";
@@ -94,6 +95,8 @@ function programar(tenantId: string) {
 async function entregarPendientes(tenantId: string) {
   const t = transporte();
   if (!t) return; // sin transporte: quedan PENDIENTES hasta que se configure
+  // Con su dominio verificado, los correos de la banda salen desde su dirección; los de Deoco, no.
+  const propia = await direccionDeEnvio(tenantId);
   for (;;) {
     const fila = await conTenant(tenantId, async (tx) => {
       const c = await tx.correo.findFirst({ where: { estado: "PENDIENTE" }, orderBy: { creadoEn: "asc" } });
@@ -110,7 +113,7 @@ async function entregarPendientes(tenantId: string) {
     try {
       await t.enviar({
         id: fila.id,
-        de: { nombre: fila.nombreRemitente, direccion: remitente() },
+        de: { nombre: fila.nombreRemitente, direccion: (fila.moduloId !== ORIGEN_NUCLEO && propia) || remitente() },
         para: fila.para,
         responderA: fila.responderA ?? undefined,
         asunto: fila.asunto,

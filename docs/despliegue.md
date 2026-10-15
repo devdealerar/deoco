@@ -202,6 +202,8 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_DB_CONEXIONES` | no | Conexiones de la app a Postgres (40). Sumadas a las del back office (5) tienen que quedar bajo `max_connections` (100 por defecto) |
 | `DEOCO_BARRIDO_SEGUNDOS` | no | Cada cuánto corre el barrido de pendientes (60; mínimo 5) |
 | `DEOCO_CLOUDFLARE_TOKEN` / `DEOCO_CLOUDFLARE_ZONA` | para dominios propios | Token de API de Cloudflare y el id de la zona de `DEOCO_DOMINIO_RAIZ` (custom hostnames). Las dos o ninguna |
+| `DEOCO_RESEND_TOKEN` | para el correo desde el dominio de las bandas | API key de Resend con acceso completo (alta de dominios). Sin ella, la pantalla Correo no aparece |
+| `DEOCO_CLOUDFLARE_KV` | con `DEOCO_RESEND_TOKEN` y Cloudflare | Id del namespace de KV del reenvío (el mismo del Email Worker) |
 | `DEOCO_CLOUDFLARE_CUENTA` / `DEOCO_IP_PUBLICA` | con las dos anteriores | Id de la cuenta de Cloudflare (ahí se crean las zonas de los dominios delegados) e IP del VPS (a la que apuntan, con proxy) |
 | `DEOCO_CUOTA_MP_TOKEN` | para cobrar la cuota | Access token de producción de la cuenta de Mercado Pago **de Deoco** (no de una banda). Sin él, la app arranca (aviso en el log) pero nadie puede cargar su forma de pago |
 | `DEOCO_CUOTA_MP_SECRETO_AVISOS` | recomendada | Clave secreta de webhooks de esa aplicación: con ella se verifica la firma de cada aviso de la cuota |
@@ -489,6 +491,37 @@ servir Deoco directo (minutos, más lo que tarde el DNS):
 5. La app no necesita cambios: sin Cloudflare lee la IP del visitante de `x-forwarded-for`.
 
 Para volver a Cloudflare: nube naranja y después el YAML de arriba (con `aop` y la lista).
+
+## Correo desde el dominio de las bandas
+
+Los mails de cada banda (compras, entradas, despachos) salen desde una dirección de su dominio
+(`merch@labanda.com`) cuando Resend la verifica; hasta entonces, desde Deoco. Los avisos de Deoco
+a la banda siempre salen desde Deoco. En los dominios **delegados sin correo propio**, lo que
+llega a esa dirección lo recibe Cloudflare (Email Routing) y un **Email Worker** lo reenvía, por
+Resend, a la casilla que eligió la banda. Si el dominio ya tiene MX (su correo en Gmail,
+Outlook…), la recepción **no se toca**.
+
+### Una vez
+
+1. **Resend**: la misma cuenta del SMTP. API Keys → una clave con acceso completo (para dar de
+   alta dominios) → `DEOCO_RESEND_TOKEN` en la app. Sin ella, la pantalla Correo no aparece.
+2. **Cloudflare, KV**: Workers → KV → Create namespace `deoco-reenvio` → su id va en
+   `DEOCO_CLOUDFLARE_KV` (app) y en `infra/cloudflare/reenvio/wrangler.toml` (`id`).
+3. **Cloudflare, token de la app** (`DEOCO_CLOUDFLARE_TOKEN`): sumar *Email Routing Rules · Edit*
+   y *Zone Settings · Edit* (prender Email Routing en las zonas) y, en la cuenta, *Workers KV
+   Storage · Edit*.
+4. **El Email Worker** (desde la raíz del repo, con una cuenta de Cloudflare logueada en
+   wrangler):
+
+   ```sh
+   npx wrangler deploy --config infra/cloudflare/reenvio/wrangler.toml
+   npx wrangler secret put RESEND_API_KEY --config infra/cloudflare/reenvio/wrangler.toml   # una clave de Resend con permiso de envío
+   ```
+
+   El nombre del Worker es `deoco-reenvio` (si lo cambiás, `DEOCO_CLOUDFLARE_WORKER` en la app).
+5. Probar con una banda de prueba con dominio delegado: Correo → guardar la dirección → cuando
+   diga "Lista", "Mandarme un mail de prueba" tiene que llegar a la casilla de reenvío, con el
+   nombre de la banda y "Responder" apuntando a la dirección de la banda.
 
 ## Dominio propio de una banda
 

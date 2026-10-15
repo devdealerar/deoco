@@ -10,7 +10,7 @@ export type HostnameFalso = {
   status: string;
   ssl: { status: string; validation_records?: { txt_name: string; txt_value: string }[] };
 };
-export type RegistroFalso = { id: string; type: string; name: string; content: string; proxied: boolean };
+export type RegistroFalso = { id: string; type: string; name: string; content: string; proxied: boolean; priority?: number };
 export type ZonaFalsa = {
   id: string;
   name?: string;
@@ -19,11 +19,14 @@ export type ZonaFalsa = {
   certificado: string | null;
   registros?: RegistroFalso[];
   ajustes?: Record<string, string>;
+  /** Email Routing: prendido y la regla "todo lo que llegue". */
+  correo?: { prendido: boolean; reglaTodo?: unknown };
 };
 
 export const TOKEN_CF = "cf-token-de-prueba";
 export const ZONA_CF = "zona-plataforma";
 export const CUENTA_CF = "cuenta-deoco";
+export const KV_CF = "kv-reenvio";
 export const NAMESERVERS = ["ana.ns.cloudflare.com", "bob.ns.cloudflare.com"];
 
 export class CloudflareFalso {
@@ -39,6 +42,8 @@ export class CloudflareFalso {
   /** Lo que cada dominio tiene en su DNS actual: lo trae `jump_start` al crear la zona. */
   dnsAnterior = new Map<string, Omit<RegistroFalso, "id">[]>();
   activaciones: string[] = [];
+  /** El namespace de KV de los reenvíos: dirección → destino. */
+  kv = new Map<string, string>();
   private servidor?: Server;
   base = "";
   private n = 0;
@@ -106,9 +111,9 @@ export class CloudflareFalso {
           z.registros ??= [];
           if (req.method === "GET") return ok(z.registros);
           if (req.method === "POST") {
-            const c = JSON.parse(cuerpo || "{}") as { type: string; name: string; content: string; proxied?: boolean };
+            const c = JSON.parse(cuerpo || "{}") as { type: string; name: string; content: string; proxied?: boolean; priority?: number };
             if (z.registros.some((r) => r.type === c.type && r.name === c.name && r.content === c.content)) return error(400, 81058, "An identical record already exists.");
-            z.registros.push({ id: `r-${++this.n}`, type: c.type, name: c.name, content: c.content, proxied: Boolean(c.proxied) });
+            z.registros.push({ id: `r-${++this.n}`, type: c.type, name: c.name, content: c.content, proxied: Boolean(c.proxied), ...(c.priority !== undefined ? { priority: c.priority } : {}) });
             return ok({});
           }
           if (req.method === "DELETE" && rec[2]) {
@@ -122,6 +127,33 @@ export class CloudflareFalso {
           if (!z) return error(404, 1001, "Invalid zone identifier");
           z.ajustes = { ...z.ajustes, [ajuste[2]]: (JSON.parse(cuerpo || "{}") as { value: string }).value };
           return ok({ id: ajuste[2], value: z.ajustes[ajuste[2]] });
+        }
+        const routing = url.pathname.match(/^\/zones\/([^/]+)\/email\/routing\/(enable|rules\/catch_all)$/);
+        if (routing) {
+          const z = this.zonas.get(routing[1]);
+          if (!z) return error(404, 1001, "Invalid zone identifier");
+          z.correo ??= { prendido: false };
+          if (routing[2] === "enable" && req.method === "POST") {
+            z.correo.prendido = true;
+            z.registros ??= [];
+            // Cloudflare pone sus MX al prender Email Routing.
+            for (const [i, mx] of ["route1", "route2", "route3"].entries()) {
+              z.registros.push({ id: `r-${++this.n}`, type: "MX", name: z.name ?? "", content: `${mx}.mx.cloudflare.net`, proxied: false, priority: 10 + i } as RegistroFalso);
+            }
+            return ok({ enabled: true });
+          }
+          if (routing[2] === "rules/catch_all" && req.method === "PUT") {
+            z.correo.reglaTodo = JSON.parse(cuerpo || "{}");
+            return ok(z.correo.reglaTodo);
+          }
+        }
+        const kv = url.pathname.match(/^\/accounts\/([^/]+)\/storage\/kv\/namespaces\/([^/]+)\/values\/(.+)$/);
+        if (kv) {
+          if (kv[1] !== CUENTA_CF || kv[2] !== KV_CF) return error(404, 10013, "namespace not found");
+          const clave = decodeURIComponent(kv[3]);
+          if (req.method === "PUT") this.kv.set(clave, cuerpo);
+          if (req.method === "DELETE") this.kv.delete(clave);
+          return ok(null);
         }
         const act = url.pathname.match(/^\/zones\/([^/]+)\/activation_check$/);
         if (act && req.method === "PUT") {
@@ -159,6 +191,7 @@ export class CloudflareFalso {
     env.DEOCO_CLOUDFLARE_ZONA = ZONA_CF;
     env.DEOCO_CLOUDFLARE_CUENTA = CUENTA_CF;
     env.DEOCO_IP_PUBLICA = "203.0.113.10";
+    env.DEOCO_CLOUDFLARE_KV = KV_CF;
   }
 
   /** La zona de `dominio`. */
@@ -196,6 +229,7 @@ export class CloudflareFalso {
     this.sinRegistrar.clear();
     this.dnsAnterior.clear();
     this.activaciones = [];
+    this.kv.clear();
   }
 
   async cerrar() {

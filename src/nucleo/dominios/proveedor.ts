@@ -6,6 +6,8 @@
 //   DEOCO_CLOUDFLARE_ZONA   id de la zona de DEOCO_DOMINIO_RAIZ (donde viven los custom hostnames)
 //   DEOCO_CLOUDFLARE_CUENTA id de la cuenta (donde se crean las zonas de los dominios delegados)
 //   DEOCO_IP_PUBLICA        IP del VPS: a dónde apuntan (con proxy) los registros de esas zonas
+//   DEOCO_CLOUDFLARE_KV     id del namespace de KV donde el Email Worker busca a quién reenviar
+//   DEOCO_CLOUDFLARE_WORKER nombre del Email Worker de reenvío (por defecto "deoco-reenvio")
 //   DEOCO_CLOUDFLARE_API    (pruebas) servidor local que imita la API
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
 import { Cloudflare } from "./cloudflare";
@@ -25,7 +27,7 @@ export type Hostname = {
 export type Zona = { id: string; estado: string; certificado: string | null; nameservers: string[] };
 
 /** Un registro de una zona nuestra, tal como está en Cloudflare. */
-export type RegistroZona = { id: string; tipo: string; nombre: string; valor: string; proxy: boolean };
+export type RegistroZona = { id: string; tipo: string; nombre: string; valor: string; proxy: boolean; prioridad?: number };
 
 /**
  * - `temporal`: no respondió, 5xx, 429 → se reintenta más tarde, no es culpa de la banda.
@@ -65,6 +67,13 @@ export interface ProveedorDns {
    * "Flexible" lo haría por HTTP) y siempre HTTPS para los visitantes.
    */
   ajustarZona(zonaId: string): Promise<void>;
+  /**
+   * Prende Email Routing en la zona (Cloudflare pone sus MX) con una regla "todo lo que llegue"
+   * al Email Worker de reenvío.
+   */
+  prenderRecepcion(zonaId: string): Promise<void>;
+  /** A quién reenvía el Worker lo que llega a `direccion` (null: a nadie, se rechaza). */
+  fijarReenvio(direccion: string, destino: string | null): Promise<void>;
   /** Borra la zona (si no existe, no hace nada). */
   borrarZona(zonaId: string): Promise<void>;
 }
@@ -78,6 +87,8 @@ export function proveedorDns(env: Record<string, string | undefined> = process.e
     token,
     zona,
     cuenta: env.DEOCO_CLOUDFLARE_CUENTA?.trim() ?? "",
+    kv: env.DEOCO_CLOUDFLARE_KV?.trim() ?? "",
+    worker: env.DEOCO_CLOUDFLARE_WORKER?.trim() || "deoco-reenvio",
     api: env.DEOCO_CLOUDFLARE_API?.trim() || "https://api.cloudflare.com/client/v4",
   });
 }

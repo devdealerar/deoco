@@ -35,6 +35,7 @@ describe("verificación de arranque: entorno", () => {
     [{ DEOCO_CLOUDFLARE_ZONA: "zona" }, /las dos variables: DEOCO_CLOUDFLARE_TOKEN y DEOCO_CLOUDFLARE_ZONA/],
     [{ DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_IP_PUBLICA: "203.0.113.10" }, /falta DEOCO_CLOUDFLARE_CUENTA/],
     [{ DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_CLOUDFLARE_CUENTA: "c" }, /falta DEOCO_IP_PUBLICA/],
+    [{ DEOCO_CLOUDFLARE_TOKEN: "tok", DEOCO_CLOUDFLARE_ZONA: "zona", DEOCO_CLOUDFLARE_CUENTA: "c", DEOCO_IP_PUBLICA: "203.0.113.10", DEOCO_RESEND_TOKEN: "re" }, /falta DEOCO_CLOUDFLARE_KV/],
   ])("%o", (cambio, problema) => {
     expect(problemasDeEntorno({ ...BIEN, ...cambio }, PROD).join("\n")).toMatch(problema);
   });

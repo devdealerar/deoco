@@ -32,6 +32,13 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D5: `src/nucleo/dominios/correo.ts` (`configurarCorreo`, `revisarCorreo`, barrido cada 10 min,
+  `quitarCorreo`, `probarCorreo`), `envio.ts` (Resend), Cloudflare (`prenderRecepcion`,
+  `fijarReenvio` en KV), `correo/remitente-banda.ts` (remitente de los correos de la banda),
+  pantalla `/b/<slug>/correo` (ruta reservada del núcleo), Email Worker `infra/cloudflare/reenvio`
+  (postal-mime; Reply-To al que escribió, tope diario, sin bucles), migración `correo_dominio`.
+  Pruebas: `tests/correo-dominio.test.ts`, `tests/worker-reenvio.test.ts`, `tests/e2e/correo.e2e.ts`,
+  con `tests/resend-falso.ts`.
 - Correo del núcleo (adelantado de D11): `enviarCorreoDelNucleo()` (origen `nucleo`, mismo camino
   que los de los módulos: fila en `correo`, barrido, `unica`) y `avisarAlTitular()`
   (`src/nucleo/correo/deoco.ts`, remitente "Deoco", responde a `DEOCO_CUOTA_RESPONDER_A` o a
@@ -48,7 +55,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D2 | Origen detrás de Cloudflare (Traefik comodín, modo SSL) + ensayo con dominio real | 2–3 | A acotada: `aop` solo en `app.`, lista de IPs de Cloudflare en todas las rutas de Deoco, certificado de origen; ensayado con Traefik 3.6.7; YAML, pasos y vuelta atrás en `docs/despliegue.md`; **falta el ensayo con dominio real** |
 | D3 | Delegar (comprado afuera y `.com.ar` asistido) | 2–3 | ✅ hecha |
 | D4 | Pasar de conectado (CNAME) a delegado sin corte (el alta por CNAME ya está en D1) + vencimiento de delegaciones | 2 | ✅ hecha |
-| D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | pendiente |
+| D5 | Correo: Resend por dominio, Email Worker + KV, pantalla Correo | 4–5 | ✅ hecha |
 | D6 | Salir: exportar zona, sacar de gestión sin transferir, volver al subdominio, 90 días | 2 | pendiente |
 | D7 | `Registrador` GoDaddy v2 + falso | 5–7 | pendiente |
 | D8 | Máquina de estados, tablas, barrido, back office de dominios | 5 | pendiente |

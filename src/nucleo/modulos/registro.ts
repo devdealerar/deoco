@@ -25,7 +25,7 @@ const CLAVE_PERMISO = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;
 const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 
 // Rutas que son del núcleo y ningún módulo puede ocupar.
-const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, secretos
+const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/correo", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, correo, secretos
 /** Ids que usa el núcleo como "módulo" (p. ej. las credenciales de cobro en `secreto`). */
 const ID_RESERVADOS = ["pagos", "nucleo"];
 const NOMBRE_CONSULTA = /^[a-z][a-z0-9-]{0,62}$/;

@@ -1,0 +1,12 @@
+# Email Worker de reenvío de Deoco. Lo despliega el staff una vez (docs/despliegue.md, "Correo
+# desde el dominio de las bandas"), desde la raíz del repo:
+#   npx wrangler deploy --config infra/cloudflare/reenvio/wrangler.toml
+#   npx wrangler secret put RESEND_API_KEY --config infra/cloudflare/reenvio/wrangler.toml
+name = "deoco-reenvio"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[[kv_namespaces]]
+binding = "DESTINOS"
+# El id del namespace (el mismo que DEOCO_CLOUDFLARE_KV en la app).
+id = "<id del namespace de KV>"
