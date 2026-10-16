@@ -200,14 +200,15 @@ export const LIMITE_PUBLICADOS = "productos-publicados";
 export const contarPublicados = (tenantId: string) => conTenant(tenantId, (tx) => tx.tiendaProducto.count({ where: { publicado: true } }));
 
 /**
- * El tope bajó (la banda bajó de plan): pasa a borrador lo que sobra, lo último publicado
- * primero. No borra nada: la banda lo vuelve a publicar si sube de plan.
+ * El tope bajó (la banda bajó de plan): pasa a borrador lo que sobra, por orden inverso de
+ * creación (3.2, núcleo d6). No borra nada: la banda lo vuelve a publicar si sube de plan. Un
+ * pedido ya hecho se completa igual (el renglón guarda todo).
  */
 export async function ajustarPublicados(tenantId: string, maximo: number): Promise<number> {
   return conTenant(tenantId, async (tx) => {
     const publicados = await tx.tiendaProducto.findMany({
       where: { publicado: true },
-      orderBy: [{ publicadoEn: { sort: "desc", nulls: "last" } }, { creadoEn: "desc" }, { id: "desc" }],
+      orderBy: [{ creadoEn: "desc" }, { id: "desc" }],
       select: { id: true, fotoArchivoId: true },
     });
     const sobran = publicados.slice(0, Math.max(0, publicados.length - maximo));

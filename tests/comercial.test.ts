@@ -149,11 +149,12 @@ describe("planes", () => {
     expect(await dueno.tiendaProducto.count({ where: { tenantId: e.a.id, publicado: true } })).toBe(2);
   });
 
-  it("al bajar de plan se despublica lo sobrante, lo último publicado primero, sin borrar", async () => {
+  it("al bajar de plan: los productos que sobran se despublican por orden inverso de creación; los shows en venta, nunca (3.2 núcleo d5/d6)", async () => {
     await alCrearBanda(e.a.id);
     await asignarPlan(comoStaff, e.a.id, "premium", null);
     const ids = await productos(e.a.id, 4);
-    for (const id of ids) {
+    // Se publican al revés de como se crearon: lo que cuenta es la creación.
+    for (const id of [...ids].reverse()) {
       await publicarProducto(e.a.id, id, true);
       await new Promise((r) => setTimeout(r, 5));
     }
@@ -172,10 +173,15 @@ describe("planes", () => {
     const publicados = await dueno.tiendaProducto.findMany({ where: { tenantId: e.a.id }, select: { id: true, publicado: true } });
     expect(publicados).toHaveLength(4);
     expect(publicados.filter((p) => p.publicado).map((p) => p.id).sort()).toEqual([ids[0], ids[1]].sort());
+    // Los dos shows siguen a la venta: nunca se corta una venta abierta por una cuota. El tope
+    // frena publicar uno nuevo (bloqueo duro permitido: no interrumpe nada).
     const ev = await dueno.ticketeraEvento.findMany({ where: { tenantId: e.a.id }, select: { id: true, publicado: true } });
-    expect(ev).toHaveLength(2);
-    expect(ev.filter((x) => x.publicado).map((x) => x.id)).toEqual([shows[0]]);
+    expect(ev.filter((x) => x.publicado).map((x) => x.id).sort()).toEqual([...shows].sort());
+    const tercero = await crearEvento(e.a.id, show(5));
+    await crearTipo(e.a.id, tercero, { nombre: "General", precio: 1000000, cupo: 100, ventaDesde: null, ventaHasta: null });
+    await expect(publicarEvento(e.a.id, tercero, true)).rejects.toThrow(ErrorLimite);
   });
+
 });
 
 describe("cuota", () => {

@@ -64,23 +64,12 @@ async function exigirTopeDeShows(tx: TxTenant, tenantId: string) {
 }
 
 /**
- * El tope bajó (la banda bajó de plan): pasa a borrador los shows próximos que sobran, el último
- * publicado primero. No borra nada (ni compras ni entradas: las ya vendidas siguen valiendo).
+ * El tope bajó (la banda bajó de plan): no se despublica ningún show. Un show publicado y por
+ * venir está a la venta, y nunca se corta una venta abierta por una cuota (3.2, núcleo d5): se
+ * permite el excedente. El tope frena publicar uno nuevo (exigirTopeDeShows). Devuelve 0.
  */
-export async function ajustarShowsPublicados(tenantId: string, maximo: number): Promise<number> {
-  return conTenant(tenantId, async (tx) => {
-    const publicados = await tx.ticketeraEvento.findMany({
-      where: cuentan(),
-      orderBy: [{ publicadoEn: { sort: "desc", nulls: "last" } }, { creadoEn: "desc" }, { id: "desc" }],
-      select: { id: true, fotoArchivoId: true },
-    });
-    const sobran = publicados.slice(0, Math.max(0, publicados.length - maximo));
-    if (!sobran.length) return 0;
-    await tx.ticketeraEvento.updateMany({ where: { id: { in: sobran.map((e) => e.id) } }, data: { publicado: false, publicadoEn: null } });
-    const fotos = sobran.map((e) => e.fotoArchivoId).filter((f): f is string => !!f);
-    if (fotos.length) await marcarPublicos(tx, fotos, false);
-    return sobran.length;
-  });
+export async function ajustarShowsPublicados(_tenantId: string, _maximo: number): Promise<number> {
+  return 0;
 }
 
 /** Foto del show (JPG/PNG/WebP). Pública solo mientras el show esté publicado. */

@@ -226,7 +226,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - `mediciones: [{ clave, etiqueta, medir }]` en el contrato + archivos (núcleo): el uso de cada banda,
   en la ficha de `/admin` (`medicionDeBanda`, `src/nucleo/cuenta/medicion.ts`). Mide, no limita.
 - `limites` en el contrato + `exigirLimite(tx, …)` antes de publicar (`ErrorLimite`, dice qué plan
-  amplía). Bajar el tope → `ajustar` despublica lo último publicado (`publicadoEn`), nunca borra.
+  amplía). Bajar el tope → `ajustar`: los productos que sobran pasan a borrador por orden inverso de
+  creación (nunca se borra); los shows, nunca (no se corta una venta abierta por una cuota: 3.2 d5).
 - LA CUOTA ES LA EXCEPCIÓN AL DINERO: cuenta de Mercado Pago de Deoco, `DEOCO_CUOTA_MP_TOKEN` /
   `DEOCO_CUOTA_MP_SECRETO_AVISOS` (entorno, nunca `secreto`), solo el gestor
   (`@/nucleo/pagos/cuota`); webhook `app.<raiz>/avisos/plataforma/comercial/cuota/mercadopago`
