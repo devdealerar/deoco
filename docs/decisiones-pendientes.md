@@ -827,3 +827,23 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
   30 o 60 minutos (por defecto 30), sin renovar sola: para seguir pide otra. Las sesiones no se
   borran ni se cambian (como la auditoría). La banda ve un aviso mientras la sesión está abierta y
   la lista de visitas en Actividad.
+- **Base de fans y newsletter (D4)**: módulo nuevo `fans`, en todos los planes (los planes se
+  distinguen por topes). Las bandas existentes lo reciben cuando el gestor vuelve a aplicar su plan.
+  - **Quién entra a la base**: quien se suscribe y quien compra (la banda ya tiene esos datos en sus
+    pedidos; la base solo los junta). El newsletter le llega SOLO a quien lo pidió y confirmó por
+    mail; un comprador sin la casilla está en la base pero no recibe nada.
+  - **Quién ve la base**: solo el titular (y el gestor). Editor y comercial escriben y mandan envíos
+    y ven sus números, sin datos de nadie (ante duda de privacidad, menos gente).
+  - **"Publicidad" en el asunto** (Disp. 4/2009): no se agrega, porque todos los destinatarios dieron
+    su consentimiento previo (doble confirmación) y la norma lo pide si no lo hubo. Cada mail lleva el
+    mecanismo de baja escrito y en un clic (Decreto 1558/2001 art. 27). A confirmar con el abogado.
+  - **Aperturas**: imagen de 1 píxel; se guarda solo la primera vez y cuándo (ni IP ni navegador). Se
+    dice en la política del sitio. Es un número aproximado (si el programa no muestra imágenes, no cuenta).
+  - **Link de baja en `List-Unsubscribe`**: lleva el token en la URL (RFC 8058 lo exige así); ese token
+    solo sirve para darse de baja. El link del cuerpo lo lleva después de "#".
+  - **Cupo por reputación**: 200 por día desde Deoco, 500 con dirección propia; se duplica por cada
+    semana seguida con menos del 2 % de bajas (hasta 2000 / 20000); con una semana mala vuelve al
+    inicial. Números míos, para revisar con los del primer mes. No se ofrece "ampliación" paga: el
+    cupo protege la entrega de todas las bandas que salen desde Deoco.
+  - **Exportar la base**: va completa (con la prueba del consentimiento) en "Exportar mis datos";
+    no hay un CSV aparte en la pantalla de fans (el panel no tiene descargas por módulo todavía).

@@ -111,6 +111,9 @@ async function ejecutar(
   try {
     const r = (await manejar(aviso)) ?? {};
     const estado = r.estado ?? 200;
+    if (r.cuerpo instanceof Uint8Array) {
+      return new Response(r.cuerpo as Uint8Array<ArrayBuffer>, { status: estado, headers: { "content-type": r.tipo ?? "application/octet-stream", "cache-control": "no-store" } });
+    }
     if (r.cuerpo !== undefined && typeof r.cuerpo !== "string") {
       return Response.json(r.cuerpo, { status: estado, headers: { "cache-control": "no-store" } });
     }

@@ -36,7 +36,7 @@ const LOTE = 2000;
 const COLGADA_MS = 30 * 60_000;
 
 /** Columnas que no se exportan: llaves y secretos, no datos de la banda. */
-const NO_SE_EXPORTA = new Set(["cifrado", "hashContrasena", "tokenHash", "tokenCifrado", "token", "ipHash", "adjuntos", "html"]);
+const NO_SE_EXPORTA = new Set(["cifrado", "hashContrasena", "tokenHash", "tokenCifrado", "token", "ipHash", "adjuntos", "html", "cabeceras"]);
 
 const claveDelZip = (tenantId: string, id: string) => `exportaciones/${tenantId}/${id}.zip`;
 
@@ -151,7 +151,7 @@ async function exportarTabla(tenantId: string, tabla: string, dir: string): Prom
     const lote = await conTenant(tenantId, (tx) => tx.$queryRawUnsafe<Record<string, unknown>[]>(`SELECT * FROM ${comillas(tabla)} ORDER BY ctid LIMIT ${LOTE} OFFSET ${desde}`));
     if (lote.length === 0) break;
     if (!columnas) {
-      columnas = Object.keys(lote[0]).filter((c) => !NO_SE_EXPORTA.has(c));
+      columnas = Object.keys(lote[0]).filter((c) => !NO_SE_EXPORTA.has(c) && !/(Hash|Cifrado)$/.test(c));
       await escribir(outCsv, columnas.map(celda).join(",") + "\r\n");
     }
     for (const fila of lote) {

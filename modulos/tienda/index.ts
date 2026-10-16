@@ -4,6 +4,7 @@
 import { inicioTienda } from "./inicio";
 import { tiendaEnCurso } from "./en-curso";
 import { conciliarPedidos } from "./pagos";
+import { compradorDePedido } from "./pedidos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { buscarDatosTienda, suprimirDatosTienda } from "./datos-personales";
 import { conTenant } from "@/nucleo/db/con-tenant";
@@ -115,7 +116,11 @@ const tienda: Modulo = {
     { etiqueta: "Cuenta corriente", href: "/cuenta", externa: true, orden: 20 },
   ],
   // Bloque "Tienda" del inicio del panel.
-  consultas: [{ nombre: "inicio", responder: inicioTienda }],
+  consultas: [
+    { nombre: "inicio", responder: inicioTienda },
+    // Para la base de fans: quién pagó un pedido (lo pide el módulo fans al recibir pedido.pagado).
+    { nombre: "comprador", responder: compradorDePedido },
+  ],
   // Un cambio de plan no la apaga con pedidos por pagar, en revisión o sin despachar.
   // Derechos del fan sobre sus datos (D2): lo que hay de una persona y cómo se anonimiza.
   datosPersonales: {

@@ -128,6 +128,10 @@ C4 (casos de borde del núcleo, 3.2 núcleo d6):
 - D3 ✅ Suplantación segura: sesión de soporte con motivo y vencimiento (`sesion_soporte`),
   permisos de gestor, "Soporte de Deoco" en la actividad, aviso a la banda. `tests/permisos.test.ts`,
   `tests/staff.test.ts`, `tests/e2e/panel.e2e.ts` (prueba 6).
+- D4 ✅ Base de fans y newsletter (`modulos/fans`): suscripción con doble confirmación desde el
+  sitio y desde la compra (casilla sin marcar), base con crecimiento, geografía y repetición, envíos
+  con cupo por reputación, baja en un clic (List-Unsubscribe), aperturas y bajas por envío.
+  `tests/fans.test.ts`, `tests/e2e/fans.e2e.ts`.
 
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 

@@ -108,7 +108,7 @@ describe("crear la banda", () => {
     expect(t.dominios).toMatchObject([{ dominio: "los-nuevos.lvh.me", esPrincipal: true, verificado: true }]);
     // El sitio público resuelve en su subdominio y el módulo sitio está prendido.
     expect((await resolverTenantPorHost("los-nuevos.lvh.me"))?.id).toBe(t.id);
-    expect([...(await modulosPrendidos(t.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
+    expect([...(await modulosPrendidos(t.id))].sort()).toEqual(["comercial", "fans", "sitio", "ticketera", "tienda"]);
     expect(await cuentaDe(t.id)).toMatchObject({ planId: "escenario" });
     // El staff la ve (auditoría con quién la creó).
     expect(await dueno.auditoria.findFirst({ where: { accion: "banda.autogestionada", tenantId: t.id } })).toMatchObject({ usuarioId });

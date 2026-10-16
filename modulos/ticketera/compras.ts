@@ -60,7 +60,7 @@ export const cierreDeVenta = (tipo: { ventaHasta: Date | null }, evento: { fecha
 const DOCUMENTO = /^[0-9A-Za-z.\- ]{5,20}$/;
 
 export type Asistente = { nombre: string; documento: string };
-export type DatosCompra = { tipoId: string; cantidad: number; nombre: string; email: string; asistentes: Asistente[]; documento?: string };
+export type DatosCompra = { tipoId: string; cantidad: number; nombre: string; email: string; asistentes: Asistente[]; documento?: string; novedades?: boolean };
 
 function validar(d: DatosCompra): DatosCompra {
   const nombre = d.nombre.trim().replace(/\s+/g, " ");
@@ -176,6 +176,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
         ipHash,
         documento: d.documento ?? null,
         privacidadVersion,
+        novedades: d.novedades === true,
       },
       include: { evento: true, tipo: true },
     });
@@ -379,4 +380,18 @@ export async function conciliarCompras(ahora = new Date()) {
       }
     }
   }
+}
+
+/**
+ * Consulta "comprador" (para el módulo fans): quién pagó la compra, para sumarlo a la base de la
+ * banda. Solo compras pagadas. `novedades`: si tildó la casilla de la compra.
+ */
+export async function compradorDeCompra(tenantId: string, params: Record<string, unknown>) {
+  const id = typeof params.compraId === "string" ? params.compraId : "";
+  if (!esUuid(id)) return null;
+  const c = await conTenant(tenantId, (tx) =>
+    tx.ticketeraCompra.findUnique({ where: { id }, select: { id: true, email: true, nombre: true, novedades: true, pagadaEn: true, evento: { select: { ciudad: true } } } }),
+  );
+  if (!c?.pagadaEn) return null;
+  return { clave: `ticketera:${c.id}`, email: c.email, nombre: c.nombre, ciudad: c.evento.ciudad, provincia: "", novedades: c.novedades, fecha: c.pagadaEn.toISOString() };
 }

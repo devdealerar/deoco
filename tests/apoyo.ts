@@ -15,6 +15,7 @@ const SEMILLA_COMERCIAL = [
   ...(readFileSync("prisma/migrations/20261124100001_comercial_planes_32/migration.sql", "utf8").match(/INSERT INTO "comercial_plan"[^;]+;/g) ?? []),
   ...(readFileSync("prisma/migrations/20261125120001_comercial_topes_32/migration.sql", "utf8").match(/UPDATE "comercial_plan"[^;]+;/g) ?? []),
   ...(readFileSync("prisma/migrations/20261125130000_comercial_complementos/migration.sql", "utf8").match(/INSERT INTO "comercial_complemento"[^;]+;/g) ?? []),
+  ...(readFileSync("prisma/migrations/20261127130000_comercial_planes_fans/migration.sql", "utf8").match(/UPDATE "comercial_plan"[^;]+;/g) ?? []),
 ];
 
 /** Vacía todas las tablas (núcleo y módulos), menos la de migraciones, y vuelve a sembrar los planes. */

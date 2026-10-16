@@ -168,6 +168,8 @@ export type DatosFan = {
   codigoPostal: string;
   /** DNI o CUIT, opcional (para la factura). */
   documento?: string;
+  /** Tildó "quiero recibir novedades" (casilla sin marcar; la pone el módulo fans si está). */
+  novedades?: boolean;
 };
 
 /** Valida y normaliza. Devuelve los problemas, campo por campo, en lenguaje del fan. */
@@ -183,6 +185,7 @@ export function validarDatosFan(d: DatosFan): { datos: DatosFan; problemas: stri
     ciudad: t(d.ciudad, 80),
     provincia: t(d.provincia, 60),
     codigoPostal: t(d.codigoPostal, 10).toUpperCase(),
+    novedades: d.novedades === true,
   };
   const p: string[] = [];
   const doc = t(d.documento ?? "", 20);
@@ -258,4 +261,18 @@ export async function crearPedido(tienda: Modulo, tenantId: string, lineas: Line
     }
     return pedido;
   });
+}
+
+/**
+ * Consulta "comprador" (para el módulo fans): quién pagó el pedido, para sumarlo a la base de la
+ * banda. Solo pedidos pagados. `novedades`: si tildó la casilla del checkout.
+ */
+export async function compradorDePedido(tenantId: string, params: Record<string, unknown>) {
+  const id = typeof params.pedidoId === "string" ? params.pedidoId : "";
+  if (!/^[0-9a-f-]{36}$/.test(id)) return null;
+  const p = await conTenant(tenantId, (tx) =>
+    tx.tiendaPedido.findUnique({ where: { id }, select: { id: true, email: true, nombre: true, ciudad: true, provincia: true, novedades: true, pagadoEn: true } }),
+  );
+  if (!p?.pagadoEn) return null;
+  return { clave: `tienda:${p.id}`, email: p.email, nombre: p.nombre, ciudad: p.ciudad, provincia: p.provincia, novedades: p.novedades, fecha: p.pagadoEn.toISOString() };
 }

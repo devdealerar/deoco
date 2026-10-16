@@ -1,0 +1,104 @@
+// Módulo fans: la base de contactos de cada banda y su newsletter (D4; documento maestro
+// "Newsletter"). La base es de la banda: nunca se cruza con la de otra (ni en la vista del
+// manager). Newsletter con doble confirmación, baja en un clic y registro del consentimiento.
+
+/// Una persona de la base de la banda, por email. Entra por el formulario de novedades o al
+/// pagar una compra (tienda, entradas). Recibir el newsletter es aparte (`newsletter`).
+model FansContacto {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  /// En minúsculas. Uno por banda.
+  email           String
+  nombre          String    @default("")
+  ciudad          String    @default("")
+  provincia       String    @default("")
+  /// Por dónde entró: "formulario" | "tienda" | "ticketera".
+  origen          String
+  /// Compras pagadas (tienda + entradas) y cuándo la primera y la última.
+  compras         Int       @default(0)
+  primeraCompraEn DateTime?
+  ultimaCompraEn  DateTime?
+  /// "no" | "pendiente" (pidió y falta confirmar el mail) | "confirmado" | "baja".
+  newsletter      String    @default("no")
+  /// Prueba del consentimiento: cuándo lo pidió, el texto que vio y desde dónde.
+  pedidoEn        DateTime?
+  consentimiento  String?
+  consentimientoOrigen String?
+  confirmadoEn    DateTime?
+  bajaEn          DateTime?
+  /// Link de confirmación (después de "#"): hash para comprobar, cifrado para reenviar. Vence.
+  confirmarHash   String?
+  confirmarCifrado Bytes?
+  confirmarVence  DateTime?
+  /// Link de baja de cada envío (solo sirve para darse de baja).
+  bajaHash        String?
+  bajaCifrado     Bytes?
+  creadoEn        DateTime  @default(now())
+  actualizadoEn   DateTime  @default(now()) @updatedAt
+
+  /// Las compras ya contadas (idempotencia: "tienda:<pedidoId>", "ticketera:<compraId>").
+  origenes FansCompra[]
+  entregas FansEntrega[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, email])
+  @@index([tenantId, newsletter])
+  @@map("fans_contacto")
+}
+
+/// Una compra que sumó a un contacto (para no contarla dos veces si el evento llega repetido).
+model FansCompra {
+  tenantId   String       @db.Uuid
+  clave      String
+  contactoId String       @db.Uuid
+  creadoEn   DateTime     @default(now())
+  contacto   FansContacto @relation(fields: [tenantId, contactoId], references: [tenantId, id], onDelete: Cascade)
+
+  @@id([tenantId, clave])
+  @@map("fans_compra")
+}
+
+/// Un envío del newsletter. BORRADOR → ENVIANDO (con el cupo del día; lo que no entra sigue al
+/// día siguiente) → ENVIADO. CANCELADO: lo que no salió, no sale.
+model FansEnvio {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  asunto        String
+  /// Texto plano (párrafos separados por una línea en blanco). El html lo arma el módulo.
+  cuerpo        String
+  estado        String    @default("BORRADOR")
+  creadoPor     String?   @db.Uuid
+  /// Cuándo se mandó a enviar, y cuándo salió el último.
+  enviadoEn     DateTime?
+  terminadoEn   DateTime?
+  creadoEn      DateTime  @default(now())
+  actualizadoEn DateTime  @default(now()) @updatedAt
+
+  entregas FansEntrega[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, estado])
+  @@map("fans_envio")
+}
+
+/// Un destinatario de un envío: PENDIENTE → ENVIADA | SALTEADA (se dio de baja antes de que
+/// saliera). Abierto: solo la primera vez y cuándo (ni IP ni navegador).
+model FansEntrega {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @db.Uuid
+  envioId    String       @db.Uuid
+  contactoId String       @db.Uuid
+  estado     String       @default("PENDIENTE")
+  enviadaEn  DateTime?
+  abiertaEn  DateTime?
+  /// Se dio de baja desde este envío.
+  bajaEn     DateTime?
+  envio      FansEnvio    @relation(fields: [tenantId, envioId], references: [tenantId, id], onDelete: Cascade)
+  contacto   FansContacto @relation(fields: [tenantId, contactoId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, envioId, contactoId])
+  @@index([tenantId, estado])
+  @@index([tenantId, enviadaEn])
+  @@map("fans_entrega")
+}

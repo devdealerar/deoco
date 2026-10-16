@@ -316,6 +316,8 @@ model Correo {
   claveUnica      String?
   /// [{ nombre, tipo, cid?, base64 }]: imágenes embebidas (cid:) o archivos adjuntos.
   adjuntos        Json         @default("[]")
+  /// Cabeceras extra: solo List-Unsubscribe (newsletter, RFC 8058).
+  cabeceras       Json         @default("{}")
   creadoEn        DateTime     @default(now())
   enviadoEn       DateTime?
   /// Cuándo se tomó para enviar (uno colgado en ENVIANDO lo marca el barrido).
@@ -410,7 +412,7 @@ model LimiteBanda {
 /// Lo que suma a un tope un complemento suelto (3.2 núcleo d6: "un evento puntual que excede el
 /// plan → complemento suelto"), por un período [desde, hasta). Lo escribe solo el gestor de cuenta.
 model LimiteExtra {
-  id       String   @id @default(uuid()) @db.Uuid
+  id       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId String   @db.Uuid
   limite   String
   cantidad Int
@@ -429,7 +431,7 @@ model LimiteExtra {
 /// Exportación completa de la banda (td3): un zip con un CSV y un JSON por tabla y los archivos.
 /// Se arma en segundo plano (`src/nucleo/exportacion`); una en curso por banda.
 model Exportacion {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId    String    @db.Uuid
   pedidaPor   String?   @db.Uuid
   /// pendiente | armando | lista | fallida | vencida
@@ -604,7 +606,7 @@ model LegalBanda {
 
 /// Texto publicado de la política o los términos del sitio de la banda, tal cual se mostró.
 model LegalVersion {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId    String   @db.Uuid
   /// privacidad | terminos
   tipo        String
@@ -619,7 +621,7 @@ model LegalVersion {
 
 /// Lo que la banda aceptó de Deoco (términos, contrato de encargo): quién, qué versión, cuándo.
 model AceptacionLegal {
-  id         String   @id @default(uuid()) @db.Uuid
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId   String   @db.Uuid
   usuarioId  String   @db.Uuid
   /// terminos-deoco | encargo-tratamiento
@@ -634,7 +636,7 @@ model AceptacionLegal {
 
 /// Decisión de cookies de un visitante del sitio de una banda (la última manda). Sin datos personales.
 model ConsentimientoCookies {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId  String   @db.Uuid
   visitante String   @db.Uuid
   analitica Boolean
@@ -649,7 +651,7 @@ model ConsentimientoCookies {
 
 /// Pedido de un fan sobre sus datos (acceso, rectificación, supresión, oposición) o arrepentimiento.
 model PedidoDatos {
-  id            String    @id @default(uuid()) @db.Uuid
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId      String    @db.Uuid
   tipo          String
   email         String
@@ -684,7 +686,7 @@ model SupresionDatos {
 /// Sesión de soporte (D3): el staff entra al panel de una banda con un motivo, por un rato (hasta 1
 /// hora), con permisos de GESTOR. La banda la ve. Solo se crea y se termina.
 model SesionSoporte {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId    String    @db.Uuid
   staffId     String    @db.Uuid
   motivo      String

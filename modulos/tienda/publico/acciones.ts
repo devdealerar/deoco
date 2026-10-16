@@ -55,6 +55,7 @@ export async function confirmarAccion(_: EstadoCheckout, fd: FormData): Promise<
       ciudad: campo("ciudad"),
       provincia: campo("provincia"),
       codigoPostal: campo("codigoPostal"),
+      novedades: campo("novedades") === "si",
     });
     // Este navegador queda con acceso al pedido: al volver de la pasarela lo ve y puede pagarlo.
     await recordarAcceso(`pedido-${pedido.id}`, pedido.token);

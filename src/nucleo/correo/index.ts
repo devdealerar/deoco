@@ -32,6 +32,11 @@ export type Correo = {
   nombreRemitente?: string;
   /** Imágenes (con `cid`, se usan en el html como src="cid:<cid>") o archivos. Hasta 30, 1 MB en total. */
   adjuntos?: { nombre: string; tipo: string; cid?: string; contenido: Buffer }[];
+  /**
+   * Solo para el newsletter: la baja en un clic desde el cliente de correo (RFC 8058). Ninguna
+   * otra cabecera se puede poner.
+   */
+  cabeceras?: { "List-Unsubscribe": string; "List-Unsubscribe-Post"?: "List-Unsubscribe=One-Click" };
 };
 
 const TIPOS_ADJUNTO = ["image/png", "image/jpeg", "application/pdf", "text/calendar", "application/json"]; // json: los datos de un fan que pidió acceso (D2)
@@ -49,6 +54,12 @@ function validar(c: Correo) {
     throw new ErrorCorreo("Nombre de remitente inválido.");
   }
   if (!c.html.trim() || !c.texto.trim()) throw new ErrorCorreo("El correo necesita html y texto.");
+  if (c.cabeceras) {
+    const lista = c.cabeceras["List-Unsubscribe"];
+    if (Object.keys(c.cabeceras).some((k) => k !== "List-Unsubscribe" && k !== "List-Unsubscribe-Post")) throw new ErrorCorreo("Cabecera no permitida.");
+    if (!/^<https:\/\/[^\s<>]+>$/.test(lista) && !/^<http:\/\/[^\s<>]+>$/.test(lista)) throw new ErrorCorreo("List-Unsubscribe: una URL entre < >.");
+    if (c.cabeceras["List-Unsubscribe-Post"] !== undefined && c.cabeceras["List-Unsubscribe-Post"] !== "List-Unsubscribe=One-Click") throw new ErrorCorreo("List-Unsubscribe-Post inválido.");
+  }
   const adjuntos = c.adjuntos ?? [];
   if (adjuntos.length > 30 || adjuntos.reduce((s, a) => s + a.contenido.length, 0) > 1024 * 1024) {
     throw new ErrorCorreo("Demasiados adjuntos (hasta 30, 1 MB en total).");
@@ -121,6 +132,7 @@ async function entregarPendientes(tenantId: string) {
         asunto: fila.asunto,
         html: fila.html,
         texto: fila.texto,
+        cabeceras: fila.cabeceras as Record<string, string>,
         adjuntos: (fila.adjuntos as AdjuntoGuardado[]).map((a) => ({ nombre: a.nombre, tipo: a.tipo, cid: a.cid, contenido: Buffer.from(a.base64, "base64") })),
       });
       await conTenant(tenantId, (tx) =>
@@ -206,6 +218,7 @@ async function pedirCorreo(
         (a): AdjuntoGuardado => ({ nombre: a.nombre, tipo: a.tipo, ...(a.cid ? { cid: a.cid } : {}), base64: a.contenido.toString("base64") }),
       ),
       claveUnica: unica,
+      cabeceras: correo.cabeceras ?? {},
     };
     if (unica === undefined) {
       const { id } = await t.correo.create({ data, select: { id: true } });

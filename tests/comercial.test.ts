@@ -134,7 +134,7 @@ describe("planes", () => {
     const c = (await cuentaDe(e.a.id))!;
     expect(c.planId).toBe("escenario");
     expect(c.pruebaHasta!.getTime() - Date.now()).toBeGreaterThan(13.9 * DIA);
-    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
+    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "fans", "sitio", "ticketera", "tienda"]);
     expect(await dueno.limiteBanda.findMany({ where: { tenantId: e.a.id }, select: { limite: true, maximo: true }, orderBy: { limite: "asc" } })).toEqual([
       { limite: "sitio.imagenes", maximo: 150 },
       { limite: "ticketera.entradas-por-mes", maximo: 2000 },
@@ -148,7 +148,7 @@ describe("planes", () => {
     await alCrearBanda(e.a.id);
     const [p] = await productos(e.a.id, 1);
     await asignarPlan(comoStaff, e.a.id, "gira", null);
-    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
+    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "fans", "sitio", "ticketera", "tienda"]);
     await asignarPlan(comoStaff, e.a.id, "demo", { precio: null, modulos: ["sitio"], almacenamiento: null, topes: {} });
     expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio"]);
     expect(await dueno.tiendaProducto.findUnique({ where: { id: p } })).not.toBeNull();
@@ -456,7 +456,7 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
     expect(await estado(e.a.id)).toBe("ARCHIVADO");
     expect((await asuntos()).some((a) => a.includes("archivamos"))).toBe(true);
     // Nada se borró.
-    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
+    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "fans", "sitio", "ticketera", "tienda"]);
     expect(await dueno.comercialCuenta.count({ where: { tenantId: e.a.id } })).toBe(1);
   });
 

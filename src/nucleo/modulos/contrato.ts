@@ -155,8 +155,8 @@ export type AvisoEntrante = {
   json(): unknown;
 };
 
-/** Sin respuesta → 200 "ok". */
-export type RespuestaAviso = { estado?: number; cuerpo?: string | Record<string, unknown> };
+/** Sin respuesta → 200 "ok". Bytes (p. ej. la imagen de 1 píxel del newsletter) con su `tipo`. */
+export type RespuestaAviso = { estado?: number; cuerpo?: string | Record<string, unknown> | Uint8Array; tipo?: "image/gif" | "image/png" };
 
 /**
  * El manejador TIENE QUE SER RÁPIDO E IDEMPOTENTE: la pasarela reintenta y puede mandar el

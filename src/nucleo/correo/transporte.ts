@@ -16,6 +16,8 @@ export type MensajeSaliente = {
   id: string;
   /** Con `cid`, se ve dentro del html como <img src="cid:…">. */
   adjuntos?: { nombre: string; tipo: string; cid?: string; contenido: Buffer }[];
+  /** Cabeceras extra (solo List-Unsubscribe del newsletter: las valida enviarCorreo). */
+  cabeceras?: Record<string, string>;
 };
 
 export interface TransporteCorreo {
@@ -37,7 +39,7 @@ class TransporteSmtp implements TransporteCorreo {
       subject: m.asunto,
       html: m.html,
       text: m.texto,
-      headers: { "X-Deoco-Correo": m.id },
+      headers: { ...m.cabeceras, "X-Deoco-Correo": m.id },
       attachments: (m.adjuntos ?? []).map((a) => ({ filename: a.nombre, contentType: a.tipo, cid: a.cid, content: a.contenido })),
     });
   }

@@ -2,7 +2,7 @@
 // banda (núcleo: @/nucleo/pagos; el dinero nunca pasa por Deoco), y validación en la puerta.
 import { inicioTicketera } from "./inicio";
 import { ticketeraEnCurso } from "./en-curso";
-import { conciliarCompras } from "./compras";
+import { compradorDeCompra, conciliarCompras } from "./compras";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { buscarDatosTicketera, suprimirDatosTicketera } from "./datos-personales";
 import { conTenant } from "@/nucleo/db/con-tenant";
@@ -92,6 +92,8 @@ const ticketera: Modulo = {
     { nombre: "proximas-fechas", responder: proximasFechas },
     // Bloque "Entradas" del inicio del panel.
     { nombre: "inicio", responder: inicioTicketera },
+    // Para la base de fans: quién pagó una compra (lo pide el módulo fans al recibir compra.pagada).
+    { nombre: "comprador", responder: compradorDeCompra },
   ],
   // Tope de la cuenta (lo fija el plan): shows próximos publicados.
   limites: [

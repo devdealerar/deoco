@@ -18,6 +18,12 @@ import { Comprar } from "./comprar";
 import { formatearCodigo } from "../firma";
 import { c } from "@/nucleo/publico/estilo";
 import { Refrescar } from "@/nucleo/publico/refrescar";
+import { consultar } from "@/nucleo/consultas";
+
+const textoDeSuscripcion = (r: unknown) => {
+  const t = (r as { texto?: unknown } | null)?.texto;
+  return typeof t === "string" && t ? t : null;
+};
 
 function Pagina({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -111,6 +117,7 @@ export async function EventoPublico({ tenantId, params }: PropsRutaPublica) {
             <Comprar
               tipos={aLaVenta.map((t) => ({ id: t.id, nombre: t.nombre, precio: formatearPesos(t.precio), disponibles: t.disponibles }))}
               maximo={frenosDe(e.frenos).maxPorCompra}
+              novedades={await consultar(tenantId, "fans.suscripcion", {}, { vacio: null, interpretar: textoDeSuscripcion })}
             />
             <div className="mt-4">
               <AvisoDeDatos tenantId={tenantId} />

@@ -8,6 +8,7 @@ import { canjearPedidoAccion } from "./acciones";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { conTenant } from "@/nucleo/db/con-tenant";
+import { consultar } from "@/nucleo/consultas";
 import type { MetadatosPagina, PropsRutaPublica } from "@/nucleo/modulos/contrato";
 import type { Opcion } from "../catalogo";
 import { formatearPesos } from "@/nucleo/dinero";
@@ -25,6 +26,11 @@ import { Pagar } from "./pagar";
 import { Refrescar } from "@/nucleo/publico/refrescar";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const textoDeSuscripcion = (r: unknown) => {
+  const t = (r as { texto?: unknown } | null)?.texto;
+  return typeof t === "string" && t ? t : null;
+};
 
 function Pagina({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
@@ -137,9 +143,11 @@ export function CarritoPublico(_: PropsRutaPublica) {
 }
 
 export async function CheckoutPublico({ tenantId }: PropsRutaPublica) {
+  // La casilla de novedades, si la banda tiene el newsletter (módulo fans).
+  const novedades = await consultar(tenantId, "fans.suscripcion", {}, { vacio: null, interpretar: textoDeSuscripcion });
   return (
     <Pagina titulo="Checkout">
-      <Checkout />
+      <Checkout novedades={novedades} />
       <div className="mt-6">
         <AvisoDeDatos tenantId={tenantId} />
       </div>

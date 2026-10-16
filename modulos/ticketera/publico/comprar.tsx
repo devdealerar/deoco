@@ -7,7 +7,7 @@ import { c } from "@/nucleo/publico/estilo";
 type Tipo = { id: string; nombre: string; precio: string; disponibles: number };
 
 /** Formulario de compra: tipo, cantidad, quién compra y a nombre de quién va cada entrada. */
-export function Comprar({ tipos, maximo }: { tipos: Tipo[]; maximo: number }) {
+export function Comprar({ tipos, maximo, novedades }: { tipos: Tipo[]; maximo: number; novedades?: string | null }) {
   const [estado, enviar, pendiente] = useActionState<EstadoCompra, FormData>(comprarAccion, {});
   const [tipoId, setTipoId] = useState(tipos[0]?.id ?? "");
   const [cantidad, setCantidad] = useState(1);
@@ -49,6 +49,13 @@ export function Comprar({ tipos, maximo }: { tipos: Tipo[]; maximo: number }) {
           DNI o CUIT (opcional, para la factura)
           <input name="documento" inputMode="numeric" className={c.campo} />
         </label>
+        {novedades && (
+          // Aparte y sin marcar: la compra no la exige (consentimiento libre).
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="novedades" value="si" className="mt-1" />
+            <span>{novedades}</span>
+          </label>
+        )}
       </fieldset>
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-2 text-lg font-black">¿A nombre de quién?</legend>

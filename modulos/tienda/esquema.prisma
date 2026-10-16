@@ -224,6 +224,8 @@ model TiendaPedido {
   conciliadoEn  DateTime?
   /// La versión de la política de privacidad del sitio que tenía a la vista (D2).
   privacidadVersion Int?
+  /// Tildó "quiero recibir novedades" en el checkout (la casilla del módulo fans, sin marcar).
+  novedades Boolean @default(false)
   /// País de destino (ISO 3166-1, hoy siempre AR): desde la primera venta (3.2, multipaís d4).
   pais          String    @default("AR")
   /// DNI o CUIT del comprador, si lo dio (para la factura).

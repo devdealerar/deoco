@@ -260,6 +260,22 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   productos: las variantes quitadas salen; si el arte o una opción dejan de cumplir, se despublica
   con `revisarDesde` (`problemasConElBase`, aviso en el producto y en el inicio).
 
+## Fans y newsletter (`modulos/fans`, D4)
+
+- Base de la banda (`fans_contacto`, una fila por email): entra por `/novedades` (sitio) o al pagar
+  una compra (`pedido.pagado` / `compra.pagada` → consultas `tienda.comprador` / `ticketera.comprador`).
+  Nunca se cruza con la de otra banda. La ve solo el titular (`fans.contactos.ver`); los envíos, más roles.
+- Newsletter con doble confirmación (link después de "#", vence a 7 días; pedirlo de nuevo invalida
+  el anterior; freno de 10 min), prueba del consentimiento (fecha, texto, origen). La casilla del
+  checkout es aparte y sin marcar (consulta `fans.suscripcion`; `novedades` en el pedido/compra).
+- Envíos (`fans_envio` → `fans_entrega`): solo a confirmados en ese momento; por tandas en el barrido
+  (`enviarTandas`, una por banda con candado), cupo diario por reputación (no por plan: 200 desde
+  Deoco / 500 con dominio propio, ×2 por semana con < 2 % de bajas, hasta 2000 / 20000); lo que no
+  entra sale al día siguiente. Cada mail: baja en un clic (link del cuerpo + `List-Unsubscribe` RFC
+  8058 → aviso `/baja/<entrega>`), pixel de apertura (`/abierto/<entrega>`: solo la primera vez, sin IP).
+  `enviarCorreo` acepta `cabeceras` SOLO para List-Unsubscribe.
+- Suprimidos (`estaSuprimido`) no vuelven a la base; `datosPersonales` anonimiza el contacto.
+
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 
 - Planes del 3.2 (`docs/planes.md`): DEMO y ESCENARIO a la venta (Escenario es el de la prueba),

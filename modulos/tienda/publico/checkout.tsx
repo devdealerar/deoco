@@ -18,7 +18,7 @@ function Campo({ name, etiqueta, ...props }: { name: string; etiqueta: string } 
 }
 
 /** Checkout: datos del fan, dirección, resumen. El servidor revalida todo al confirmar. */
-export function Checkout() {
+export function Checkout({ novedades }: { novedades?: string | null }) {
   const { lineas, estado, cambios, hidratado } = useRevision();
   const [resultado, confirmar, pendiente] = useActionState<EstadoCheckout, FormData>(confirmarAccion, {});
   const router = useRouter();
@@ -45,6 +45,13 @@ export function Checkout() {
           <Campo name="email" etiqueta="Email" type="email" autoComplete="email" required />
           <Campo name="telefono" etiqueta="Teléfono" type="tel" autoComplete="tel" required />
           <Campo name="documento" etiqueta="DNI o CUIT (opcional, para la factura)" inputMode="numeric" />
+          {novedades && (
+            // Aparte y sin marcar: la compra no la exige (consentimiento libre).
+            <label className="flex items-start gap-2 text-sm sm:col-span-2">
+              <input type="checkbox" name="novedades" value="si" className="mt-1" />
+              <span>{novedades}</span>
+            </label>
+          )}
         </fieldset>
         <fieldset className="grid gap-4 sm:grid-cols-6">
           <legend className="mb-3 text-lg font-black">Envío</legend>
