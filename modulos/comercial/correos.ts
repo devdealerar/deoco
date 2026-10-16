@@ -56,7 +56,7 @@ ${responderA ? "<p>¿Dudas? Respondé este mail y te ayudamos.</p>" : ""}
 }
 
 /** La cuenta pasó a MOROSO (aviso): todo sigue funcionando. Dice qué pasa y cuándo si no se paga. */
-export async function avisarMora(tenantId: string, motivo: "rechazado" | "vencida" | "baja", ahora = new Date()) {
+export async function avisarMora(tenantId: string, motivo: "vencida" | "baja", ahora = new Date()) {
   const [cfg, cuenta] = await Promise.all([plazos(), cuentaDe(tenantId)]);
   const desde = (cuenta?.moraDesde ?? ahora).getTime();
   const enDias = (d: number) => fecha(new Date(desde + d * 86_400_000));
@@ -65,9 +65,7 @@ export async function avisarMora(tenantId: string, motivo: "rechazado" | "vencid
     `cuota-mora:${dia(ahora)}`,
     (n) => (motivo === "baja" ? `${n}: terminó el período que pagaste en Deoco` : `${n}: no pudimos cobrar la cuota de Deoco`),
     (n) => [
-      motivo === "rechazado"
-        ? `${pasarelaDeLaCuota().nombre} rechazó el cobro de la cuota mensual de ${n} en Deoco. Suele pasar cuando la tarjeta venció, no tiene fondos o el banco frenó el pago.`
-        : motivo === "baja"
+      motivo === "baja"
           ? `Diste de baja la suscripción de ${n} en Deoco y ya terminó el período que pagaste. No te vamos a cobrar nada.`
           : `La cuota mensual de ${n} en Deoco venció y no recibimos el pago.`,
       "Por ahora no cambia nada: tu sitio, tu tienda, tus entradas y el panel siguen funcionando.",
@@ -75,6 +73,27 @@ export async function avisarMora(tenantId: string, motivo: "rechazado" | "vencid
       motivo === "baja" ? "Si querés seguir, elegí un plan en Plan y pago cuando quieras: todo vuelve como estaba." : "Revisá tu forma de pago (o cargá otra) en Plan y pago.",
     ],
     motivo === "baja" ? "Ir a Plan y pago" : "Revisar mi forma de pago",
+  );
+}
+
+/**
+ * La pasarela rechazó el cobro del mes: no cambia nada todavía, la pasarela reintenta. Si al
+ * terminar la gracia no se cobró, la escalera manda el aviso de mora (desde el vencimiento).
+ */
+export async function avisarRechazo(tenantId: string, ahora = new Date()) {
+  const [cfg, cuenta] = await Promise.all([plazos(), cuentaDe(tenantId)]);
+  const vence = cuenta?.pagoHasta ?? cuenta?.pruebaHasta ?? ahora;
+  const aviso = fecha(new Date(Math.max(vence.getTime(), ahora.getTime()) + cfg.diasGracia * 86_400_000));
+  await mandar(
+    tenantId,
+    `cuota-rechazo:${dia(ahora)}`,
+    (n) => `${n}: no pudimos cobrar la cuota de Deoco (vamos a reintentar)`,
+    (n) => [
+      `${pasarelaDeLaCuota().nombre} rechazó el cobro de la cuota mensual de ${n} en Deoco. Suele pasar cuando la tarjeta venció, no tiene fondos o el banco frenó el pago.`,
+      "No cambia nada: tu sitio, tu tienda, tus entradas y el panel siguen funcionando, y el cobro se reintenta solo en los próximos días.",
+      `Si hasta el ${aviso} no se pudo cobrar, la cuenta pasa a estar en aviso. Para evitarlo, revisá tu forma de pago (o cargá otra) en Plan y pago.`,
+    ],
+    "Revisar mi forma de pago",
   );
 }
 

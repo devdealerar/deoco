@@ -27,7 +27,7 @@ import {
 } from "@/nucleo/pagos/cuota";
 import { titularDeBanda } from "@/nucleo/personas";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
-import { avisarArchivo, avisarMora, avisarSoloLectura, avisarSuspension } from "./correos";
+import { avisarArchivo, avisarMora, avisarRechazo, avisarSoloLectura, avisarSuspension } from "./correos";
 
 export class ErrorComercial extends Error {}
 
@@ -441,7 +441,7 @@ export async function cancelar(tenantId: string): Promise<string> {
 /**
  * Un cobro mensual que informó la pasarela de Deoco. Idempotente (una fila por cobro). Aprobado:
  * paga un mes más, sale de la prueba y de la mora, y la banda vuelve a ACTIVO al instante.
- * Rechazado: MOROSO (y mail al titular), salvo que ya estuviera en mora.
+ * Rechazado: un aviso (la pasarela reintenta); la mora la decide la escalera desde el vencimiento.
  */
 export async function registrarCobro(tenantId: string, cobro: CobroDeSuscripcion, ahora = new Date()): Promise<"aprobado" | "rechazado" | "sin-cambios"> {
   const modulo = await comercial();
@@ -469,11 +469,10 @@ export async function registrarCobro(tenantId: string, cobro: CobroDeSuscripcion
       });
       return cobroElCargo ? ("aprobado-con-cargo" as const) : ("aprobado" as const);
     }
-    if (cobro.estado === "rechazado") {
-      const c = (await tx.comercialCuenta.findUnique({ where: { tenantId } }))!;
-      if (!c.moraDesde) await tx.comercialCuenta.update({ where: { tenantId }, data: { moraDesde: ahora } });
-      return "rechazado" as const;
-    }
+    // Rechazado (3.2 backline d6: "reintentos escalonados antes de considerar mora"): no marca
+    // mora. La pasarela reintenta el cobro sola en los días siguientes; la escalera sigue contando
+    // desde el vencimiento, con la gracia (`diasGracia`) como ventana de reintentos.
+    if (cobro.estado === "rechazado") return "rechazado" as const;
     return "sin-cambios" as const;
   });
   // Aprobado: vuelve al día. También una banda archivada que volvió (eligió un plan desde Plan y
@@ -483,10 +482,8 @@ export async function registrarCobro(tenantId: string, cobro: CobroDeSuscripcion
   }
   // Se cobró el prorrateo: el próximo cobro vuelve al precio del plan.
   if (resultado === "aprobado-con-cargo") await aplicarPlan(tenantId, ahora).catch((e) => console.error(`[comercial] monto después del prorrateo de ${tenantId}:`, e));
-  // Rechazado: aviso ya (si estaba al día); los escalones siguientes cuentan desde el rechazo.
-  if (resultado === "rechazado" && (await estadoDe(tenantId)) === "ACTIVO" && (await fijarEstado(modulo, tenantId, "MOROSO", "pago de la cuota rechazado"))) {
-    await avisarMora(tenantId, "rechazado").catch((e) => console.error(`[comercial] mail de mora a ${tenantId}:`, e));
-  }
+  // Rechazado: un aviso para que revise la forma de pago, sin cambiar nada (se reintenta).
+  if (resultado === "rechazado") await avisarRechazo(tenantId, ahora).catch((e) => console.error(`[comercial] aviso de rechazo a ${tenantId}:`, e));
   return resultado === "aprobado-con-cargo" ? "aprobado" : resultado;
 }
 

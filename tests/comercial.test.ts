@@ -307,8 +307,8 @@ describe("cuota", () => {
   it("el pago regulariza al instante: SUSPENDIDO → ACTIVO con el aviso del cobro aprobado", async () => {
     await alCrearBanda(e.a.id);
     const id = await suscribir(e.a.id, "banda-a", "escenario");
-    await avisoCuota("subscription_authorized_payment", mp.cobrar(id, false));
-    await revisarVencimientos(new Date(Date.now() + 61 * DIA));
+    await avisoCuota("subscription_authorized_payment", mp.cobrar(id, false)); // rechazado: la escalera cuenta desde el fin de la prueba
+    await revisarVencimientos(new Date(Date.now() + (14 + 61) * DIA));
     expect(await estado(e.a.id)).toBe("SUSPENDIDO");
     await avisoCuota("subscription_authorized_payment", mp.cobrar(id, true));
     expect(await estado(e.a.id)).toBe("ACTIVO");
@@ -500,14 +500,28 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
     }
   });
 
-  it("un cobro rechazado pasa a aviso (MOROSO, con mail) y sigue la misma escalera desde el rechazo", async () => {
-    await alCrearBanda(e.a.id);
-    const id = await suscribir(e.a.id, "banda-a", "escenario");
+  it("un cobro rechazado no es mora: aviso de reintento; la escalera cuenta desde el vencimiento (3.2 backline d6)", async () => {
+    const { id, en } = await pagadaQueVence();
+    vaciarBandeja();
     await avisoCuota("subscription_authorized_payment", mp.cobrar(id, false));
+    expect(await estado(e.a.id)).toBe("ACTIVO");
+    expect((await cuentaDe(e.a.id))!.moraDesde).toBeNull();
+    expect(await asuntos()).toEqual([expect.stringContaining("vamos a reintentar")]);
+    // Dentro de la gracia (los reintentos de la pasarela), nada cambia.
+    await revisarVencimientos(en(2));
+    expect(await estado(e.a.id)).toBe("ACTIVO");
+    // Un reintento aprobado: al día, sin haber pasado por la mora.
+    await avisoCuota("subscription_authorized_payment", mp.cobrar(id, true));
+    await revisarVencimientos(en(5));
+    expect(await estado(e.a.id)).toBe("ACTIVO");
+  });
+
+  it("si los reintentos no cobran, la escalera de siempre desde el vencimiento", async () => {
+    const { id, en } = await pagadaQueVence();
+    await avisoCuota("subscription_authorized_payment", mp.cobrar(id, false));
+    await revisarVencimientos(en(3));
     expect(await estado(e.a.id)).toBe("MOROSO");
-    await revisarVencimientos(new Date(Date.now() + 29 * DIA));
-    expect(await estado(e.a.id)).toBe("MOROSO_GRAVE");
-    await revisarVencimientos(new Date(Date.now() + 30 * DIA + 60_000));
+    await revisarVencimientos(en(30));
     expect(await estado(e.a.id)).toBe("SOLO_LECTURA");
   });
 

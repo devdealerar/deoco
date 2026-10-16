@@ -2,7 +2,7 @@ import { miembrosDeBanda } from "@/nucleo/acceso/equipo";
 import { accesoPanel } from "@/nucleo/acceso/panel";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import { registro } from "@/nucleo/modulos";
-import { Aviso, Casilla, Formulario, Insignia, Selector, Tabla } from "@/ui";
+import { Casilla, Formulario, Insignia, Selector, Tabla } from "@/ui";
 import { MarcoPanel } from "../marco";
 import { cambiarRolAccion, dejarAccion, pasarTitularidadAccion, quitarAccion } from "./acciones";
 

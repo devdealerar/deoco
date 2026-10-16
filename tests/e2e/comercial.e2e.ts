@@ -88,17 +88,21 @@ describe("plan y pago", () => {
     expect(await editor.page.locator('[data-bloque="comercial"]').count()).toBe(0);
   });
 
-  it("un cobro rechazado: aviso; a los 30 días solo lectura (el sitio sigue); a los 60, el sitio deja de estar publicado", async () => {
+  it("un cobro rechazado: se reintenta (sin mora); vencida la gracia, aviso; a los 30 días solo lectura; a los 60, el sitio deja de estar publicado", async () => {
     const cuenta = await dueno.comercialCuenta.findUniqueOrThrow({ where: { tenantId: e.a.id } });
     expect(await avisoCuota("subscription_authorized_payment", mp.cobrar(cuenta.suscripcionId!, false))).toBe(200);
-    expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("MOROSO");
+    expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("ACTIVO");
 
+    // Pasó la gracia sin que un reintento cobrara (lo hace el barrido): aviso.
+    const { revisarVencimientos } = await import("../../modulos/comercial/cuenta");
+    await dueno.comercialCuenta.update({ where: { tenantId: e.a.id }, data: { pagoHasta: new Date(Date.now() - 4 * 86_400_000) } });
+    await revisarVencimientos();
+    expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("MOROSO");
     const { page } = await logueado("multi@x.com");
     await page.goto(`${APP}/b/banda-a`);
     expect(await page.locator('[data-testid="aviso-mora"]').textContent()).toContain("Pagar");
 
-    // 30 días de mora (lo hace el barrido): solo lectura. Se ve todo, no se guarda; el sitio sigue.
-    const { revisarVencimientos } = await import("../../modulos/comercial/cuenta");
+    // 30 días de mora: solo lectura. Se ve todo, no se guarda; el sitio sigue.
     await dueno.comercialCuenta.update({ where: { tenantId: e.a.id }, data: { moraDesde: new Date(Date.now() - 31 * 86_400_000) } });
     await revisarVencimientos();
     expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("SOLO_LECTURA");
