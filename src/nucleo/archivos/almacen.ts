@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, stat, statfs, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
@@ -17,6 +17,8 @@ export interface Almacen {
   listar(prefijo: string): AsyncIterable<{ clave: string; modificado: Date }>;
   /** Primer nivel: las carpetas (una por banda, más "plataforma"). */
   carpetas(): Promise<string[]>;
+  /** Bytes libres donde guarda (null si no se sabe: un almacén remoto). */
+  libre(): Promise<number | null>;
 }
 
 /** Disco del VPS: en Easypanel, un volumen persistente montado en DEOCO_ARCHIVOS_DIR. */
@@ -61,6 +63,15 @@ export class AlmacenDisco implements Almacen {
     for (const n of nombres) {
       const s = await stat(path.join(dir, n)).catch(() => null);
       if (s?.isFile()) yield { clave: `${prefijo.replace(/\/$/, "")}/${n}`, modificado: s.mtime };
+    }
+  }
+
+  async libre() {
+    try {
+      const s = await statfs(path.resolve(/*turbopackIgnore: true*/ this.base));
+      return Number(s.bavail) * Number(s.bsize);
+    } catch {
+      return null;
     }
   }
 

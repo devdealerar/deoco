@@ -89,29 +89,76 @@ de `deoco_app` lo verifica.
 Esto no reemplaza la restauración de verdad en el VPS, que es lo que pediste: falta hacerla con el
 servicio contratado (pasos 5 y 6 de abajo).
 
-## Pasos cuando se apruebe
+## Mientras tanto: copia local rotativa (no cuenta como resuelto)
 
-1. Crear en Backblaze un bucket privado `deoco-copias`, con una application key que solo tenga
-   acceso a ese bucket.
-2. Generar la clave de age en una máquina que no sea el VPS: `age-keygen -o deoco-copias.txt`.
-   - La línea `public key` va a `DEOCO_COPIA_PUBLICA`.
-   - El archivo completo se guarda fuera del VPS. Sin él no se puede restaurar.
-3. En Easypanel, crear un servicio desde `infra/copias/Dockerfile`, con:
-   - `DATABASE_URL_COPIA` (rol dueño), `DEOCO_COPIA_DESTINO=b2:deoco-copias` y
-     `DEOCO_COPIA_PUBLICA`;
-   - `DEOCO_ARCHIVOS_DIR=/data/archivos`, con el mismo volumen montado en solo lectura;
-   - `DEOCO_COPIA_PING` y la configuración de rclone del remoto `b2` (`RCLONE_CONFIG_B2_TYPE=b2`,
-     `RCLONE_CONFIG_B2_ACCOUNT`, `RCLONE_CONFIG_B2_KEY`).
-4. Correr `copia.sh` a mano una vez desde la consola del servicio.
-5. **Restauración de verdad:** en la misma consola, copiar la clave privada a un archivo temporal
-   y correr `restaurar.sh` con `DATABASE_URL_APP`. Anotar en `docs/verificacion-despliegue.md` la
-   fecha, el resultado y cuánto tardó. Después, borrar el archivo de la clave.
-6. Repetir la restauración de prueba una vez por mes: el 3.2 pide "restauración de prueba mensual".
-7. En Better Stack, crear monitores HTTP para `https://app.<raiz>/api/salud` (esperar 200), para
-   el subdominio de una banda y para un dominio propio, con aviso por mail al staff.
-8. En Healthchecks.io, crear dos chequeos:
-   - "copia diaria", cada 1 día con 2 horas de gracia, en `DEOCO_COPIA_PING`;
-   - "barrido", cada 5 minutos con 15 minutos de gracia, en `DEOCO_LATIDO_URL` de la app.
+Hasta contratar el destino de afuera, el mismo servicio guarda una copia diaria **en otro punto de
+montaje del VPS** (`/copias`, el volumen `/srv/deoco/copias` de `infra/disco/volumenes.sh`), con
+retención de **7 días**:
+
+- La base, cifrada con age, una por día (`/copias/base/diarias/base-<día>.dump.age`).
+- Los archivos, en espejo (`/copias/archivos`). Lo que se borra en el origen pasa a
+  `/copias/archivos-borrados/<día>` y se guarda 7 días.
+
+**No es "fuera del servidor":** si se pierde el VPS, se pierde también. Cubre un borrado por
+error, una migración que sale mal o una base corrupta. Se configura así, en el servicio de copias:
+
+```
+DATABASE_URL_COPIA=postgres://<rol dueño>@<host>:5432/deoco
+DEOCO_COPIA_DESTINO=/copias
+DEOCO_COPIA_PUBLICA=age1…            # la pública; la privada, fuera del VPS
+DEOCO_ARCHIVOS_DIR=/data/archivos    # el volumen de la app, montado en solo lectura
+```
+
+Probado en local (`sh infra/copias/copia.sh` dos veces, con un archivo borrado en el medio y una
+copia de hace 15 días): queda la de hoy y la de hace 4, la de hace 15 se borra, y el archivo
+borrado aparece en `archivos-borrados/<día>`.
+
+## Backblaze B2 en menos de quince minutos (cuando lo apruebes)
+
+Todo el código ya está. Son cuentas y variables:
+
+1. **Cuenta** (2 min): <https://www.backblaze.com/sign-up/cloud-storage>. Activá B2 Cloud Storage.
+2. **Bucket** (2 min): Buckets → Create a Bucket.
+   - Nombre: `deoco-copias-<algo único>`; Files in Bucket: **Private**; Default Encryption: Enable.
+   - Lifecycle Settings: **Keep only the last version of the file** (si no, lo que borra la
+     retención queda como versión vieja y se sigue pagando).
+   - Opcional, contra un borrado malicioso: Object Lock con retención de 30 días.
+3. **Clave de acceso** (2 min): Application Keys → Add a New Application Key.
+   - Allow access to Bucket(s): **solo ese bucket**; Type of Access: Read and Write.
+   - Copiá `keyID` y `applicationKey` (la segunda se ve una sola vez).
+4. **Clave de age** (2 min), en tu máquina, no en el VPS: `age-keygen -o deoco-copias.txt`.
+   - La línea `# public key: age1…` va a `DEOCO_COPIA_PUBLICA`.
+   - Guardá `deoco-copias.txt` en tu gestor de claves y en papel. Sin ella no se restaura nada.
+5. **Variables del servicio de copias en Easypanel** (3 min): cambiá el destino local por B2.
+   ```
+   DEOCO_COPIA_DESTINO=b2:deoco-copias-<algo único>
+   RCLONE_CONFIG_B2_TYPE=b2
+   RCLONE_CONFIG_B2_ACCOUNT=<keyID>
+   RCLONE_CONFIG_B2_KEY=<applicationKey>
+   RCLONE_CONFIG_B2_HARD_DELETE=true
+   ```
+   (Dejá `DEOCO_COPIA_DIAS` sin poner: con destino de afuera son 30 días, más la del día 1 de cada
+   mes por 12 meses.)
+6. **Primera copia y restauración de verdad** (4 min), en la consola del servicio:
+   ```sh
+   copia.sh                      # tiene que terminar con "[copia] …: base … bytes → b2:…"
+   # Pegá la clave privada en un archivo temporal:
+   cat > /tmp/clave.txt          # pegar, Ctrl+D
+   DEOCO_COPIA_PRIVADA=/tmp/clave.txt \
+     DATABASE_URL_SERVIDOR=postgres://<rol dueño>@<host>:5432/postgres \
+     DATABASE_URL_APP=postgres://deoco_app:<clave>@<host>:5432/deoco \
+     restaurar.sh                # restaura en deoco_restauracion; nunca toca deoco
+   rm /tmp/clave.txt
+   ```
+   Tiene que terminar en `[restaurar] OK`. Anotá fecha, resultado y tiempo en
+   `docs/verificacion-despliegue.md`.
+7. **Monitoreo** (sin costo, cuando quieras): Healthchecks.io (dos chequeos: "copia diaria" en
+   `DEOCO_COPIA_PING`, cada 1 día con 2 h de gracia; "barrido" en `DEOCO_LATIDO_URL` de la app,
+   cada 5 min con 15 de gracia) y Better Stack (monitor HTTP de `https://app.<raiz>/api/salud`).
+8. **Una vez por mes**: repetir el paso 6 (el 3.2 pide restauración de prueba mensual).
+
+La copia local puede seguir en paralelo (un segundo servicio con `DEOCO_COPIA_DESTINO=/copias`):
+es la más rápida de restaurar si el VPS sigue vivo.
 
 ## Lo que esto no cubre
 

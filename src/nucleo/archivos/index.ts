@@ -4,9 +4,9 @@ import type { Registro } from "@/nucleo/modulos/registro";
 import { alConfirmar, conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { almacen } from "./almacen";
 import { detectarTipo, MIME, RASTER, type TipoArchivo } from "./tipos";
-import { limitePorDefecto } from "./limite";
+import { limitePorDefecto, reservaDeDisco } from "./limite";
 
-export { limitePorDefecto, problemaDeLimite } from "./limite";
+export { limitePorDefecto, problemaDeLimite, problemaDeReserva, reservaDeDisco } from "./limite";
 
 export type { TipoArchivo };
 
@@ -129,6 +129,12 @@ export async function guardarArchivo(
           `No hay espacio para "${nombre}" (${formatearBytes(total)}): la banda ya usa ${formatearBytes(usado)} ` +
             `de ${formatearBytes(limite)}. Borrá archivos que no uses${como ? `. ${como}` : " o escribinos para tener más espacio."}`,
         );
+      }
+      // El disco de los archivos nunca se llena del todo: se deja la reserva (si comparte disco
+      // con la base, la base siempre tiene lugar).
+      const libre = await almacen().libre();
+      if (libre !== null && libre - Number(total) < reservaDeDisco()) {
+        throw Object.assign(new Error(`el almacén deja ${libre} bytes libres, menos que la reserva`), { code: "ENOSPC" });
       }
       for (const pieza of piezas) {
         escritas.push(pieza.clave);

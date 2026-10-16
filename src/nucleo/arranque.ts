@@ -9,7 +9,7 @@ import { prisma } from "@/nucleo/db/cliente";
 import { registro } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
-import { problemaDeLimite } from "@/nucleo/archivos/limite";
+import { problemaDeLimite, problemaDeReserva } from "@/nucleo/archivos/limite";
 import { problemasDeCorreo } from "@/nucleo/correo/transporte";
 import { problemasDeRegistrador } from "@/nucleo/dominios/registrador";
 import { cuotaConfigurada } from "@/nucleo/pagos/cuota";
@@ -39,6 +39,8 @@ export function problemasDeEntorno(env: Entorno, build: { generadoPara: string }
   }
   const limite = problemaDeLimite(env);
   if (limite) p.push(limite);
+  const reserva = problemaDeReserva(env);
+  if (reserva) p.push(reserva);
   const app = usuarioDe(env.DATABASE_URL);
   const admin = usuarioDe(env.DATABASE_URL_ADMIN);
   const duena = usuarioDe(env.DATABASE_URL_MIGRACIONES);

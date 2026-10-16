@@ -174,6 +174,22 @@ describe("sin huérfanos en el almacén (C3)", () => {
     }
   });
 
+  it("el disco de los archivos nunca se llena: si una subida invadiría la reserva, se rechaza sin escribir nada", async () => {
+    const antes = process.env.DEOCO_ARCHIVOS_RESERVA_MB;
+    process.env.DEOCO_ARCHIVOS_RESERVA_MB = String(100 * 1024 * 1024); // 100 TB: más que el disco
+    try {
+      const enDisco0 = await enDisco(a.id);
+      const error = await guardar(a.id, "foto.jpg", await foto(100, 100)).catch((e) => e);
+      expect(error).toBeInstanceOf(ErrorArchivo);
+      expect(error.message).toMatch(/problema de espacio de nuestro lado/);
+      expect(await enDisco(a.id)).toEqual(enDisco0);
+      expect(await dueno.archivo.count({ where: { tenantId: a.id } })).toBe(0);
+    } finally {
+      if (antes === undefined) delete process.env.DEOCO_ARCHIVOS_RESERVA_MB;
+      else process.env.DEOCO_ARCHIVOS_RESERVA_MB = antes;
+    }
+  });
+
   it("el barrido diario borra los bytes sin fila con más de un día; los recientes y los que tienen fila, no", async () => {
     const vivo = await guardar(a.id, "vivo.jpg", await foto(50, 50));
     const huerfano = "11111111-2222-4333-8444-555555555555";

@@ -256,6 +256,26 @@ es de quién; el volumen tiene los bytes). Las dos van FUERA del VPS todos los d
 `infra/copias` (cifradas, con restauración de prueba): **`docs/copias-y-monitoreo.md`**. Ahí también
 el monitoreo (`/api/salud`, `DEOCO_LATIDO_URL`). Sin esto no se suma una banda real.
 
+## Discos: los archivos de las bandas aparte de la base
+
+Si los archivos de las bandas y Postgres comparten disco, llenarlo con fotos tira la base. Dos
+defensas (bloque D):
+
+1. **En la app**: cada subida deja libre una reserva en el disco de los archivos
+   (`DEOCO_ARCHIVOS_RESERVA_MB`, 2048 por defecto). Si una subida la invadiría, se rechaza con
+   "un problema de espacio de nuestro lado" y no se escribe nada.
+2. **En el VPS** (una vez, como root): `infra/disco/volumenes.sh` crea dos sistemas de archivos de
+   tamaño fijo (imágenes ext4 con loop, en `/etc/fstab`): `/srv/deoco/archivos` y
+   `/srv/deoco/copias`. Llenar uno llena su imagen, nunca el disco de la base.
+   ```sh
+   ARCHIVOS_GB=40 COPIAS_GB=30 sh infra/disco/volumenes.sh
+   ```
+   - En Easypanel, app → Mounts: reemplazar el volumen de `/data/archivos` por un **bind mount**
+     de `/srv/deoco/archivos` (antes, copiar lo que había: `cp -a <volumen viejo>/. /srv/deoco/archivos/`).
+   - Servicio de copias → Mounts: bind mount de `/srv/deoco/copias` en `/copias`.
+   - Para agrandar una imagen después: `umount`, `truncate -s +10G <img>`, `e2fsck -f <img>`,
+     `resize2fs <img>`, `mount`.
+
 ## Actualizar
 
 Push a la rama de producción → Easypanel reconstruye → al arrancar se aplican solo las
