@@ -524,11 +524,11 @@ export function decidir(
 }
 
 /** Lo que dice el mail de cada escalón que lo lleva (el aviso fuerte es solo en el panel). */
-async function avisarEscalon(tenantId: string, estado: Escalon, causa: "prueba" | "mora") {
-  if (estado === "MOROSO") return avisarMora(tenantId, "vencida");
-  if (estado === "SOLO_LECTURA") return avisarSoloLectura(tenantId);
+async function avisarEscalon(tenantId: string, estado: Escalon, causa: "prueba" | "mora" | "baja") {
+  if (estado === "MOROSO") return avisarMora(tenantId, causa === "baja" ? "baja" : "vencida");
+  if (estado === "SOLO_LECTURA") return avisarSoloLectura(tenantId, causa);
   if (estado === "SUSPENDIDO") return avisarSuspension(tenantId, causa);
-  if (estado === "ARCHIVADO") return avisarArchivo(tenantId);
+  if (estado === "ARCHIVADO") return avisarArchivo(tenantId, causa);
 }
 
 /**
@@ -548,9 +548,10 @@ export async function revisarCuenta(tenantId: string, ahora: Date, cfg: Escalera
   if (d.desde && !cuenta.moraDesde) {
     await conTenant(tenantId, (tx: TxTenant) => tx.comercialCuenta.update({ where: { tenantId }, data: { moraDesde: d.desde } }));
   }
-  const causa = cuenta.pagoHasta ? "mora" : "prueba";
+  // Quien se dio de baja no "debe": terminó lo que pagó. Los avisos lo dicen así (la escalera es la misma).
+  const causa = cuenta.suscripcionEstado === "cancelada" && cuenta.pagoHasta ? "baja" : cuenta.pagoHasta ? "mora" : "prueba";
   const dias = Math.floor((ahora.getTime() - d.desde!.getTime()) / DIA);
-  if (await fijarEstado(modulo, tenantId, d.estado, causa === "prueba" ? `${dias} días desde el fin de la prueba sin pago` : `${dias} días de mora`)) {
+  if (await fijarEstado(modulo, tenantId, d.estado, causa === "prueba" ? `${dias} días desde el fin de la prueba sin pago` : causa === "baja" ? `${dias} días desde el fin del período pagado (se dio de baja)` : `${dias} días de mora`)) {
     await avisarEscalon(tenantId, d.estado, causa).catch((e) => console.error(`[comercial] mail de ${d.estado} a ${tenantId}:`, e));
   }
   return d.estado;

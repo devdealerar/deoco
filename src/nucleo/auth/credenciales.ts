@@ -23,3 +23,10 @@ export async function verificarCredenciales(
   const ok = await verificarContrasena(usuario.hash, contrasena);
   return ok ? { id: usuario.id } : null;
 }
+
+/** La versión de sesión vigente de una persona (null si no existe). Ver `jwt` en ./index.ts. */
+export async function versionDeSesion(usuarioId: string): Promise<number | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(usuarioId)) return null;
+  const [fila] = await prisma.$queryRaw<{ v: number | null }[]>`SELECT version_de_sesion(${usuarioId}::uuid) AS v`;
+  return fila?.v ?? null;
+}

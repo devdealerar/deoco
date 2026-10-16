@@ -41,3 +41,15 @@ export async function listarUsuarios(f: FiltroUsuarios) {
   });
   return { filas, ...p };
 }
+
+/**
+ * Cierra todas las sesiones abiertas de una persona (3.2 núcleo d6: se invalida en el siguiente
+ * movimiento, no al vencer): sube su versión de sesión. Queda en la auditoría.
+ */
+export async function cerrarSesiones(staffId: string, usuarioId: string) {
+  const { auditar } = await import("./auditoria");
+  await dbAdmin().$transaction(async (tx) => {
+    const u = await tx.usuario.update({ where: { id: usuarioId }, data: { versionSesion: { increment: 1 } }, select: { email: true } });
+    await auditar(tx, { usuarioId: staffId, accion: "usuario.sesiones_cerradas", detalle: { usuarioId, email: u.email } });
+  });
+}

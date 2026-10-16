@@ -41,7 +41,7 @@ encima de cualquier decisión de módulo, de la spec y de lo que se pida en el c
 - Toda tabla con datos de banda lleva `tenantId` + política RLS (ver migración `*_rls`).
 - Toda consulta de datos de banda pasa por `conTenant(tenantId, fn)`.
 - La app se conecta como `deoco_app` (sin BYPASSRLS). El rol dueño solo corre migraciones.
-- La sesión guarda solo el usuario; la banda la resuelve el dominio en cada pedido.
+- La sesión guarda solo el usuario (y su versión); la banda la resuelve el dominio en cada pedido.
 
 ## Hosts y tenant
 
@@ -80,7 +80,9 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 
 ## Sesión, rol y permisos
 
-- Auth.js (`src/nucleo/auth`): email + contraseña (argon2id). La sesión (JWT) lleva SOLO `sub`.
+- Auth.js (`src/nucleo/auth`): email + contraseña (argon2id). La sesión (JWT) lleva SOLO `sub` + `v`
+  (`usuario.versionSesion`: cambiar la clave o "Cerrar sesiones" en `/admin/usuarios` la sube y la
+  sesión abierta deja de valer en la acción siguiente).
   Cookie `deoco.sesion` (`__Host-deoco.sesion` en producción), host-only de `app.<raiz>`:
   los sitios públicos no la reciben. Auth.js, `/ingresar` y el selector dan 404 en hosts de banda.
 - Rol por pedido: sesión + tenant del proxy → `membresia` (`src/nucleo/acceso/resolver.ts`).

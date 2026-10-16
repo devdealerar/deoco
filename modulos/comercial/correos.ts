@@ -56,28 +56,30 @@ ${responderA ? "<p>¿Dudas? Respondé este mail y te ayudamos.</p>" : ""}
 }
 
 /** La cuenta pasó a MOROSO (aviso): todo sigue funcionando. Dice qué pasa y cuándo si no se paga. */
-export async function avisarMora(tenantId: string, motivo: "rechazado" | "vencida", ahora = new Date()) {
+export async function avisarMora(tenantId: string, motivo: "rechazado" | "vencida" | "baja", ahora = new Date()) {
   const [cfg, cuenta] = await Promise.all([plazos(), cuentaDe(tenantId)]);
   const desde = (cuenta?.moraDesde ?? ahora).getTime();
   const enDias = (d: number) => fecha(new Date(desde + d * 86_400_000));
   await mandar(
     tenantId,
     `cuota-mora:${dia(ahora)}`,
-    (n) => `${n}: no pudimos cobrar la cuota de Deoco`,
+    (n) => (motivo === "baja" ? `${n}: terminó el período que pagaste en Deoco` : `${n}: no pudimos cobrar la cuota de Deoco`),
     (n) => [
       motivo === "rechazado"
         ? `${pasarelaDeLaCuota().nombre} rechazó el cobro de la cuota mensual de ${n} en Deoco. Suele pasar cuando la tarjeta venció, no tiene fondos o el banco frenó el pago.`
-        : `La cuota mensual de ${n} en Deoco venció y no recibimos el pago.`,
+        : motivo === "baja"
+          ? `Diste de baja la suscripción de ${n} en Deoco y ya terminó el período que pagaste. No te vamos a cobrar nada.`
+          : `La cuota mensual de ${n} en Deoco venció y no recibimos el pago.`,
       "Por ahora no cambia nada: tu sitio, tu tienda, tus entradas y el panel siguen funcionando.",
       `Si no se regulariza: desde el ${enDias(cfg.diasSoloLectura)} el panel queda en solo lectura (se ve todo, no se edita); desde el ${enDias(cfg.diasMoraASuspender)} el sitio deja de estar publicado y se cortan las ventas. Nunca se borra nada, y la puerta de los shows ya vendidos sigue funcionando.`,
-      "Revisá tu forma de pago (o cargá otra) en Plan y pago.",
+      motivo === "baja" ? "Si querés seguir, elegí un plan en Plan y pago cuando quieras: todo vuelve como estaba." : "Revisá tu forma de pago (o cargá otra) en Plan y pago.",
     ],
-    "Revisar mi forma de pago",
+    motivo === "baja" ? "Ir a Plan y pago" : "Revisar mi forma de pago",
   );
 }
 
 /** SOLO_LECTURA: el panel se ve pero no guarda; el sitio y las ventas siguen. */
-export async function avisarSoloLectura(tenantId: string, ahora = new Date()) {
+export async function avisarSoloLectura(tenantId: string, causa: "prueba" | "mora" | "baja" = "mora", ahora = new Date()) {
   const [cfg, cuenta] = await Promise.all([plazos(), cuentaDe(tenantId)]);
   const corte = fecha(new Date((cuenta?.moraDesde ?? ahora).getTime() + cfg.diasMoraASuspender * 86_400_000));
   await mandar(
@@ -85,7 +87,7 @@ export async function avisarSoloLectura(tenantId: string, ahora = new Date()) {
     `cuota-lectura:${dia(ahora)}`,
     (n) => `${n}: tu panel de Deoco quedó en solo lectura`,
     (n) => [
-      `La cuota de ${n} en Deoco sigue sin pagarse, así que el panel quedó en solo lectura: podés ver todo, pero no publicar, crear ni editar.`,
+      `${causa === "baja" ? `Diste de baja ${n} en Deoco y no elegiste un plan nuevo` : `La cuota de ${n} en Deoco sigue sin pagarse`}, así que el panel quedó en solo lectura: podés ver todo, pero no publicar, crear ni editar.`,
       "Tu sitio, tu tienda y la venta de entradas siguen funcionando: lo que vendas es tuyo.",
       `Si para el ${corte} no se regulariza, el sitio deja de estar publicado y se cortan las ventas. Apenas pagás, todo vuelve.`,
     ],
@@ -94,7 +96,7 @@ export async function avisarSoloLectura(tenantId: string, ahora = new Date()) {
 }
 
 /** SUSPENDIDO: sitio despublicado y ventas cortadas; la puerta de los shows vendidos sigue. */
-export async function avisarSuspension(tenantId: string, causa: "prueba" | "mora", ahora = new Date()) {
+export async function avisarSuspension(tenantId: string, causa: "prueba" | "mora" | "baja", ahora = new Date()) {
   await mandar(
     tenantId,
     `cuota-suspension:${dia(ahora)}`,
@@ -102,7 +104,9 @@ export async function avisarSuspension(tenantId: string, causa: "prueba" | "mora
     (n) => [
       causa === "prueba"
         ? `Terminó la prueba gratis de ${n} en Deoco hace tiempo y no hay una forma de pago cargada.`
-        : `La cuota de ${n} en Deoco sigue sin pagarse.`,
+        : causa === "baja"
+          ? `Diste de baja ${n} en Deoco y no elegiste un plan nuevo.`
+          : `La cuota de ${n} en Deoco sigue sin pagarse.`,
       "Por eso el sitio dejó de estar publicado y se cortaron las ventas de la tienda y de entradas. No se borró nada: productos, shows, entradas vendidas y archivos están intactos, y la puerta de los shows que ya vendiste sigue funcionando hasta que terminen.",
       "Apenas pagás en Plan y pago, el sitio vuelve a publicarse tal como estaba y se reabren las ventas.",
     ],
@@ -111,15 +115,17 @@ export async function avisarSuspension(tenantId: string, causa: "prueba" | "mora
 }
 
 /** ARCHIVADO por la cuota: el sitio y el panel se van; los datos y los dominios siguen siendo de la banda. */
-export async function avisarArchivo(tenantId: string, ahora = new Date()) {
+export async function avisarArchivo(tenantId: string, causa: "prueba" | "mora" | "baja" = "mora", ahora = new Date()) {
   await mandar(
     tenantId,
     `cuota-archivo:${dia(ahora)}`,
     (n) => `${n}: archivamos la banda en Deoco`,
     (n) => [
-      `La cuota de ${n} en Deoco lleva demasiado tiempo sin pagarse, así que archivamos la banda: el sitio y el panel dejan de estar disponibles.`,
+      causa === "baja"
+        ? `Diste de baja ${n} en Deoco hace tiempo, así que archivamos la banda: el sitio y el panel dejan de estar disponibles.`
+        : `La cuota de ${n} en Deoco lleva demasiado tiempo sin pagarse, así que archivamos la banda: el sitio y el panel dejan de estar disponibles.`,
       "No se borró nada. Tus dominios siguen siendo tuyos y podés llevártelos desde el panel. La puerta de los shows que ya vendiste sigue funcionando hasta que terminen.",
-      "Para volver, escribinos y la reactivamos.",
+      "Para volver, entrá a Plan y pago y elegí un plan: apenas se cobra, todo vuelve como estaba.",
     ],
     "Ir a mis dominios",
     "/dominios",

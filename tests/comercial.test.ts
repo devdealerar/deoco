@@ -468,6 +468,19 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
     expect(await estado(e.a.id)).toBe("ACTIVO");
   });
 
+  it("quien se dio de baja no recibe mails de mora: le decimos que terminó lo que pagó", async () => {
+    const { en } = await pagadaQueVence();
+    await cancelar(e.a.id);
+    vaciarBandeja();
+    await revisarVencimientos(en(3));
+    expect(await estado(e.a.id)).toBe("MOROSO");
+    expect(await asuntos()).toEqual([expect.stringContaining("terminó el período que pagaste")]);
+    await revisarVencimientos(en(60));
+    const todos = await asuntos();
+    expect(todos.some((a) => /no pudimos cobrar|mora/i.test(a))).toBe(false);
+    expect(bandejaDeSalida().map((m) => m.texto).join("\n")).not.toMatch(/no pudimos cobrar|deuda/i);
+  });
+
   it("con el barrido parado, salta directo al escalón que corresponde", async () => {
     const { en } = await pagadaQueVence();
     await revisarVencimientos(en(61));

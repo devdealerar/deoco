@@ -38,6 +38,9 @@ model Usuario {
   hashContrasena String
   /// Clave dada por el staff (alta o invitación): hay que cambiarla antes de usar el panel.
   claveTemporal  Boolean     @default(false)
+  /// La sesión (JWT) guarda con qué versión se abrió; si cambia (al cambiar la clave, o el staff
+  /// cierra las sesiones), en el próximo pedido deja de valer.
+  versionSesion  Int         @default(0)
   esStaff        Boolean     @default(false)
   creadoEn       DateTime    @default(now())
   membresias     Membresia[]

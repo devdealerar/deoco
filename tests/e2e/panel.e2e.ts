@@ -55,14 +55,14 @@ describe("login y sesión", () => {
     expect(await page.locator("main [role=alert]").textContent()).toMatch(/incorrectos/);
   });
 
-  it("la sesión guarda SOLO el id del usuario", async () => {
+  it("la sesión guarda SOLO el id del usuario (y su versión)", async () => {
     const { ctx, page } = await logueado("multi@x.com");
     await page.goto(`${APP}/api/auth/session`);
     expect(JSON.parse((await page.locator("body").textContent())!)).toEqual({ user: { id: e.multi.id }, expires: expect.any(String) });
 
     const cookie = (await ctx.cookies()).find((c) => c.name === "deoco.sesion")!;
     const token = await decode({ token: cookie.value, secret: process.env.AUTH_SECRET!, salt: "deoco.sesion" });
-    expect(Object.keys(token!).sort()).toEqual(["exp", "iat", "jti", "sub"]);
+    expect(Object.keys(token!).sort()).toEqual(["exp", "iat", "jti", "sub", "v"]);
     expect(token!.sub).toBe(e.multi.id);
   });
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Campo, Casilla, Filtros, Insignia, Tabla } from "@/ui";
+import { Campo, Casilla, Filtros, Formulario, Insignia, Tabla } from "@/ui";
+import { cerrarSesionesAccion } from "./acciones";
 import { exigirStaff } from "../_servidor/acceso";
 import { type ParametrosUrl, orden, pagina, texto } from "../_servidor/listado";
 import { ORDENES_USUARIO, listarUsuarios } from "../_servidor/usuarios";
@@ -54,9 +55,10 @@ export default async function Usuarios({ searchParams }: { searchParams: Promise
                 </li>
               ))}
             </ul>,
-            <div key="m" className="flex gap-2">
+            <div key="m" className="flex flex-wrap items-center gap-2" data-sesiones={u.email}>
               {u.esStaff && <Insignia color="marca">Staff</Insignia>}
               {u.claveTemporal && <Insignia color="advertencia">Clave temporal</Insignia>}
+              <Formulario accion={cerrarSesionesAccion.bind(null, u.id)} puedeEditar enLinea variante="secundario" etiqueta="Cerrar sesiones" />
             </div>,
             <span key="alta" className="text-sm whitespace-nowrap text-tertiary">
               {FECHA.format(u.creadoEn)}
