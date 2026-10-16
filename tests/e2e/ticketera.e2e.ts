@@ -203,10 +203,10 @@ describe("ticketera", () => {
       ["Fechas", `${SITIO}/fechas`],
       ["Press kit", "/b/banda-a/sitio/vista-previa/prensa"],
     ]);
-    // Con la ticketera prendida, sus shows (como en el sitio), no los cargados a mano.
+    // Con la ticketera prendida, sus shows y los cargados a mano (como en el sitio).
     const texto = (await previa.textContent()) ?? "";
     expect(texto).toContain("La Trastienda");
-    expect(texto).not.toContain("Cargada a mano");
+    expect(texto).toContain("Cargada a mano");
     expect(await previa.getByRole("link", { name: "Entradas" }).getAttribute("href")).toBe(`${SITIO}/fechas/${showId}`);
     await dueno.sitioFecha.deleteMany({ where: { tenantId: e.a.id } });
   });

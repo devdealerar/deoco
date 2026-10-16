@@ -263,15 +263,32 @@ describe("el sitio muestra las fechas de la ticketera (consulta), o las cargadas
     home: { fechas: [{ fecha: "2026-12-01", lugar: "Cargada a mano", ciudad: "Rosario", link: null }] },
   } as unknown as ContenidoSitio;
 
-  it("prendida: sus shows publicados; apagada: las de siempre", async () => {
+  it("prendida: sus shows publicados y las cargadas a mano; apagada: las de siempre", async () => {
     const { id } = await showDeA();
     await crearEvento(e.a.id, datosShow({ nombre: "Borrador" })); // no publicado: no se ve
     expect(await proximasFechas(e.a.id, {})).toEqual([
       { id, nombre: "Gira Satélite", fecha: EN_UN_MES.toISOString(), lugar: "La Trastienda", ciudad: "CABA", url: `/fechas/${id}`, agotado: false },
     ]);
+    // Conviven: los shows de la ticketera y las cargadas a mano (un show que vende otro, uno
+    // gratis), por fecha. Prender la ticketera no borra del sitio lo que la banda ya cargó.
     const vivas = await conFechasVivas(e.a.id, contenido);
-    expect(vivas.home.fechas).toEqual([{ fecha: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), lugar: "La Trastienda", ciudad: "CABA", link: `/fechas/${id}` }]);
+    expect(vivas.home.fechas).toEqual([
+      { fecha: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), lugar: "La Trastienda", ciudad: "CABA", link: `/fechas/${id}` },
+      ...contenido.home.fechas,
+    ]);
     await dueno.moduloTenant.deleteMany({ where: { tenantId: e.a.id, moduloId: "ticketera" } });
     expect((await conFechasVivas(e.a.id, contenido)).home.fechas).toEqual(contenido.home.fechas);
+  });
+
+  it("la misma fecha cargada a mano y en la ticketera (mismo día y sala) aparece una vez: la de la ticketera", async () => {
+    const { id } = await showDeA();
+    const dia = (await conFechasVivas(e.a.id, { home: { fechas: [] } } as unknown as ContenidoSitio)).home.fechas[0].fecha;
+    const conRepetida = {
+      home: { fechas: [{ fecha: dia, lugar: "la trastienda", ciudad: "CABA", link: "https://otra.com" }, ...contenido.home.fechas] },
+    } as unknown as ContenidoSitio;
+    expect((await conFechasVivas(e.a.id, conRepetida)).home.fechas.map((f) => [f.lugar, f.link])).toEqual([
+      ["La Trastienda", `/fechas/${id}`],
+      ["Cargada a mano", null],
+    ]);
   });
 });

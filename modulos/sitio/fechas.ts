@@ -1,5 +1,8 @@
-// Próximas fechas del sitio: si la ticketera está prendida para la banda, las suyas (consulta
-// "ticketera.proximas-fechas", sin importar su código); si no, las cargadas a mano.
+// Próximas fechas del sitio: las cargadas a mano y, si la ticketera está prendida para la banda,
+// también las suyas (consulta "ticketera.proximas-fechas", sin importar su código), por fecha.
+// Conviven: una cargada a mano puede ser un show que vende otro o uno gratis, y prender la
+// ticketera no la borra del sitio. La misma fecha en los dos (mismo día y sala) va una vez: la de
+// la ticketera, que vende.
 import { consultar } from "@/nucleo/consultas";
 import { diaArgentino } from "@/nucleo/fechas";
 import type { ContenidoSitio } from "./contenido";
@@ -24,8 +27,14 @@ export function fechasDeTicketera(tenantId: string): Promise<Fecha[] | null> {
   return consultar<Fecha[] | null>(tenantId, "ticketera.proximas-fechas", { limite: 6 }, { vacio: null, interpretar });
 }
 
-/** El contenido publicado, con las fechas de la ticketera si está prendida. */
+/** Sala comparable: sin mayúsculas, tildes ni espacios de más. */
+const sala = (lugar: string) => lugar.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/** El contenido publicado, con las fechas de la ticketera (si está prendida) sumadas a las suyas. */
 export async function conFechasVivas(tenantId: string, contenido: ContenidoSitio): Promise<ContenidoSitio> {
-  const fechas = await fechasDeTicketera(tenantId);
-  return fechas ? { ...contenido, home: { ...contenido.home, fechas } } : contenido;
+  const deTicketera = await fechasDeTicketera(tenantId);
+  if (!deTicketera) return contenido;
+  const repetida = (f: Fecha) => deTicketera.some((t) => t.fecha === f.fecha && sala(t.lugar) === sala(f.lugar));
+  const fechas = [...deTicketera, ...contenido.home.fechas.filter((f) => !repetida(f))].sort((a, b) => a.fecha.localeCompare(b.fecha));
+  return { ...contenido, home: { ...contenido.home, fechas } };
 }

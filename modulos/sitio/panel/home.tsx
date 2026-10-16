@@ -87,7 +87,7 @@ export async function HomePanel({ tenantId, slug }: PropsRutaPanel) {
         titulo="Próximas fechas"
         descripcion={
           conTicketera
-            ? "La ticketera está prendida: la home muestra sus shows publicados (Entradas). Estas, cargadas a mano, quedan guardadas y vuelven si la apagás."
+            ? "La ticketera está prendida: la home muestra sus shows publicados (Entradas) y, junto a ellos, estas cargadas a mano (un show que vende otro, uno gratis). Si cargaste acá un show que ya está en Entradas, va una sola vez."
             : "Cargadas a mano. La home muestra solo las que vienen."
         }
       >
