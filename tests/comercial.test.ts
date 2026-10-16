@@ -239,7 +239,7 @@ describe("cuota", () => {
   it("cancelar deja de cobrar; la cuenta sigue hasta el vencimiento", async () => {
     await alCrearBanda(e.a.id);
     const id = await suscribir(e.a.id, "banda-a", "medium");
-    expect(await cancelar(e.a.id)).toContain("El panel sigue funcionando hasta el");
+    expect(await cancelar(e.a.id)).toContain("Todo sigue funcionando hasta el");
     expect(mp.suscripciones.get(id)!.status).toBe("cancelled");
     expect(await estado(e.a.id)).toBe("ACTIVO");
   });

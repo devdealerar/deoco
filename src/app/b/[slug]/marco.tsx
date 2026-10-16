@@ -108,7 +108,7 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
           {acceso.estado === "MOROSO" && esTitular && (
             <div className="mb-6">
               <Aviso titulo="Hay una cuota pendiente." data-testid="aviso-mora">
-                Tu sitio sigue publicado. Si no se regulariza, el panel se suspende.{" "}
+                Tu sitio sigue publicado. Si no se regulariza, primero el panel queda en solo lectura y después el sitio deja de estar publicado.{" "}
                 <Link href={`/b/${slug}/pago`} className="font-semibold underline">
                   Pagar
                 </Link>

@@ -282,7 +282,7 @@ export async function cancelar(tenantId: string): Promise<string> {
   await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { suscripcionEstado: "cancelada", planElegido: null } }));
   const hasta = cuenta.pagoHasta ?? cuenta.pruebaHasta;
   return hasta
-    ? `Listo, cancelaste la suscripción: no se cobra más. El panel sigue funcionando hasta el ${hasta.toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" })}.`
+    ? `Listo, cancelaste la suscripción: no se cobra más. Todo sigue funcionando hasta el ${hasta.toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" })}; después, sin pago, corre la escalera de la cuota impaga.`
     : "Listo, cancelaste la suscripción: no se cobra más.";
 }
 

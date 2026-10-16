@@ -131,12 +131,12 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
         )}
         {cuenta.pruebaHasta && !cuenta.pagoHasta && !activa && (
           <p className="text-sm text-tertiary">
-            Al terminar la prueba sin una forma de pago cargada, el panel queda suspendido (el sitio público sigue online y no se borra nada). Elegí un plan para seguir.
+            Al terminar la prueba sin una forma de pago cargada empieza a correr la cuota impaga: a los {cfg.diasSoloLectura} días el panel queda en solo lectura y a los {cfg.diasMoraASuspender} el sitio deja de estar publicado. No se borra nada. Elegí un plan para seguir.
           </p>
         )}
         {cuenta.moraDesde && (
           <p className="text-sm text-tertiary">
-            Si el pago no se regulariza a los {cfg.diasMoraASuspender} días, el panel queda suspendido. El sitio público sigue online. Con el pago, todo vuelve al instante.
+            Si el pago no se regulariza, a los {cfg.diasSoloLectura} días el panel queda en solo lectura, a los {cfg.diasMoraASuspender} el sitio deja de estar publicado y a los {cfg.diasArchivo} la banda se archiva. Con el pago, todo vuelve al instante.
           </p>
         )}
       </Tarjeta>
@@ -181,7 +181,7 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
       )}
 
       {cuenta.suscripcionId && cuenta.suscripcionEstado !== "cancelada" && (
-        <Tarjeta titulo="Cancelar la suscripción" descripcion="Deja de cobrarse. Tu cuenta sigue hasta el vencimiento; después, el panel queda suspendido. El sitio público sigue online y no se borra nada.">
+        <Tarjeta titulo="Cancelar la suscripción" descripcion={`Deja de cobrarse. Todo sigue hasta el vencimiento; después corre la cuota impaga: a los ${cfg.diasSoloLectura} días el panel queda en solo lectura y a los ${cfg.diasMoraASuspender} el sitio deja de estar publicado. No se borra nada.`}>
           <Formulario accion={cancelarAccion.bind(null, slug)} puedeEditar etiqueta="Cancelar la suscripción" variante="peligro">
             <Casilla name="confirmar" etiqueta="Sí, quiero dejar de pagar la cuota" />
           </Formulario>
