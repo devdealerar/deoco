@@ -86,6 +86,8 @@ model TiendaDiseno {
   creadoEn      DateTime @default(now())
 
   productos TiendaProducto[]
+  /// Renglones de pedidos que se compraron con este diseño (lo conservan aunque el producto cambie).
+  items     TiendaPedidoItem[]
 
   @@unique([tenantId, id])
   @@index([tenantId])
@@ -183,7 +185,7 @@ model TiendaPedido {
   @@map("tienda_pedido")
 }
 
-/// Un renglón del pedido. Precio y envío al fan: copias al crearse el pedido. Costo de
+/// Un renglón del pedido. Precio, envío al fan y diseño: copias al crearse el pedido. Costo de
 /// producción, envío del proveedor y proveedor: copias al pagarse (cambiar el catálogo después
 /// no cambia lo vendido).
 model TiendaPedidoItem {
@@ -196,6 +198,10 @@ model TiendaPedidoItem {
   producto        TiendaProducto @relation(fields: [tenantId, productoId], references: [tenantId, id], onDelete: Restrict)
   productoBaseId  String   @db.Uuid
   productoBase    TiendaProductoBase @relation(fields: [productoBaseId], references: [id], onDelete: Restrict)
+  /// El diseño del producto cuando se compró: lo que fabrica el proveedor, para siempre. Si la
+  /// banda cambia el arte del producto después, este renglón no cambia (documento maestro §7).
+  disenoId        String   @db.Uuid
+  diseno          TiendaDiseno @relation(fields: [tenantId, disenoId], references: [tenantId, id], onDelete: Restrict)
   /// Nombre del producto al comprarse (para el resumen y los mails).
   nombreProducto  String
   /// Selección: { "Talle": "M", "Color": "Negro" }

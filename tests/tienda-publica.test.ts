@@ -129,11 +129,12 @@ describe("prueba 2: el agujero de aislamiento (renglón con producto de otra ban
     const a = await tiendaDe(e.a.id, e.multi.id);
     const b = await tiendaDe(e.b.id, titularB);
     const deB = await crearPedido(tienda, e.b.id, [linea(b.poster.id)], FAN);
-    const renglon = (pedidoId: string, productoId: string) => ({
+    const renglon = (pedidoId: string, productoId: string, disenoId = b.poster.disenoId) => ({
       tenantId: e.b.id,
       pedidoId,
       productoId,
       productoBaseId: remeraBase.id,
+      disenoId,
       nombreProducto: "trucho",
       variante: {},
       cantidad: 1,
@@ -147,6 +148,10 @@ describe("prueba 2: el agujero de aislamiento (renglón con producto de otra ban
     // Y un renglón de B colgado de un pedido de A.
     const deA = await crearPedido(tienda, e.a.id, [linea(a.poster.id)], FAN);
     await expect(conTenant(e.b.id, (tx) => tx.tiendaPedidoItem.create({ data: renglon(deA.id, b.poster.id) }))).rejects.toThrow(
+      /Foreign key constraint|violates foreign key/i,
+    );
+    // Ni con el diseño de otra banda.
+    await expect(conTenant(e.b.id, (tx) => tx.tiendaPedidoItem.create({ data: renglon(deB.id, b.poster.id, a.remera.disenoId) }))).rejects.toThrow(
       /Foreign key constraint|violates foreign key/i,
     );
     // Aun con el rol dueño (sin RLS): la base no deja mezclar bandas.

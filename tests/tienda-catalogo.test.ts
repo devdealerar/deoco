@@ -79,7 +79,7 @@ async function venta(tenantId: string, productoBaseId: string) {
     });
     const pedido = await tx.tiendaPedido.create({ data: { tenantId, ...FAN, subtotal: 5000000, envio: 700000, total: 5700000, token: "t".repeat(64) } });
     await tx.tiendaPedidoItem.create({
-      data: { tenantId, pedidoId: pedido.id, productoId: producto.id, productoBaseId, nombreProducto: "Remera Los Satélites", variante: { Talle: "M" }, cantidad: 2, precioUnitario: 2500000, envioUnitario: 350000 },
+      data: { tenantId, pedidoId: pedido.id, productoId: producto.id, productoBaseId, disenoId: diseno.id, nombreProducto: "Remera Los Satélites", variante: { Talle: "M" }, cantidad: 2, precioUnitario: 2500000, envioUnitario: 350000 },
     });
     return { producto, pedido };
   });

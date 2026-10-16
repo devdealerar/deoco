@@ -101,7 +101,8 @@ export async function ordenDelProveedor(usuarioId: string, ordenId: string, ahor
         variante: true,
         cantidad: true,
         productoBase: true,
-        producto: { select: { diseno: { select: { archivoId: true, archivoNombre: true } } } },
+        // El diseño del renglón (el de cuando se compró), no el que el producto tiene hoy.
+        diseno: { select: { archivoId: true, archivoNombre: true } },
       },
       orderBy: { nombreProducto: "asc" },
     });
@@ -116,7 +117,7 @@ export async function ordenDelProveedor(usuarioId: string, ordenId: string, ahor
   const links = new Map<string, string>();
   await conCuentaExternaEnBanda(usuarioId, tienda, orden.tenantId, async (tx) => {
     for (const i of items) {
-      const { archivoId } = i.producto.diseno;
+      const { archivoId } = i.diseno;
       if (!links.has(archivoId)) {
         links.set(archivoId, await urlFirmada(tienda, orden.tenantId, archivoId, { validoPorSegundos: VALIDEZ_LINK_PANEL, ahora, tx }));
       }
@@ -142,7 +143,7 @@ export async function ordenDelProveedor(usuarioId: string, ordenId: string, ahor
       variante: describirVariante(i.variante as Record<string, string>),
       cantidad: i.cantidad,
       especificacion: describirEspecificacion(i.productoBase),
-      archivo: { nombre: i.producto.diseno.archivoNombre, url: links.get(i.producto.diseno.archivoId)! },
+      archivo: { nombre: i.diseno.archivoNombre, url: links.get(i.diseno.archivoId)! },
     })),
     envio: {
       nombre: pedido.nombre,

@@ -12,7 +12,7 @@ import tienda from "../modulos/tienda";
 import { type ComoStaff, crearProductoBase, crearProveedor, leerOpciones } from "../modulos/tienda/catalogo";
 import { deudaDeBanda, registrarPago } from "../modulos/tienda/pagos";
 import { crearPedido, type DatosFan } from "../modulos/tienda/pedidos";
-import { crearProducto, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
+import { actualizarProducto, crearProducto, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
 import {
   accesosDeProveedor,
   cuentaCorriente,
@@ -166,6 +166,29 @@ describe("órdenes: de todas las bandas, solo las suyas", () => {
     expect(verificarFirma(tenant, id, u.searchParams.get("vence"), u.searchParams.get("firma"), new Date(ahora.getTime() + 4 * 86400_000))).toBe("vencido");
     // La orden de otro proveedor no la abre.
     expect(await ordenDelProveedor(dePrensa, o.id)).toBeNull();
+  });
+});
+
+describe("la orden conserva para siempre su diseño (documento maestro §7)", () => {
+  it("si la banda cambia el arte con un pedido sin despachar, el proveedor sigue viendo y bajando el original", async () => {
+    const pedido = await pedidoPagado(e.a.id, "p-diseno");
+    const original = (await dueno.tiendaPedidoItem.findFirstOrThrow({ where: { pedidoId: pedido.id, nombreProducto: "Remera Gira" }, include: { producto: { include: { diseno: true } } } })).producto.diseno;
+    const nuevo = await subirDiseno(e.a.id, "Logo nuevo", { nombre: "logo-nuevo.png", datos: await png(4300, 5100) });
+    const remera = await dueno.tiendaProducto.findFirstOrThrow({ where: { tenantId: e.a.id, nombre: "Remera Gira" } });
+    await actualizarProducto(e.a.id, remera.id, { disenoId: nuevo.id, nombre: remera.nombre, descripcion: "", precio: remera.precio, variantes: [{ nombre: "Talle", valores: ["M"] }] });
+
+    // El renglón guarda su diseño: el de cuando se compró.
+    const item = await dueno.tiendaPedidoItem.findFirstOrThrow({ where: { pedidoId: pedido.id, nombreProducto: "Remera Gira" } });
+    expect(item.disenoId).toBe(original.id);
+    // El portal le arma el link al archivo original, no al nuevo.
+    const o = await ordenDe(delSur, "Banda A");
+    const d = (await ordenDelProveedor(delSur, o.id))!;
+    const [renglon] = d.renglones;
+    expect(renglon.archivo.nombre).toBe("logo.png");
+    expect(renglon.archivo.url).toContain(`/${original.archivoId}/`);
+    // Y el diseño nuevo, que no está en ninguna de sus órdenes, ni lo ve.
+    const ve = await conCuentaExterna(delSur, tienda, (tx) => tx.tiendaDiseno.findMany({ select: { id: true } }));
+    expect(ve.map((x) => x.id)).toEqual([original.id]);
   });
 });
 

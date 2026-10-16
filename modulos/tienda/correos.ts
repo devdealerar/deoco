@@ -22,7 +22,7 @@ async function pedidoCompleto(tenantId: string, pedidoId: string) {
   return conTenant(tenantId, async (tx) => ({
     pedido: await tx.tiendaPedido.findUniqueOrThrow({
       where: { id: pedidoId },
-      include: { items: { include: { producto: { include: { diseno: true } }, productoBase: true }, orderBy: { nombreProducto: "asc" } } },
+      include: { items: { include: { diseno: true, productoBase: true }, orderBy: { nombreProducto: "asc" } } },
     }),
     banda: await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { nombre: true } }),
     sitio: await origenDeBanda(tenantId, { tx }),
@@ -107,10 +107,10 @@ export async function correoAlProveedor(
 ${renglones
   .map((i) => {
     const variante = describirVariante(i.variante as Record<string, string>);
-    const link = links.get(i.producto.disenoId)!;
+    const link = links.get(i.disenoId)!;
     return `<tr><td style="${celda}"><strong>${i.cantidad} × ${h(i.productoBase.nombre)}</strong>${variante ? ` · ${h(variante)}` : ""}<br>
 <span style="font-size:14px">Producto de la banda: ${h(i.nombreProducto)}</span><br>
-<span style="font-size:14px">Archivo de impresión: <a href="${h(link)}">${h(i.producto.diseno.archivoNombre)}</a> (${h(describirEspecificacion(i.productoBase))})</span></td></tr>`;
+<span style="font-size:14px">Archivo de impresión: <a href="${h(link)}">${h(i.diseno.archivoNombre)}</a> (${h(describirEspecificacion(i.productoBase))})</span></td></tr>`;
   })
   .join("\n")}
 </table>
@@ -127,7 +127,7 @@ ${renglones
     "",
     ...renglones.map((i) => {
       const variante = describirVariante(i.variante as Record<string, string>);
-      return `- ${i.cantidad} × ${i.productoBase.nombre}${variante ? ` · ${variante}` : ""} (producto de la banda: ${i.nombreProducto})\n  Archivo de impresión: ${links.get(i.producto.disenoId)} (${describirEspecificacion(i.productoBase)})`;
+      return `- ${i.cantidad} × ${i.productoBase.nombre}${variante ? ` · ${variante}` : ""} (producto de la banda: ${i.nombreProducto})\n  Archivo de impresión: ${links.get(i.disenoId)} (${describirEspecificacion(i.productoBase)})`;
     }),
     "",
     `Los links de los archivos vencen a los ${VALIDEZ_LINK_IMPRESION / 86400} días. Si vencen, abrí la orden en tu panel de proveedor (ahí también la marcás despachada): ${urlPortal}`,
@@ -164,8 +164,8 @@ export async function alPagarsePedido(evento: Evento) {
   // Un link por diseño (aunque varios renglones lo usen).
   const links = new Map<string, string>();
   for (const i of datos.pedido.items) {
-    if (!links.has(i.producto.disenoId)) {
-      links.set(i.producto.disenoId, await urlFirmada(tienda, evento.tenantId, i.producto.diseno.archivoId, { validoPorSegundos: VALIDEZ_LINK_IMPRESION }));
+    if (!links.has(i.disenoId)) {
+      links.set(i.disenoId, await urlFirmada(tienda, evento.tenantId, i.diseno.archivoId, { validoPorSegundos: VALIDEZ_LINK_IMPRESION }));
     }
   }
   for (const p of proveedores) {

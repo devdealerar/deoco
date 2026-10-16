@@ -32,6 +32,8 @@ export type LineaRevisada = LineaCarrito & {
   precio: number;
   envio: number;
   productoBaseId: string;
+  /** El diseño del producto ahora (queda en el renglón del pedido). */
+  disenoId: string;
   /** Quién lo produce y lo despacha (el asignado al producto base o el de la plataforma). */
   proveedorId: string;
   foto: { id: string; nombre: string; plataforma: boolean } | null;
@@ -111,6 +113,7 @@ export async function revisarCarrito(tenantId: string, lineas: LineaCarrito[]): 
       precio: p.precio,
       envio: p.productoBase.costoEnvio,
       productoBaseId: p.productoBaseId,
+      disenoId: p.disenoId,
       proveedorId: p.productoBase.proveedorId ?? porDefecto?.id ?? "",
       foto: p.fotoArchivoId && p.fotoNombre
         ? { id: p.fotoArchivoId, nombre: p.fotoNombre, plataforma: false }
@@ -215,6 +218,8 @@ export async function crearPedido(tienda: Modulo, tenantId: string, lineas: Line
           pedidoId: pedido.id,
           productoId: l.productoId,
           productoBaseId: l.productoBaseId,
+          // El diseño de ahora, para siempre: si la banda cambia el arte, este pedido no cambia.
+          disenoId: l.disenoId,
           nombreProducto: l.nombre,
           variante: l.variante as Prisma.InputJsonValue,
           cantidad: l.cantidad,
