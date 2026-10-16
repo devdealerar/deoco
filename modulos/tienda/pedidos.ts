@@ -4,9 +4,10 @@
 // de precios y envíos.
 import { randomBytes } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { Modulo } from "@/nucleo/modulos/contrato";
-import { type Opcion, proveedorEfectivo } from "./catalogo";
+import type { Opcion } from "./catalogo";
 import { PROVINCIAS } from "./comun";
 import { pasarelaLista } from "@/nucleo/pagos";
 import { esEmail } from "@/nucleo/correo/direccion";
@@ -90,15 +91,18 @@ export function problemaDeVariante(ofrecidas: Opcion[], elegida: Record<string, 
  */
 export async function revisarCarrito(tenantId: string, lineas: LineaCarrito[]): Promise<Revision> {
   const ids = [...new Set(lineas.map((l) => l.productoId))];
-  const [productos, porDefecto] = await conTenant(tenantId, async (tx) => [
-    await tx.tiendaProducto.findMany({ where: { id: { in: ids } }, include: { productoBase: true } }),
-    await proveedorEfectivo(tx, { proveedorId: null }),
-  ] as const);
+  const productos = await conTenant(tenantId, (tx) => tx.tiendaProducto.findMany({ where: { id: { in: ids } }, include: { productoBase: true } }));
+  // La oferta del proveedor que eligió la banda para cada producto (su envío; el costo, al pagarse).
+  const ofertas = await prisma.tiendaOferta.findMany({
+    where: { OR: productos.map((p) => ({ productoBaseId: p.productoBaseId, proveedorId: p.proveedorId })) },
+  });
+  const ofertaDe = (p: { productoBaseId: string; proveedorId: string }) => ofertas.find((o) => o.productoBaseId === p.productoBaseId && o.proveedorId === p.proveedorId);
   const revisadas: LineaRevisada[] = [];
   const problemas: string[] = [];
   for (const l of lineas) {
     const p = productos.find((x) => x.id === l.productoId);
-    if (!p || !p.publicado || (!p.productoBase.proveedorId && !porDefecto)) {
+    const oferta = p && ofertaDe(p);
+    if (!p || !p.publicado || !oferta) {
       problemas.push(p ? `"${p.nombre}" ya no está a la venta: sacalo del carrito para seguir.` : "Un producto del carrito ya no existe: sacalo para seguir.");
       continue;
     }
@@ -111,10 +115,10 @@ export async function revisarCarrito(tenantId: string, lineas: LineaCarrito[]): 
       ...l,
       nombre: p.nombre,
       precio: p.precio,
-      envio: p.productoBase.costoEnvio,
+      envio: oferta.costoEnvio,
       productoBaseId: p.productoBaseId,
       disenoId: p.disenoId,
-      proveedorId: p.productoBase.proveedorId ?? porDefecto?.id ?? "",
+      proveedorId: p.proveedorId,
       foto: p.fotoArchivoId && p.fotoNombre
         ? { id: p.fotoArchivoId, nombre: p.fotoNombre, plataforma: false }
         : p.productoBase.fotoArchivoId && p.productoBase.fotoNombre

@@ -24,8 +24,24 @@ Documento maestro: `docs/documento-maestro.md`. Auditoría: `docs/auditoria-docu
   `leerArchivo` del núcleo).
 - 6.1: las fechas cargadas a mano conviven con los shows de la ticketera (misma fecha y sala: una
   vez, la de la ticketera).
-- Pendiente de decisión: 7.31 (cambiar el diseño de un producto publicado crea una versión nueva):
-  modelo propuesto, sin construir.
+- 7.31: resuelto en B5.
+
+### B · Segundo bloque (fuente de verdad: `docs/decisiones-3.2-respondidas.md`)
+
+- B0 ✅ Archivos del panel con permiso por recurso (`archivo.recurso`, `accesoAlArchivo`: 403 sin
+  el permiso del recurso, 404 si no existe). `tests/archivos-permiso.test.ts`.
+- B1 ✅ Escalera de mora 0/3/15/30/60/90 (MOROSO, MOROSO_GRAVE, SOLO_LECTURA, SUSPENDIDO,
+  ARCHIVADO), plazos en `comercial_config`; pagar restaura todo. Las ventas en curso (entradas y
+  pedidos ya comprados) siguen con la banda cerrada (`conBandaCerrada` en rutas públicas).
+- B2 ✅ Los topes se quedan; el almacenamiento es red de seguridad. Bajar de plan nunca despublica
+  shows (ventas en curso). Medición de uso por banda (`mediciones`, `/admin/bandas/<slug>`).
+- B3 ✅ La banda elige el proveedor: `tienda_oferta` (producto base × proveedor, costo, envío,
+  plazo); fijo con un pedido pagado (se duplica); oferta retirada no se elige en productos nuevos.
+  `tests/tienda-ofertas.test.ts`. Preparado para el directorio de proveedores (cada proveedor con
+  sus ofertas).
+- B4 propuesta, sin construir (pago de la banda al proveedor).
+- B5 ✅ Arte inmutable después de un pedido pagado (`tienda_diseno.reemplazaAId`) + historial.
+- B6 no se construye: informe del modelo usuario/banda (td2), en `docs/decisiones-pendientes.md`.
 
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 

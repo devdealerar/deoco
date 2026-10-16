@@ -4,12 +4,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { conStaffComo } from "@/nucleo/acceso/staff";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
-import { actualizarProductoBase, type ComoStaff, crearProductoBase, crearProveedor, leerOpciones } from "../modulos/tienda/catalogo";
+import { type ComoStaff, crearProductoBase, crearProveedor, guardarOferta, leerOpciones } from "../modulos/tienda/catalogo";
 import {
   actualizarProducto,
   crearProducto,
   duplicarProducto,
   margen,
+  productoDe,
   productosPublicados,
   publicarProducto,
   subirDiseno,
@@ -201,21 +202,19 @@ describe("pruebas 3 y 4: margen", () => {
   it("negativo: se avisa (negativo: true) y se guarda igual", async () => {
     const d = await disenoBueno();
     const p = await crearProducto(e.a.id, remera.id, { disenoId: d.id, nombre: "A pérdida", descripcion: "", precio: 800000, variantes: remera.opciones as never });
-    expect(margen(p.precio, remera)).toMatchObject({ margen: -100000, porcentaje: -12.5, negativo: true });
+    expect(margen(p.precio, (await productoDe(e.a.id, p.id)).oferta)).toMatchObject({ margen: -100000, porcentaje: -12.5, negativo: true });
     const otra = await actualizarProducto(e.a.id, p.id, { disenoId: d.id, nombre: "A pérdida", descripcion: "", precio: 500000, variantes: remera.opciones as never });
     expect(otra.precio).toBe(500000);
   });
 
-  it("el margen usa los costos vigentes del producto base", async () => {
-    await actualizarProductoBase(comoStaff, remera.id, {
-      ...remera,
-      opciones: remera.opciones as never,
-      costoProduccion: 1000000,
-      activo: true,
-    });
-    const vigente = await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: remera.id } });
-    expect(margen(2500000, vigente).margen).toBe(1500000);
-    await actualizarProductoBase(comoStaff, remera.id, { ...remera, opciones: remera.opciones as never, activo: true });
+  it("el margen usa los costos vigentes de la oferta del proveedor elegido", async () => {
+    const d = await disenoBueno();
+    const p = await crearProducto(e.a.id, remera.id, { disenoId: d.id, nombre: "Vigente", descripcion: "", precio: 2500000, variantes: remera.opciones as never });
+    const { costoProduccion, costoEnvio, plazoDias } = (await productoDe(e.a.id, p.id)).oferta;
+    const oferta = { costoProduccion, costoEnvio, plazoDias, activa: true };
+    await guardarOferta(comoStaff, remera.id, p.proveedorId, { ...oferta, costoProduccion: 1000000 });
+    expect(margen(2500000, (await productoDe(e.a.id, p.id)).oferta).margen).toBe(1500000);
+    await guardarOferta(comoStaff, remera.id, p.proveedorId, oferta);
   });
 });
 

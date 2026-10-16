@@ -224,6 +224,11 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   crea una versión (`tienda_diseno.reemplazaAId` → la anterior); sin ventas se pisa como siempre (una
   versión, solo si nadie más la usa). `historialDeArte` y su tarjeta en el producto. La biblioteca
   (`listarDisenos`) no muestra versiones.
+- La banda elige el proveedor (`tienda_oferta`, global: producto base × proveedor con costo de
+  producción, envío y plazo; `guardarOferta`, staff). `tienda_producto.proveedorId` se elige al crear
+  (`ofertasDe`: activas y de proveedores activos; una sola → se toma sola). Con un pedido pagado no
+  se cambia: se duplica. Oferta retirada: no se elige en productos nuevos, los existentes siguen.
+  El renglón copia proveedor y costos de la oferta al pagarse (`fijarCostosDelPedido`).
 
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 

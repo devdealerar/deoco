@@ -22,11 +22,12 @@ afterAll(async () => {
 describe("medición de uso", () => {
   it("productos, shows, entradas, imágenes y archivos de cada banda, sin mezclar bandas", async () => {
     const t = e.a.id;
-    const base = await dueno.tiendaProductoBase.create({ data: { nombre: "Remera", costoProduccion: 1, costoEnvio: 1, impresionFormatos: ["png"], impresionDpi: 300, impresionAnchoPx: 1, impresionAltoPx: 1 } });
+    const prov = await dueno.tiendaProveedor.create({ data: { nombre: "Prov", email: "prov@x.com", formatos: ["png"] } });
+    const base = await dueno.tiendaProductoBase.create({ data: { nombre: "Remera", impresionFormatos: ["png"], impresionDpi: 300, impresionAnchoPx: 1, impresionAltoPx: 1 } });
     const archivo = await guardarArchivo(t, { nombre: "d.png", datos: PNG }, { moduloId: "tienda", recurso: "diseno", tipos: ["png"] });
     const d = await dueno.tiendaDiseno.create({ data: { tenantId: t, nombre: "D", archivoId: archivo.id, archivoNombre: "d.png", formato: "png" } });
     await dueno.tiendaProducto.createMany({
-      data: [true, false, false].map((publicado, i) => ({ tenantId: t, productoBaseId: base.id, disenoId: d.id, nombre: `P${i}`, precio: 1, publicado })),
+      data: [true, false, false].map((publicado, i) => ({ tenantId: t, productoBaseId: base.id, proveedorId: prov.id, disenoId: d.id, nombre: `P${i}`, precio: 1, publicado })),
     });
     const futuro = new Date(Date.now() + 86400_000);
     await dueno.ticketeraEvento.createMany({

@@ -13,8 +13,9 @@ import {
   type DatosProductoBase,
   fijarCostosDelPedido,
   leerOpciones,
+  guardarOferta,
   marcarProveedorPorDefecto,
-  proveedorEfectivo,
+  ofertasDe,
 } from "../modulos/tienda/catalogo";
 import { formatearPesos, leerPesos } from "@/nucleo/dinero";
 import { dueno, escenarioAcceso } from "./apoyo";
@@ -47,6 +48,7 @@ beforeEach(async () => {
   await dueno.tiendaPedido.deleteMany();
   await dueno.tiendaProducto.deleteMany();
   await dueno.tiendaDiseno.deleteMany();
+  await dueno.tiendaOferta.deleteMany();
   await dueno.tiendaProductoBase.deleteMany();
   await dueno.tiendaProveedor.deleteMany();
   await dueno.archivoPlataforma.deleteMany();
@@ -70,12 +72,13 @@ const FAN = {
 
 /** Una banda que vende el producto base: producto + pedido con un renglón. */
 async function venta(tenantId: string, productoBaseId: string) {
+  const { proveedorId } = await dueno.tiendaOferta.findFirstOrThrow({ where: { productoBaseId }, orderBy: { creadoEn: "asc" } });
   return conTenant(tenantId, async (tx) => {
     const diseno = await tx.tiendaDiseno.create({
       data: { tenantId, nombre: "Logo", archivoId: crypto.randomUUID(), archivoNombre: "logo.png", formato: "png", anchoPx: 4200, altoPx: 4800, dpi: 300 },
     });
     const producto = await tx.tiendaProducto.create({
-      data: { tenantId, productoBaseId, disenoId: diseno.id, nombre: "Remera Los Satélites", precio: 2500000, publicado: true },
+      data: { tenantId, productoBaseId, proveedorId, disenoId: diseno.id, nombre: "Remera Los Satélites", precio: 2500000, publicado: true },
     });
     const pedido = await tx.tiendaPedido.create({ data: { tenantId, ...FAN, subtotal: 5000000, envio: 700000, total: 5700000, token: "t".repeat(64) } });
     await tx.tiendaPedidoItem.create({
@@ -93,8 +96,6 @@ describe("prueba 1: el staff carga un proveedor y un producto base (auditado)", 
     const base = await crearProductoBase(comoStaff, remera(), { nombre: "remera.jpg", datos: foto });
     expect(base).toMatchObject({
       nombre: "Remera",
-      costoProduccion: 900000,
-      costoEnvio: 350000,
       costoEnvioPorZona: null,
       impresionFormatos: ["png"],
       activo: true,
@@ -103,6 +104,10 @@ describe("prueba 1: el staff carga un proveedor y un producto base (auditado)", 
         { nombre: "Color", valores: ["Negro", "Blanco"] },
       ],
     });
+    // Los costos son de la primera oferta: la del proveedor de la plataforma, plazo 7 días.
+    expect(await dueno.tiendaOferta.findMany({ where: { productoBaseId: base.id } })).toMatchObject([
+      { proveedorId: p.id, costoProduccion: 900000, costoEnvio: 350000, plazoDias: 7, activa: true },
+    ]);
     expect(await dueno.archivoPlataforma.findUniqueOrThrow({ where: { id: base.fotoArchivoId! } })).toMatchObject({
       moduloId: "tienda",
       variantes: ["web"],
@@ -134,8 +139,8 @@ describe("prueba 1: el staff carga un proveedor y un producto base (auditado)", 
   });
 });
 
-describe("prueba 2: sin proveedor propio, el de la plataforma", () => {
-  it("el asignado si tiene; si no, el por defecto (y sigue al cambiar el por defecto)", async () => {
+describe("prueba 2: la primera oferta, sin proveedor nombrado, es del de la plataforma", () => {
+  it("el nombrado si hay; si no, el por defecto (cambiar el por defecto rige para los productos base nuevos)", async () => {
     const sur = await proveedor("Estampados Sur");
     const vinilos = await proveedor("Prensa de Vinilos", ["pdf"]);
     const remeraBase = await crearProductoBase(comoStaff, remera());
@@ -143,16 +148,19 @@ describe("prueba 2: sin proveedor propio, el de la plataforma", () => {
       comoStaff,
       remera({ nombre: "Vinilo", opciones: [], proveedorId: vinilos.id, impresionFormatos: ["pdf"], impresionAnchoPx: 3600, impresionAltoPx: 3600 }),
     );
-    expect((await proveedorEfectivo(prisma, remeraBase))?.nombre).toBe("Estampados Sur");
-    expect((await proveedorEfectivo(prisma, vinilo))?.nombre).toBe("Prensa de Vinilos");
+    const proveedores = async (id: string) => (await ofertasDe(id)).map((o) => o.proveedor.nombre);
+    expect(await proveedores(remeraBase.id)).toEqual(["Estampados Sur"]);
+    expect(await proveedores(vinilo.id)).toEqual(["Prensa de Vinilos"]);
 
     const norte = await proveedor("Estampados Norte");
     await marcarProveedorPorDefecto(comoStaff, norte.id);
-    expect((await proveedorEfectivo(prisma, remeraBase))?.nombre).toBe("Estampados Norte");
+    expect(await proveedores(remeraBase.id)).toEqual(["Estampados Sur"]);
+    expect(await proveedores((await crearProductoBase(comoStaff, remera({ nombre: "Buzo" }))).id)).toEqual(["Estampados Norte"]);
     expect(await dueno.tiendaProveedor.count({ where: { porDefecto: true } })).toBe(1);
-    // El por defecto no se desactiva; uno con productos asignados, tampoco.
+    // El por defecto no se desactiva; uno con ofertas activas, tampoco.
     await expect(actualizarProveedor(comoStaff, norte.id, { ...norte, activo: false })).rejects.toThrow(/marcá otro por defecto/);
-    await expect(actualizarProveedor(comoStaff, vinilos.id, { ...vinilos, activo: false })).rejects.toThrow(/reasignalos/);
+    await expect(actualizarProveedor(comoStaff, vinilos.id, { ...vinilos, activo: false })).rejects.toThrow(/retiralas/);
+    await guardarOferta(comoStaff, remeraBase.id, sur.id, { costoProduccion: 900000, costoEnvio: 350000, plazoDias: 7, activa: false });
     await actualizarProveedor(comoStaff, sur.id, { ...sur, activo: false });
     await expect(marcarProveedorPorDefecto(comoStaff, sur.id)).rejects.toThrow(/desactivado/);
   });
@@ -184,8 +192,7 @@ describe("prueba 4: cambiar costos no afecta lo ya pagado", () => {
     const { pedido } = await venta(e.a.id, base.id);
     await conTenant(e.a.id, (tx) => fijarCostosDelPedido(tx, pedido.id)); // se pagó
 
-    const norte = await proveedor("Estampados Norte");
-    await actualizarProductoBase(comoStaff, base.id, { ...remera({ costoProduccion: 1200000, costoEnvio: 500000, proveedorId: norte.id }), activo: true });
+    await guardarOferta(comoStaff, base.id, sur.id, { costoProduccion: 1200000, costoEnvio: 500000, plazoDias: 7, activa: true });
 
     const item = await conTenant(e.a.id, (tx) => tx.tiendaPedidoItem.findFirstOrThrow({ where: { pedidoId: pedido.id } }));
     expect(item).toMatchObject({ costoProduccion: 900000, costoEnvio: 350000, proveedorId: sur.id });
@@ -201,9 +208,9 @@ describe("prueba 4: cambiar costos no afecta lo ya pagado", () => {
     expect(await conTenant(e.a.id, (tx) => tx.tiendaPedidoItem.findFirstOrThrow({ where: { pedidoId: otro.pedido.id } }))).toMatchObject({
       costoProduccion: 1200000,
       costoEnvio: 500000,
-      proveedorId: norte.id,
+      proveedorId: sur.id,
     });
-    const audit = await dueno.auditoria.findFirstOrThrow({ where: { accion: "tienda.producto_base_actualizado" } });
+    const audit = await dueno.auditoria.findFirstOrThrow({ where: { accion: "tienda.oferta_guardada" } });
     expect(audit.detalle).toMatchObject({ antes: { costoProduccion: 900000 }, despues: { costoProduccion: 1200000 } });
   });
 });
@@ -214,11 +221,11 @@ describe("prueba 5: proveedores y catálogo son globales", () => {
     await crearProductoBase(comoStaff, remera());
     expect(await conTenant(e.a.id, (tx) => tx.tiendaProductoBase.count())).toBe(1);
     expect(await conTenant(e.b.id, (tx) => tx.tiendaProductoBase.count())).toBe(1);
-    await expect(conTenant(e.a.id, (tx) => tx.tiendaProductoBase.updateMany({ data: { costoProduccion: 1 } }))).resolves.toEqual({ count: 0 });
+    await expect(conTenant(e.a.id, (tx) => tx.tiendaOferta.updateMany({ data: { costoProduccion: 1 } }))).resolves.toEqual({ count: 0 });
     await expect(
       conTenant(e.a.id, (tx) => tx.tiendaProveedor.create({ data: { nombre: "Trucho", email: "t@t.com", formatos: ["png"] } })),
     ).rejects.toThrow(/row-level security/);
-    expect((await dueno.tiendaProductoBase.findFirstOrThrow()).costoProduccion).toBe(900000);
+    expect((await dueno.tiendaOferta.findFirstOrThrow()).costoProduccion).toBe(900000);
   });
 
   it("los productos y pedidos de una banda no se ven desde otra", async () => {

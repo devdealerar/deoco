@@ -6,7 +6,7 @@ import { borrarArchivos, ErrorArchivo, guardarArchivo, leerArchivo, marcarPublic
 import { exigirLimite } from "@/nucleo/cuenta";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
-import { MODULO, type Opcion } from "./catalogo";
+import { MODULO, ofertaDe, ofertasDe, type Opcion } from "./catalogo";
 import { type Especificacion, ErrorImpresion, medidaDeDiseno, medir, problemasDeImpresion } from "./impresion";
 
 export class ErrorTienda extends Error {}
@@ -94,6 +94,11 @@ export function validarVariantes(elegidas: Opcion[], delBase: Opcion[]): Opcion[
 }
 
 export type DatosProducto = {
+  /**
+   * El proveedor que elige la banda: una de las ofertas de ese producto base. Sin él: si el base
+   * tiene una sola oferta, esa; al editar, el que ya tenía.
+   */
+  proveedorId?: string;
   disenoId: string;
   nombre: string;
   descripcion: string;
@@ -131,15 +136,34 @@ async function subirFoto(tenantId: string, foto: ArchivoSubido) {
   });
 }
 
+/**
+ * El proveedor de un producto (documento maestro §7: lo elige la banda). Uno que lo ofrezca hoy
+ * (oferta activa, proveedor activo); o el que ya tenía el producto, aunque lo haya retirado: lo
+ * que ya existe sigue andando.
+ */
+async function proveedorElegido(base: { id: string; nombre: string }, pedido: string | undefined, actual?: string): Promise<string> {
+  if (!pedido && actual) return actual;
+  if (pedido && pedido === actual) return actual;
+  const ofertas = await ofertasDe(base.id);
+  if (!pedido) {
+    if (ofertas.length === 1) return ofertas[0].proveedorId;
+    throw new ErrorTienda(ofertas.length ? "Elegí el proveedor que lo produce." : `Ningún proveedor ofrece ${base.nombre} por ahora.`);
+  }
+  if (ofertas.some((o) => o.proveedorId === pedido)) return pedido;
+  const retirada = await prisma.tiendaOferta.findUnique({ where: { productoBaseId_proveedorId: { productoBaseId: base.id, proveedorId: pedido } }, include: { proveedor: true } });
+  throw new ErrorTienda(retirada ? `${retirada.proveedor.nombre} ya no ofrece ${base.nombre} para productos nuevos: elegí otro proveedor.` : `Ese proveedor no ofrece ${base.nombre}.`);
+}
+
 /** Producto nuevo, en borrador. El producto base tiene que estar activo. */
 export async function crearProducto(tenantId: string, productoBaseId: string, d: DatosProducto, foto?: ArchivoSubido | null) {
   const base = await baseActiva(productoBaseId, { soloActivos: true });
   const datos = await validarProducto(tenantId, base, d);
+  const proveedorId = await proveedorElegido(base, d.proveedorId);
   const f = foto ? await subirFoto(tenantId, foto) : null;
   return conLimpieza(tenantId, f ? [f.id] : [], () =>
     conTenant(tenantId, (tx) =>
       tx.tiendaProducto.create({
-        data: { tenantId, productoBaseId: base.id, ...datos, fotoArchivoId: f?.id, fotoNombre: f?.nombre, publicado: false },
+        data: { tenantId, productoBaseId: base.id, proveedorId, ...datos, fotoArchivoId: f?.id, fotoNombre: f?.nombre, publicado: false },
       }),
     ),
   );
@@ -154,7 +178,12 @@ export async function duplicarProducto(tenantId: string, id: string) {
   const p = await productoDe(tenantId, id);
   const foto = p.fotoArchivoId ? await leerArchivo(tenantId, p.fotoArchivoId, MODULO) : null;
   const nombre = `${p.nombre.slice(0, 80 - " (copia)".length)} (copia)`;
-  return crearProducto(tenantId, p.productoBaseId, { disenoId: p.disenoId, nombre, descripcion: p.descripcion, precio: p.precio, variantes: p.variantes as Opcion[] }, foto);
+  return crearProducto(
+    tenantId,
+    p.productoBaseId,
+    { proveedorId: p.proveedorId, disenoId: p.disenoId, nombre, descripcion: p.descripcion, precio: p.precio, variantes: p.variantes as Opcion[] },
+    foto,
+  );
 }
 
 /** Cambia un producto. El producto base no cambia (aunque se haya desactivado, sigue andando). */
@@ -167,16 +196,21 @@ export async function actualizarProducto(
 ) {
   const actual = await productoDe(tenantId, id);
   const datos = await validarProducto(tenantId, actual.productoBase, d);
+  const proveedorId = await proveedorElegido(actual.productoBase, d.proveedorId, actual.proveedorId);
   const f = foto ? await subirFoto(tenantId, foto) : null;
   return conLimpieza(tenantId, f ? [f.id] : [], () =>
     conTenant(tenantId, async (tx) => {
+      // Con un pedido pagado, el proveedor queda fijo: lo vendido se produce con él.
+      if (proveedorId !== actual.proveedorId && (await tx.tiendaPedidoItem.count({ where: { productoId: id, pedido: VENDIDO } }))) {
+        throw new ErrorTienda("Este producto ya tiene pedidos pagados: no se le puede cambiar el proveedor. Para usar otro, duplicá el producto y elegilo en la copia.");
+      }
       if (datos.disenoId !== actual.disenoId) datos.disenoId = await arteNuevo(tx, actual, datos.disenoId);
       const cambiaFoto = f || quitarFoto;
       if (cambiaFoto && actual.fotoArchivoId) await borrarArchivos(tx, tenantId, [actual.fotoArchivoId]);
       if (f && actual.publicado) await marcarPublicos(tx, [f.id], true);
       return tx.tiendaProducto.update({
         where: { id },
-        data: { ...datos, ...(cambiaFoto ? { fotoArchivoId: f?.id ?? null, fotoNombre: f?.nombre ?? null } : {}) },
+        data: { ...datos, proveedorId, ...(cambiaFoto ? { fotoArchivoId: f?.id ?? null, fotoNombre: f?.nombre ?? null } : {}) },
       });
     }),
   );
@@ -279,13 +313,33 @@ export async function productoDe(tenantId: string, id: string) {
   if (!UUID.test(id)) throw new ErrorTienda("Ese producto no existe.");
   const p = await conTenant(tenantId, (tx) => tx.tiendaProducto.findUnique({ where: { id }, include: { productoBase: true, diseno: true } }));
   if (!p) throw new ErrorTienda("Ese producto no existe.");
-  return p;
+  // La oferta del proveedor que eligió (aunque la haya retirado: con esa se vende).
+  const oferta = await ofertaDe(prisma, p.productoBaseId, p.proveedorId);
+  if (!oferta) throw new ErrorTienda("El proveedor de este producto ya no tiene oferta para ese producto base.");
+  return { ...p, oferta };
 }
 
-export const listarProductos = (tenantId: string) =>
-  conTenant(tenantId, (tx) =>
-    tx.tiendaProducto.findMany({ orderBy: [{ publicado: "desc" }, { nombre: "asc" }], include: { productoBase: true } }),
+/** A cada producto, la oferta del proveedor que eligió (su costo y su envío de hoy). */
+export async function conOferta<T extends { productoBaseId: string; proveedorId: string }>(productos: T[]) {
+  const ofertas = productos.length
+    ? await prisma.tiendaOferta.findMany({ where: { OR: productos.map((p) => ({ productoBaseId: p.productoBaseId, proveedorId: p.proveedorId })) }, include: { proveedor: true } })
+    : [];
+  return productos.flatMap((p) => {
+    const oferta = ofertas.find((o) => o.productoBaseId === p.productoBaseId && o.proveedorId === p.proveedorId);
+    return oferta ? [{ ...p, oferta }] : [];
+  });
+}
+
+export const listarProductos = async (tenantId: string) =>
+  conOferta(
+    await conTenant(tenantId, (tx) =>
+      tx.tiendaProducto.findMany({ orderBy: [{ publicado: "desc" }, { nombre: "asc" }], include: { productoBase: true } }),
+    ),
   );
+
+/** ¿Tiene pedidos pagados? Entonces su proveedor y su arte vendido quedan fijos. */
+export const tieneVentas = async (tenantId: string, productoId: string) =>
+  (await conTenant(tenantId, (tx) => tx.tiendaPedidoItem.count({ where: { productoId, pedido: VENDIDO } }))) > 0;
 
 /** Lo que muestra la tienda pública: solo publicados. */
 export const productosPublicados = (tenantId: string) =>

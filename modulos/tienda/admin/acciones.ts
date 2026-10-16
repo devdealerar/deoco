@@ -10,6 +10,7 @@ import {
   actualizarProveedor,
   borrarProductoBase,
   crearProductoBase,
+  guardarOferta,
   crearProveedor,
   type DatosProductoBase,
   ErrorCatalogo,
@@ -53,14 +54,19 @@ async function foto(fd: FormData) {
   return f ? { nombre: f.name, datos: Buffer.from(await f.arrayBuffer()) } : null;
 }
 
-function datosProductoBase(fd: FormData): DatosProductoBase {
+function datosProductoBase(fd: FormData, conOferta: boolean): DatosProductoBase {
   return {
     nombre: obligatorio(fd, "nombre", "el nombre", 80),
     descripcion: texto(fd, "descripcion", 1000),
     opciones: leerOpciones(texto(fd, "opciones", 1000)),
-    costoProduccion: pesos(fd, "costoProduccion", "Costo de producción"),
-    costoEnvio: pesos(fd, "costoEnvio", "Costo de envío"),
-    proveedorId: texto(fd, "proveedorId", 40) || null,
+    ...(conOferta
+      ? {
+          costoProduccion: pesos(fd, "costoProduccion", "Costo de producción"),
+          costoEnvio: pesos(fd, "costoEnvio", "Costo de envío"),
+          proveedorId: texto(fd, "proveedorId", 40) || null,
+          plazoDias: entero(fd, "plazoDias", "Plazo"),
+        }
+      : {}),
     impresionAnchoPx: entero(fd, "impresionAnchoPx", "Ancho en píxeles"),
     impresionAltoPx: entero(fd, "impresionAltoPx", "Alto en píxeles"),
     impresionDpi: entero(fd, "impresionDpi", "Resolución (dpi)"),
@@ -70,15 +76,29 @@ function datosProductoBase(fd: FormData): DatosProductoBase {
 
 export async function crearProductoBaseAccion(_: EstadoFormulario, fd: FormData) {
   return accion(async () => {
-    const p = await crearProductoBase(conStaff, datosProductoBase(fd), await foto(fd));
+    const p = await crearProductoBase(conStaff, datosProductoBase(fd, true), await foto(fd));
     return `"${p.nombre}" agregado al catálogo.`;
   });
 }
 
 export async function actualizarProductoBaseAccion(id: string, _: EstadoFormulario, fd: FormData) {
   return accion(async () => {
-    await actualizarProductoBase(conStaff, id, { ...datosProductoBase(fd), activo: fd.get("activo") === "on" }, await foto(fd));
-    return "Guardado. Lo ya vendido conserva sus costos.";
+    await actualizarProductoBase(conStaff, id, { ...datosProductoBase(fd, false), activo: fd.get("activo") === "on" }, await foto(fd));
+    return "Guardado.";
+  });
+}
+
+/** Carga o cambia lo que un proveedor ofrece de este producto base (o la retira). */
+export async function guardarOfertaAccion(productoBaseId: string, proveedorFijo: string | null, _: EstadoFormulario, fd: FormData) {
+  return accion(async () => {
+    const proveedorId = proveedorFijo ?? obligatorio(fd, "proveedorId", "el proveedor", 40);
+    await guardarOferta(conStaff, productoBaseId, proveedorId, {
+      costoProduccion: pesos(fd, "costoProduccion", "Costo de producción"),
+      costoEnvio: pesos(fd, "costoEnvio", "Costo de envío"),
+      plazoDias: entero(fd, "plazoDias", "Plazo"),
+      activa: proveedorFijo ? fd.get("activa") === "on" : true,
+    });
+    return "Oferta guardada. Lo ya cobrado conserva sus costos; el costo nuevo rige para lo que se pague desde ahora.";
   });
 }
 

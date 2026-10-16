@@ -93,9 +93,10 @@ describe("la migración deduce el recurso de los archivos que ya existían", () 
     const [diseno, fotoProducto, logo, fondo, rider, slide, descargable, fotoShow, huerfano] = ids;
     await dueno.archivo.updateMany({ data: { recurso: null } });
     const t = e.a.id;
-    const base = await dueno.tiendaProductoBase.create({ data: { nombre: "Remera", costoProduccion: 1, costoEnvio: 1, impresionFormatos: ["png"], impresionDpi: 300, impresionAnchoPx: 1, impresionAltoPx: 1 } });
+    const prov = await dueno.tiendaProveedor.create({ data: { nombre: "Prov", email: "prov@x.com", formatos: ["png"] } });
+    const base = await dueno.tiendaProductoBase.create({ data: { nombre: "Remera", impresionFormatos: ["png"], impresionDpi: 300, impresionAnchoPx: 1, impresionAltoPx: 1 } });
     const d = await dueno.tiendaDiseno.create({ data: { tenantId: t, nombre: "D", archivoId: diseno, archivoNombre: "x.png", formato: "png" } });
-    await dueno.tiendaProducto.create({ data: { tenantId: t, productoBaseId: base.id, disenoId: d.id, nombre: "P", precio: 1, fotoArchivoId: fotoProducto } });
+    await dueno.tiendaProducto.create({ data: { tenantId: t, productoBaseId: base.id, proveedorId: prov.id, disenoId: d.id, nombre: "P", precio: 1, fotoArchivoId: fotoProducto } });
     await dueno.sitioPerfil.create({ data: { tenantId: t, logoArchivoId: logo, fondoArchivoId: fondo, riderArchivoId: rider } });
     await dueno.sitioSlide.create({ data: { tenantId: t, archivoId: slide, orden: 0 } });
     await dueno.sitioDescargable.create({ data: { tenantId: t, archivoId: descargable, tipo: "FOTO", orden: 0 } });

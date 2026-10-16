@@ -113,7 +113,7 @@ const tienda: Modulo = {
   ],
   // Bloque "Tienda" del inicio del panel.
   consultas: [{ nombre: "inicio", responder: inicioTienda }],
-  tablasGlobales: ["tienda_proveedor", "tienda_producto_base"],
+  tablasGlobales: ["tienda_proveedor", "tienda_producto_base", "tienda_oferta"],
 };
 
 export default tienda;

@@ -24,7 +24,7 @@ export async function AdminCatalogo(_: PropsRutaAdmin) {
         columnas={[
           { id: "producto", etiqueta: "Producto" },
           { id: "costos", etiqueta: "Producción · envío" },
-          { id: "proveedor", etiqueta: "Proveedor" },
+          { id: "proveedor", etiqueta: "Proveedores" },
           { id: "impresion", etiqueta: "Impresión" },
           { id: "estado", etiqueta: "" },
         ]}
@@ -39,10 +39,10 @@ export async function AdminCatalogo(_: PropsRutaAdmin) {
               <span className="font-medium text-primary">{p.nombre}</span>
             </Link>,
             <span key="c">
-              {formatearPesos(p.costoProduccion)} · {formatearPesos(p.costoEnvio)}
+              {p.ofertas.length ? `desde ${formatearPesos(p.ofertas[0].costoProduccion)} · ${formatearPesos(p.ofertas[0].costoEnvio)}` : "—"}
             </span>,
             <span key="v" data-proveedor>
-              {p.proveedor ? p.proveedor.nombre : `${porDefecto?.nombre ?? "—"} (por defecto)`}
+              {p.ofertas.filter((o) => o.activa).map((o) => o.proveedor.nombre).join(", ") || "ninguno: no se puede elegir"}
             </span>,
             <span key="i" className="text-sm text-tertiary">
               {p.impresionAnchoPx}×{p.impresionAltoPx} px · {p.impresionDpi} dpi · {p.impresionFormatos.join(", ").toUpperCase()}
@@ -51,9 +51,9 @@ export async function AdminCatalogo(_: PropsRutaAdmin) {
           ],
         }))}
       />
-      <Tarjeta titulo="Nuevo producto base" descripcion="Los costos valen para los pedidos que se paguen desde ahora.">
+      <Tarjeta titulo="Nuevo producto base" descripcion="Con la primera oferta (sin proveedor, la del de la plataforma); las demás, en la ficha. Los costos valen para los pedidos que se paguen desde ahora.">
         <Formulario accion={crearProductoBaseAccion} puedeEditar etiqueta="Agregar al catálogo" limpiarAlGuardar>
-          <CamposProductoBase proveedores={proveedores} porDefecto={porDefecto?.nombre ?? null} />
+          <CamposProductoBase proveedores={proveedores} porDefecto={porDefecto?.nombre ?? null} conOferta />
         </Formulario>
       </Tarjeta>
     </div>

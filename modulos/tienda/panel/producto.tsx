@@ -9,21 +9,57 @@ import type { Opcion } from "../catalogo";
 import { formatearPesos, pesosParaCampo } from "@/nucleo/dinero";
 import { FECHA_CORTA } from "@/nucleo/fechas";
 import { describirEspecificacion, medidaDeDiseno, problemasDeImpresion } from "../impresion";
-import { ErrorTienda, historialDeArte, listarDisenos, margen, productoDe } from "../productos";
+import { ofertasDe } from "../catalogo";
+import { ErrorTienda, historialDeArte, listarDisenos, margen, productoDe, tieneVentas } from "../productos";
 import { actualizarProductoAccion, crearProductoAccion, duplicarProductoAccion, publicarAccion } from "./acciones";
 import { Encabezado, PanelMargen, puedeEditar as puedeEditarEn } from "./comun";
 
 type Base = Awaited<ReturnType<typeof prisma.tiendaProductoBase.findMany>>[number];
 type Producto = Awaited<ReturnType<typeof productoDe>>;
 
-/** Campos del producto: diseño, nombre, descripción, precio, variantes ofrecidas, foto. */
-async function Campos({ tenantId, base, producto }: { tenantId: string; base: Base; producto?: Producto }) {
+type Ofertas = Awaited<ReturnType<typeof ofertasDe>>;
+const textoOferta = (o: { proveedor: { nombre: string }; costoProduccion: number; costoEnvio: number; plazoDias: number }) =>
+  `${o.proveedor.nombre} · producción ${formatearPesos(o.costoProduccion)} · envío ${formatearPesos(o.costoEnvio)} · ${o.plazoDias} días`;
+
+/**
+ * Quién lo produce (documento maestro §7: lo elige la banda). Con pedidos pagados queda fijo: para
+ * cambiarlo se duplica el producto.
+ */
+function Proveedor({ ofertas, producto, vendido }: { ofertas: Ofertas; producto?: Producto; vendido: boolean }) {
+  if (producto && vendido) {
+    return (
+      <div className="flex flex-col gap-1" data-proveedor-fijo>
+        <input type="hidden" name="proveedorId" value={producto.proveedorId} />
+        <span className="text-sm font-medium text-secondary">Proveedor</span>
+        <span className="text-md text-primary">{textoOferta(producto.oferta)}</span>
+        <span className="text-sm text-tertiary">Tiene pedidos pagados: el proveedor queda fijo. Para usar otro, duplicá el producto y elegilo en la copia.</span>
+      </div>
+    );
+  }
+  const opciones = ofertas.map((o) => ({ valor: o.proveedorId, texto: textoOferta(o) }));
+  if (producto && !ofertas.some((o) => o.proveedorId === producto.proveedorId)) {
+    opciones.unshift({ valor: producto.proveedorId, texto: `${textoOferta(producto.oferta)} (ya no lo ofrece para productos nuevos)` });
+  }
+  return (
+    <Selector
+      name="proveedorId"
+      etiqueta="Proveedor"
+      defaultValue={producto?.proveedorId ?? (ofertas.length === 1 ? ofertas[0].proveedorId : "")}
+      opciones={[...(producto || ofertas.length === 1 ? [] : [{ valor: "", texto: "— elegí el proveedor —" }]), ...opciones]}
+    />
+  );
+}
+
+/** Campos del producto: proveedor, diseño, nombre, descripción, precio, variantes ofrecidas, foto. */
+async function Campos({ tenantId, base, producto, vendido = false }: { tenantId: string; base: Base; producto?: Producto; vendido?: boolean }) {
+  const ofertas = await ofertasDe(base.id);
   const disenos = (await listarDisenos(tenantId)).filter((d) => problemasDeImpresion(medidaDeDiseno(d), base).length === 0 || d.id === producto?.disenoId);
   // El arte actual puede ser una versión de este producto (no está en la biblioteca): va primero.
   if (producto && !disenos.some((d) => d.id === producto.disenoId)) disenos.unshift({ ...producto.diseno, nombre: `${producto.diseno.nombre} (el actual)` });
   const ofrecidas = (producto?.variantes ?? null) as Opcion[] | null;
   return (
     <div className="flex flex-col gap-4">
+      <Proveedor ofertas={ofertas} producto={producto} vendido={vendido} />
       <Selector
         name="disenoId"
         etiqueta="Diseño"
@@ -72,7 +108,12 @@ function Foto({ slug, base, producto }: { slug: string; base: Base; producto?: P
 /** Panel · Nuevo producto: primero el producto base, después el resto. */
 export async function NuevoProducto({ tenantId, slug, consulta }: PropsRutaPanel) {
   const puedeEditar = await puedeEditarEn(slug);
-  const bases = await prisma.tiendaProductoBase.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } });
+  // Solo los que algún proveedor ofrece hoy.
+  const bases = await prisma.tiendaProductoBase.findMany({
+    where: { activo: true, ofertas: { some: { activa: true, proveedor: { activo: true } } } },
+    orderBy: { nombre: "asc" },
+    include: { ofertas: { where: { activa: true, proveedor: { activo: true } }, select: { costoProduccion: true } } },
+  });
   const base = bases.find((b) => b.id === consulta.get("base"));
   return (
     <div className="flex flex-col gap-6">
@@ -86,8 +127,9 @@ export async function NuevoProducto({ tenantId, slug, consulta }: PropsRutaPanel
                   <Foto slug={slug} base={b} />
                   <div className="text-sm">
                     <div className="text-md font-semibold text-primary">{b.nombre}</div>
-                    <div className="text-tertiary">
-                      Producción {formatearPesos(b.costoProduccion)} · envío {formatearPesos(b.costoEnvio)}
+                    <div className="text-tertiary" data-ofertas={b.ofertas.length}>
+                      {b.ofertas.length === 1 ? "1 proveedor" : `${b.ofertas.length} proveedores`} · producción desde{" "}
+                      {formatearPesos(Math.min(...b.ofertas.map((o) => o.costoProduccion)))}
                     </div>
                     <div className="mt-1 text-tertiary">{describirEspecificacion(b)}</div>
                   </div>
@@ -97,7 +139,7 @@ export async function NuevoProducto({ tenantId, slug, consulta }: PropsRutaPanel
           </ul>
         </Tarjeta>
       ) : (
-        <Tarjeta titulo={`Nuevo producto · ${base.nombre}`} descripcion={`Archivo de impresión: ${describirEspecificacion(base)}. Producción ${formatearPesos(base.costoProduccion)}: tu margen es el precio menos eso. El envío (${formatearPesos(base.costoEnvio)}) lo paga el fan aparte.`}>
+        <Tarjeta titulo={`Nuevo producto · ${base.nombre}`} descripcion={`Archivo de impresión: ${describirEspecificacion(base)}. Elegí quién lo produce: tu margen es el precio menos su costo de producción, y el envío lo paga el fan aparte.`}>
           <Formulario accion={crearProductoAccion.bind(null, slug, base.id)} puedeEditar={puedeEditar} etiqueta="Crear (queda en borrador)">
             <Campos tenantId={tenantId} base={base} />
           </Formulario>
@@ -148,11 +190,11 @@ export async function EditarProducto({ tenantId, slug, params, consulta }: Props
           </div>
         </div>
       </div>
-      <PanelMargen m={margen(producto.precio, base)} envio={base.costoEnvio} />
+      <PanelMargen m={margen(producto.precio, producto.oferta)} envio={producto.oferta.costoEnvio} />
       <HistorialArte tenantId={tenantId} productoId={producto.id} />
       <Tarjeta titulo="Datos" descripcion={`${base.nombre} · archivo de impresión: ${describirEspecificacion(base)}`}>
         <Formulario accion={actualizarProductoAccion.bind(null, slug, producto.id)} puedeEditar={puedeEditar}>
-          <Campos tenantId={tenantId} base={base} producto={producto} />
+          <Campos tenantId={tenantId} base={base} producto={producto} vendido={await tieneVentas(tenantId, producto.id)} />
         </Formulario>
       </Tarjeta>
     </div>

@@ -13,6 +13,7 @@ beforeAll(async () => {
   await dueno.tiendaPedido.deleteMany();
   await dueno.tiendaProducto.deleteMany();
   await dueno.tiendaDiseno.deleteMany();
+  await dueno.tiendaOferta.deleteMany();
   await dueno.tiendaProductoBase.deleteMany();
   await dueno.tiendaProveedor.deleteMany();
   await abrirNavegador();
@@ -65,7 +66,7 @@ describe("back office de la tienda: proveedores y catálogo base", () => {
     const fila = page.locator('[data-producto-base="Remera"]').locator("xpath=ancestor::tr");
     const texto = (await fila.textContent())!.replace(/\s/g, " ");
     expect(texto).toContain("$ 9.000 · $ 3.500");
-    expect(texto).toContain("Estampados Sur (por defecto)");
+    expect(texto).toContain("Estampados Sur");
     expect(texto).toContain("4200×4800 px · 300 dpi · PNG");
     // La foto es un archivo de la plataforma, servido como imagen liviana.
     const src = (await fila.locator("img").getAttribute("src"))!;
@@ -79,11 +80,12 @@ describe("back office de la tienda: proveedores y catálogo base", () => {
 
   it("en uso no se borra (el mensaje lo dice) y se desactiva; el costo nuevo queda guardado", async () => {
     const base = await dueno.tiendaProductoBase.findFirstOrThrow({ where: { nombre: "Remera" } });
+    const oferta = await dueno.tiendaOferta.findFirstOrThrow({ where: { productoBaseId: base.id } });
     await conTenant(e.a.id, async (tx) => {
       const diseno = await tx.tiendaDiseno.create({
         data: { tenantId: e.a.id, nombre: "Logo", archivoId: crypto.randomUUID(), archivoNombre: "logo.png", formato: "png", anchoPx: 4200, altoPx: 4800, dpi: 300 },
       });
-      await tx.tiendaProducto.create({ data: { tenantId: e.a.id, productoBaseId: base.id, disenoId: diseno.id, nombre: "Remera A", precio: 2500000 } });
+      await tx.tiendaProducto.create({ data: { tenantId: e.a.id, productoBaseId: base.id, proveedorId: oferta.proveedorId, disenoId: diseno.id, nombre: "Remera A", precio: 2500000 } });
     });
     const { page } = await logueado("staff@deocoartist.com");
     await page.goto(`${APP}/admin/m/tienda`);
@@ -96,15 +98,18 @@ describe("back office de la tienda: proveedores y catálogo base", () => {
     await borrar.getByRole("button", { name: "Borrar" }).click();
     expect(await borrar.getByRole("alert").textContent()).toMatch(/^Hay bandas que lo usan: no se puede borrar\. Desactivalo/);
 
+    // El costo es de la oferta de cada proveedor.
+    const deSur = await formulario(page, "Estampados Sur");
+    await deSur.locator('input[name="costoProduccion"]').fill("12000");
+    await deSur.getByRole("button", { name: "Guardar oferta" }).click();
+    expect(await deSur.getByRole("status").textContent()).toMatch(/^Oferta guardada\. Lo ya cobrado conserva sus costos/);
+    expect(await dueno.tiendaOferta.findUniqueOrThrow({ where: { id: oferta.id } })).toMatchObject({ costoProduccion: 1200000, activa: true });
+
     const datos = await formulario(page, "Datos");
-    await datos.locator('input[name="costoProduccion"]').fill("12000");
     await datos.getByText("Activo (se puede usar en productos nuevos)").click(); // destildar
     await datos.getByRole("button", { name: "Guardar" }).click();
-    expect(await datos.getByRole("status").textContent()).toBe("Guardado. Lo ya vendido conserva sus costos.");
-    expect(await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: base.id } })).toMatchObject({
-      costoProduccion: 1200000,
-      activo: false,
-    });
+    expect(await datos.getByRole("status").textContent()).toBe("Guardado.");
+    expect(await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: base.id } })).toMatchObject({ activo: false });
   });
 
   it("nadie más entra: una banda (aun titular) recibe 404", async () => {

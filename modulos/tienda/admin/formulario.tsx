@@ -1,14 +1,10 @@
 import { AreaTexto, Campo, CampoArchivo, Casilla, Selector } from "@/ui";
 import { opcionesComoTexto, type Opcion } from "../catalogo";
-import { pesosParaCampo } from "@/nucleo/dinero";
 
 type Base = {
   nombre: string;
   descripcion: string;
   opciones: unknown;
-  costoProduccion: number;
-  costoEnvio: number;
-  proveedorId: string | null;
   impresionAnchoPx: number;
   impresionAltoPx: number;
   impresionDpi: number;
@@ -16,15 +12,17 @@ type Base = {
   activo: boolean;
 };
 
-/** Campos de un producto base (alta y edición). */
+/** Campos de un producto base (alta y edición). En el alta (`conOferta`), también la primera oferta. */
 export function CamposProductoBase({
   base,
   proveedores,
   porDefecto,
+  conOferta = false,
 }: {
   base?: Base;
   proveedores: { id: string; nombre: string; activo: boolean }[];
   porDefecto: string | null;
+  conOferta?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -40,32 +38,22 @@ export function CamposProductoBase({
         defaultValue={base ? opcionesComoTexto(base.opciones as Opcion[]) : undefined}
         ayuda='Una por línea: "Talle: S, M, L, XL" · "Color: Negro, Blanco". Vacío si no tiene.'
       />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Campo
-          name="costoProduccion"
-          etiqueta="Costo de producción ($)"
-          placeholder="9000"
-          defaultValue={base ? pesosParaCampo(base.costoProduccion) : undefined}
-          required
-        />
-        <Campo
-          name="costoEnvio"
-          etiqueta="Costo de envío ($)"
-          placeholder="3500"
-          defaultValue={base ? pesosParaCampo(base.costoEnvio) : undefined}
-          ayuda="Fijo, a todo el país."
-          required
-        />
-        <Selector
-          name="proveedorId"
-          etiqueta="Proveedor"
-          defaultValue={base?.proveedorId ?? ""}
-          opciones={[
-            { valor: "", texto: porDefecto ? `El de la plataforma (${porDefecto})` : "El de la plataforma (no hay)" },
-            ...proveedores.filter((p) => p.activo || p.id === base?.proveedorId).map((p) => ({ valor: p.id, texto: p.nombre })),
-          ]}
-        />
-      </div>
+      {conOferta && (
+        <div className="grid gap-4 sm:grid-cols-4">
+          <Selector
+            name="proveedorId"
+            etiqueta="Proveedor (primera oferta)"
+            defaultValue=""
+            opciones={[
+              { valor: "", texto: porDefecto ? `El de la plataforma (${porDefecto})` : "El de la plataforma (no hay)" },
+              ...proveedores.filter((p) => p.activo).map((p) => ({ valor: p.id, texto: p.nombre })),
+            ]}
+          />
+          <Campo name="costoProduccion" etiqueta="Costo de producción ($)" placeholder="9000" required />
+          <Campo name="costoEnvio" etiqueta="Costo de envío ($)" placeholder="3500" ayuda="Fijo, a todo el país." required />
+          <Campo name="plazoDias" etiqueta="Plazo (días)" defaultValue="7" required />
+        </div>
+      )}
       <fieldset className="flex flex-col gap-3 rounded-lg p-4 ring-1 ring-secondary">
         <legend className="px-1 text-sm font-semibold text-secondary">Archivo de impresión que sube la banda</legend>
         <div className="grid gap-4 sm:grid-cols-3">

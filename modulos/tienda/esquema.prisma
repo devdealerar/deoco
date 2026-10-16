@@ -16,11 +16,13 @@ model TiendaProveedor {
   /// Formatos de impresión que acepta: "png" (alta resolución) y/o "pdf". SVG no.
   formatos   String[]
   activo     Boolean  @default(true)
-  /// El de la plataforma: lo usa todo producto base sin proveedor propio. Uno solo (índice parcial).
+  /// El de la plataforma: el de la primera oferta de un producto base cuando el staff no nombra
+  /// otro. Uno solo (índice parcial).
   porDefecto Boolean  @default(false)
   creadoEn   DateTime @default(now())
 
-  productosBase TiendaProductoBase[]
+  ofertas       TiendaOferta[]
+  productos     TiendaProducto[]
   deudas        TiendaDeuda[]
   ordenes       TiendaOrden[]
 
@@ -38,15 +40,8 @@ model TiendaProductoBase {
   fotoNombre          String?
   /// Variantes: [{ "nombre": "Talle", "valores": ["S", "M"] }, { "nombre": "Color", "valores": [...] }]
   opciones            Json     @default("[]")
-  /// Lo que cobra el proveedor por producir uno. Vale el vigente al pagarse cada pedido.
-  costoProduccion     Int
-  /// Envío, fijo por producto. Vale el vigente al pagarse cada pedido.
-  costoEnvio          Int
   /// Preparado para envío por zonas (sin uso todavía): { "<zona>": centavos }.
   costoEnvioPorZona   Json?
-  /// Si es null, el proveedor por defecto de la plataforma.
-  proveedorId         String?  @db.Uuid
-  proveedor           TiendaProveedor? @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
   /// Archivo de impresión que tiene que subir la banda.
   impresionAnchoPx    Int
   impresionAltoPx     Int
@@ -59,8 +54,35 @@ model TiendaProductoBase {
 
   productos TiendaProducto[]
   items     TiendaPedidoItem[]
+  ofertas   TiendaOferta[]
 
   @@map("tienda_producto_base")
+}
+
+/// @global
+/// Lo que un proveedor ofrece de un producto base: su precio, su envío y su plazo. Un producto base
+/// tiene varias; la banda elige una al crear su producto. Retirada (`activa` false): no se elige en
+/// productos nuevos; los que ya la usan siguen andando con estos números. Lo vendido guarda su copia.
+/// (Prepara el directorio de proveedores: ofertas, cobertura y reseñas cuelgan de acá.)
+model TiendaOferta {
+  id              String   @id @default(uuid()) @db.Uuid
+  productoBaseId  String   @db.Uuid
+  productoBase    TiendaProductoBase @relation(fields: [productoBaseId], references: [id], onDelete: Cascade)
+  proveedorId     String   @db.Uuid
+  proveedor       TiendaProveedor @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
+  /// Lo que cobra el proveedor por producir uno. Vale el vigente al pagarse cada pedido.
+  costoProduccion Int
+  /// Envío, fijo por producto. Vale el vigente al pagarse cada pedido.
+  costoEnvio      Int
+  /// Días de producción hasta despachar.
+  plazoDias       Int      @default(7)
+  activa          Boolean  @default(true)
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @default(now()) @updatedAt
+
+  @@unique([productoBaseId, proveedorId])
+  @@index([proveedorId])
+  @@map("tienda_oferta")
 }
 
 /// Archivo de impresión de la banda (PNG de alta o PDF). Un diseño sirve para varios productos.
@@ -104,6 +126,10 @@ model TiendaProducto {
   tenantId       String   @db.Uuid
   productoBaseId String   @db.Uuid
   productoBase   TiendaProductoBase @relation(fields: [productoBaseId], references: [id], onDelete: Restrict)
+  /// El proveedor que eligió la banda (una oferta de ese producto base). Fijo desde el primer
+  /// pedido pagado: para cambiarlo se duplica el producto.
+  proveedorId    String   @db.Uuid
+  proveedor      TiendaProveedor @relation(fields: [proveedorId], references: [id], onDelete: Restrict)
   disenoId       String   @db.Uuid
   /// Clave foránea compuesta (banda, diseño): la base no deja usar un diseño de otra banda.
   diseno         TiendaDiseno @relation(fields: [tenantId, disenoId], references: [tenantId, id], onDelete: Restrict)

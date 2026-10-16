@@ -58,7 +58,7 @@ export async function ResumenTienda({ tenantId, slug, acceso }: PropsRutaPanel) 
           { id: "estado", etiqueta: "" },
         ]}
         filas={productos.map((p) => {
-          const m = margen(p.precio, p.productoBase);
+          const m = margen(p.precio, p.oferta);
           return {
             id: p.id,
             celdas: [

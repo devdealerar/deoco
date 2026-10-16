@@ -57,6 +57,7 @@ function datosProducto(fd: FormData, delBase: Opcion[]): DatosProducto {
     descripcion: texto(fd, "descripcion", 1000),
     precio,
     variantes: variantesElegidas(fd, delBase),
+    proveedorId: texto(fd, "proveedorId", 40) || undefined,
   };
 }
 
@@ -92,7 +93,7 @@ export async function actualizarProductoAccion(slug: string, id: string, _: Esta
     const actual = await productoDe(tenantId, id);
     const datos = datosProducto(fd, actual.productoBase.opciones as Opcion[]);
     await actualizarProducto(tenantId, id, datos, await subido(fd, "foto"), fd.get("quitarFoto") === "on");
-    return `Guardado.${avisoMargen(datos.precio, actual.productoBase)}`;
+    return `Guardado.${avisoMargen(datos.precio, (await productoDe(tenantId, id)).oferta)}`;
   });
 }
 

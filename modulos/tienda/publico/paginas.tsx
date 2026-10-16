@@ -13,7 +13,7 @@ import { formatearPesos } from "@/nucleo/dinero";
 import tienda from "../index";
 import { pasarelaLista } from "@/nucleo/pagos";
 import { describirVariante } from "../comun";
-import { productosPublicados } from "../productos";
+import { conOferta, productosPublicados } from "../productos";
 import { Agregar } from "./agregar";
 import { Carrito } from "./carrito";
 import { Checkout } from "./checkout";
@@ -81,7 +81,8 @@ export async function CatalogoPublico({ tenantId }: PropsRutaPublica) {
 /** Una lectura por pedido (la piden los metadatos y la ficha). Solo lectura pública. */
 const publicado = cache(async (tenantId: string, id: string) => {
   if (!UUID.test(id)) return null;
-  return conTenant(tenantId, (tx) => tx.tiendaProducto.findFirst({ where: { id, publicado: true }, include: { productoBase: true } }));
+  const p = await conTenant(tenantId, (tx) => tx.tiendaProducto.findFirst({ where: { id, publicado: true }, include: { productoBase: true } }));
+  return p ? ((await conOferta([p]))[0] ?? null) : null;
 });
 
 /** /tienda/<id>: ficha. Borrador o de otra banda: no existe. */
@@ -110,7 +111,7 @@ export async function FichaProducto({ tenantId, params }: PropsRutaPublica) {
         </Link>
         <h1 className="text-3xl font-black tracking-tight">{p.nombre}</h1>
         <div className="text-2xl font-bold tabular-nums" data-precio>
-          {formatearPesos(p.precio)} <span className={`text-sm font-normal ${c.suave}`}>+ envío {formatearPesos(p.productoBase.costoEnvio)}</span>
+          {formatearPesos(p.precio)} <span className={`text-sm font-normal ${c.suave}`}>+ envío {formatearPesos(p.oferta.costoEnvio)}</span>
         </div>
         {p.descripcion && <p className={`whitespace-pre-line ${c.suave}`}>{p.descripcion}</p>}
         {!lista && <NoDisponible />}
