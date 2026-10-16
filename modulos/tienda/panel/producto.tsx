@@ -4,14 +4,14 @@ import { urlArchivo } from "@/nucleo/archivos";
 import { urlArchivoPlataforma } from "@/nucleo/archivos/plataforma";
 import { prisma } from "@/nucleo/db/cliente";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
-import { AreaTexto, Campo, CampoArchivo, Casilla, Formulario, Insignia, Selector, Tarjeta } from "@/ui";
+import { AreaTexto, Aviso, Campo, CampoArchivo, Casilla, Formulario, Insignia, Selector, Tarjeta } from "@/ui";
 import type { Opcion } from "../catalogo";
 import { formatearPesos, pesosParaCampo } from "@/nucleo/dinero";
 import { FECHA_CORTA } from "@/nucleo/fechas";
 import { describirEspecificacion, medidaDeDiseno, problemasDeImpresion } from "../impresion";
 import { ofertasDe } from "../catalogo";
-import { ErrorTienda, historialDeArte, listarDisenos, margen, productoDe, tieneVentas } from "../productos";
-import { actualizarProductoAccion, crearProductoAccion, duplicarProductoAccion, publicarAccion } from "./acciones";
+import { ErrorTienda, historialDeArte, listarDisenos, margen, motivoSinOferta, otrosProveedores, productoDe, tieneVentas } from "../productos";
+import { actualizarProductoAccion, crearProductoAccion, duplicarProductoAccion, publicarAccion, reasignarAccion } from "./acciones";
 import { Encabezado, PanelMargen, puedeEditar as puedeEditarEn } from "./comun";
 
 type Base = Awaited<ReturnType<typeof prisma.tiendaProductoBase.findMany>>[number];
@@ -160,16 +160,38 @@ export async function EditarProducto({ tenantId, slug, params, consulta }: Props
   }
   const puedeEditar = await puedeEditarEn(slug);
   const base = producto.productoBase;
+  const sinOferta = motivoSinOferta(producto);
+  const otros = sinOferta ? await otrosProveedores(tenantId, producto.id) : [];
   return (
     <div className="flex flex-col gap-6">
       <Encabezado slug={slug} actual="" puedeEditar={puedeEditar} />
+      {sinOferta && (
+        <Aviso tono="error" titulo="Este producto dejó de venderse" data-testid="sin-oferta">
+          {sinOferta} Lo sacamos de la tienda para no vender algo que nadie va a producir; lo ya pagado se produce igual.
+          {otros.length === 0 ? " Por ahora ningún otro proveedor lo ofrece." : " Pasalo a otro proveedor y vuelve a la tienda:"}
+          {otros.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-2">
+              {otros.map((o) => (
+                <li key={o.proveedorId} className="flex flex-wrap items-center gap-3" data-otro-proveedor={o.proveedor}>
+                  <span className="text-sm">
+                    <strong>{o.proveedor}</strong>: producción {formatearPesos(o.costoProduccion)} (antes {formatearPesos(producto.oferta.costoProduccion)}), envío{" "}
+                    {formatearPesos(o.costoEnvio)}, {o.plazoDias} días. Te queda {formatearPesos(o.margen.margen)} por unidad ({o.margen.porcentaje}%)
+                    {o.margen.negativo ? ": a pérdida" : ""}.
+                  </span>
+                  <Formulario accion={reasignarAccion.bind(null, slug, producto.id, o.proveedorId)} puedeEditar={puedeEditar} enLinea etiqueta={`Pasar a ${o.proveedor} y publicar`} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Aviso>
+      )}
       <div className="flex flex-wrap items-center gap-4">
         <Foto slug={slug} base={base} producto={producto} />
         <div className="flex flex-col gap-1">
           <h2 className="text-xl font-semibold text-primary">{producto.nombre}</h2>
           <div className="flex flex-wrap items-center gap-2 text-sm text-tertiary" data-estado-producto>
             {producto.publicado ? <Insignia color="exito">Publicado</Insignia> : <Insignia>Borrador: no se ve en la tienda</Insignia>}
-            {!base.activo && <Insignia color="advertencia">{base.nombre} ya no se ofrece para productos nuevos (este sigue andando)</Insignia>}
+            {sinOferta && <Insignia color="error">Sin proveedor: no se vende</Insignia>}
             {consulta.get("creado") && <span>Creado.</span>}
             {consulta.get("duplicado") && <span>Duplicado: es una copia en borrador. Cambiá lo que quieras y publicala.</span>}
           </div>

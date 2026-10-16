@@ -180,8 +180,9 @@ describe("prueba 3: un producto base en uso no se borra, se desactiva", () => {
 
     await actualizarProductoBase(comoStaff, base.id, { ...remera(), activo: false });
     expect((await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: base.id } })).activo).toBe(false);
-    // Desactivado: el producto que la banda ya tenía sigue existiendo y vendiéndose.
-    expect(await conTenant(e.a.id, (tx) => tx.tiendaProducto.count({ where: { productoBaseId: base.id, publicado: true } }))).toBe(1);
+    // Desactivado (3.2 proveedor d5): el producto que la banda ya tenía sigue existiendo, pero se despublica.
+    expect(await conTenant(e.a.id, (tx) => tx.tiendaProducto.count({ where: { productoBaseId: base.id } }))).toBe(1);
+    expect(await conTenant(e.a.id, (tx) => tx.tiendaProducto.count({ where: { productoBaseId: base.id, publicado: true } }))).toBe(0);
   });
 });
 

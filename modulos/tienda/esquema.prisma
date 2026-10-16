@@ -135,7 +135,7 @@ model TiendaProducto {
   diseno         TiendaDiseno @relation(fields: [tenantId, disenoId], references: [tenantId, id], onDelete: Restrict)
   nombre         String
   descripcion    String   @default("")
-  /// Precio al fan, envío incluido (centavos).
+  /// Precio al fan, sin el envío (que se cobra aparte, uno por proveedor), en centavos.
   precio         Int
   /// Variantes que ofrece, subconjunto de las del base: [{ "nombre": "Talle", "valores": ["S", "M"] }]
   variantes      Json     @default("[]")
@@ -146,6 +146,9 @@ model TiendaProducto {
   publicado      Boolean  @default(false)
   /// Cuándo se publicó (null en borrador). Si la banda baja de plan, se despublica lo último publicado.
   publicadoEn    DateTime?
+  /// Su proveedor dejó de ofrecer el producto base (o se desactivó): quedó despublicado. La banda
+  /// reasigna a otro proveedor (si hay otra oferta) y vuelve a publicar.
+  sinOfertaDesde DateTime?
   creadoEn       DateTime @default(now())
   actualizadoEn  DateTime @default(now()) @updatedAt
 

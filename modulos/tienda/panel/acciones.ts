@@ -23,6 +23,7 @@ import {
   margen,
   productoDe,
   publicarProducto,
+  reasignarProveedor,
   subirDiseno,
 } from "../productos";
 
@@ -101,6 +102,14 @@ export async function publicarAccion(slug: string, id: string, publicado: boolea
   return conEdicion(slug, async ({ tenantId }) => {
     await publicarProducto(tenantId, id, publicado);
     return publicado ? "Publicado: ya se ve en la tienda." : "Pasó a borrador: ya no se ve en la tienda.";
+  });
+}
+
+/** Su proveedor dejó de ofrecerlo: pasa a otro que sí, y se vuelve a publicar (un clic). */
+export async function reasignarAccion(slug: string, id: string, proveedorId: string, _: EstadoFormulario) {
+  return conEdicion(slug, async ({ tenantId }) => {
+    await reasignarProveedor(tenantId, id, proveedorId);
+    return "Listo: cambió el proveedor y el producto volvió a la tienda.";
   });
 }
 

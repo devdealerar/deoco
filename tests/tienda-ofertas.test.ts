@@ -9,7 +9,7 @@ import tienda from "../modulos/tienda";
 import { type ComoStaff, crearProductoBase, crearProveedor, guardarOferta, leerOpciones, ofertasDe } from "../modulos/tienda/catalogo";
 import { registrarPago } from "../modulos/tienda/pagos";
 import { crearPedido, type DatosFan, revisarCarrito } from "../modulos/tienda/pedidos";
-import { actualizarProducto, crearProducto, duplicarProducto, margen, productoDe, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
+import { actualizarProducto, crearProducto, duplicarProducto, margen, otrosProveedores, productoDe, publicarProducto, reasignarProveedor, subirDiseno } from "../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "./apoyo";
 
 // La banda elige el proveedor (documento maestro §7): un producto base tiene varias ofertas, una
@@ -118,12 +118,35 @@ describe("la banda elige el proveedor", () => {
     expect([await costo(viejo.id), await costo(nuevo.id)]).toEqual([800000, 850000]);
   });
 
-  it("si un proveedor deja de ofrecerlo, no se elige en productos nuevos; los que ya existen siguen andando", async () => {
+  it("si un proveedor deja de ofrecerlo (3.2): sus productos se despublican; lo ya pagado se produce; la banda reasigna en un clic", async () => {
     const existente = await producto(norte.id);
-    await guardarOferta(comoStaff, base.id, norte.id, { costoProduccion: 800000, costoEnvio: 400000, plazoDias: 10, activa: false });
+    const pagado = await pedidoPagado(existente.id, "c-5");
+    // Un pedido sin pagar de antes del cierre.
+    const pendiente = await crearPedido(tienda, e.a.id, [{ productoId: existente.id, variante: { Talle: "M" }, cantidad: 1 }], FAN);
+    const r = await guardarOferta(comoStaff, base.id, norte.id, { costoProduccion: 800000, costoEnvio: 400000, plazoDias: 10, activa: false });
+    expect(r.despublicados).toBe(1);
     expect((await ofertasDe(base.id)).map((o) => o.proveedor.nombre)).toEqual(["Estampados Sur"]);
     await expect(producto(norte.id)).rejects.toThrow(/ya no ofrece/);
-    expect((await revisarCarrito(e.a.id, [{ productoId: existente.id, variante: { Talle: "M" }, cantidad: 1 }])).problemas).toEqual([]);
-    await pedidoPagado(existente.id, "c-5");
+    // Despublicado y marcado; no se vende ni se puede volver a publicar con ese proveedor.
+    expect(await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: existente.id } })).toMatchObject({ publicado: false, sinOfertaDesde: expect.any(Date) });
+    expect((await revisarCarrito(e.a.id, [{ productoId: existente.id, variante: { Talle: "M" }, cantidad: 1 }])).problemas).toHaveLength(1);
+    await expect(publicarProducto(e.a.id, existente.id, true)).rejects.toThrow(/Taller Norte dejó de ofrecer Remera.*Elegí otro proveedor/);
+    // Lo ya pagado se produce igual (con su orden al proveedor de entonces).
+    expect((await dueno.tiendaOrden.findMany({ where: { pedidoId: pagado.id } })).map((o) => o.proveedorId)).toEqual([norte.id]);
+    // El pedido sin pagar ya no se paga (producto fuera de venta: va a devolución si llega igual).
+    expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "c-6", estado: "aprobado", estadoPasarela: "approved", referencia: pendiente.id, monto: pendiente.total, moneda: "ARS" })).toBe("tardio");
+    // La banda ve las otras ofertas con su costo y su margen, y reasigna en un clic (aunque tenga ventas).
+    const otros = await otrosProveedores(e.a.id, existente.id);
+    expect(otros.map((o) => [o.proveedor, o.costoProduccion, o.margen.margen])).toEqual([["Estampados Sur", 900000, 1600000]]);
+    await reasignarProveedor(e.a.id, existente.id, sur.id);
+    expect(await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: existente.id } })).toMatchObject({ publicado: true, sinOfertaDesde: null, proveedorId: sur.id });
+    // Si el producto base se discontinúa, lo mismo para todos sus productos.
+    await dueno.tiendaProducto.updateMany({ data: { sinOfertaDesde: null } });
+    const { actualizarProductoBase } = await import("../modulos/tienda/catalogo");
+    const datosBase = await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: base.id } });
+    await actualizarProductoBase(comoStaff, base.id, { ...datosBase, opciones: leerOpciones("Talle: M"), activo: false });
+    expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: existente.id } })).publicado).toBe(false);
+    await expect(publicarProducto(e.a.id, existente.id, true)).rejects.toThrow(/se discontinuó/);
+    await dueno.tiendaProductoBase.update({ where: { id: base.id }, data: { activo: true } });
   });
 });

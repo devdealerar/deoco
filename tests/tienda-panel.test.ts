@@ -219,15 +219,19 @@ describe("pruebas 3 y 4: margen", () => {
 });
 
 describe("prueba 5: producto base desactivado", () => {
-  it("no sirve para un producto nuevo; el que ya existía se edita y se publica igual", async () => {
+  it("no sirve para un producto nuevo; el que ya existía se edita pero no se vuelve a publicar (3.2: nadie lo produce)", async () => {
     const d = await disenoBueno();
     const datos = { disenoId: d.id, nombre: "Remera", descripcion: "", precio: 2500000, variantes: remera.opciones as never };
     const existente = await crearProducto(e.a.id, remera.id, datos);
     await dueno.tiendaProductoBase.update({ where: { id: remera.id }, data: { activo: false } });
-    await expect(crearProducto(e.a.id, remera.id, datos)).rejects.toThrow("Remera ya no está disponible para productos nuevos.");
-    await actualizarProducto(e.a.id, existente.id, { ...datos, precio: 2700000 });
-    await publicarProducto(e.a.id, existente.id, true);
-    expect((await productosPublicados(e.a.id)).map((p) => p.precio)).toEqual([2700000]);
+    try {
+      await expect(crearProducto(e.a.id, remera.id, datos)).rejects.toThrow("Remera ya no está disponible para productos nuevos.");
+      await actualizarProducto(e.a.id, existente.id, { ...datos, precio: 2700000 });
+      await expect(publicarProducto(e.a.id, existente.id, true)).rejects.toThrow(/Remera se discontinuó/);
+      expect(await productosPublicados(e.a.id)).toEqual([]);
+    } finally {
+      await dueno.tiendaProductoBase.update({ where: { id: remera.id }, data: { activo: true } });
+    }
   });
 });
 

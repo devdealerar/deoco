@@ -238,7 +238,10 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - La banda elige el proveedor (`tienda_oferta`, global: producto base × proveedor con costo de
   producción, envío y plazo; `guardarOferta`, staff). `tienda_producto.proveedorId` se elige al crear
   (`ofertasDe`: activas y de proveedores activos; una sola → se toma sola). Con un pedido pagado no
-  se cambia: se duplica. Oferta retirada: no se elige en productos nuevos, los existentes siguen.
+  se cambia: se duplica. Oferta retirada o producto base desactivado (3.2 proveedor d5): los
+  productos que la usan se DESPUBLICAN (`tienda_retirar_oferta()`, solo staff) y quedan
+  `sinOfertaDesde`; no se vuelven a publicar con ese proveedor; la banda reasigna en un clic
+  (`reasignarProveedor`, aunque tenga ventas; ve costo y margen de cada oferta). Lo pagado se produce.
   El renglón copia proveedor y costos de la oferta al pagarse (`fijarCostosDelPedido`).
 
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)

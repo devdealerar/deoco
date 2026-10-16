@@ -266,9 +266,18 @@ export async function historialDeArte(tenantId: string, productoId: string): Pro
 }
 
 /** Publicado se ve en la tienda; borrador, no. La foto propia se hace pública con el producto. */
+/** Por qué un producto no se puede vender hoy (su proveedor ya no lo ofrece, o el producto base se discontinuó); null si se puede. */
+export function motivoSinOferta(p: { productoBase: { nombre: string; activo: boolean }; oferta: { activa: boolean; proveedor: { nombre: string; activo: boolean } } }): string | null {
+  if (!p.productoBase.activo) return `${p.productoBase.nombre} se discontinuó: ya no se produce.`;
+  if (!p.oferta.activa || !p.oferta.proveedor.activo) return `${p.oferta.proveedor.nombre} dejó de ofrecer ${p.productoBase.nombre}.`;
+  return null;
+}
+
 export async function publicarProducto(tenantId: string, id: string, publicado: boolean) {
-  // Aunque su producto base se haya desactivado: un producto que ya existe sigue andando.
   const actual = await productoDe(tenantId, id);
+  // Lo que nadie va a producir no se vende (3.2 proveedor d5): primero, otro proveedor.
+  const sinOferta = publicado ? motivoSinOferta(actual) : null;
+  if (sinOferta) throw new ErrorTienda(`${sinOferta} Elegí otro proveedor para volver a publicarlo.`);
   return conTenant(tenantId, async (tx) => {
     if (publicado && !actual.publicado) {
       // El tope de productos publicados de la cuenta (lo fija el plan; sin tope, pasa).
@@ -277,9 +286,36 @@ export async function publicarProducto(tenantId: string, id: string, publicado: 
     if (actual.fotoArchivoId) await marcarPublicos(tx, [actual.fotoArchivoId], publicado);
     return tx.tiendaProducto.update({
       where: { id },
-      data: { publicado, publicadoEn: publicado ? (actual.publicadoEn ?? new Date()) : null },
+      data: { publicado, publicadoEn: publicado ? (actual.publicadoEn ?? new Date()) : null, ...(publicado ? { sinOfertaDesde: null } : {}) },
     });
   });
+}
+
+export type OpcionDeProveedor = { proveedorId: string; proveedor: string; costoProduccion: number; costoEnvio: number; plazoDias: number; margen: Margen };
+
+/** Los otros proveedores que hoy ofrecen el producto base de este producto, con cómo le quedaría el margen. */
+export async function otrosProveedores(tenantId: string, id: string): Promise<OpcionDeProveedor[]> {
+  const p = await productoDe(tenantId, id);
+  if (!p.productoBase.activo) return [];
+  return (await ofertasDe(p.productoBaseId))
+    .filter((o) => o.proveedorId !== p.proveedorId)
+    .map((o) => ({ proveedorId: o.proveedorId, proveedor: o.proveedor.nombre, costoProduccion: o.costoProduccion, costoEnvio: o.costoEnvio, plazoDias: o.plazoDias, margen: margen(p.precio, o) }));
+}
+
+/**
+ * Reasigna en un clic un producto que quedó sin oferta (su proveedor dejó de ofrecerlo) a otro
+ * proveedor que sí lo ofrece, y lo vuelve a publicar. Vale aunque tenga ventas: lo ya vendido
+ * guardó su proveedor y sus costos en cada renglón.
+ */
+export async function reasignarProveedor(tenantId: string, id: string, proveedorId: string) {
+  const p = await productoDe(tenantId, id);
+  if (!p.sinOfertaDesde && !motivoSinOferta(p)) throw new ErrorTienda("Este producto tiene su proveedor: para cambiarlo, editalo (o duplicalo si ya vendió).");
+  if (!(await otrosProveedores(tenantId, id)).some((o) => o.proveedorId === proveedorId)) throw new ErrorTienda("Ese proveedor no ofrece este producto.");
+  await conTenant(tenantId, async (tx) => {
+    await tx.tiendaProducto.update({ where: { id }, data: { proveedorId } });
+    await tx.auditoria.createMany({ data: [{ usuarioId: null, tenantId, accion: "tienda.proveedor_reasignado", detalle: { productoId: id, de: p.proveedorId, a: proveedorId } }] });
+  });
+  return publicarProducto(tenantId, id, true);
 }
 
 /** Límite de la cuenta: cuántos productos puede tener publicados la banda. */

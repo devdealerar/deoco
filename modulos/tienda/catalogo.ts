@@ -83,10 +83,10 @@ export async function actualizarProveedor(comoStaff: ComoStaff, id: string, d: D
     if (!antes) throw new ErrorCatalogo("Ese proveedor no existe.");
     if (!d.activo && antes.activo) {
       if (antes.porDefecto) throw new ErrorCatalogo("Es el proveedor por defecto: marcá otro por defecto antes de desactivarlo.");
-      // Aun desactivado, lo que ya ofrece sigue vendiéndose en los productos que lo eligieron.
+      // Primero se retiran sus ofertas (eso despublica los productos que lo usan).
       const ofertas = await tx.tiendaOferta.count({ where: { proveedorId: id, activa: true } });
       if (ofertas) {
-        throw new ErrorCatalogo(`Tiene ${ofertas} oferta(s) activa(s): retiralas antes de desactivarlo (los productos que ya lo usan siguen andando).`);
+        throw new ErrorCatalogo(`Tiene ${ofertas} oferta(s) activa(s): retiralas antes de desactivarlo (los productos que lo usan se despublican y la banda elige otro proveedor).`);
       }
     }
     const faltan = await productosQueNoPuedeImprimir(tx, id, datos.formatos);
@@ -202,6 +202,16 @@ export const ofertasDe = (productoBaseId: string) =>
     orderBy: { proveedor: { nombre: "asc" } },
   });
 
+/**
+ * Despublica en todas las bandas los productos de ese producto base (con ese proveedor, o con
+ * cualquiera si `proveedorId` es null) y los marca "sin oferta". Cruza bandas: solo en la
+ * transacción del staff (la función de la base lo exige). Devuelve cuántos despublicó.
+ */
+async function retirarDeLasBandas(tx: TxTenant, productoBaseId: string, proveedorId: string | null): Promise<number> {
+  const [{ n }] = await tx.$queryRaw<{ n: number }[]>`SELECT tienda_retirar_oferta(${productoBaseId}::uuid, ${proveedorId}::uuid) AS n`;
+  return n;
+}
+
 /** Una oferta (activa o no): con la que se vende un producto que ya la eligió. */
 export const ofertaDe = (tx: Pick<TxTenant, "tiendaOferta">, productoBaseId: string, proveedorId: string) =>
   tx.tiendaOferta.findUnique({ where: { productoBaseId_proveedorId: { productoBaseId, proveedorId } }, include: { proveedor: true } });
@@ -209,7 +219,9 @@ export const ofertaDe = (tx: Pick<TxTenant, "tiendaOferta">, productoBaseId: str
 /**
  * El staff carga o cambia lo que un proveedor ofrece de un producto base. Cambiar un costo rige
  * para los pedidos que se paguen desde ahora; lo ya cobrado guarda su copia. Retirarla (`activa`
- * false): no se elige en productos nuevos; los que ya la usan siguen andando.
+ * false, 3.2 proveedor d5): no se elige en productos nuevos y los productos que la usan se
+ * DESPUBLICAN (vender algo que nadie va a producir es peor que perder la venta); lo ya pagado se
+ * produce igual. La banda los ve marcados y reasigna a otro proveedor en un clic.
  */
 export async function guardarOferta(comoStaff: ComoStaff, productoBaseId: string, proveedorId: string, d: DatosOferta) {
   const datos = validarOferta(d);
@@ -223,8 +235,9 @@ export async function guardarOferta(comoStaff: ComoStaff, productoBaseId: string
       create: { productoBaseId, proveedorId, ...datos },
       update: datos,
     });
-    ctx.detalle({ productoBaseId, proveedorId, antes: antes && { costoProduccion: antes.costoProduccion, costoEnvio: antes.costoEnvio, plazoDias: antes.plazoDias, activa: antes.activa }, despues: datos });
-    return o;
+    const despublicados = datos.activa ? 0 : await retirarDeLasBandas(tx, productoBaseId, proveedorId);
+    ctx.detalle({ productoBaseId, proveedorId, antes: antes && { costoProduccion: antes.costoProduccion, costoEnvio: antes.costoEnvio, plazoDias: antes.plazoDias, activa: antes.activa }, despues: datos, despublicados });
+    return { ...o, despublicados };
   });
 }
 
@@ -294,7 +307,9 @@ export async function actualizarProductoBase(
       fotoNueva = { fotoArchivoId: f.id, fotoNombre: f.nombre };
     }
     const p = await tx.tiendaProductoBase.update({ where: { id }, data: { ...datos, ...fotoNueva, activo: d.activo } });
-    ctx.detalle({ id, antes: { activo: antes.activo }, despues: { activo: p.activo }, ...(oferta ? { oferta: { proveedorId: d.proveedorId ?? "por defecto", ...oferta } } : {}) });
+    // Discontinuado (3.2 proveedor d5): los productos que lo usan dejan de venderse.
+    const despublicados = antes.activo && !d.activo ? await retirarDeLasBandas(tx, id, null) : 0;
+    ctx.detalle({ id, antes: { activo: antes.activo }, despues: { activo: p.activo }, despublicados, ...(oferta ? { oferta: { proveedorId: d.proveedorId ?? "por defecto", ...oferta } } : {}) });
     return p;
   });
   for (const l of liberar) await l();
