@@ -131,6 +131,18 @@ export async function guardarArchivo(
   return { id, nombre, tipo, variantes: variantes.map((v) => v.nombre) };
 }
 
+/**
+ * El contenido original de un archivo del módulo en la banda (para copiarlo: un producto que se
+ * duplica lleva su propia foto). null si no existe o es de otro módulo.
+ */
+export async function leerArchivo(tenantId: string, archivoId: string, moduloId: string): Promise<{ nombre: string; datos: Buffer } | null> {
+  const fila = await conTenant(tenantId, (tx) => tx.archivo.findUnique({ where: { id: archivoId }, select: { nombre: true, moduloId: true } }));
+  if (!fila || fila.moduloId !== moduloId) return null;
+  const flujo = await almacen().leer(clave(tenantId, archivoId));
+  if (!flujo) return null;
+  return { nombre: fila.nombre, datos: Buffer.from(await new Response(flujo).arrayBuffer()) };
+}
+
 /** Marca archivos como públicos (o no) para el sitio de la banda. */
 export async function marcarPublicos(tx: TxTenant, ids: string[], publico: boolean) {
   if (ids.length === 0) return;

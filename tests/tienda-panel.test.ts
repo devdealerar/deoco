@@ -8,6 +8,7 @@ import { actualizarProductoBase, type ComoStaff, crearProductoBase, crearProveed
 import {
   actualizarProducto,
   crearProducto,
+  duplicarProducto,
   margen,
   productosPublicados,
   publicarProducto,
@@ -228,5 +229,37 @@ describe("prueba 5: producto base desactivado", () => {
     await actualizarProducto(e.a.id, existente.id, { ...datos, precio: 2700000 });
     await publicarProducto(e.a.id, existente.id, true);
     expect((await productosPublicados(e.a.id)).map((p) => p.precio)).toEqual([2700000]);
+  });
+});
+
+describe("duplicar un producto (documento maestro §7)", () => {
+  it("copia la configuración en un borrador nuevo, con su propia foto; el original no cambia", async () => {
+    const d = await disenoBueno();
+    const foto = await sharp({ create: { width: 800, height: 800, channels: 3, background: "#456" } }).jpeg().toBuffer();
+    const variantes = [{ nombre: "Talle", valores: ["M", "L"] }, { nombre: "Color", valores: ["Negro"] }];
+    const original = await crearProducto(e.a.id, remera.id, { disenoId: d.id, nombre: "Remera Gira", descripcion: "Algodón peinado", precio: 2500000, variantes }, { nombre: "foto.jpg", datos: foto });
+    await publicarProducto(e.a.id, original.id, true);
+
+    const copia = await duplicarProducto(e.a.id, original.id);
+    expect(copia.id).not.toBe(original.id);
+    expect(copia).toMatchObject({ productoBaseId: remera.id, disenoId: d.id, nombre: "Remera Gira (copia)", descripcion: "Algodón peinado", precio: 2500000, variantes, publicado: false });
+    // La foto es otro archivo (borrar o cambiar la de uno no toca la del otro), con el mismo contenido.
+    expect(copia.fotoArchivoId).toBeTruthy();
+    expect(copia.fotoArchivoId).not.toBe(original.fotoArchivoId);
+    const [a, b] = await Promise.all([original.fotoArchivoId!, copia.fotoArchivoId!].map((id) => dueno.archivo.findUniqueOrThrow({ where: { id } })));
+    expect(b.bytes).toBe(a.bytes);
+    expect(b.publico).toBe(false); // borrador: no se ve hasta publicarla
+    expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: original.id } })).publicado).toBe(true);
+    expect((await productosPublicados(e.a.id)).map((p) => p.id)).toEqual([original.id]);
+  });
+
+  it("sin foto, la copia tampoco tiene; con el producto base desactivado no se duplica; de otra banda, no existe", async () => {
+    const d = await disenoBueno();
+    const variantes = [{ nombre: "Talle", valores: ["M"] }, { nombre: "Color", valores: ["Negro"] }];
+    const original = await crearProducto(e.a.id, remera.id, { disenoId: d.id, nombre: "Remera", descripcion: "", precio: 2500000, variantes });
+    expect((await duplicarProducto(e.a.id, original.id)).fotoArchivoId).toBeNull();
+    await expect(duplicarProducto(e.b.id, original.id)).rejects.toThrow();
+    await dueno.tiendaProductoBase.update({ where: { id: remera.id }, data: { activo: false } });
+    await expect(duplicarProducto(e.a.id, original.id)).rejects.toThrow("Remera ya no está disponible para productos nuevos.");
   });
 });

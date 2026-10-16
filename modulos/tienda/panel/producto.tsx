@@ -9,7 +9,7 @@ import type { Opcion } from "../catalogo";
 import { formatearPesos, pesosParaCampo } from "@/nucleo/dinero";
 import { describirEspecificacion, medidaDeDiseno, problemasDeImpresion } from "../impresion";
 import { ErrorTienda, listarDisenos, margen, productoDe } from "../productos";
-import { actualizarProductoAccion, crearProductoAccion, publicarAccion } from "./acciones";
+import { actualizarProductoAccion, crearProductoAccion, duplicarProductoAccion, publicarAccion } from "./acciones";
 import { Encabezado, PanelMargen, puedeEditar as puedeEditarEn } from "./comun";
 
 type Base = Awaited<ReturnType<typeof prisma.tiendaProductoBase.findMany>>[number];
@@ -126,15 +126,23 @@ export async function EditarProducto({ tenantId, slug, params, consulta }: Props
             {producto.publicado ? <Insignia color="exito">Publicado</Insignia> : <Insignia>Borrador: no se ve en la tienda</Insignia>}
             {!base.activo && <Insignia color="advertencia">{base.nombre} ya no se ofrece para productos nuevos (este sigue andando)</Insignia>}
             {consulta.get("creado") && <span>Creado.</span>}
+            {consulta.get("duplicado") && <span>Duplicado: es una copia en borrador. Cambiá lo que quieras y publicala.</span>}
           </div>
         </div>
-        <div className="ml-auto" data-publicar>
-          <Formulario
-            accion={publicarAccion.bind(null, slug, producto.id, !producto.publicado)}
-            puedeEditar={puedeEditar}
-            variante={producto.publicado ? "secundario" : "primario"}
-            etiqueta={producto.publicado ? "Pasar a borrador" : "Publicar"}
-          />
+        <div className="ml-auto flex flex-wrap gap-2">
+          {base.activo && (
+            <div data-duplicar>
+              <Formulario accion={duplicarProductoAccion.bind(null, slug, producto.id)} puedeEditar={puedeEditar} variante="secundario" etiqueta="Duplicar" />
+            </div>
+          )}
+          <div data-publicar>
+            <Formulario
+              accion={publicarAccion.bind(null, slug, producto.id, !producto.publicado)}
+              puedeEditar={puedeEditar}
+              variante={producto.publicado ? "secundario" : "primario"}
+              etiqueta={producto.publicado ? "Pasar a borrador" : "Publicar"}
+            />
+          </div>
         </div>
       </div>
       <PanelMargen m={margen(producto.precio, base)} envio={base.costoEnvio} />

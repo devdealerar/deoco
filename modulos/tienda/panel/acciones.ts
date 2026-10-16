@@ -16,6 +16,7 @@ import {
   actualizarProducto,
   crearProducto,
   type DatosProducto,
+  duplicarProducto,
   ErrorArchivo,
   ErrorImpresion,
   ErrorTienda,
@@ -74,6 +75,16 @@ export async function crearProductoAccion(slug: string, productoBaseId: string, 
   });
   if (r.error) return r;
   redirect(`/b/${slug}/tienda/productos/${id}?creado=1`);
+}
+
+/** Duplicar: un producto nuevo en borrador con la misma configuración; lleva a editarlo. */
+export async function duplicarProductoAccion(slug: string, id: string, _: EstadoFormulario) {
+  let nuevo = "";
+  const r = await conEdicion(slug, async ({ tenantId }) => {
+    nuevo = (await duplicarProducto(tenantId, id)).id;
+  });
+  if (r.error) return r;
+  redirect(`/b/${slug}/tienda/productos/${nuevo}?duplicado=1`);
 }
 
 export async function actualizarProductoAccion(slug: string, id: string, _: EstadoFormulario, fd: FormData) {

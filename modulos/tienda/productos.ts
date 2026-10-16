@@ -2,7 +2,7 @@
 // suyo. Las tablas de la banda referencian el catálogo base global; una clave foránea no
 // mira RLS, así que diseño y producto se buscan SIEMPRE bajo conTenant antes de usarlos.
 import type { Prisma } from "@/generated/prisma/client";
-import { borrarArchivos, ErrorArchivo, guardarArchivo, marcarPublicos } from "@/nucleo/archivos";
+import { borrarArchivos, ErrorArchivo, guardarArchivo, leerArchivo, marcarPublicos } from "@/nucleo/archivos";
 import { exigirLimite } from "@/nucleo/cuenta";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
@@ -137,6 +137,18 @@ export async function crearProducto(tenantId: string, productoBaseId: string, d:
       }),
     ),
   );
+}
+
+/**
+ * Duplicar (documento maestro §7): la misma configuración en un producto nuevo, en borrador,
+ * para cambiarle el arte y publicarlo como otra versión. La foto se copia (es otro archivo:
+ * cambiar la de uno no toca la del otro). Como todo producto nuevo, el base tiene que estar activo.
+ */
+export async function duplicarProducto(tenantId: string, id: string) {
+  const p = await productoDe(tenantId, id);
+  const foto = p.fotoArchivoId ? await leerArchivo(tenantId, p.fotoArchivoId, MODULO) : null;
+  const nombre = `${p.nombre.slice(0, 80 - " (copia)".length)} (copia)`;
+  return crearProducto(tenantId, p.productoBaseId, { disenoId: p.disenoId, nombre, descripcion: p.descripcion, precio: p.precio, variantes: p.variantes as Opcion[] }, foto);
 }
 
 /** Cambia un producto. El producto base no cambia (aunque se haya desactivado, sigue andando). */

@@ -123,6 +123,15 @@ describe("panel de la tienda", () => {
     expect((await page.locator("[data-valor-margen]").textContent())!.replace(/\s/g, " ")).toBe("-$ 2.500 · -38,5%");
     expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: producto.id } })).precio).toBe(650000);
     await captura(page, "tienda-producto-a-perdida");
+
+    // Duplicar: otro producto, en borrador, con la misma configuración; el original sigue publicado.
+    await page.locator("[data-duplicar] form[data-hidratado]").getByRole("button", { name: "Duplicar" }).click();
+    await page.waitForURL(/\/tienda\/productos\/[0-9a-f-]{36}\?duplicado=1$/);
+    expect(page.url()).not.toContain(producto.id);
+    expect(await page.locator("[data-estado-producto]").textContent()).toContain("Borrador: no se ve en la tienda");
+    const copia = await dueno.tiendaProducto.findFirstOrThrow({ where: { nombre: "Remera Gira 2026 (copia)" } });
+    expect([copia.precio, copia.disenoId, copia.variantes]).toEqual([650000, producto.disenoId, producto.variantes]);
+    expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: producto.id } })).publicado).toBe(true);
     await page.goto(`${APP}/b/banda-a/tienda`);
     await captura(page, "tienda-productos");
   });
