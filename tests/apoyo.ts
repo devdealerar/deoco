@@ -13,6 +13,8 @@ export const dueno = new PrismaClient({
 const SEMILLA_COMERCIAL = [
   ...(readFileSync("prisma/migrations/20261103130000_comercial/migration.sql", "utf8").match(/INSERT INTO "comercial_config"[^;]+;/g) ?? []),
   ...(readFileSync("prisma/migrations/20261124100001_comercial_planes_32/migration.sql", "utf8").match(/INSERT INTO "comercial_plan"[^;]+;/g) ?? []),
+  ...(readFileSync("prisma/migrations/20261125120001_comercial_topes_32/migration.sql", "utf8").match(/UPDATE "comercial_plan"[^;]+;/g) ?? []),
+  ...(readFileSync("prisma/migrations/20261125130000_comercial_complementos/migration.sql", "utf8").match(/INSERT INTO "comercial_complemento"[^;]+;/g) ?? []),
 ];
 
 /** Vacía todas las tablas (núcleo y módulos), menos la de migraciones, y vuelve a sembrar los planes. */
@@ -25,7 +27,7 @@ export async function limpiar() {
 
 /** Planes y plazos como los deja la migración (las pruebas los cambian). */
 export async function sembrarComercial() {
-  await dueno.$executeRawUnsafe(`TRUNCATE "comercial_plan", "comercial_config"`);
+  await dueno.$executeRawUnsafe(`TRUNCATE "comercial_plan", "comercial_config", "comercial_complemento"`);
   for (const sql of SEMILLA_COMERCIAL) await dueno.$executeRawUnsafe(sql);
 }
 

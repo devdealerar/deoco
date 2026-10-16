@@ -113,7 +113,7 @@ describe("toda tabla con datos de banda nace con RLS", () => {
 });
 
 describe("tablas de módulos", () => {
-  const NUCLEO = ["usuario", "tenant", "membresia", "dominio", "moduloTenant", "evento", "archivo", "auditoria", "secreto", "correo", "archivo_plataforma", "cuenta_externa", "cobro_duplicado", "datos_fiscales", "limite_banda", "registro_pendiente", "correo_dominio", "zona_saliente", "registrador_cliente", "dominio_compra", "_prisma_migrations"];
+  const NUCLEO = ["usuario", "tenant", "membresia", "dominio", "moduloTenant", "evento", "archivo", "auditoria", "secreto", "correo", "archivo_plataforma", "cuenta_externa", "cobro_duplicado", "datos_fiscales", "limite_banda", "limite_extra", "registro_pendiente", "correo_dominio", "zona_saliente", "registrador_cliente", "dominio_compra", "_prisma_migrations"];
 
   it("toda tabla que no es del núcleo lleva el prefijo de un módulo registrado y tiene tenantId", async () => {
     const { registro } = await import("@/nucleo/modulos");

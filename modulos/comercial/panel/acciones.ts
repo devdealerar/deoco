@@ -5,15 +5,16 @@ import { revalidatePath } from "next/cache";
 import { exigirTitular } from "@/nucleo/acceso/panel";
 import { ErrorPasarela } from "@/nucleo/pagos";
 import type { EstadoFormulario } from "@/ui";
+import { comprarComplemento } from "../complementos";
 import { cancelar, elegirPlan, ErrorComercial } from "../cuenta";
 
 /** Plan y pago: solo el titular (ni otro rol ni el staff); la banda sale del pedido. */
-async function comoTitular(slug: string, fn: (tenantId: string) => Promise<string | { redireccion: string }>): Promise<EstadoFormulario> {
+async function comoTitular(slug: string, fn: (tenantId: string, usuarioId: string) => Promise<string | { redireccion: string }>): Promise<EstadoFormulario> {
   const volver = `/b/${slug}/pago`;
   const acceso = await exigirTitular(volver);
   let r;
   try {
-    r = await fn(acceso.tenantId);
+    r = await fn(acceso.tenantId, acceso.usuarioId);
   } catch (e) {
     if (e instanceof ErrorComercial) return { error: e.message };
     if (e instanceof ErrorPasarela) {
@@ -40,4 +41,9 @@ export async function cancelarAccion(slug: string, _: EstadoFormulario, fd: Form
     if (fd.get("confirmar") !== "on") throw new ErrorComercial("Para cancelar, confirmalo: marcá la casilla de arriba del botón.");
     return cancelar(tenantId);
   });
+}
+
+/** Comprar un complemento suelto para un mes: a la pasarela de Deoco (pago único). */
+export async function comprarComplementoAccion(slug: string, complementoId: string, _: EstadoFormulario, fd: FormData) {
+  return comoTitular(slug, (tenantId, usuarioId) => comprarComplemento(tenantId, slug, complementoId, String(fd.get("mes") ?? ""), usuarioId));
 }

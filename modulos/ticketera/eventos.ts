@@ -3,6 +3,7 @@ import { borrarArchivos, ErrorArchivo, guardarArchivo, marcarPublicos } from "@/
 import { cache } from "react";
 import { exigirLimite } from "@/nucleo/cuenta";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
+import { mesArgentino } from "@/nucleo/fechas";
 
 export class ErrorTicketera extends Error {}
 
@@ -70,24 +71,47 @@ export async function actualizarEvento(tenantId: string, id: string, datos: Dato
   await conTenant(tenantId, async (tx) => {
     const antes = await tx.ticketeraEvento.findUnique({ where: { id }, select: { publicado: true, fecha: true } });
     if (!antes) throw new ErrorTicketera("Ese show no existe.");
-    // Un show publicado que pasa de "ya fue" a "próximo" vuelve a contar para el tope.
-    const desde = desdeAhora();
-    if (antes.publicado && antes.fecha < desde && d.fecha >= desde) await exigirTopeDeShows(tx, tenantId);
+    // Un show publicado que cambia de mes cuenta para el tope del mes nuevo.
+    if (antes.publicado && mesArgentino(antes.fecha).clave !== mesArgentino(d.fecha).clave) await exigirTopeDeShows(tx, tenantId, id, d.fecha);
     await tx.ticketeraEvento.update({ where: { id }, data: d });
   });
 }
 
-/** Límite de la cuenta: cuántos shows próximos puede tener publicados la banda. */
-export const LIMITE_SHOWS = "shows-publicados";
+/**
+ * Límite de la cuenta: cuántos shows publicados puede tener la banda con fecha en un mismo mes
+ * calendario (3.2: "eventos por mes"). Un complemento suelto suma para ese mes.
+ */
+export const LIMITE_SHOWS = "shows-por-mes";
 
-/** Los que cuentan: publicados y que no pasaron (la misma ventana que muestra el sitio). */
-const cuentan = () => ({ publicado: true, fecha: { gte: desdeAhora() } });
+/** Los shows publicados con fecha en el mes de `en`. */
+const delMes = (en: Date) => {
+  const { desde, hasta } = mesArgentino(en);
+  return { publicado: true, fecha: { gte: desde, lt: hasta } };
+};
 
-export const contarShowsPublicados = (tenantId: string) => conTenant(tenantId, (tx) => tx.ticketeraEvento.count({ where: cuentan() }));
+/** Lo que mide la cuenta: shows publicados este mes. */
+export const contarShowsPublicados = (tenantId: string) => conTenant(tenantId, (tx) => tx.ticketeraEvento.count({ where: delMes(new Date()) }));
 
-async function exigirTopeDeShows(tx: TxTenant, tenantId: string) {
-  await exigirLimite(tx, (await import("./index")).default, tenantId, LIMITE_SHOWS, async () => (await tx.ticketeraEvento.count({ where: cuentan() })) + 1);
+/** Antes de publicar (o mover de mes) el show `id` con fecha `fecha`: el tope de ese mes. */
+async function exigirTopeDeShows(tx: TxTenant, tenantId: string, id: string, fecha: Date) {
+  await exigirLimite(
+    tx,
+    (await import("./index")).default,
+    tenantId,
+    LIMITE_SHOWS,
+    async () => (await tx.ticketeraEvento.count({ where: { ...delMes(fecha), NOT: { id } } })) + 1,
+    undefined,
+    { en: fecha },
+  );
 }
+
+/** Límite que solo mide (3.2 núcleo d5): entradas vendidas en el mes. Nunca corta una venta. */
+export const LIMITE_ENTRADAS = "entradas-por-mes";
+
+export const contarEntradasDelMes = (tenantId: string, ahora = new Date()) => {
+  const { desde, hasta } = mesArgentino(ahora);
+  return conTenant(tenantId, async (tx) => (await tx.ticketeraCompra.aggregate({ where: { estado: "PAGADA", pagadaEn: { gte: desde, lt: hasta } }, _sum: { cantidad: true } }))._sum.cantidad ?? 0);
+};
 
 /**
  * El tope bajó (la banda bajó de plan): no se despublica ningún show. Un show publicado y por
@@ -119,7 +143,7 @@ export async function publicarEvento(tenantId: string, id: string, publicado: bo
     const e = await tx.ticketeraEvento.findUnique({ where: { id }, include: { _count: { select: { tipos: true } } } });
     if (!e) throw new ErrorTicketera("Ese show no existe.");
     if (publicado && e._count.tipos === 0) throw new ErrorTicketera("Antes de publicar, cargá al menos un tipo de entrada.");
-    if (publicado && !e.publicado && e.fecha >= desdeAhora()) await exigirTopeDeShows(tx, tenantId);
+    if (publicado && !e.publicado && e.fecha >= desdeAhora()) await exigirTopeDeShows(tx, tenantId, id, e.fecha);
     await tx.ticketeraEvento.update({ where: { id }, data: { publicado, publicadoEn: publicado ? (e.publicadoEn ?? new Date()) : null } });
     if (e.fotoArchivoId) await marcarPublicos(tx, [e.fotoArchivoId], publicado);
   });

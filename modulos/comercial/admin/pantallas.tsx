@@ -241,7 +241,7 @@ export async function AdminPlanes(_: PropsRutaAdmin) {
           <Campo name="diasPrueba" type="number" etiqueta="Días de prueba" defaultValue={String(cfg.diasPrueba)} required />
           <Selector name="planPrueba" etiqueta="Plan de la prueba" defaultValue={cfg.planPrueba} opciones={todos.map((p) => ({ valor: p.id, texto: p.nombre }))} />
           <p className="text-sm text-tertiary">La escalera de la cuota impaga, en días desde el vencimiento. Pagar en cualquier escalón (antes de archivar) devuelve todo al día.</p>
-          <Campo name="diasGracia" type="number" etiqueta="Aviso (MOROSO)" ayuda="Aviso en el panel y mail al titular. Todo sigue funcionando." defaultValue={String(cfg.diasGracia)} required />
+          <Campo name="diasGracia" type="number" etiqueta="Aviso (MOROSO)" ayuda="Aviso en el panel y mail al titular. Todo sigue funcionando. Hasta acá, un cobro rechazado se reintenta sin mora." defaultValue={String(cfg.diasGracia)} required />
           <Campo name="diasAvisoFuerte" type="number" etiqueta="Aviso fuerte (MOROSO_GRAVE)" ayuda="Aviso permanente en el panel. Todo sigue funcionando." defaultValue={String(cfg.diasAvisoFuerte)} required />
           <Campo name="diasSoloLectura" type="number" etiqueta="Solo lectura (SOLO_LECTURA)" ayuda="El panel no guarda nada. El sitio y las ventas siguen." defaultValue={String(cfg.diasSoloLectura)} required />
           <Campo name="diasMoraASuspender" type="number" etiqueta="Suspendida (SUSPENDIDO)" ayuda="Sitio despublicado, ventas cortadas. La puerta de los shows vendidos sigue." defaultValue={String(cfg.diasMoraASuspender)} required />

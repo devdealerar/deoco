@@ -262,24 +262,75 @@ export async function exigirLimite(
   clave: string,
   usadosDespues: () => Promise<number>,
   reg: Registro = registroGlobal(),
+  opciones: { en?: Date } = {},
 ): Promise<void> {
-  const { id } = limitePropio(modulo, clave, reg);
+  const l = limitePropio(modulo, clave, reg);
+  const { id } = l;
+  if (l.definicion.soloMide) return; // solo mide: nunca corta (el excedente se muestra y se factura)
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${tenantId}:${id}`}))`;
   const fila = await tx.limiteBanda.findUnique({ where: { tenantId_limite: { tenantId, limite: id } } });
   if (!fila) return;
+  // Lo que suma un complemento suelto en ese momento (el mes del show, hoy).
+  const maximo = fila.maximo + (await extraEn(tx, id, opciones.en ?? new Date()));
   const usados = await usadosDespues();
-  if (usados > fila.maximo) throw new ErrorLimite(await mensajeDeLimite(id, tenantId, fila.maximo, usados, reg), id, fila.maximo);
+  if (usados > maximo) throw new ErrorLimite(await mensajeDeLimite(id, tenantId, maximo, usados, reg), id, maximo);
 }
 
-export type UsoDeLimite = { id: string; etiqueta: string; usados: number; maximo: number | null };
+/** Cuánto suman los complementos vigentes en `en` a un límite de la banda (`tx` de conTenant). */
+async function extraEn(tx: TxTenant, limite: string, en: Date): Promise<number> {
+  const { _sum } = await tx.limiteExtra.aggregate({ where: { limite, desde: { lte: en }, hasta: { gt: en } }, _sum: { cantidad: true } });
+  return _sum.cantidad ?? 0;
+}
+
+/**
+ * Suma `cantidad` a un límite de la banda en [desde, hasta) (un complemento suelto). Solo el
+ * gestor de cuenta. Idempotente por `origen` (el cobro que lo pagó): dos avisos suman una vez.
+ */
+export async function sumarExtra(
+  modulo: Modulo,
+  tenantId: string,
+  d: { limite: string; cantidad: number; desde: Date; hasta: Date; origen: string },
+  reg: Registro = registroGlobal(),
+): Promise<boolean> {
+  exigirGestor(modulo, reg);
+  if (!reg.limites.some((l) => l.id === d.limite)) throw new ErrorCuenta(`No existe el límite "${d.limite}".`);
+  if (!Number.isInteger(d.cantidad) || d.cantidad <= 0) throw new ErrorCuenta("La cantidad de un complemento es un entero mayor que cero.");
+  const { count } = await conTenant(tenantId, (tx) =>
+    tx.limiteExtra.createMany({ data: [{ tenantId, limite: d.limite, cantidad: d.cantidad, desde: d.desde, hasta: d.hasta, origen: `${modulo.id}:${d.origen}` }], skipDuplicates: true }),
+  );
+  return count === 1;
+}
+
+export type UsoDeLimite = {
+  id: string;
+  etiqueta: string;
+  usados: number;
+  /** El tope del plan más lo que suman los complementos vigentes hoy (null: sin tope). */
+  maximo: number | null;
+  /** De eso, lo que suman los complementos. */
+  extra: number;
+  porMes: boolean;
+  soloMide: boolean;
+  /** Lo que pasa del tope (solo puede pasar en los que solo miden: un show, una venta). */
+  excedente: number;
+};
 
 /** Cuánto usa la banda de cada límite de sus módulos prendidos (para mostrarle su cuenta). */
-export async function usoDeLimites(tenantId: string, reg: Registro = registroGlobal()): Promise<UsoDeLimite[]> {
+export async function usoDeLimites(tenantId: string, reg: Registro = registroGlobal(), ahora = new Date()): Promise<UsoDeLimite[]> {
   const prendidos = await modulosPrendidos(tenantId, reg);
-  const topes = new Map((await conTenant(tenantId, (tx) => tx.limiteBanda.findMany())).map((f) => [f.limite, f.maximo]));
+  const { topes, extras } = await conTenant(tenantId, async (tx) => ({
+    topes: new Map((await tx.limiteBanda.findMany()).map((f) => [f.limite, f.maximo])),
+    extras: await tx.limiteExtra.findMany({ where: { desde: { lte: ahora }, hasta: { gt: ahora } } }),
+  }));
   const deEllos = reg.limites.filter((l) => prendidos.has(l.moduloId));
   return Promise.all(
-    deEllos.map(async (l) => ({ id: l.id, etiqueta: l.definicion.etiqueta, usados: await l.definicion.usados(tenantId), maximo: topes.get(l.id) ?? null })),
+    deEllos.map(async (l) => {
+      const usados = await l.definicion.usados(tenantId);
+      const extra = extras.filter((x) => x.limite === l.id).reduce((s, x) => s + x.cantidad, 0);
+      const tope = topes.get(l.id);
+      const maximo = tope === undefined ? null : tope + extra;
+      return { id: l.id, etiqueta: l.definicion.etiqueta, usados, maximo, extra, porMes: !!l.definicion.porMes, soloMide: !!l.definicion.soloMide, excedente: maximo === null ? 0 : Math.max(0, usados - maximo) };
+    }),
   );
 }
 

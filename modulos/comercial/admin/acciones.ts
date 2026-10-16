@@ -9,6 +9,7 @@ import type { EstadoFormulario } from "@/ui";
 import { ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
 import { ErrorDominio } from "@/nucleo/dominios";
 import { asignarPlan, type DatosPlan, ErrorComercial, guardarPlan, guardarPlazos, type ProAMedida } from "../cuenta";
+import { guardarComplemento } from "../complementos";
 import { guardarPrecioDominio, marcarDevueltaAMano, reintentarDevolucion } from "../dominios";
 
 const GB = BigInt(1024 ** 3);
@@ -133,5 +134,22 @@ export async function marcarDevueltaAccion(tenantId: string, id: string, _: Esta
   return accion(async () => {
     await marcarDevueltaAMano(conStaff, tenantId, id, obligatorio(fd, "nota", "cómo se devolvió", 500));
     return "Marcada como devuelta a mano.";
+  });
+}
+
+export async function guardarComplementoAccion(id: string | null, _: EstadoFormulario, fd: FormData) {
+  return accion(async () => {
+    const precio = pesosOpcional(fd, "precio", "Precio");
+    if (precio === null) throw new ErrorFormulario("Falta el precio.");
+    await guardarComplemento(conStaff, id ?? obligatorio(fd, "id", "el id", 40), {
+      nombre: obligatorio(fd, "nombre", "el nombre", 80),
+      descripcion: texto(fd, "descripcion", 300),
+      precio,
+      limite: obligatorio(fd, "limite", "el límite", 80),
+      cantidad: entero(fd, "cantidad", "Cuánto suma"),
+      meses: entero(fd, "meses", "Meses"),
+      activo: fd.get("activo") === "on",
+    });
+    return "Complemento guardado.";
   });
 }

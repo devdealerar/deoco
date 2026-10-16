@@ -554,7 +554,6 @@ export async function revisarCuenta(tenantId: string, ahora: Date, cfg: Escalera
   return d.estado;
 }
 
-const estadoDe = async (tenantId: string) => (await conTenant(tenantId, (tx) => tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { estado: true } }))).estado;
 
 /** Tarea periódica: las cuentas vencidas, en mora o con la prueba terminada, de todas las bandas. */
 export async function revisarVencimientos(ahora = new Date()) {

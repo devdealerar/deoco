@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { mesArgentino } from "@/nucleo/fechas";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { conStaffComo } from "@/nucleo/acceso/staff";
 import { atenderAviso, atenderAvisoPlataforma } from "@/nucleo/avisos";
@@ -120,11 +121,11 @@ describe("planes", () => {
       ["sello", false, "por banda, a convenir"],
     ]);
     // Se diferencian por topes; el espacio es red de seguridad (~7 años al tope); Demo, sin dominio propio.
-    expect(todos.map((p) => [p.id, p.topes["tienda.productos-publicados"], p.topes["ticketera.shows-publicados"], Number(p.almacenamiento! / BigInt(1024 ** 2)), p.dominioPropio])).toEqual([
-      ["demo", 5, 1, 1536, false],
-      ["escenario", 30, 6, 10240, true],
-      ["gira", 100, 20, 36864, true],
-      ["sello", 100, 20, 36864, true],
+    expect(todos.map((p) => [p.id, p.topes["tienda.productos-publicados"], p.topes["ticketera.shows-por-mes"], p.topes["sitio.imagenes"], p.topes["ticketera.entradas-por-mes"], Number(p.almacenamiento! / BigInt(1024 ** 2)), p.dominioPropio])).toEqual([
+      ["demo", 5, 1, 30, 200, 1536, false],
+      ["escenario", 30, 6, 150, 2000, 10240, true],
+      ["gira", 100, 20, 600, 10000, 36864, true],
+      ["sello", 100, 20, 600, 10000, 36864, true],
     ]);
   });
 
@@ -135,7 +136,9 @@ describe("planes", () => {
     expect(c.pruebaHasta!.getTime() - Date.now()).toBeGreaterThan(13.9 * DIA);
     expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
     expect(await dueno.limiteBanda.findMany({ where: { tenantId: e.a.id }, select: { limite: true, maximo: true }, orderBy: { limite: "asc" } })).toEqual([
-      { limite: "ticketera.shows-publicados", maximo: 6 },
+      { limite: "sitio.imagenes", maximo: 150 },
+      { limite: "ticketera.entradas-por-mes", maximo: 2000 },
+      { limite: "ticketera.shows-por-mes", maximo: 6 },
       { limite: "tienda.productos-publicados", maximo: 30 },
     ]);
     expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).limiteAlmacenamiento).toBe(BigInt(10 * 1024 ** 3));
@@ -178,7 +181,9 @@ describe("planes", () => {
       await publicarProducto(e.a.id, id, true);
       await new Promise((r) => setTimeout(r, 5));
     }
-    const show = (n: number) => ({ nombre: `Show ${n}`, fecha: new Date(Date.now() + (n + 1) * DIA), lugar: "Club", ciudad: "Rosario", direccion: "", descripcion: "" });
+    // Todos en el mismo mes (el tope es por mes): el 10 del mes que viene, a distintas horas.
+    const base = mesArgentino(new Date(Date.now() + 32 * DIA)).desde.getTime() + 9 * DIA;
+    const show = (n: number) => ({ nombre: `Show ${n}`, fecha: new Date(base + n * 3600_000), lugar: "Club", ciudad: "Rosario", direccion: "", descripcion: "" });
     const shows: string[] = [];
     for (let i = 0; i < 2; i++) {
       shows.push(await crearEvento(e.a.id, show(i)));
@@ -188,7 +193,7 @@ describe("planes", () => {
     // Un plan a medida con topes más bajos (y la ticketera prendida).
     await asignarPlan(comoStaff, e.a.id, "gira", {
       precio: null, modulos: ["sitio", "tienda", "ticketera"], almacenamiento: null,
-      topes: { "tienda.productos-publicados": 2, "ticketera.shows-publicados": 1 },
+      topes: { "tienda.productos-publicados": 2, "ticketera.shows-por-mes": 1 },
     });
     const publicados = await dueno.tiendaProducto.findMany({ where: { tenantId: e.a.id }, select: { id: true, publicado: true } });
     expect(publicados).toHaveLength(4);

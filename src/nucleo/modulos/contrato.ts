@@ -233,6 +233,17 @@ export type DefinicionLimite = {
    * que sobra en orden inverso (lo último primero). NUNCA borrar. Devuelve cuántos sacó.
    */
   ajustar: (tenantId: string, maximo: number) => Promise<number>;
+  /**
+   * El tope es por mes calendario (hora argentina): `usados` cuenta el mes en curso y
+   * `exigirLimite(…, { en })` el mes de `en` (p. ej. el de la fecha del show).
+   */
+  porMes?: boolean;
+  /**
+   * Solo mide, nunca corta (3.2 núcleo d5: "se permite el excedente, se avisa y se factura
+   * después"): no se exige; el excedente se muestra en Plan y pago con el plan o complemento que
+   * lo cubre. Ej.: entradas vendidas.
+   */
+  soloMide?: boolean;
 };
 
 /**

@@ -145,7 +145,7 @@ model ComercialDominioPrecio {
 model ComercialDominioCobro {
   id            String    @id @default(uuid()) @db.Uuid
   tenantId      String    @db.Uuid
-  /// alta | renovacion
+  /// alta | renovacion | complemento (un complemento suelto: `dominio` lleva su id y `datos` su período)
   tipo          String
   dominio       String
   anios         Int
@@ -213,4 +213,25 @@ model ComercialDominioPago {
 
   @@index([tenantId, creadoEn])
   @@map("comercial_dominio_pago")
+}
+
+/// @global
+/// Complemento suelto (3.2 núcleo d6): suma `cantidad` a un tope por `meses` meses calendario. Lo
+/// define el staff; la banda lo compra en Plan y pago (cobro único: comercial_dominio_cobro, tipo
+/// "complemento").
+model ComercialComplemento {
+  id            String   @id
+  nombre        String
+  descripcion   String   @default("")
+  /// Centavos de peso.
+  precio        Int
+  /// Id del límite ("ticketera.shows-por-mes").
+  limite        String
+  cantidad      Int
+  meses         Int      @default(1)
+  activo        Boolean  @default(true)
+  orden         Int      @default(0)
+  actualizadoEn DateTime @default(now()) @updatedAt
+
+  @@map("comercial_complemento")
 }

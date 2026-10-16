@@ -1,5 +1,6 @@
 // Contenido del sitio: la misma forma para el borrador (leído de las tablas) y para
 // lo publicado (la foto JSON en sitio_publicacion). Un solo renderizador para los dos.
+import { exigirLimite } from "@/nucleo/cuenta";
 import { cache } from "react";
 import { archivosDelModulo, borrarArchivos, marcarPublicos } from "@/nucleo/archivos";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
@@ -167,4 +168,18 @@ function canonico(v: unknown): string {
 /** ¿El borrador difiere de lo publicado? */
 export function hayCambios(borrador: ContenidoSitio, publicado: ContenidoSitio | null) {
   return !publicado || canonico(borrador) !== canonico(publicado);
+}
+
+/**
+ * Tope de imágenes del plan (3.2 núcleo d2: imágenes es uno de los límites que separan los
+ * planes): las del slider y las fotos del press kit, del borrador. Bloquea sumar una más; nunca
+ * borra ni despublica las que ya están.
+ */
+export const LIMITE_IMAGENES = "imagenes";
+
+export const contarImagenes = (tx: TxTenant) =>
+  Promise.all([tx.sitioSlide.count(), tx.sitioDescargable.count({ where: { tipo: "FOTO" } })]).then(([a, b]) => a + b);
+
+export async function exigirTopeDeImagenes(tx: TxTenant, tenantId: string) {
+  await exigirLimite(tx, (await import("./index")).default, tenantId, LIMITE_IMAGENES, async () => (await contarImagenes(tx)) + 1);
 }

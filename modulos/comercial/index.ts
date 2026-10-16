@@ -7,6 +7,7 @@
 // Sus tablas (comercial_*) son solo de la cuota. Las ventas de la banda no pasan por acá.
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { AdminCobros, AdminCuenta, AdminCuentas, AdminPlanes } from "./admin/pantallas";
+import { AdminComplementos } from "./admin/complementos";
 import { AdminDominios } from "./admin/dominios";
 import { avisoDeCuota, avisoDeDominio } from "./aviso";
 import { alCrearBanda, comoAmpliar, opcionesDeAlta, revisarExcedentes, revisarVencimientos } from "./cuenta";
@@ -49,16 +50,18 @@ const comercial: Modulo = {
     { ruta: "/planes", componente: AdminPlanes },
     { ruta: "/cobros", componente: AdminCobros },
     { ruta: "/dominios", componente: AdminDominios },
+    { ruta: "/complementos", componente: AdminComplementos },
   ],
   navegacion: [
     { etiqueta: "Cuentas", href: "/", admin: true, orden: 10 },
     { etiqueta: "Planes", href: "/planes", admin: true, orden: 20 },
     { etiqueta: "Cuotas fallidas", href: "/cobros", admin: true, orden: 30 },
     { etiqueta: "Dominios: precios y pagos", href: "/dominios", admin: true, orden: 40 },
+    { etiqueta: "Complementos", href: "/complementos", admin: true, orden: 25 },
   ],
   // Bloque "Tu cuenta" del inicio del panel.
   consultas: [{ nombre: "inicio", responder: inicioComercial }],
-  tablasGlobales: ["comercial_plan", "comercial_config", "comercial_dominio_precio"],
+  tablasGlobales: ["comercial_plan", "comercial_config", "comercial_dominio_precio", "comercial_complemento"],
 };
 
 export default comercial;

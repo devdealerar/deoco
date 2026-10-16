@@ -21,3 +21,15 @@ export function fechaHoraParaCampo(d: Date): string {
 export function diaArgentino(d: Date | string): string {
   return new Date(new Date(d).getTime() - 3 * 3600_000).toISOString().slice(0, 10);
 }
+
+/**
+ * El mes calendario (hora argentina, UTC-3 todo el año) que contiene `d`: [desde, hasta).
+ * Para los topes por mes ("eventos por mes", "entradas por mes").
+ */
+export function mesArgentino(d: Date): { desde: Date; hasta: Date; clave: string } {
+  const clave = diaArgentino(d).slice(0, 7);
+  const [y, m] = clave.split("-").map(Number);
+  const desde = new Date(Date.UTC(y, m - 1, 1, 3));
+  const hasta = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1, 3));
+  return { desde, hasta, clave };
+}

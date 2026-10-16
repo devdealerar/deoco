@@ -773,3 +773,20 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
 - **Frenos por show**: rangos acotados en la base (reserva 5–30 min, 1–20 por compra, 1–100 por
   persona, 1–5 reservas por email, 1–50 por conexión). Una banda grande sube los números, pero
   ningún show queda sin freno.
+- **Cobro rechazado de la cuota**: no marca mora. La pasarela de la cuota reintenta sola; Deoco no
+  puede forzar un reintento de una suscripción. La escalera cuenta desde el vencimiento y la gracia
+  (`diasGracia`, 3 días) es la ventana de reintentos; al rechazo, un mail de "vamos a reintentar".
+- **Eventos por mes** = shows publicados con fecha en el mismo mes calendario (hora argentina).
+  Mover un show publicado de mes cuenta para el mes nuevo. Nunca se despublica uno por el tope.
+- **Tope de imágenes** (lo pide el 3.2, sin números): Demo 30, Escenario 150, Gira 600, Sello 600
+  por banda. Cuentan las del slider y las fotos del press kit (no logos ni rider). Frena sumar
+  una; nunca saca las que están.
+- **Entradas por mes** (200 / 2.000 / 10.000): SOLO MIDE. Nunca corta una venta. El excedente se
+  muestra en Plan y pago con el plan que lo cubre y el complemento que suma. **No se cobra solo**:
+  facturar el excedente automáticamente queda para cuando haya facturación (es más plata de la
+  banda sin que la elija; ante duda de plata, lo que no le cobra de más).
+- **Complementos sueltos**: los define el staff (`/admin/m/comercial/complementos`), suman a un
+  tope por N meses calendario desde el mes que elige la banda (este y los 5 siguientes). Se pagan
+  con el cobro único de Deoco que ya usaban los dominios (inmediato, monto exacto, devolución con
+  reintentos, alerta al staff): misma tabla, tipo "complemento", no se mezcla con la cuota. De
+  arranque: "Un show más este mes" ($5.000) y "1.000 entradas más" ($8.000), precios a revisar.

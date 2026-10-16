@@ -12,7 +12,7 @@ import { EventoPanel, EventosPanel } from "./panel/paginas";
 import { PuertaEvento, PuertaPanel } from "./panel/puerta";
 import { puertaAbiertaConBandaCerrada, puertaDeShowAbiertaConBandaCerrada } from "./puerta";
 import { CompraPublica, EventoPublico, FechasPublicas, metadatosEvento } from "./publico/paginas";
-import { LIMITE_SHOWS, ajustarShowsPublicados, contarShowsPublicados } from "./eventos";
+import { LIMITE_ENTRADAS, LIMITE_SHOWS, ajustarShowsPublicados, contarEntradasDelMes, contarShowsPublicados } from "./eventos";
 
 const VER = "ticketera.eventos.ver";
 const VALIDAR = "ticketera.puerta.validar";
@@ -38,7 +38,8 @@ const ticketera: Modulo = {
   // Uso de la banda (se ve en /admin).
   mediciones: [
     { clave: "ticketera.shows", etiqueta: "Shows", medir: (t) => conTenant(t, (tx) => tx.ticketeraEvento.count()) },
-    { clave: "ticketera.shows-publicados", etiqueta: "Shows próximos publicados", medir: contarShowsPublicados },
+    { clave: "ticketera.shows-publicados", etiqueta: "Shows publicados este mes", medir: contarShowsPublicados },
+    { clave: "ticketera.entradas-del-mes", etiqueta: "Entradas vendidas este mes", medir: (t: string) => contarEntradasDelMes(t) },
     { clave: "ticketera.entradas-vendidas", etiqueta: "Entradas vendidas", medir: (t) => conTenant(t, (tx) => tx.ticketeraEntrada.count()) },
   ],
   // La foto de cada show; en el panel la ve quien ve los shows (no la puerta).
@@ -85,7 +86,11 @@ const ticketera: Modulo = {
     { nombre: "inicio", responder: inicioTicketera },
   ],
   // Tope de la cuenta (lo fija el plan): shows próximos publicados.
-  limites: [{ clave: LIMITE_SHOWS, etiqueta: "shows publicados", usados: contarShowsPublicados, ajustar: ajustarShowsPublicados }],
+  limites: [
+    { clave: LIMITE_SHOWS, etiqueta: "shows publicados en un mismo mes", usados: contarShowsPublicados, ajustar: ajustarShowsPublicados, porMes: true },
+    // Solo mide: una venta nunca se corta por el plan. El excedente se ve en Plan y pago.
+    { clave: LIMITE_ENTRADAS, etiqueta: "entradas vendidas por mes", usados: (t) => contarEntradasDelMes(t), ajustar: async () => 0, porMes: true, soloMide: true },
+  ],
 };
 
 export default ticketera;

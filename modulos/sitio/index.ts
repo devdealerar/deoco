@@ -1,6 +1,7 @@
 // Módulo sitio: home y press kit, el sitio público de la banda.
 // Borrador (tablas sitio_*) → publicar → sitio_publicacion (lo que ve el público).
 import { inicioSitio } from "./inicio";
+import { contarImagenes, LIMITE_IMAGENES } from "./contenido";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { HomePanel } from "./panel/home";
@@ -24,9 +25,11 @@ const sitio: Modulo = {
     {
       clave: "sitio.imagenes",
       etiqueta: "Imágenes del sitio",
-      medir: (t) => conTenant(t, async (tx) => (await tx.sitioSlide.count()) + (await tx.sitioDescargable.count({ where: { tipo: "FOTO" } }))),
+      medir: (t) => conTenant(t, contarImagenes),
     },
   ],
+  // Tope del plan: frena sumar una imagen más; nunca saca las que ya están.
+  limites: [{ clave: LIMITE_IMAGENES, etiqueta: "imágenes en el sitio", usados: (t) => conTenant(t, contarImagenes), ajustar: async () => 0 }],
   // Archivos del sitio; en el panel (borrador, vista previa) los ve quien ve el sitio.
   archivos: ["logo", "fondo", "slide", "rider", "descargable"].map((recurso) => ({ recurso, permiso: VER })),
   // Formularios del panel del sitio (accionesDelPanel): todo lo que se guarda va al borrador.

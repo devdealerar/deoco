@@ -2,14 +2,34 @@
 
 import { accionesDelPanel } from "@/nucleo/acceso/acciones";
 import { ErrorArchivo, guardarArchivo, type TipoArchivo, type Variante } from "@/nucleo/archivos";
+import { borrarArchivos } from "@/nucleo/archivos";
+import { ErrorLimite } from "@/nucleo/cuenta";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import type { EstadoFormulario } from "@/ui";
 import { archivo as archivoDe, color, email, ErrorFormulario, obligatorio, texto, url } from "@/ui/servidor";
-import { liberarArchivo, MODULO, publicar as publicarContenido } from "./contenido";
+import { exigirTopeDeImagenes, liberarArchivo, MODULO, publicar as publicarContenido } from "./contenido";
 import sitio from "./index";
 
 /** Toda acción del sitio: `edicion` del contrato (sitio.contenido.editar); lo guardado va al borrador. */
-const conEdicion = accionesDelPanel(() => sitio, [ErrorArchivo, ErrorFormulario]);
+const conEdicion = accionesDelPanel(() => sitio, [ErrorArchivo, ErrorFormulario, ErrorLimite]);
+
+/**
+ * Una imagen nueva del sitio (slide, foto del press kit): el tope del plan se mira antes de subir
+ * (no se sube de balde) y otra vez al guardar (dos a la vez). Si ahí no entra, el archivo se borra.
+ */
+async function conImagenNueva(tenantId: string, subirla: () => Promise<string>, guardar: (tx: TxTenant, archivoId: string) => Promise<unknown>) {
+  await conTenant(tenantId, (tx) => exigirTopeDeImagenes(tx, tenantId));
+  const archivoId = await subirla();
+  try {
+    await conTenant(tenantId, async (tx) => {
+      await exigirTopeDeImagenes(tx, tenantId);
+      await guardar(tx, archivoId);
+    });
+  } catch (e) {
+    await conTenant(tenantId, (tx) => borrarArchivos(tx, tenantId, [archivoId])).catch(() => undefined);
+    throw e;
+  }
+}
 
 const IMAGEN: TipoArchivo[] = ["jpeg", "png", "webp"];
 const MB = 1024 * 1024;
@@ -96,11 +116,14 @@ export async function agregarSlide(slug: string, _: EstadoFormulario, fd: FormDa
     const imagen = archivoDe(fd, "imagen");
     if (!imagen) throw new ErrorFormulario("Elegí una imagen.");
     const textoAlt = texto(fd, "textoAlt", 200);
-    const archivoId = await subir(tenantId, "slide", imagen, IMAGEN, [{ nombre: "web", ancho: 1600, alto: 1600 }]);
-    await conTenant(tenantId, async (tx) => {
-      const orden = siguienteOrden(await tx.sitioSlide.findMany({ orderBy: { orden: "asc" } }));
-      await tx.sitioSlide.create({ data: { tenantId, archivoId, textoAlt, orden } });
-    });
+    await conImagenNueva(
+      tenantId,
+      () => subir(tenantId, "slide", imagen, IMAGEN, [{ nombre: "web", ancho: 1600, alto: 1600 }]),
+      async (tx, archivoId) => {
+        const orden = siguienteOrden(await tx.sitioSlide.findMany({ orderBy: { orden: "asc" } }));
+        await tx.sitioSlide.create({ data: { tenantId, archivoId, textoAlt, orden } });
+      },
+    );
     return "Imagen agregada al borrador.";
   });
 }
@@ -217,11 +240,17 @@ export async function agregarDescargable(slug: string, tipo: "FOTO" | "LOGO", _:
     // Fotos en alta: el original queda intacto para descargar; la versión web es la miniatura.
     // Logos: también SVG y PDF, que solo se ofrecen como descarga (nunca se muestran).
     const tipos: TipoArchivo[] = tipo === "FOTO" ? IMAGEN : ["png", "webp", "jpeg", "svg", "pdf"];
-    const archivoId = await subir(tenantId, "descargable", archivo, tipos, [{ nombre: "web", ancho: 800, alto: 800 }]);
-    await conTenant(tenantId, async (tx) => {
+    const guardar = async (tx: TxTenant, archivoId: string) => {
       const orden = siguienteOrden(await tx.sitioDescargable.findMany({ where: { tipo }, orderBy: { orden: "asc" } }));
       await tx.sitioDescargable.create({ data: { tenantId, tipo, archivoId, descripcion, orden } });
-    });
+    };
+    const subirlo = () => subir(tenantId, "descargable", archivo, tipos, [{ nombre: "web", ancho: 800, alto: 800 }]);
+    // Las fotos cuentan para el tope de imágenes del plan; los logos, no.
+    if (tipo === "FOTO") await conImagenNueva(tenantId, subirlo, guardar);
+    else {
+      const archivoId = await subirlo();
+      await conTenant(tenantId, (tx) => guardar(tx, archivoId));
+    }
     return tipo === "FOTO" ? "Foto agregada al borrador." : "Logo agregado al borrador.";
   });
 }

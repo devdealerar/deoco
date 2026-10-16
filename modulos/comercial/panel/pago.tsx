@@ -4,9 +4,10 @@ import { formatearPesos } from "@/nucleo/dinero";
 import { ZONA } from "@/nucleo/fechas";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { cuotaConfigurada, pasarelaDeLaCuota } from "@/nucleo/pagos/cuota";
-import { Aviso, Casilla, Formulario, Insignia, Tarjeta } from "@/ui";
+import { Aviso, Casilla, Formulario, Insignia, Selector, Tarjeta } from "@/ui";
 import { cuentaDe, type Cuenta, type Plan, planEfectivo, planes, plazos, sincronizar } from "../cuenta";
-import { cancelarAccion, elegirPlanAccion } from "./acciones";
+import { complementosDeBanda, listarComplementos, mesesElegibles, sugerencias } from "../complementos";
+import { cancelarAccion, comprarComplementoAccion, elegirPlanAccion } from "./acciones";
 
 const dia = (d: Date) => d.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: ZONA });
 
@@ -60,7 +61,16 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
   const todos = await planes();
   const actual = planEfectivo(cuenta, todos);
   const elegido = cuenta.planElegido ? todos.find((p) => p.id === cuenta.planElegido) : null;
-  const [uso, limites, cfg, excedentes] = await Promise.all([usoAlmacenamiento(tenantId), usoDeLimites(tenantId), plazos(), excedentesDe(tenantId)]);
+  const [uso, limites, cfg, excedentes, comps, comprados, sugeridos] = await Promise.all([
+    usoAlmacenamiento(tenantId),
+    usoDeLimites(tenantId),
+    plazos(),
+    excedentesDe(tenantId),
+    listarComplementos(),
+    complementosDeBanda(tenantId),
+    sugerencias(tenantId, planEfectivo(cuenta, todos).id),
+  ]);
+  const meses = mesesElegibles(ahora);
   const excedente = cuenta.excedentePlanId ? todos.find((p) => p.id === cuenta.excedentePlanId) : null;
   const s = situacion(cuenta, ahora);
   const activa = cuenta.suscripcionEstado === "activa";
@@ -131,10 +141,14 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
           </div>
           {limites.map((l) => (
             <div key={l.id}>
-              <dt className="text-tertiary">{l.etiqueta[0].toUpperCase() + l.etiqueta.slice(1)}</dt>
+              <dt className="text-tertiary">
+                {l.etiqueta[0].toUpperCase() + l.etiqueta.slice(1)}
+                {l.porMes ? " (este mes)" : ""}
+              </dt>
               <dd className="text-primary" data-limite={l.id}>
                 {l.usados}
                 {l.maximo !== null ? ` de ${l.maximo}` : " (sin tope)"}
+                {l.extra > 0 ? ` (incluye ${l.extra} de complementos)` : ""}
               </dd>
             </div>
           ))}
@@ -156,6 +170,61 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
         )}
       </Tarjeta>
 
+      {sugeridos.length > 0 && (
+        <Tarjeta titulo="Llegaste al tope de tu plan" data-testid="sugerencias">
+          <ul className="flex flex-col gap-3 text-sm text-secondary">
+            {sugeridos.map((x) => (
+              <li key={x.limite.id} data-sugerencia={x.limite.id}>
+                {x.limite.excedente > 0 ? (
+                  <>
+                    {x.limite.porMes ? "Este mes llevás" : "Tenés"} {x.limite.usados} {x.limite.etiqueta}: <strong>{x.limite.excedente} más</strong> que tu plan ({x.limite.maximo}). No se cortó nada:
+                    lo que se vendió, vendido está.
+                  </>
+                ) : (
+                  <>
+                    Llegaste a {x.limite.maximo} {x.limite.etiqueta}
+                    {x.limite.porMes ? " este mes" : ""}, el tope de tu plan.
+                  </>
+                )}{" "}
+                {x.plan ? `El plan ${x.plan.nombre}${x.plan.precio !== null ? ` (${formatearPesos(x.plan.precio)} por mes)` : ""} lo cubre.` : ""}
+                {x.complementos.length > 0 ? ` O sumá ${x.complementos.map((c) => `"${c.nombre}" (${formatearPesos(c.precio)})`).join(" o ")} sin cambiar de plan.` : ""}
+              </li>
+            ))}
+          </ul>
+        </Tarjeta>
+      )}
+
+      {comps.length > 0 && (
+        <section className="flex flex-col gap-4" aria-label="Complementos">
+          <h2 className="text-lg font-semibold text-primary">Complementos sueltos</h2>
+          <p className="text-sm text-tertiary">Para un mes puntual que se pasa de tu plan, sin cambiar de plan. Se pagan una vez, por {pasarela}, y valen para el mes que elijas.</p>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {comps.map((c) => (
+              <Tarjeta
+                key={c.id}
+                titulo={c.nombre}
+                descripcion={c.descripcion || undefined}
+                acciones={<span className="text-md font-semibold text-primary tabular-nums">{formatearPesos(c.precio)}</span>}
+                data-complemento={c.id}>
+                <Formulario accion={comprarComplementoAccion.bind(null, slug, c.id)} puedeEditar={habilitada} etiqueta="Comprar">
+                  <Selector name="mes" etiqueta={c.meses > 1 ? `Desde (dura ${c.meses} meses)` : "Para"} defaultValue={meses[0].clave} opciones={meses.map((m) => ({ valor: m.clave, texto: m.texto }))} />
+                </Formulario>
+              </Tarjeta>
+            ))}
+          </div>
+          {comprados.length > 0 && (
+            <ul className="flex flex-col gap-1 text-sm text-secondary" data-testid="complementos-comprados">
+              {comprados.map((c) => (
+                <li key={c.id}>
+                  {c.nombre} · {c.mes} · {formatearPesos(c.monto)}
+                  {c.estado === "devuelto" ? " · devuelto" : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       {cuenta.pro ? (
         <Aviso tono="info" titulo="Plan a medida">
           Tu plan lo arma el equipo de Deoco. Para cambiarlo, escribinos.
@@ -163,7 +232,7 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
       ) : (
         <section className="flex flex-col gap-4" aria-label="Planes">
           <h2 className="text-lg font-semibold text-primary">{activa ? "Cambiar de plan" : "Elegí tu plan"}</h2>
-          {activa && <p className="text-sm text-tertiary">El cambio se aplica al instante; el monto nuevo se cobra desde el próximo mes (sin prorrateo).</p>}
+          {activa && <p className="text-sm text-tertiary">El cambio se aplica al instante. Si subís de plan, la diferencia por los días que quedan del mes se suma al próximo cobro; si bajás, el monto nuevo rige desde el próximo cobro.</p>}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {todos.map((p) => {
               const esActual = p.id === actual.id && (activa || !!cuenta.pagoHasta) && !elegido;

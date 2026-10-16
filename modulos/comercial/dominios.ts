@@ -21,6 +21,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { type LeerComoStaff, leerComoStaff } from "@/nucleo/acceso/staff";
 import { prisma } from "@/nucleo/db/cliente";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
+import { sumarExtra } from "@/nucleo/cuenta";
 import { formatearPesos } from "@/nucleo/dinero";
 import { ErrorDominio } from "@/nucleo/dominios";
 import { dominioPagado, renovacionPagada } from "@/nucleo/dominios/compra";
@@ -89,7 +90,8 @@ export async function terminacionesDominio(): Promise<{ tld: string; precio: num
 export async function cobrosDeBanda(tenantId: string, dias: number): Promise<CobroDominioVisible[]> {
   const cobros = await conTenant(tenantId, (tx) =>
     tx.comercialDominioCobro.findMany({
-      where: { creadoEn: { gte: new Date(Date.now() - dias * 86_400_000) } },
+      // Solo dominios: los complementos sueltos usan el mismo cobro y se ven en Plan y pago.
+      where: { creadoEn: { gte: new Date(Date.now() - dias * 86_400_000) }, tipo: { in: ["alta", "renovacion"] } },
       include: { pagos: { select: { pagoId: true, estado: true, devolucion: true } } },
       orderBy: { creadoEn: "desc" },
     }),
@@ -138,31 +140,53 @@ export async function guardarPrecioDominio(
 
 /** Crea el cobro en la cuenta de Deoco y devuelve adónde mandar al titular. El precio lo pone el gestor. */
 export async function cobrarDominio(tenantId: string, p: PedidoDeCobroDominio): Promise<{ redireccion: string; monto: number }> {
-  const modulo = await comercial();
   const tld = p.dominio.split(".").slice(1).join(".");
   const monto = await precioDominio(tld, p.anios);
   if (monto === null) throw new ErrorDominio(`Los dominios .${tld} no se venden en Deoco.`);
   const ya = await conTenant(tenantId, (tx) => tx.comercialDominioCobro.findFirst({ where: { clave: p.clave, estado: "pagado" }, select: { id: true } }));
   if (ya) throw new ErrorDominio(p.tipo === "alta" ? `${p.dominio} ya está pago: lo estamos registrando.` : `La renovación de ${p.dominio} ya está paga.`);
+  const anios = p.anios === 1 ? "1 año" : `${p.anios} años`;
+  return cobroUnico(tenantId, {
+    tipo: p.tipo,
+    dominio: p.dominio,
+    anios: p.anios,
+    monto,
+    clave: p.clave,
+    datos: p.datos as Prisma.InputJsonValue,
+    usuarioId: p.usuarioId,
+    email: p.email,
+    vuelta: p.vuelta,
+    titulo: p.tipo === "alta" ? `Dominio ${p.dominio} · ${anios}` : `Renovación de ${p.dominio} · ${anios}`,
+  });
+}
+
+/**
+ * Un cobro único en la cuenta de Deoco (un dominio, un complemento suelto): la fila que lo espera
+ * y el link de pago (inmediato, del monto exacto, vence en PLAZO_PARA_PAGAR). Sin link, no queda nada.
+ */
+export async function cobroUnico(
+  tenantId: string,
+  c: { tipo: "alta" | "renovacion" | "complemento"; dominio: string; anios: number; monto: number; clave: string; datos: Prisma.InputJsonValue; usuarioId: string | null; email: string; vuelta: string; titulo: string },
+): Promise<{ redireccion: string; monto: number }> {
+  const modulo = await comercial();
   const id = randomUUID();
   const vence = new Date(Date.now() + PLAZO_PARA_PAGAR);
   await conTenant(tenantId, (tx) =>
     tx.comercialDominioCobro.create({
-      data: { id, tenantId, tipo: p.tipo, dominio: p.dominio, anios: p.anios, monto, clave: p.clave, datos: p.datos as Prisma.InputJsonValue, usuarioId: p.usuarioId, vence },
+      data: { id, tenantId, tipo: c.tipo, dominio: c.dominio, anios: c.anios, monto: c.monto, clave: c.clave, datos: c.datos, usuarioId: c.usuarioId, vence },
     }),
   );
-  const anios = p.anios === 1 ? "1 año" : `${p.anios} años`;
   try {
     const r = await crearPagoDominio(modulo, {
       referencia: referencia(tenantId, id),
-      titulo: p.tipo === "alta" ? `Dominio ${p.dominio} · ${anios}` : `Renovación de ${p.dominio} · ${anios}`,
-      monto,
-      email: p.email,
+      titulo: c.titulo,
+      monto: c.monto,
+      email: c.email,
       vence,
-      urls: { exito: `${p.vuelta}?pago=hecho`, fallo: `${p.vuelta}?pago=no`, pendiente: `${p.vuelta}?pago=no`, aviso: urlAvisoDominio(modulo) },
+      urls: { exito: `${c.vuelta}?pago=hecho`, fallo: `${c.vuelta}?pago=no`, pendiente: `${c.vuelta}?pago=no`, aviso: urlAvisoDominio(modulo) },
     });
     await conTenant(tenantId, (tx) => tx.comercialDominioCobro.update({ where: { id }, data: { preferenciaId: r.preferenciaId } }));
-    return { redireccion: r.redireccion, monto };
+    return { redireccion: r.redireccion, monto: c.monto };
   } catch (e) {
     // Sin link de pago no hay cobro: no queda nada esperando.
     await conTenant(tenantId, (tx) => tx.comercialDominioCobro.delete({ where: { id } }));
@@ -246,7 +270,11 @@ async function entregar(tenantId: string, id: string, ahora = new Date()): Promi
   const c = pago.cobro;
   const d = c.datos as { contacto?: unknown; aceptacion?: { fecha: string; ip: string; claves: string[] }; hacerPrincipal?: boolean; privacidad?: boolean };
   try {
-    if (c.tipo === "alta") {
+    if (c.tipo === "complemento") {
+      // Un complemento suelto: suma al tope por su período (idempotente por el pago).
+      const x = c.datos as { limite: string; cantidad: number; desde: string; hasta: string };
+      await sumarExtra(await comercial(), tenantId, { limite: x.limite, cantidad: x.cantidad, desde: new Date(x.desde), hasta: new Date(x.hasta), origen: `complemento:${pago.pagoId}` });
+    } else if (c.tipo === "alta") {
       await dominioPagado(await comercial(), tenantId, {
         dominio: c.dominio,
         anios: c.anios,

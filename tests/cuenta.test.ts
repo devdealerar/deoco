@@ -218,7 +218,7 @@ describe("límites", () => {
     await fijarLimites(gestor, e.a.id, { topes: { "contador.cosas": 4 } }, reg);
     expect(await usoDeLimites(e.a.id, reg)).toEqual([]);
     await fijarModulos(gestor, e.a.id, ["contador"], reg);
-    expect(await usoDeLimites(e.a.id, reg)).toEqual([{ id: "contador.cosas", etiqueta: "cosas publicadas", usados: 2, maximo: 4 }]);
+    expect(await usoDeLimites(e.a.id, reg)).toEqual([{ id: "contador.cosas", etiqueta: "cosas publicadas", usados: 2, maximo: 4, extra: 0, porMes: false, soloMide: false, excedente: 0 }]);
   });
 });
 

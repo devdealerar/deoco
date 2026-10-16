@@ -29,7 +29,7 @@ describe("medición de uso", () => {
     await dueno.tiendaProducto.createMany({
       data: [true, false, false].map((publicado, i) => ({ tenantId: t, productoBaseId: base.id, proveedorId: prov.id, disenoId: d.id, nombre: `P${i}`, precio: 1, publicado })),
     });
-    const futuro = new Date(Date.now() + 86400_000);
+    const futuro = new Date(Date.now() + 60_000); // este mes: "shows publicados este mes"
     await dueno.ticketeraEvento.createMany({
       data: [
         { tenantId: t, nombre: "S1", fecha: futuro, lugar: "L", ciudad: "C", publicado: true, publicadoEn: new Date() },
