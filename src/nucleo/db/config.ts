@@ -26,3 +26,17 @@ export function configPool(env: Entorno = process.env, porDefecto = 40) {
 }
 
 export const OPCIONES_TRANSACCION = { maxWait: 10_000, timeout: 15_000 } as const;
+
+/**
+ * Compartimentos por banda: cuántas transacciones a la vez puede tener UNA banda (por defecto, un
+ * cuarto del pool, mínimo 2). Así la apertura de venta de una banda nunca se lleva todas las
+ * conexiones: las demás bandas siguen atendiendo. Lo que pasa del tope espera su turno (hasta
+ * `esperaMs`) en la cola de su banda, no en la de todos.
+ */
+export function configPorBanda(env: Entorno = process.env) {
+  const pool = configPool(env).max;
+  return {
+    max: entero(env.DEOCO_DB_CONEXIONES_POR_BANDA, Math.max(2, Math.floor(pool / 4)), 1, pool),
+    esperaMs: 10_000,
+  };
+}

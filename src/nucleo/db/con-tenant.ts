@@ -1,5 +1,58 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "./cliente";
+import { configPorBanda } from "./config";
+
+/** La banda tiene todas sus conexiones ocupadas y la espera se agotó (un pico de esa banda). */
+export class ErrorBandaOcupada extends Error {
+  constructor() {
+    super("Hay mucha gente al mismo tiempo: probá de nuevo en unos segundos.");
+    this.name = "ErrorBandaOcupada";
+  }
+}
+
+// Compartimento por banda (ver configPorBanda): un semáforo por banda, con su propia cola.
+type Compartimento = { activas: number; cola: (() => void)[] };
+const compartimentos = new Map<string, Compartimento>();
+/** Las bandas cuyo turno ya tiene este hilo de ejecución (una transacción dentro de otra no pide otro). */
+const enTurno = new AsyncLocalStorage<ReadonlySet<string>>();
+
+async function conTurno<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
+  const tengo = enTurno.getStore();
+  if (tengo?.has(tenantId)) return fn();
+  const { max, esperaMs } = configPorBanda();
+  let c = compartimentos.get(tenantId);
+  if (!c) compartimentos.set(tenantId, (c = { activas: 0, cola: [] }));
+  if (c.activas >= max) {
+    await new Promise<void>((ok, no) => {
+      const siga = () => {
+        clearTimeout(reloj);
+        ok();
+      };
+      const reloj = setTimeout(() => {
+        const i = c!.cola.indexOf(siga);
+        if (i >= 0) c!.cola.splice(i, 1);
+        no(new ErrorBandaOcupada());
+      }, esperaMs);
+      c!.cola.push(siga);
+    });
+  } else {
+    c.activas++;
+  }
+  try {
+    return await enTurno.run(new Set([...(tengo ?? []), tenantId]), fn);
+  } finally {
+    const siguiente = c.cola.shift();
+    if (siguiente) siguiente(); // el turno pasa directo al que espera (activas no cambia)
+    else if (--c.activas === 0) compartimentos.delete(tenantId);
+  }
+}
+
+/** Para pruebas: cuántas transacciones tiene abiertas cada banda y cuántas esperan. */
+export function ocupacionDeBanda(tenantId: string) {
+  const c = compartimentos.get(tenantId);
+  return { activas: c?.activas ?? 0, esperando: c?.cola.length ?? 0 };
+}
 
 export type TxTenant = Prisma.TransactionClient;
 
@@ -30,11 +83,14 @@ export async function transaccionDeBanda<T>(
 ): Promise<T> {
   if (!UUID.test(tenantId)) throw new Error(`tenantId inválido: ${tenantId}`);
   const alConfirmar: (() => void)[] = [];
-  const resultado = await prisma.$transaction(async (tx) => {
-    await preparar(tx);
-    abiertas.set(tx, { tenantId, alConfirmar });
-    return fn(tx);
-  });
+  // Una banda no se lleva todas las conexiones: espera su turno en su compartimento.
+  const resultado = await conTurno(tenantId, () =>
+    prisma.$transaction(async (tx) => {
+      await preparar(tx);
+      abiertas.set(tx, { tenantId, alConfirmar });
+      return fn(tx);
+    }),
+  );
   // Recién acá la transacción está confirmada. Si falló, $transaction tiró y esto no corre.
   for (const tarea of alConfirmar) tarea();
   return resultado;

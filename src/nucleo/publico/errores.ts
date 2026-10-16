@@ -8,6 +8,7 @@ export function esSaturacion(e: unknown): boolean {
   // Prisma: P2024 (sin conexión libre a tiempo), P2028 (no pudo abrir la transacción a tiempo),
   // P1001/P1017 (la base no responde). Postgres: 53300 (demasiadas conexiones), 57P03, 40001
   // (serialización), 40P01 (deadlock), 55P03 (bloqueo). Y los tiempos de espera de red.
+  if ((e as Error)?.name === "ErrorBandaOcupada") return true; // el compartimento de la banda, lleno
   return (
     ["P2024", "P2028", "P1001", "P1008", "P1017", "53300", "57P03", "40001", "40P01", "55P03"].includes(codigo) ||
     /timed out|timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|too many clients|Unable to start a transaction/i.test(mensaje)
