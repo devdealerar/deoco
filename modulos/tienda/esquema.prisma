@@ -149,6 +149,9 @@ model TiendaProducto {
   /// Su proveedor dejó de ofrecer el producto base (o se desactivó): quedó despublicado. La banda
   /// reasigna a otro proveedor (si hay otra oferta) y vuelve a publicar.
   sinOfertaDesde DateTime?
+  /// El staff cambió el producto base y el producto dejó de cumplirlo (arte o variantes): quedó
+  /// despublicado. La banda lo arregla y vuelve a publicar (`problemasConElBase`).
+  revisarDesde   DateTime?
   creadoEn       DateTime @default(now())
   actualizadoEn  DateTime @default(now()) @updatedAt
 

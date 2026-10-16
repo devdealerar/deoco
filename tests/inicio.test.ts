@@ -69,6 +69,10 @@ describe("el núcleo arma los bloques", () => {
     expect(interpretarBloque(null)).toBeNull();
     expect(() => interpretarBloque({ titulo: "" })).toThrow();
     expect(interpretarBloque({ titulo: "T", datos: Array.from({ length: 20 }, (_, i) => ({ etiqueta: `e${i}`, valor: "v" })) })!.datos).toHaveLength(8);
+    // Los pendientes no se cortan en silencio.
+    const p = interpretarBloque({ titulo: "T", pendientes: Array.from({ length: 15 }, (_, i) => ({ texto: `p${i}` })) })!.pendientes;
+    expect(p).toHaveLength(13);
+    expect(p.at(-1)!.texto).toBe("Y 3 pendientes más.");
   });
 });
 

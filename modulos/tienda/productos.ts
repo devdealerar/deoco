@@ -273,11 +273,32 @@ export function motivoSinOferta(p: { productoBase: { nombre: string; activo: boo
   return null;
 }
 
+/**
+ * Lo que el producto ya no cumple de su producto base (el staff lo cambió): el arte o las
+ * variantes. Vacío = cumple. Lo mismo que mira `tienda_base_cambiada` en la base.
+ */
+export function problemasConElBase(p: {
+  productoBase: Especificacion & { opciones: unknown };
+  diseno: Parameters<typeof medidaDeDiseno>[0] & { nombre: string };
+  variantes: unknown;
+}): string[] {
+  const problemas = problemasDeImpresion(medidaDeDiseno(p.diseno), p.productoBase).map((x) => `El diseño "${p.diseno.nombre}": ${x}`);
+  try {
+    validarVariantes(p.variantes as Opcion[], p.productoBase.opciones as Opcion[]);
+  } catch (e) {
+    if (!(e instanceof ErrorTienda)) throw e;
+    problemas.push(e.message);
+  }
+  return problemas;
+}
+
 export async function publicarProducto(tenantId: string, id: string, publicado: boolean) {
   const actual = await productoDe(tenantId, id);
   // Lo que nadie va a producir no se vende (3.2 proveedor d5): primero, otro proveedor.
   const sinOferta = publicado ? motivoSinOferta(actual) : null;
   if (sinOferta) throw new ErrorTienda(`${sinOferta} Elegí otro proveedor para volver a publicarlo.`);
+  const noCumple = publicado ? problemasConElBase(actual) : [];
+  if (noCumple.length) throw new ErrorTienda(`${actual.productoBase.nombre} cambió y este producto ya no lo cumple: ${noCumple.join(" ")} Editalo y volvé a publicarlo.`);
   return conTenant(tenantId, async (tx) => {
     if (publicado && !actual.publicado) {
       // El tope de productos publicados de la cuenta (lo fija el plan; sin tope, pasa).
@@ -286,7 +307,7 @@ export async function publicarProducto(tenantId: string, id: string, publicado: 
     if (actual.fotoArchivoId) await marcarPublicos(tx, [actual.fotoArchivoId], publicado);
     return tx.tiendaProducto.update({
       where: { id },
-      data: { publicado, publicadoEn: publicado ? (actual.publicadoEn ?? new Date()) : null, ...(publicado ? { sinOfertaDesde: null } : {}) },
+      data: { publicado, publicadoEn: publicado ? (actual.publicadoEn ?? new Date()) : null, ...(publicado ? { sinOfertaDesde: null, revisarDesde: null } : {}) },
     });
   });
 }

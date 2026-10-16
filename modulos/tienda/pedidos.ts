@@ -247,6 +247,9 @@ export async function crearPedido(tienda: Modulo, tenantId: string, lineas: Line
           cantidad: l.cantidad,
           precioUnitario: l.precio,
           envioUnitario: l.envio,
+          // El proveedor cuyo envío pagó el fan: si la banda cambia de proveedor antes del pago,
+          // este pedido sigue yendo al de ahora (los costos se fijan al pagarse).
+          proveedorId: l.proveedorId,
         },
       });
     }

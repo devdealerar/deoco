@@ -150,6 +150,20 @@ describe("órdenes: de todas las bandas, solo las suyas", () => {
     expect(ajenas).toEqual({ items: [], deudas: [], ordenes: [], productos: [], membresias: 0, correos: 0 });
   });
 
+  it("un pedido sin pagar no lo ve ningún proveedor (aunque el renglón ya diga cuál es)", async () => {
+    const d = await subirDiseno(e.a.id, "Logo", { nombre: "logo.png", datos: await png(4200, 5000) });
+    const remera = await crearProducto(e.a.id, remeraBase.id, { disenoId: d.id, nombre: "Sin pagar", descripcion: "", precio: 2500000, variantes: [{ nombre: "Talle", valores: ["M"] }] });
+    await publicarProducto(e.a.id, remera.id, true);
+    const pedido = await crearPedido(tienda, e.a.id, [{ productoId: remera.id, variante: { Talle: "M" }, cantidad: 1 }], FAN);
+    expect((await dueno.tiendaPedidoItem.findFirstOrThrow({ where: { pedidoId: pedido.id } })).proveedorId).not.toBeNull();
+    const ve = await conCuentaExterna(delSur, tienda, async (tx) => ({
+      items: await tx.tiendaPedidoItem.count({ where: { pedidoId: pedido.id } }),
+      productos: await tx.tiendaProducto.count({ where: { id: remera.id } }),
+      disenos: await tx.tiendaDiseno.count({ where: { id: d.id } }),
+    }));
+    expect(ve).toEqual({ items: 0, productos: 0, disenos: 0 });
+  });
+
   it("el detalle: qué producir, archivo, envío y contacto; sin montos de venta", async () => {
     await pedidoPagado(e.a.id, "c-a2");
     const o = await ordenDe(delSur, "Banda A");

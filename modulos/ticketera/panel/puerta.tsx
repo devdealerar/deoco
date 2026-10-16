@@ -4,7 +4,7 @@ import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { Tarjeta } from "@/ui";
 import { FECHA_CORTA } from "@/nucleo/fechas";
 import { desdeAhora, evento as leerEvento, eventos } from "../eventos";
-import { resumenPuerta, showsConEntradasPorDelante } from "../puerta";
+import { abiertoEnPuerta, resumenPuerta, showsConEntradasPorDelante } from "../puerta";
 import { Puerta } from "./puerta-cliente";
 
 /** Panel · Puerta: elegir el show (los de hoy y los próximos). */
@@ -40,7 +40,9 @@ export async function PuertaPanel({ tenantId, slug, acceso }: PropsRutaPanel) {
 }
 
 /** Panel · Puerta de un show: escanear o tipear, y cuántos entraron. */
-export async function PuertaEvento({ tenantId, slug, params }: PropsRutaPanel) {
+export async function PuertaEvento({ tenantId, slug, params, acceso }: PropsRutaPanel) {
+  const cerrada = acceso.estado === "SUSPENDIDO" || acceso.estado === "ARCHIVADO";
+  if (!(await abiertoEnPuerta(tenantId, params.id, cerrada))) notFound();
   const e = await leerEvento(tenantId, params.id);
   if (!e) notFound();
   return (

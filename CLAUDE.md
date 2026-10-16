@@ -221,7 +221,7 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 ## Ticketera (`modulos/ticketera`)
 
 - Shows, tipos con cupo (CHECK en la base), compra con `@/nucleo/pagos`, entradas nominadas
-  con QR (mail con `adjuntos` cid:), puerta (`/b/<slug>/puerta`, rol PUERTA). Pestaña "Fechas".
+  con QR (mail con `adjuntos` cid:), puerta (`/b/<slug>/puerta`, rol PUERTA; solo abre los shows que lista: `abiertoEnPuerta`). Pestaña "Fechas".
 - Acaparamiento (`compras.ts`): reserva de 10 min (el cobro vence con ella), 6 por compra, 12 por
   email y show (pagadas + reservadas), 2 reservas abiertas por email y 4 por IP (`ipHash`, nunca la IP).
 - QR firmado (`firma.ts`): 10 al azar + 10 de HMAC por banda con `DEOCO_CLAVE_QR` (`entorno` en
@@ -244,7 +244,11 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   productos que la usan se DESPUBLICAN (`tienda_retirar_oferta()`, solo staff) y quedan
   `sinOfertaDesde`; no se vuelven a publicar con ese proveedor; la banda reasigna en un clic
   (`reasignarProveedor`, aunque tenga ventas; ve costo y margen de cada oferta). Lo pagado se produce.
-  El renglón copia proveedor y costos de la oferta al pagarse (`fijarCostosDelPedido`).
+  El renglón guarda su proveedor al crearse el pedido (el del envío que pagó el fan) y copia los costos
+  de esa oferta al pagarse (`fijarCostosDelPedido`); el portal del proveedor solo ve renglones pagados.
+- Si el staff cambia un producto base (variantes, arte pedido), `tienda_base_cambiada` ajusta los
+  productos: las variantes quitadas salen; si el arte o una opción dejan de cumplir, se despublica
+  con `revisarDesde` (`problemasConElBase`, aviso en el producto y en el inicio).
 
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 

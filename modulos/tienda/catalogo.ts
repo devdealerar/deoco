@@ -309,8 +309,19 @@ export async function actualizarProductoBase(
     const p = await tx.tiendaProductoBase.update({ where: { id }, data: { ...datos, ...fotoNueva, activo: d.activo } });
     // Discontinuado (3.2 proveedor d5): los productos que lo usan dejan de venderse.
     const despublicados = antes.activo && !d.activo ? await retirarDeLasBandas(tx, id, null) : 0;
-    ctx.detalle({ id, antes: { activo: antes.activo }, despues: { activo: p.activo }, despublicados, ...(oferta ? { oferta: { proveedorId: d.proveedorId ?? "por defecto", ...oferta } } : {}) });
-    return p;
+    // Cambió lo que se pide (variantes, arte): los productos de las bandas se ajustan, y los que
+    // ya no lo cumplen se despublican marcados para que la banda los arregle.
+    const cambioLoPedido =
+      JSON.stringify(antes.opciones) !== JSON.stringify(p.opciones) ||
+      antes.impresionAnchoPx !== p.impresionAnchoPx ||
+      antes.impresionAltoPx !== p.impresionAltoPx ||
+      antes.impresionDpi !== p.impresionDpi ||
+      antes.impresionFormatos.join() !== p.impresionFormatos.join();
+    const aRevisar = cambioLoPedido
+      ? (await tx.$queryRaw<{ n: number }[]>`SELECT tienda_base_cambiada(${id}::uuid) AS n`)[0].n
+      : 0;
+    ctx.detalle({ id, antes: { activo: antes.activo }, despues: { activo: p.activo }, despublicados, aRevisar, ...(oferta ? { oferta: { proveedorId: d.proveedorId ?? "por defecto", ...oferta } } : {}) });
+    return { ...p, aRevisar };
   });
   for (const l of liberar) await l();
   return r;
@@ -352,7 +363,8 @@ export async function fijarCostosDelPedido(tx: TxTenant, pedidoId: string) {
     include: { productoBase: true, producto: { select: { proveedorId: true } } },
   });
   for (const item of items) {
-    const oferta = await ofertaDe(tx, item.productoBaseId, item.producto.proveedorId);
+    // El proveedor del pedido (lo guardó al crearse); los de antes de ese cambio, el del producto.
+    const oferta = await ofertaDe(tx, item.productoBaseId, item.proveedorId ?? item.producto.proveedorId);
     if (!oferta) throw new ErrorCatalogo(`No hay oferta de ese proveedor para ${item.productoBase.nombre}.`);
     await tx.tiendaPedidoItem.update({
       where: { id: item.id },

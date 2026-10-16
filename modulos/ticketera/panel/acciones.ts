@@ -22,7 +22,7 @@ import {
   ErrorTicketera,
   publicarEvento,
 } from "../eventos";
-import { type ResultadoValidacion, type ResumenPuerta, resumenPuerta, validarEntrada } from "../puerta";
+import { abiertoEnPuerta, type ResultadoValidacion, type ResumenPuerta, resumenPuerta, validarEntrada } from "../puerta";
 
 const VALIDAR = "ticketera.puerta.validar";
 
@@ -123,6 +123,8 @@ async function conPuerta(slug: string, eventoId: string) {
   const volver = `/b/${slug}/puerta/${eventoId}`;
   const acceso = await accesoPanel(volver);
   if (!(await puedeEnPedido(VALIDAR, volver))) throw new Error("Tu rol no valida entradas.");
+  const cerrada = acceso.estado === "SUSPENDIDO" || acceso.estado === "ARCHIVADO";
+  if (!(await abiertoEnPuerta(acceso.tenantId, eventoId, cerrada))) throw new Error("Ese show no se atiende en la puerta (pasó o no está publicado).");
   return acceso;
 }
 

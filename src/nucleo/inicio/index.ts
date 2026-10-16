@@ -23,16 +23,22 @@ const texto = (v: unknown, max: number) => {
 };
 const hrefValido = (v: unknown) => (typeof v === "string" && v.startsWith("/") && !v.startsWith("//") && v.length <= 200 ? v : undefined);
 
+const MAX_PENDIENTES = 12;
+
 /** Valida la respuesta de un módulo (no se confía en la forma). null: no hay bloque. */
 export function interpretarBloque(r: unknown): BloqueInicio | null {
   if (r === null) return null;
   if (typeof r !== "object" || Array.isArray(r)) throw new Error("no es un bloque");
   const o = r as Record<string, unknown>;
-  const lista = (v: unknown) => (Array.isArray(v) ? v.slice(0, 8) : []);
+  const lista = (v: unknown, max: number) => (Array.isArray(v) ? v.slice(0, max) : []);
+  // Los pendientes no se cortan en silencio: pasado el máximo, una línea dice cuántos más hay.
+  const todos = Array.isArray(o.pendientes) ? o.pendientes : [];
+  const pendientes = lista(todos, MAX_PENDIENTES).map((p) => ({ texto: texto((p as Record<string, unknown>).texto, 200), href: hrefValido((p as Record<string, unknown>).href) }));
+  if (todos.length > MAX_PENDIENTES) pendientes.push({ texto: `Y ${todos.length - MAX_PENDIENTES} pendientes más.`, href: undefined });
   return {
     titulo: texto(o.titulo, 60),
-    datos: lista(o.datos).map((d) => ({ etiqueta: texto((d as Record<string, unknown>).etiqueta, 60), valor: texto((d as Record<string, unknown>).valor, 120) })),
-    pendientes: lista(o.pendientes).map((p) => ({ texto: texto((p as Record<string, unknown>).texto, 200), href: hrefValido((p as Record<string, unknown>).href) })),
+    datos: lista(o.datos, 8).map((d) => ({ etiqueta: texto((d as Record<string, unknown>).etiqueta, 60), valor: texto((d as Record<string, unknown>).valor, 120) })),
+    pendientes,
   };
 }
 

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/nucleo/db/cliente";
 import { codigoFirmado, firmaValida, formatearCodigo, nuevoCodigo } from "../modulos/ticketera/firma";
-import { validarEntrada } from "../modulos/ticketera/puerta";
+import { abiertoEnPuerta, validarEntrada } from "../modulos/ticketera/puerta";
 import { dueno, escenarioAcceso } from "./apoyo";
 
 // El QR de cada entrada es único y FIRMADO (documento maestro §9): la puerta verifica la firma
@@ -102,5 +102,19 @@ describe("la puerta verifica la firma antes de tocar la base", () => {
       expect((await validarEntrada(e.a.id, eventoId, c, e.multi.id, "intento-uno")).resultado).toBe("invalida");
     }
     expect(tocadas.n).toBe(0);
+  });
+});
+
+describe("la puerta solo abre los shows que lista (auditoría 3.2, §5.18)", () => {
+  it("publicado y por delante, sí; en borrador o ya pasado, no (ni por URL directa); con la banda cerrada, solo los vendidos", async () => {
+    await dueno.ticketeraEvento.update({ where: { id: eventoId }, data: { publicado: false } });
+    expect(await abiertoEnPuerta(e.a.id, eventoId, false)).toBe(false);
+    await dueno.ticketeraEvento.update({ where: { id: eventoId }, data: { publicado: true } });
+    expect(await abiertoEnPuerta(e.a.id, eventoId, false)).toBe(true);
+    expect(await abiertoEnPuerta(e.a.id, eventoId, false, new Date(Date.now() + 10 * 86400_000))).toBe(false);
+    expect(await abiertoEnPuerta(e.b.id, eventoId, false)).toBe(false); // de otra banda no existe
+    expect(await abiertoEnPuerta(e.a.id, eventoId, true)).toBe(false); // cerrada y sin vendidas
+    await entrada(codigoFirmado(e.a.id, nuevoCodigo()));
+    expect(await abiertoEnPuerta(e.a.id, eventoId, true)).toBe(true);
   });
 });

@@ -10,7 +10,7 @@ import { formatearPesos, pesosParaCampo } from "@/nucleo/dinero";
 import { FECHA_CORTA } from "@/nucleo/fechas";
 import { describirEspecificacion, medidaDeDiseno, problemasDeImpresion } from "../impresion";
 import { ofertasDe } from "../catalogo";
-import { ErrorTienda, historialDeArte, listarDisenos, margen, motivoSinOferta, otrosProveedores, productoDe, tieneVentas } from "../productos";
+import { ErrorTienda, historialDeArte, listarDisenos, margen, motivoSinOferta, otrosProveedores, problemasConElBase, productoDe, tieneVentas } from "../productos";
 import { actualizarProductoAccion, crearProductoAccion, duplicarProductoAccion, publicarAccion, reasignarAccion } from "./acciones";
 import { Encabezado, PanelMargen, puedeEditar as puedeEditarEn } from "./comun";
 
@@ -162,6 +162,7 @@ export async function EditarProducto({ tenantId, slug, params, consulta }: Props
   const base = producto.productoBase;
   const sinOferta = motivoSinOferta(producto);
   const otros = sinOferta ? await otrosProveedores(tenantId, producto.id) : [];
+  const noCumple = sinOferta ? [] : problemasConElBase(producto);
   return (
     <div className="flex flex-col gap-6">
       <Encabezado slug={slug} actual="" puedeEditar={puedeEditar} />
@@ -183,6 +184,12 @@ export async function EditarProducto({ tenantId, slug, params, consulta }: Props
               ))}
             </ul>
           )}
+        </Aviso>
+      )}
+      {noCumple.length > 0 && (
+        <Aviso tono={producto.revisarDesde ? "error" : "advertencia"} titulo={`Cambió ${base.nombre}: este producto ya no lo cumple`} data-testid="no-cumple-base">
+          {noCumple.join(" ")} {producto.revisarDesde ? "Lo sacamos de la tienda para no vender algo que no se puede producir así; lo ya pagado no cambia. " : ""}
+          Editalo y volvé a publicarlo.
         </Aviso>
       )}
       <div className="flex flex-wrap items-center gap-4">

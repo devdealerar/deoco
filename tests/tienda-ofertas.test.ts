@@ -109,6 +109,15 @@ describe("la banda elige el proveedor", () => {
     expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: nuevo.id } })).proveedorId).toBe(norte.id);
   });
 
+  it("un pedido sin pagar va al proveedor cuyo envío pagó el fan, aunque la banda cambie de proveedor antes del pago", async () => {
+    const p = await producto(sur.id);
+    const pedido = await crearPedido(tienda, e.a.id, [{ productoId: p.id, variante: { Talle: "M" }, cantidad: 1 }], FAN);
+    await actualizarProducto(e.a.id, p.id, { disenoId: p.disenoId, nombre: p.nombre, descripcion: "", precio: p.precio, variantes: VARIANTES, proveedorId: norte.id });
+    expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "c-prov", estado: "aprobado", estadoPasarela: "approved", referencia: pedido.id, monto: pedido.total, moneda: "ARS" })).toBe("pagado");
+    expect((await dueno.tiendaOrden.findMany({ where: { pedidoId: pedido.id } })).map((o) => o.proveedorId)).toEqual([sur.id]);
+    expect(await dueno.tiendaPedidoItem.findFirstOrThrow({ where: { pedidoId: pedido.id } })).toMatchObject({ proveedorId: sur.id, costoEnvio: 350000 });
+  });
+
   it("lo ya cobrado guarda el costo del momento; el costo nuevo rige para lo que viene", async () => {
     const p = await producto(norte.id);
     const viejo = await pedidoPagado(p.id, "c-3");
@@ -148,5 +157,41 @@ describe("la banda elige el proveedor", () => {
     expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: existente.id } })).publicado).toBe(false);
     await expect(publicarProducto(e.a.id, existente.id, true)).rejects.toThrow(/se discontinuó/);
     await dueno.tiendaProductoBase.update({ where: { id: base.id }, data: { activo: true } });
+  });
+});
+
+describe("el staff cambia el producto base (auditoría 3.2, §5.13)", () => {
+  it("las variantes que el base ya no tiene salen del producto; si el arte o una opción dejan de cumplir, se despublica marcado", async () => {
+    const { actualizarProductoBase } = await import("../modulos/tienda/catalogo");
+    const original = await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: base.id } });
+    const cambiar = (d: Partial<Omit<typeof original, "opciones">> & { opciones?: ReturnType<typeof leerOpciones> }) =>
+      actualizarProductoBase(comoStaff, base.id, { ...original, opciones: original.opciones as ReturnType<typeof leerOpciones>, ...d, activo: true });
+    try {
+      await cambiar({ opciones: leerOpciones("Talle: S, M, L") });
+      const d = await subirDiseno(e.a.id, "Logo", { nombre: "logo.png", datos: await png() });
+      const p = await crearProducto(e.a.id, base.id, { disenoId: d.id, nombre: "Remera", descripcion: "", precio: 2500000, variantes: leerOpciones("Talle: S, M"), proveedorId: sur.id });
+      await publicarProducto(e.a.id, p.id, true);
+
+      // Sacan la S: el producto sigue a la venta con M, y la S ya no se puede comprar.
+      expect((await cambiar({ opciones: leerOpciones("Talle: M, L") })).aRevisar).toBe(0);
+      expect(await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ publicado: true, revisarDesde: null, variantes: [{ nombre: "Talle", valores: ["M"] }] });
+      expect((await revisarCarrito(e.a.id, [{ productoId: p.id, variante: { Talle: "S" }, cantidad: 1 }])).problemas).toEqual([expect.stringContaining("ya no está disponible")]);
+
+      // Piden más resolución que la del arte: se despublica y queda marcado, con el motivo.
+      expect((await cambiar({ opciones: leerOpciones("Talle: M, L"), impresionAnchoPx: 4000 })).aRevisar).toBe(1);
+      expect(await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ publicado: false, revisarDesde: expect.any(Date) });
+      await expect(publicarProducto(e.a.id, p.id, true)).rejects.toThrow(/Remera cambió y este producto ya no lo cumple: .*4000×3000 px/);
+
+      // Vuelve a lo de antes: la banda publica y la marca se va.
+      await cambiar({ opciones: leerOpciones("Talle: M, L") });
+      await publicarProducto(e.a.id, p.id, true);
+      expect(await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ publicado: true, revisarDesde: null });
+
+      // Una opción que se queda sin valores: también se despublica.
+      expect((await cambiar({ opciones: leerOpciones("Talle: XL") })).aRevisar).toBe(1);
+      await expect(publicarProducto(e.a.id, p.id, true)).rejects.toThrow(/Elegí al menos un talle/);
+    } finally {
+      await dueno.tiendaProductoBase.update({ where: { id: base.id }, data: { opciones: original.opciones as ReturnType<typeof leerOpciones>, impresionAnchoPx: original.impresionAnchoPx } });
+    }
   });
 });

@@ -51,6 +51,18 @@ export async function validarEntrada(
   });
 }
 
+/**
+ * ¿Ese show se atiende en la puerta? Los mismos que lista la pantalla: publicados y que no
+ * pasaron; con la banda cerrada (suspendida o archivada), solo los vendidos que no terminaron.
+ * Uno pasado o en borrador no se abre por URL directa.
+ */
+export async function abiertoEnPuerta(tenantId: string, eventoId: string, cerrada: boolean, ahora = new Date()): Promise<boolean> {
+  if (!esUuid(eventoId)) return false;
+  if (cerrada) return (await showsConEntradasPorDelante(tenantId, ahora)).includes(eventoId);
+  const e = await conTenant(tenantId, (tx) => tx.ticketeraEvento.findUnique({ where: { id: eventoId }, select: { publicado: true, fecha: true } }));
+  return !!e && e.publicado && e.fecha >= desdeAhora(ahora);
+}
+
 export type ResumenPuerta = { vendidas: number; entraron: number; faltan: number; porTipo: { nombre: string; vendidas: number; entraron: number }[] };
 
 /** Cuántos entraron y cuántos faltan (entradas pagadas), en total y por tipo. */
