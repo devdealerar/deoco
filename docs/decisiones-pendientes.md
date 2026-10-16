@@ -821,3 +821,9 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
   que no pasó) hasta que termine, y se le dice al fan.
 - **Arrepentimiento**: va por el mismo registro que los derechos del fan (tipo "arrepentimiento",
   confirmación en 24 h). La devolución la hace la banda desde su cuenta (como las demás).
+- **Suplantación segura (D3)**: el staff no "se convierte" en una persona de la banda: entra como
+  soporte, con permisos de gestor (lo que la banda gestiona; nada de la plata, del equipo ni de la
+  titularidad, que la banda no delega a nadie). Motivo obligatorio (lo ve la banda), duración 15,
+  30 o 60 minutos (por defecto 30), sin renovar sola: para seguir pide otra. Las sesiones no se
+  borran ni se cambian (como la auditoría). La banda ve un aviso mientras la sesión está abierta y
+  la lista de visitas en Actividad.

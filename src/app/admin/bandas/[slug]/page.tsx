@@ -59,8 +59,8 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-display-xs font-semibold text-primary">{banda.nombre}</h1>
         <Insignia color={COLOR_ESTADO[banda.estado]}>{banda.estado}</Insignia>
-        <Link href={`/b/${banda.slug}`} className="text-sm font-semibold text-brand-secondary">
-          Abrir panel
+        <Link href={`/b/${banda.slug}/soporte`} className="text-sm font-semibold text-brand-secondary">
+          Entrar como soporte (con motivo)
         </Link>
       </header>
 

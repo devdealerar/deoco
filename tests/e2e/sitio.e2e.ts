@@ -360,7 +360,7 @@ describe("navegación pública: la pestaña de otro módulo entra sola en el mar
       expect(await page.getByTestId("modulo-prueba-publica").isVisible()).toBe(true);
       // Es el marco del sitio (no el neutro): pestaña activa marcada por el sitio, pie de la banda.
       expect(await page.locator('nav[aria-label="Sitio"] a[aria-current="page"]').textContent()).toBe("Prueba");
-      expect(await page.locator("footer").textContent()).toContain("©");
+      expect(await page.locator("footer", { hasText: "©" }).textContent()).toContain("©");
 
       await apagarModulo(e.staff.id, e.a.id, "prueba");
       await page.goto(sitio("banda-a"));

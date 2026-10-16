@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Page } from "playwright-core";
 import { prisma } from "@/nucleo/db/cliente";
-import { dueno, escenarioAcceso } from "../apoyo";
+import { dueno, escenarioAcceso, sesionDeSoporte } from "../apoyo";
 import { APP, abrirNavegador, captura, anonimo, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado, sitio } from "./navegador";
 
 beforeAll(async () => {
@@ -119,9 +119,10 @@ describe("accesos del staff al panel de una banda", () => {
     const { page } = await logueado("staff@deocoartist.com");
     const staff = await dueno.usuario.findUniqueOrThrow({ where: { email: "staff@deocoartist.com" } });
     const banda = await dueno.tenant.findUniqueOrThrow({ where: { slug: "banda-b" } });
+    const sesion = await sesionDeSoporte("staff@deocoartist.com", "banda-b");
     expect((await page.goto(`${APP}/b/banda-b`))!.status()).toBe(200);
     const fila = await dueno.auditoria.findFirst({ where: { usuarioId: staff.id, tenantId: banda.id, accion: "acceso.panel" } });
-    expect(fila?.detalle).toEqual({ ruta: "/b/banda-b" });
+    expect(fila?.detalle).toEqual({ ruta: "/b/banda-b", sesionSoporte: sesion.id });
   });
 });
 

@@ -5,7 +5,7 @@ import { conTenant } from "@/nucleo/db/con-tenant";
  * Queda en `auditoria` (accion "acceso.panel"). Una fila por persona y banda cada
  * VENTANA: un pedido al panel arrastra varios (página, imágenes), no hace falta uno por cada uno.
  */
-export type AccesoStaff = { usuarioId: string; tenantId: string; ruta: string; fecha: Date };
+export type AccesoStaff = { usuarioId: string; tenantId: string; ruta: string; fecha: Date; sesionId?: string };
 
 const VENTANA_MS = 10 * 60 * 1000;
 
@@ -26,7 +26,7 @@ export async function registrarAccesoStaff(acceso: AccesoStaff): Promise<void> {
         tenantId: acceso.tenantId,
         accion: "acceso.panel",
         fecha: acceso.fecha,
-        detalle: { ruta: acceso.ruta },
+        detalle: { ruta: acceso.ruta, ...(acceso.sesionId ? { sesionSoporte: acceso.sesionId } : {}) },
       },
     });
   });

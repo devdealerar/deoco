@@ -75,7 +75,13 @@ export const accesoPanel = cache(async (volver: string): Promise<AccesoPanel> =>
 
   const viaStaff = esAccesoStaff(acceso);
   if (viaStaff) {
-    await registrarAccesoStaff({ usuarioId, tenantId: ctx.tenantId, ruta: volver, fecha: new Date() });
+    // Suplantación segura (D3): sin sesión de soporte vigente (motivo, vence sola), el staff no
+    // entra; se la pide en /b/<slug>/soporte. Con ella, todo queda a nombre de esa sesión.
+    if (!acceso.soporte) {
+      const slug = /^\/b\/([^/?]+)/.exec(volver)?.[1] ?? "";
+      redirect(`/b/${slug}/soporte?volver=${encodeURIComponent(volver)}`);
+    }
+    await registrarAccesoStaff({ usuarioId, tenantId: ctx.tenantId, ruta: volver, fecha: new Date(), sesionId: acceso.soporte.id });
   }
   return { ...acceso, estado: ctx.estado, viaStaff, soloLectura: ctx.soloLectura };
 });

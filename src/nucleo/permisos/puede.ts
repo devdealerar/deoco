@@ -25,12 +25,12 @@ export function accesoTienePermiso(acceso: Acceso | null, def: DefinicionPermiso
   // credenciales, dominios, equipo) siguen siendo solo del titular (`exigirTitular`).
   if (acceso.rol === "GESTOR" && def.rolesPorDefecto.includes("TITULAR")) return !def.exclusivoTitular;
 
-  // EXCEPCIÓN EXPLÍCITA · Staff de Deoco
-  // El staff pasa todos los permisos de cualquier banda, MENOS los exclusivos del
-  // titular: la pasarela de cobro es de la banda y ni el staff puede tocarla
-  // (spec, "Roles y permisos"). Un staff que además es titular de esa banda ya
-  // pasó arriba por su rol.
-  if (acceso.esStaff) return !def.exclusivoTitular;
+  // EXCEPCIÓN EXPLÍCITA · Staff de Deoco (D3, suplantación segura)
+  // El staff sin membresía no tiene permisos en una banda salvo con una sesión de soporte
+  // vigente (motivo escrito, vence sola): entonces, los de GESTOR. Nunca lo exclusivo del
+  // titular (la pasarela de cobro) ni nada que la banda no podría hacer. Un staff que además es
+  // parte de esa banda ya pasó arriba por su rol.
+  if (acceso.esStaff && acceso.rol === null) return !!acceso.soporte && def.rolesPorDefecto.includes("TITULAR") && !def.exclusivoTitular;
 
   return false;
 }

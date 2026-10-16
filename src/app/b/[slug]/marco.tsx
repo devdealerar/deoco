@@ -11,6 +11,7 @@ import { dominiosPorVencerEnPanel } from "@/nucleo/dominios/vencimiento";
 import { bandaCobra } from "@/nucleo/pagos";
 import { pendientesDeAceptar } from "@/nucleo/legal";
 import { pedidosPorVencer } from "@/nucleo/legal/derechos";
+import { sesionesDeSoporteActivas } from "@/nucleo/acceso/soporte";
 import { Aviso } from "@/ui";
 import { BotonSalir } from "../../salir";
 
@@ -24,6 +25,10 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   // lo acepte) y los pedidos de datos de fans que vencen pronto.
   const sinAceptar = esTitular ? await pendientesDeAceptar(acceso.tenantId) : [];
   const datosPorVencer = esTitular ? await pedidosPorVencer(acceso.tenantId) : [];
+  // Suplantación segura (D3): la banda ve que soporte está en su panel (y para qué); el staff ve
+  // hasta cuándo dura su sesión.
+  const soporteAhora = acceso.viaStaff ? [] : await sesionesDeSoporteActivas(acceso.tenantId);
+  const hora = (d: Date) => d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Argentina/Buenos_Aires" });
   const conCredenciales =
     esTitular && (reg.modulos.some((m) => prendidos.has(m.id) && m.secretos?.length) || (await bandaCobra(acceso.tenantId, reg)));
   // Dominios propios con un problema (los marca el barrido según Cloudflare): lo ve quien lo
@@ -174,6 +179,24 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
               <Aviso tono="error" titulo="La banda está archivada." data-testid="aviso-archivada">
                 El sitio y el panel ya no están en Deoco. Tus dominios siguen siendo tuyos: desde acá podés llevártelos. En Plan y pago podés
                 darte de baja o volver.
+              </Aviso>
+            </div>
+          )}
+          {acceso.viaStaff && acceso.soporte && (
+            <div className="mb-6">
+              <Aviso tono="advertencia" titulo={`Estás en el panel como soporte hasta las ${hora(acceso.soporte.venceEn)}.`} data-testid="sesion-soporte">
+                Motivo: {acceso.soporte.motivo}. Con permisos de gestor; la banda lo ve.{" "}
+                <Link href={`/b/${slug}/soporte`} className="font-semibold underline">
+                  Terminar o extender
+                </Link>
+              </Aviso>
+            </div>
+          )}
+          {soporteAhora.length > 0 && (
+            <div className="mb-6">
+              <Aviso tono="info" titulo="Soporte de Deoco está en tu panel." data-testid="soporte-en-panel">
+                {soporteAhora.map((x) => `Desde las ${hora(x.creadaEn)} hasta las ${hora(x.venceEn)}: ${x.motivo}`).join(" · ")}. Todo lo que haga queda en
+                Actividad.
               </Aviso>
             </div>
           )}

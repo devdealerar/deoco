@@ -86,3 +86,11 @@ export async function escenarioAcceso() {
   ]);
   return { a, b, multi, ajeno, editorA, staff };
 }
+
+/** Una sesión de soporte vigente (D3) del staff en una banda: sin ella, el staff no entra al panel. */
+export async function sesionDeSoporte(email: string, slug: string, minutos = 30) {
+  const staff = await dueno.usuario.findUniqueOrThrow({ where: { email } });
+  const banda = await dueno.tenant.findUniqueOrThrow({ where: { slug } });
+  const ahora = new Date();
+  return dueno.sesionSoporte.create({ data: { tenantId: banda.id, staffId: staff.id, motivo: "Prueba de soporte automática", creadaEn: ahora, venceEn: new Date(ahora.getTime() + minutos * 60_000) } });
+}

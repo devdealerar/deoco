@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { prenderModulo } from "@/nucleo/modulos/encendido";
-import { dueno, escenarioAcceso } from "../apoyo";
+import { dueno, escenarioAcceso, sesionDeSoporte } from "../apoyo";
 import { APP, abrirNavegador, cerrarContextos, cerrarNavegador, logueado } from "./navegador";
 
 let e: Awaited<ReturnType<typeof escenarioAcceso>>;
@@ -68,6 +68,8 @@ describe("credenciales de la banda (secretos por módulo)", () => {
 
   it("solo el titular: otro rol y el staff reciben 403 y no ven la entrada", async () => {
     await prenderModulo(e.staff.id, e.a.id, "prueba");
+    // El staff, con su sesión de soporte (D3: entra como gestor): tampoco.
+    await sesionDeSoporte("staff@deocoartist.com", "banda-a");
     for (const email of ["editor-a@x.com", "staff@deocoartist.com"]) {
       const { page } = await logueado(email);
       await page.goto(`${APP}/b/banda-a`);

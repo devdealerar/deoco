@@ -95,20 +95,33 @@ describe("prueba 4: cambiar de banda no pide re-login y cambia el rol", () => {
   });
 });
 
-describe("prueba 6: staff", () => {
-  it("entra a cualquier banda, marcado como acceso de staff", async () => {
+describe("prueba 6: staff (D3: suplantación segura)", () => {
+  it("sin sesión de soporte no entra: pide una con motivo; la banda lo ve; vence sola", async () => {
+    await dueno.sesionSoporte.deleteMany();
     const { page } = await logueado("staff@deocoartist.com");
     const items = await page.locator("li").allTextContents();
     expect(items).toEqual(["Banda A · — · acceso de staff", "Banda B · — · acceso de staff"]);
-    for (const slug of ["banda-a", "banda-b"]) {
-      expect((await page.goto(`${APP}/b/${slug}`))!.status()).toBe(200);
-      await expect(page.getByTestId("acceso-staff").isVisible()).resolves.toBe(true);
-    }
-  });
-
-  it("no entra al pago: es solo del titular", async () => {
-    const { page } = await logueado("staff@deocoartist.com");
+    await page.goto(`${APP}/b/banda-a`);
+    expect(page.url()).toBe(`${APP}/b/banda-a/soporte?volver=%2Fb%2Fbanda-a`);
+    const form = page.locator("form[data-hidratado]").last();
+    await form.waitFor();
+    await form.locator('textarea[name="motivo"]').fill("La banda dice que no ve sus fotos del press kit");
+    await Promise.all([page.waitForURL(`${APP}/b/banda-a`), form.getByRole("button", { name: "Entrar como soporte" }).click()]);
+    expect(await page.getByTestId("sesion-soporte").textContent()).toContain("no ve sus fotos");
+    // Lo de la plata y el control de la cuenta, no.
     expect((await page.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
+    // La banda lo ve en su panel, y en Actividad queda la visita con su motivo.
+    const titular = (await logueado("multi@x.com")).page;
+    await titular.goto(`${APP}/b/banda-a`);
+    expect(await titular.getByTestId("soporte-en-panel").textContent()).toContain("no ve sus fotos");
+    await titular.goto(`${APP}/b/banda-a/actividad`);
+    expect(await titular.locator("[data-visita-soporte]").count()).toBe(1);
+    // Vencida, vuelve a pedir.
+    await dueno.$executeRawUnsafe(`ALTER TABLE sesion_soporte DISABLE TRIGGER sesion_soporte_inmutable`);
+    await dueno.sesionSoporte.updateMany({ data: { creadaEn: new Date(Date.now() - 2 * 3600_000), venceEn: new Date(Date.now() - 3600_000) } });
+    await dueno.$executeRawUnsafe(`ALTER TABLE sesion_soporte ENABLE TRIGGER sesion_soporte_inmutable`);
+    await page.goto(`${APP}/b/banda-a`);
+    expect(page.url()).toContain("/b/banda-a/soporte");
   });
 });
 
@@ -128,8 +141,6 @@ describe("prueba 7: banda SUSPENDIDO", () => {
     expect((await editor.goto(`${APP}/b/banda-a/dominios`))!.status()).toBe(403);
     expect((await editor.goto(`${APP}/b/banda-a`))!.status()).toBe(200);
 
-    const staff = (await logueado("staff@deocoartist.com")).page;
-    expect((await staff.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
   });
 
   it("ARCHIVADO: el titular entra solo a Dominios (para llevárselos) y a Plan y pago (darse de baja o volver); el resto, 404; otro rol tampoco", async () => {

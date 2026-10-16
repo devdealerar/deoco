@@ -36,7 +36,17 @@ export function accionesDelPanel(contrato: () => Modulo, errores: ClaseError[], 
       // Registro de actividad obligatorio (td3): quién guardó qué pantalla, y qué le dijo el panel.
       const mensaje = ok ?? edicion.guardado ?? "Guardado.";
       await conTenant(acceso.tenantId, (tx) =>
-        tx.auditoria.createMany({ data: [{ usuarioId: acceso.usuarioId, tenantId: acceso.tenantId, accion: `${modulo.id}.panel_guardado`, detalle: { pantalla: edicion.ruta, mensaje } }] }),
+        tx.auditoria.createMany({
+          data: [
+            {
+              usuarioId: acceso.usuarioId,
+              tenantId: acceso.tenantId,
+              accion: `${modulo.id}.panel_guardado`,
+              // Hecho por soporte (D3): la banda lo ve así en su actividad, con el motivo.
+              detalle: { pantalla: edicion.ruta, mensaje, ...(acceso.soporte ? { soporte: { sesionId: acceso.soporte.id, motivo: acceso.soporte.motivo } } : {}) },
+            },
+          ],
+        }),
       );
       revalidatePath(volver, "layout");
       return { ok: mensaje };

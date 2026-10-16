@@ -107,6 +107,28 @@ C4 (casos de borde del núcleo, 3.2 núcleo d6):
 | Usuario revocado con sesión abierta | OK: membresía (rol por pedido), clave o "Cerrar sesiones" | `tests/equipo.test.ts`, `tests/e2e/sesiones.e2e.ts` |
 | Un manager pierde la representación | OK lo de la banda (la saca desde Equipo); el módulo `manager` no existe | |
 
+### Bloque D · Cerrar la fase 2 (trabajo sin supervisión; decisiones en `docs/decisiones-pendientes.md`)
+
+- D0 ✅ Un solo titular registrado por banda (índice único `membresia_un_titular`); los demás
+  pasan a GESTOR (el más antiguo queda) con mail. Acaparamiento configurable por show
+  (`ticketera_evento`: frenos, tope absoluto 20). `tests/equipo.test.ts`, `tests/ticketera-*.test.ts`.
+- D1 ✅ Cuota: el rechazo reintenta antes de la mora (la escalera cuenta desde el vencimiento).
+  Topes por mes (`shows-por-mes`, `entradas-por-mes` solo mide, `imagenes`), `limite_extra`;
+  complementos sueltos (staff los define en `/admin/m/comercial/complementos`, la banda los compra
+  en `/pago`; sugerencia del plan que cubre el excedente de entradas: facturarlo, pendiente).
+  "Resuelto con el proveedor" y renglón `fueraDeCatalogo`. `tests/complementos.test.ts`.
+- D-infra ✅ Copia local diaria 7 días (`infra/copias`), discos de tamaño fijo
+  (`infra/disco/volumenes.sh`, sin correr) + reserva libre (`DEOCO_ARCHIVOS_RESERVA_MB`), pasos de
+  Backblaze en 15 min. Exportación completa (`/b/<slug>/exportar`, zip CSV + JSON + archivos, en
+  segundo plano, mail, vence a 7 días, abierta en todo estado). `tests/exportacion.test.ts`.
+- D2 ✅ Legal y privacidad (`src/nucleo/legal`): cookies con registro y revocación, política y
+  términos del sitio generados y versionados, términos de Deoco y encargo de tratamiento aceptados
+  y registrados, derechos del fan (acceso, rectificación, supresión, arrepentimiento) con plazos
+  hábiles. `docs/privacidad.md` ("a consultar con abogado"). `tests/legal.test.ts`, `tests/e2e/legal.e2e.ts`.
+- D3 ✅ Suplantación segura: sesión de soporte con motivo y vencimiento (`sesion_soporte`),
+  permisos de gestor, "Soporte de Deoco" en la actividad, aviso a la banda. `tests/permisos.test.ts`,
+  `tests/staff.test.ts`, `tests/e2e/panel.e2e.ts` (prueba 6).
+
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 
 Diseño: `docs/diseno-dominios.md` (caminos, transiciones, certificado, correo, compra).

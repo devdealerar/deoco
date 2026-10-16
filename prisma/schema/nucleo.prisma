@@ -88,6 +88,7 @@ model Tenant {
   consentimientos      ConsentimientoCookies[]
   pedidosDatos         PedidoDatos[]
   supresiones          SupresionDatos[]
+  sesionesSoporte      SesionSoporte[]
 
   @@map("tenant")
 }
@@ -678,4 +679,20 @@ model SupresionDatos {
 
   @@id([tenantId, emailHash])
   @@map("supresion_datos")
+}
+
+/// Sesión de soporte (D3): el staff entra al panel de una banda con un motivo, por un rato (hasta 1
+/// hora), con permisos de GESTOR. La banda la ve. Solo se crea y se termina.
+model SesionSoporte {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  staffId     String    @db.Uuid
+  motivo      String
+  creadaEn    DateTime  @default(now())
+  venceEn     DateTime
+  terminadaEn DateTime?
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, staffId, venceEn])
+  @@map("sesion_soporte")
 }

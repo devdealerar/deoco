@@ -96,7 +96,11 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - Permisos: los declara cada módulo en su contrato. `exclusivoTitular` = ni otro rol
   ni el staff (pasarela de cobro). La excepción del staff está en `src/nucleo/permisos/puede.ts`.
   Un permiso de un módulo apagado para la banda es siempre false.
-- Staff sin membresía: `registrarAccesoStaff()` lo deja en `auditoria` (una fila cada 10 min).
+- Staff sin membresía (D3, `src/nucleo/acceso/soporte.ts`): solo entra con una sesión de soporte vigente
+  (`/b/<slug>/soporte`: motivo ≥ 10 caracteres, 15/30/60 min, vence sola; `sesion_soporte`, inmutable).
+  Con ella tiene permisos de GESTOR (nada `exclusivoTitular`, ni pago ni equipo). La banda la ve en el
+  panel y en Actividad ("Soporte de Deoco (motivo)"). `registrarAccesoStaff()` deja el acceso en
+  `auditoria` (una fila cada 10 min, con la sesión).
 - Equipo (`/b/<slug>/equipo`, `src/nucleo/acceso/equipo.ts`): el titular saca gente, cambia roles y
   pasa la titularidad (él queda GESTOR; primero baja, después sube el otro); los demás dejan la banda.
   Uno y solo un titular: lo impone la base (índice único + `banda_con_titular`, diferido). Sumar gente: el staff.

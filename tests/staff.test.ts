@@ -99,7 +99,7 @@ describe("contrato: rutasAdmin, navegación del back office y tablasGlobales", (
     expect(menuAdmin(reg).map((m) => [m.etiqueta, m.href])).toEqual([["Catálogo base", "/admin/m/tienda-falsa"]]);
     // Agrupado por módulo, con su nombre de título (el menú del back office).
     expect(menuAdminPorModulo(reg).map((g) => [g.moduloId, g.items.length])).toEqual([["tienda-falsa", 1]]);
-    const acceso = { usuarioId: e.staff.id, tenantId: e.a.id, rol: null, esStaff: true };
+    const acceso = { usuarioId: e.staff.id, tenantId: e.a.id, rol: null, esStaff: true, soporte: { id: "s", motivo: "revisar la tienda", venceEn: new Date(Date.now() + 60_000), creadaEn: new Date() } };
     expect(menuPanel(reg, new Set(["tienda-falsa"]), acceso, "banda-a").map((m) => m.etiqueta)).toEqual(["Tienda"]);
     expect(reg.rutaAdmin("tienda-falsa", "/catalogo/remera")?.params).toEqual({ id: "remera" });
     expect(reg.rutaAdmin("otro", "/")).toBeUndefined();

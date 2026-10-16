@@ -23,10 +23,25 @@ export async function actividadDeBanda(tenantId: string, opciones: { pagina?: nu
     const vista: FilaActividad[] = filas.map((f) => ({
       id: f.id,
       fecha: f.fecha,
-      quien: f.usuarioId ? (nombre.get(f.usuarioId) ?? "Alguien que ya no está en la banda") : "Deoco (automático)",
+      // Lo que hizo soporte (D3) se ve como tal, con el motivo de su sesión.
+      quien: esDeSoporte(f.accion, f.detalle)
+        ? `Soporte de Deoco${motivoDe(f.detalle) ? ` (${motivoDe(f.detalle)})` : ""}`
+        : f.usuarioId
+          ? (nombre.get(f.usuarioId) ?? "Alguien que ya no está en la banda")
+          : "Deoco (automático)",
       accion: f.accion,
       detalle: f.detalle,
     }));
     return { filas: vista, total, pagina, paginas: Math.max(1, Math.ceil(total / POR_PAGINA_ACTIVIDAD)) };
   });
+}
+
+const esDeSoporte = (accion: string, d: unknown) =>
+  accion.startsWith("soporte.") || (typeof d === "object" && d !== null && ("soporte" in d || "sesionSoporte" in d));
+
+function motivoDe(d: unknown): string | null {
+  if (typeof d !== "object" || d === null) return null;
+  const x = d as { motivo?: unknown; soporte?: { motivo?: unknown } };
+  const m = x.soporte?.motivo ?? x.motivo;
+  return typeof m === "string" ? m.slice(0, 120) : null;
 }

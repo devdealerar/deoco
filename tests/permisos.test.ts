@@ -52,17 +52,32 @@ describe("prueba 2 (núcleo): sin membresía no hay acceso", () => {
   });
 });
 
-describe("prueba 6: staff de Deoco", () => {
-  it("entra a cualquier banda sin membresía", async () => {
+describe("prueba 6: staff de Deoco (D3: suplantación segura)", () => {
+  it("sin sesión de soporte no tiene ningún permiso en una banda", async () => {
+    await dueno.sesionSoporte.deleteMany();
     const acceso = await resolverAcceso(e.staff.id, e.a.id);
-    expect(acceso).toMatchObject({ esStaff: true, rol: null });
+    expect(acceso).toMatchObject({ esStaff: true, rol: null, soporte: null });
+    expect(await puede(e.staff.id, e.a.id, "prueba.contenido.ver")).toBe(false);
   });
 
-  it("pasa todos los permisos menos los de pasarela de cobro", async () => {
-    for (const t of [e.a.id, e.b.id]) {
-      expect(await puede(e.staff.id, t, "prueba.contenido.ver")).toBe(true);
-      expect(await puede(e.staff.id, t, "prueba.pasarela.conectar")).toBe(false);
-    }
+  it("con sesión de soporte (motivo, vence sola): los permisos de gestor, nunca la pasarela de cobro; solo en esa banda", async () => {
+    const { iniciarSoporte, terminarSoporte } = await import("@/nucleo/acceso/soporte");
+    await expect(iniciarSoporte(e.staff.id, e.a.id, "corto", 30)).rejects.toThrow(/motivo/);
+    await expect(iniciarSoporte(e.staff.id, e.a.id, "Revisar por qué no se ve la tienda", 240)).rejects.toThrow(/15, 30 o 60/);
+    const s = await iniciarSoporte(e.staff.id, e.a.id, "Revisar por qué no se ve la tienda", 30);
+    expect(await puede(e.staff.id, e.a.id, "prueba.contenido.ver")).toBe(true);
+    expect(await puede(e.staff.id, e.a.id, "prueba.pasarela.conectar")).toBe(false);
+    expect(await puede(e.staff.id, e.b.id, "prueba.contenido.ver")).toBe(false); // la sesión es de A
+    // Queda en la actividad de la banda, con el motivo; la fila no se puede borrar ni cambiar.
+    expect(await dueno.auditoria.findFirstOrThrow({ where: { tenantId: e.a.id, accion: "soporte.entrada" } })).toMatchObject({ usuarioId: e.staff.id, detalle: expect.objectContaining({ motivo: "Revisar por qué no se ve la tienda" }) });
+    await expect(dueno.sesionSoporte.update({ where: { id: s.id }, data: { motivo: "otra cosa distinta" } })).rejects.toThrow(/inmutable/);
+    await expect(dueno.sesionSoporte.update({ where: { id: s.id }, data: { venceEn: new Date(Date.now() + 86_400_000) } })).rejects.toThrow(/inmutable/);
+    // Vence sola.
+    const { sesionDeSoporte } = await import("@/nucleo/acceso/soporte");
+    expect(await sesionDeSoporte(e.staff.id, e.a.id, new Date(Date.now() + 31 * 60_000))).toBeNull();
+    // Y se termina antes.
+    await terminarSoporte(e.staff.id, e.a.id);
+    expect(await puede(e.staff.id, e.a.id, "prueba.contenido.ver")).toBe(false);
   });
 
   it("un staff que es titular de una banda sí tiene su pasarela (por el rol, no por staff)", async () => {

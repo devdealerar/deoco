@@ -1,5 +1,6 @@
 import { exigirTitular } from "@/nucleo/acceso/panel";
 import { actividadDeBanda } from "@/nucleo/actividad";
+import { sesionesDeSoporteDeBanda } from "@/nucleo/acceso/soporte";
 import { Campo, Filtros, Tabla } from "@/ui";
 import { MarcoPanel } from "../marco";
 
@@ -15,6 +16,7 @@ export default async function Actividad({ params, searchParams }: { params: Prom
   const accion = uno("accion");
   const pedida = Number(uno("pagina"));
   const { filas, total, pagina, paginas } = await actividadDeBanda(acceso.tenantId, { accion, pagina: Number.isSafeInteger(pedida) && pedida > 0 ? pedida : 1 });
+  const visitas = await sesionesDeSoporteDeBanda(acceso.tenantId, 20);
   return (
     <MarcoPanel slug={slug} acceso={acceso}>
       <div className="flex flex-col gap-6">
@@ -25,6 +27,22 @@ export default async function Actividad({ params, searchParams }: { params: Prom
             el equipo de Deoco entra a tu panel. Nadie puede cambiar ni borrar este registro.
           </p>
         </header>
+        <Tabla
+          titulo="Visitas del soporte de Deoco"
+          columnas={[
+            { id: "cuando", etiqueta: "Cuándo" },
+            { id: "motivo", etiqueta: "Para qué" },
+          ]}
+          filas={visitas.map((v) => ({
+            id: v.id,
+            celdas: [
+              <span key="c" className="text-sm whitespace-nowrap text-tertiary" data-visita-soporte={v.id}>
+                {FECHA.format(v.creadaEn)} → {FECHA.format(v.terminadaEn && v.terminadaEn < v.venceEn ? v.terminadaEn : v.venceEn)}
+              </span>,
+              <span key="m" className="text-sm">{v.motivo}</span>,
+            ],
+          }))}
+        />
         <Filtros>
           <Campo name="accion" etiqueta="Acción (empieza con)" placeholder="membresia." defaultValue={accion} />
         </Filtros>
