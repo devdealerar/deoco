@@ -30,6 +30,7 @@ describe("verificación de arranque: entorno", () => {
     [{ AUTH_SECRET: undefined }, "Falta la variable de entorno AUTH_SECRET."],
     [{ DEOCO_DOMINIO_RAIZ: undefined }, "Falta la variable de entorno DEOCO_DOMINIO_RAIZ."],
     [{ AUTH_SECRET: "corto" }, /AUTH_SECRET es demasiado corto/],
+    [{ DEOCO_LIMITE_ALMACENAMIENTO: "5GB" }, /DEOCO_LIMITE_ALMACENAMIENTO tiene que ser un número de bytes/],
     [{ DEOCO_DOMINIO_RAIZ: "https://deocoartist.com" }, /solo el dominio/],
     [{ DATABASE_URL_ADMIN: BIEN.DATABASE_URL }, /usan el mismo rol \(deoco_app\)/],
     [{ DATABASE_URL: BIEN.DATABASE_URL_MIGRACIONES }, /usa el rol dueño de las tablas \(deoco_owner\)/],

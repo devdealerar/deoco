@@ -369,7 +369,11 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - `src/nucleo/archivos`: interfaz `Almacen` (hoy `AlmacenDisco` en `DEOCO_ARCHIVOS_DIR`, un volumen
   en Easypanel; mañana S3/MinIO/R2 por `DEOCO_ALMACEN`) + tabla `archivo` (RLS).
 - `guardarArchivo` valida tipo por contenido, tamaño (≤25 MB) y cuota (`tenant.limiteAlmacenamiento`
-  o `DEOCO_LIMITE_ALMACENAMIENTO`); genera versiones WebP con sharp.
+  o `DEOCO_LIMITE_ALMACENAMIENTO`, solo bytes: lo valida el arranque); genera versiones WebP con sharp.
+  Cuota → bytes → fila en una transacción; lo escrito se borra si algo falla (disco lleno: mensaje
+  claro). `limpiarHuerfanos` (barrido diario, producción) borra bytes sin fila de más de un día.
+- El sitio, al publicar, solo borra archivos sin usar de más de una hora (subir y enlazar van en dos
+  transacciones).
 - Se sirven en `/archivos/<id>/<nombre>` (sitio público: solo `publico`, por host) y
   `/b/<slug>/archivos/...` (panel, con sesión). SVG siempre como descarga, con CSP sandbox.
 

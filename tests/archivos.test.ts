@@ -4,11 +4,15 @@ import {
   borrarArchivos,
   ErrorArchivo,
   guardarArchivo,
+  limitePorDefecto,
+  limpiarHuerfanos,
   marcarPublicos,
   servirArchivo,
   urlArchivo,
   usoAlmacenamiento,
 } from "@/nucleo/archivos";
+import { utimes } from "node:fs/promises";
+import path from "node:path";
 import { almacen } from "@/nucleo/archivos/almacen";
 import { detectarTipo } from "@/nucleo/archivos/tipos";
 import { prisma } from "@/nucleo/db/cliente";
@@ -132,6 +136,69 @@ describe("prueba 9: cuota", () => {
     expect((await usoAlmacenamiento(a.id)).usado).toBe(BigInt(0));
     await new Promise((r) => setTimeout(r, 50));
     expect(await almacen().leer(`${a.id}/${g.id}`)).toBeNull();
+  });
+});
+
+describe("sin huérfanos en el almacén (C3)", () => {
+  const enDisco = async (tenantId: string) => {
+    const claves: string[] = [];
+    for await (const { clave } of almacen().listar(`${tenantId}/`)) claves.push(clave);
+    return claves;
+  };
+
+  it("pasada la cuota no se escribe nada en disco", async () => {
+    const datos = await foto(800, 600);
+    await dueno.tenant.update({ where: { id: a.id }, data: { limiteAlmacenamiento: BigInt(10) } });
+    const antes = await enDisco(a.id);
+    await expect(guardar(a.id, "grande.jpg", datos, { variantes: [{ nombre: "web", ancho: 200 }] })).rejects.toBeInstanceOf(ErrorArchivo);
+    expect(await enDisco(a.id)).toEqual(antes);
+  });
+
+  it("si falla una escritura (disco lleno), se borra lo escrito, no queda fila y el mensaje es claro", async () => {
+    const real = almacen();
+    const guardarReal = real.guardar.bind(real);
+    let n = 0;
+    real.guardar = async (clave, datos) => {
+      if (++n === 2) throw Object.assign(new Error("no space left on device"), { code: "ENOSPC" });
+      return guardarReal(clave, datos);
+    };
+    try {
+      const antes = await enDisco(a.id);
+      const error = await guardar(a.id, "show.jpg", await foto(400, 300), { variantes: [{ nombre: "web", ancho: 200 }] }).catch((e) => e);
+      expect(error).toBeInstanceOf(ErrorArchivo);
+      expect(error.message).toMatch(/problema de espacio de nuestro lado/);
+      expect(await dueno.archivo.count({ where: { tenantId: a.id } })).toBe(0);
+      expect(await enDisco(a.id)).toEqual(antes);
+    } finally {
+      real.guardar = guardarReal;
+    }
+  });
+
+  it("el barrido diario borra los bytes sin fila con más de un día; los recientes y los que tienen fila, no", async () => {
+    const vivo = await guardar(a.id, "vivo.jpg", await foto(50, 50));
+    const huerfano = "11111111-2222-4333-8444-555555555555";
+    const reciente = "66666666-7777-4888-9999-000000000000";
+    await almacen().guardar(`${a.id}/${huerfano}`, Buffer.from("x"));
+    await almacen().guardar(`${a.id}/${huerfano}.web.webp`, Buffer.from("x"));
+    await almacen().guardar(`${a.id}/${reciente}`, Buffer.from("x"));
+    const dir = path.resolve(process.env.DEOCO_ARCHIVOS_DIR ?? ".archivos", a.id);
+    const ayer = new Date(Date.now() - 2 * 86_400_000);
+    for (const n of [huerfano, `${huerfano}.web.webp`, vivo.id]) await utimes(path.join(dir, n), ayer, ayer);
+
+    expect(await limpiarHuerfanos()).toBe(1);
+    const quedan = await enDisco(a.id);
+    expect(quedan).toContain(`${a.id}/${vivo.id}`);
+    expect(quedan).toContain(`${a.id}/${reciente}`);
+    expect(quedan.some((c) => c.includes(huerfano))).toBe(false);
+    await almacen().borrar(`${a.id}/${reciente}`);
+  });
+});
+
+describe("DEOCO_LIMITE_ALMACENAMIENTO", () => {
+  it("solo un número de bytes; sin variable, 1 GB", () => {
+    expect(limitePorDefecto({})).toBe(BigInt(1024 ** 3));
+    expect(limitePorDefecto({ DEOCO_LIMITE_ALMACENAMIENTO: "5368709120" })).toBe(BigInt(5368709120));
+    expect(() => limitePorDefecto({ DEOCO_LIMITE_ALMACENAMIENTO: "5GB" })).toThrow(/número de bytes/);
   });
 });
 

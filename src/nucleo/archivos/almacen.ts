@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
@@ -13,6 +13,10 @@ export interface Almacen {
   /** null si no existe. */
   leer(clave: string): Promise<ReadableStream<Uint8Array> | null>;
   borrar(clave: string): Promise<void>;
+  /** Claves bajo `prefijo` ("<tenantId>/"), con su fecha. Para recoger huérfanos. */
+  listar(prefijo: string): AsyncIterable<{ clave: string; modificado: Date }>;
+  /** Primer nivel: las carpetas (una por banda, más "plataforma"). */
+  carpetas(): Promise<string[]>;
 }
 
 /** Disco del VPS: en Easypanel, un volumen persistente montado en DEOCO_ARCHIVOS_DIR. */
@@ -44,6 +48,29 @@ export class AlmacenDisco implements Almacen {
 
   async borrar(clave: string) {
     await rm(this.ruta(clave), { force: true });
+  }
+
+  async *listar(prefijo: string) {
+    const dir = this.ruta(prefijo.replace(/\/$/, ""));
+    let nombres: string[];
+    try {
+      nombres = await readdir(dir);
+    } catch {
+      return;
+    }
+    for (const n of nombres) {
+      const s = await stat(path.join(dir, n)).catch(() => null);
+      if (s?.isFile()) yield { clave: `${prefijo.replace(/\/$/, "")}/${n}`, modificado: s.mtime };
+    }
+  }
+
+  async carpetas() {
+    const base = path.resolve(/*turbopackIgnore: true*/ this.base);
+    try {
+      return (await readdir(base, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => d.name);
+    } catch {
+      return [];
+    }
   }
 }
 

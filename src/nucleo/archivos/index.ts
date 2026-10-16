@@ -4,6 +4,9 @@ import type { Registro } from "@/nucleo/modulos/registro";
 import { alConfirmar, conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { almacen } from "./almacen";
 import { detectarTipo, MIME, RASTER, type TipoArchivo } from "./tipos";
+import { limitePorDefecto } from "./limite";
+
+export { limitePorDefecto, problemaDeLimite } from "./limite";
 
 export type { TipoArchivo };
 
@@ -35,9 +38,7 @@ export function formatearBytes(n: number | bigint) {
 /** Id con que el gestor de cuenta reconoce el límite de espacio (es del núcleo, no de un módulo). */
 export const LIMITE_ALMACENAMIENTO = "nucleo.almacenamiento";
 
-function limitePorDefecto() {
-  return BigInt(process.env.DEOCO_LIMITE_ALMACENAMIENTO ?? 1024 ** 3);
-}
+const SIN_LUGAR = new Set(["ENOSPC", "EDQUOT"]);
 
 /** Espacio usado y límite de la banda, en bytes. */
 export async function usoAlmacenamiento(tenantId: string) {
@@ -105,10 +106,12 @@ export async function guardarArchivo(
   const total = BigInt(datos.length + variantes.reduce((s, v) => s + v.datos.length, 0));
 
   const id = randomUUID();
-  const claves = [clave(tenantId, id), ...variantes.map((v) => clave(tenantId, id, v.nombre))];
-  await almacen().guardar(claves[0], datos);
-  for (const v of variantes) await almacen().guardar(clave(tenantId, id, v.nombre), v.datos);
+  const piezas = [{ clave: clave(tenantId, id), datos }, ...variantes.map((v) => ({ clave: clave(tenantId, id, v.nombre), datos: v.datos }))];
+  const escritas: string[] = [];
 
+  // Orden: cuota (con la fila de la banda bloqueada) → bytes → fila, todo en la misma
+  // transacción. Si algo falla (cuota, disco lleno, una variante), se borra lo escrito y no
+  // queda la fila; si el proceso muere antes de confirmar, lo recoge `limpiarHuerfanos`.
   try {
     await conTenant(tenantId, async (tx) => {
       // Bloquea la fila de la banda: dos subidas a la vez no pasan juntas la cuota.
@@ -127,12 +130,22 @@ export async function guardarArchivo(
             `de ${formatearBytes(limite)}. Borrá archivos que no uses${como ? `. ${como}` : " o escribinos para tener más espacio."}`,
         );
       }
+      for (const pieza of piezas) {
+        escritas.push(pieza.clave);
+        await almacen().guardar(pieza.clave, pieza.datos);
+      }
       await tx.archivo.create({
         data: { id, tenantId, moduloId: opciones.moduloId, recurso: opciones.recurso, nombre, tipo, bytes: total, variantes: variantes.map((v) => v.nombre) },
       });
     });
   } catch (e) {
-    for (const c of claves) await almacen().borrar(c);
+    await Promise.allSettled(escritas.map((c) => almacen().borrar(c)));
+    // Disco del servidor lleno (no la cuota de la banda): no se borra nada de nadie; se avisa
+    // claro y el staff lo ve en el log.
+    if (SIN_LUGAR.has((e as NodeJS.ErrnoException).code ?? "")) {
+      console.error(`[archivos] el almacén se quedó sin lugar al guardar en ${tenantId}`, e);
+      throw new ErrorArchivo("No pudimos guardar el archivo por un problema de espacio de nuestro lado. No se perdió nada de lo que ya tenías; probá de nuevo más tarde.");
+    }
     throw e;
   }
   return { id, nombre, tipo, variantes: variantes.map((v) => v.nombre) };
@@ -176,6 +189,36 @@ export async function borrarArchivos(tx: TxTenant, tenantId: string, ids: string
       }
     }
   });
+}
+
+/**
+ * Bytes en el almacén sin fila en `archivo` (el proceso murió entre escribir y confirmar):
+ * se borran si tienen más de `antiguedadMs` (una subida en curso nunca es huérfana). Solo
+ * carpetas de bandas que existen; "plataforma" y lo que no se reconoce no se toca. Diario.
+ */
+export async function limpiarHuerfanos(ahora = new Date(), antiguedadMs = 86_400_000): Promise<number> {
+  let borrados = 0;
+  for (const carpeta of await almacen().carpetas()) {
+    if (!UUID.test(carpeta)) continue;
+    const viejas = new Map<string, string[]>();
+    for await (const { clave: c, modificado } of almacen().listar(`${carpeta}/`)) {
+      const id = c.slice(carpeta.length + 1, carpeta.length + 37);
+      if (!UUID.test(id) || ahora.getTime() - modificado.getTime() < antiguedadMs) continue;
+      viejas.set(id, [...(viejas.get(id) ?? []), c]);
+    }
+    if (viejas.size === 0) continue;
+    const conFila = await conTenant(carpeta, async (tx) => {
+      if (!(await tx.tenant.findUnique({ where: { id: carpeta }, select: { id: true } }))) return null;
+      return new Set((await tx.archivo.findMany({ where: { id: { in: [...viejas.keys()] } }, select: { id: true } })).map((a) => a.id));
+    });
+    if (!conFila) continue;
+    for (const [id, claves] of viejas) {
+      if (conFila.has(id)) continue;
+      for (const c of claves) await almacen().borrar(c);
+      borrados++;
+    }
+  }
+  return borrados;
 }
 
 /** URL de un archivo. Sitio público: /archivos/...; panel: /b/<slug>/archivos/... */

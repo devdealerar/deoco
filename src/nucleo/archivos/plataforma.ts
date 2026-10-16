@@ -23,15 +23,15 @@ export async function guardarArchivoPlataforma(
   const { nombre, tipo, datos, variantes } = await prepararArchivo(archivo, opciones);
   const id = randomUUID();
   const claves = [clave(id), ...variantes.map((v) => clave(id, v.nombre))];
-  await almacen().guardar(claves[0], datos);
-  for (const v of variantes) await almacen().guardar(clave(id, v.nombre), v.datos);
+  const piezas = [datos, ...variantes.map((v) => v.datos)];
   try {
+    for (const [i, c] of claves.entries()) await almacen().guardar(c, piezas[i]);
     const bytes = BigInt(datos.length + variantes.reduce((s, v) => s + v.datos.length, 0));
     await tx.archivoPlataforma.create({
       data: { id, moduloId: opciones.moduloId, nombre, tipo, bytes, variantes: variantes.map((v) => v.nombre) },
     });
   } catch (e) {
-    for (const c of claves) await almacen().borrar(c);
+    await Promise.allSettled(claves.map((c) => almacen().borrar(c)));
     throw e;
   }
   return { id, nombre, tipo, variantes: variantes.map((v) => v.nombre) };

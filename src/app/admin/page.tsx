@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { EstadoTenant } from "@/generated/prisma/client";
-import { formatearBytes } from "@/nucleo/archivos";
+import { formatearBytes, limitePorDefecto } from "@/nucleo/archivos";
 import { Boton, Campo, Filtros, Insignia, Selector, Tabla } from "@/ui";
 import { exigirStaff } from "./_servidor/acceso";
 import { ESTADOS_BANDA, ORDENES_BANDA, listarBandas } from "./_servidor/bandas";
@@ -8,7 +8,6 @@ import { type ParametrosUrl, orden, pagina, texto } from "./_servidor/listado";
 
 const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", MOROSO_GRAVE: "advertencia", SOLO_LECTURA: "error", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
 const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeZone: "America/Argentina/Buenos_Aires" });
-const LIMITE_POR_DEFECTO = BigInt(process.env.DEOCO_LIMITE_ALMACENAMIENTO ?? 1024 ** 3);
 
 /** Bandas: 50 por página, las más nuevas primero. Filtro, orden y página van en la URL. */
 export default async function Bandas({ searchParams }: { searchParams: Promise<ParametrosUrl> }) {
@@ -83,7 +82,7 @@ export default async function Bandas({ searchParams }: { searchParams: Promise<P
               {b.modulos.length ? b.modulos.join(", ") : "ninguno"}
             </span>,
             <span key="espacio" className="text-sm whitespace-nowrap text-tertiary">
-              {formatearBytes(b.usado)} de {formatearBytes(b.limite ?? LIMITE_POR_DEFECTO)}
+              {formatearBytes(b.usado)} de {formatearBytes(b.limite ?? limitePorDefecto())}
             </span>,
             <span key="alta" className="flex flex-col items-start gap-1 text-sm whitespace-nowrap text-tertiary" data-origen={b.origen}>
               {FECHA.format(b.creadoEn)}

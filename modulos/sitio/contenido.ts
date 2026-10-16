@@ -124,14 +124,22 @@ export async function publicar(tx: TxTenant, tenantId: string, usuarioId: string
     create: { tenantId, contenido, publicadoEn: new Date(), publicadoPor: usuarioId },
     update: { contenido, publicadoEn: new Date(), publicadoPor: usuarioId },
   });
-  const todos = await archivosDelModulo(tx, MODULO);
   await marcarPublicos(tx, enUso, true);
+  // Un archivo recién subido todavía no está en el borrador: la subida y el enlace van en dos
+  // transacciones (el archivo se guarda antes). Si alguien publica en el medio, no se lo borra:
+  // solo se borran los no usados con más de una hora (los recoge la próxima publicación).
+  const hace = new Date(Date.now() - MARGEN_SUBIDA_MS);
+  const viejos = new Set(
+    (await tx.archivo.findMany({ where: { moduloId: MODULO, creadoEn: { lt: hace } }, select: { id: true } })).map((a) => a.id),
+  );
   await borrarArchivos(
     tx,
     tenantId,
-    todos.filter((id) => !enUso.includes(id)),
+    (await archivosDelModulo(tx, MODULO)).filter((id) => !enUso.includes(id) && viejos.has(id)),
   );
 }
+
+const MARGEN_SUBIDA_MS = 60 * 60 * 1000;
 
 /**
  * Un archivo que el borrador deja de usar: se borra ya, salvo que lo esté mostrando

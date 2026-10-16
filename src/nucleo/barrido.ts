@@ -9,6 +9,7 @@
 // "toman" con un update condicional antes de procesarse.
 import { prisma } from "@/nucleo/db/cliente";
 import { CORREO_COLGADO_MS, retomarCorreos } from "@/nucleo/correo";
+import { limpiarHuerfanos } from "@/nucleo/archivos";
 import { limpiarCorreos } from "@/nucleo/correo/limpieza";
 import { revisarDominios } from "@/nucleo/dominios";
 import { revisarCorreosPendientes } from "@/nucleo/dominios/correo";
@@ -111,11 +112,20 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
     if (l && (l.adjuntos || l.cuerpos || l.borrados)) {
       console.log(`[barrido] correos: ${l.adjuntos} sin adjuntos, ${l.cuerpos} sin cuerpo, ${l.borrados} borrados`);
     }
+    // Aparte (recorre el disco) y con la hora real: la antigüedad es la del archivo en disco.
+    // Solo en producción: en pruebas el almacén es compartido y la prueba la llama directo.
+    if (process.env.NODE_ENV === "production" && !huerfanosCorriendo) {
+      huerfanosCorriendo = limpiarHuerfanos()
+        .then((n) => void (n && console.log(`[barrido] archivos: ${n} huérfanos borrados del almacén`)))
+        .catch((e) => console.error("[barrido] archivos huérfanos:", e))
+        .finally(() => (huerfanosCorriendo = null));
+    }
   }
   return { bandas: bandas.length, dominios, correos, salidas, compras, vencimientos, tareas };
 }
 
 let ultimaLimpieza = 0;
+let huerfanosCorriendo: Promise<void> | null = null;
 let ultimosVencimientos = 0;
 let vencimientosCorriendo: Promise<void> | null = null;
 let ultimosVencimientosHechos: ResultadoBarrido["vencimientos"] = null;
