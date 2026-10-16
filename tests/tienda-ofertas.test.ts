@@ -194,4 +194,24 @@ describe("el staff cambia el producto base (auditoría 3.2, §5.13)", () => {
       await dueno.tiendaProductoBase.update({ where: { id: base.id }, data: { opciones: original.opciones as ReturnType<typeof leerOpciones>, impresionAnchoPx: original.impresionAnchoPx } });
     }
   });
+
+  it("un pedido sin pagar con una variante que el staff quitó: se paga y se produce tal cual se compró, marcado para el proveedor", async () => {
+    const { actualizarProductoBase } = await import("../modulos/tienda/catalogo");
+    const original = await dueno.tiendaProductoBase.findUniqueOrThrow({ where: { id: base.id } });
+    try {
+      await actualizarProductoBase(comoStaff, base.id, { ...original, opciones: leerOpciones("Talle: M, L"), activo: true });
+      const d = await subirDiseno(e.a.id, "Logo", { nombre: "logo.png", datos: await png() });
+      const p = await crearProducto(e.a.id, base.id, { disenoId: d.id, nombre: "Remera", descripcion: "", precio: 2500000, variantes: leerOpciones("Talle: M, L"), proveedorId: sur.id });
+      await publicarProducto(e.a.id, p.id, true);
+      const pedido = await crearPedido(tienda, e.a.id, [{ productoId: p.id, variante: { Talle: "M" }, cantidad: 1 }], FAN);
+      // El staff quita la M: el producto sigue a la venta con L.
+      await actualizarProductoBase(comoStaff, base.id, { ...original, opciones: leerOpciones("Talle: L"), activo: true });
+      expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "c-var", estado: "aprobado", estadoPasarela: "approved", referencia: pedido.id, monto: pedido.total, moneda: "ARS" })).toBe("pagado");
+      const item = await dueno.tiendaPedidoItem.findFirstOrThrow({ where: { pedidoId: pedido.id } });
+      expect(item).toMatchObject({ variante: { Talle: "M" }, fueraDeCatalogo: true, proveedorId: sur.id });
+      expect(await dueno.tiendaOrden.count({ where: { pedidoId: pedido.id } })).toBe(1);
+    } finally {
+      await dueno.tiendaProductoBase.update({ where: { id: base.id }, data: { opciones: original.opciones as ReturnType<typeof leerOpciones> } });
+    }
+  });
 });

@@ -217,6 +217,9 @@ model TiendaPedido {
   devueltoEn           DateTime?
   contracargo          Boolean   @default(false)
   resolverConProveedor Boolean   @default(false)
+  /// La banda lo resolvió con el proveedor (cuándo y cómo).
+  resueltoConProveedorEn   DateTime?
+  resueltoConProveedorNota String?
   /// Conciliación: la última vez que se le preguntó a la pasarela.
   conciliadoEn  DateTime?
   /// País de destino (ISO 3166-1, hoy siempre AR): desde la primera venta (3.2, multipaís d4).
@@ -268,6 +271,9 @@ model TiendaPedidoItem {
   /// Copias fijadas al pagarse (null mientras el pedido no está pagado).
   costoProduccion Int?
   costoEnvio      Int?
+  /// La variante que compró el fan ya no está en el producto base (el staff la quitó antes del
+  /// pago): se produce igual, tal cual se compró; el proveedor lo ve marcado.
+  fueraDeCatalogo Boolean  @default(false)
   proveedorId     String?  @db.Uuid
 
   @@index([tenantId, pedidoId])

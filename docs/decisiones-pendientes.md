@@ -790,3 +790,9 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
   con el cobro único de Deoco que ya usaban los dominios (inmediato, monto exacto, devolución con
   reintentos, alerta al staff): misma tabla, tipo "complemento", no se mezcla con la cuota. De
   arranque: "Un show más este mes" ($5.000) y "1.000 entradas más" ($8.000), precios a revisar.
+- **Variante quitada con un pedido sin pagar**: lo que el fan compró queda congelado (variante,
+  diseño, proveedor, precio) y el pedido se paga y se produce tal cual, como con el proveedor. El
+  renglón queda `fueraDeCatalogo` y el proveedor lo ve marcado. (Si el cambio deja al producto
+  fuera de venta, el pedido sin pagar se cancela como cualquier producto despublicado.)
+- **Pedido devuelto ya producido**: la banda lo marca "resuelto con el proveedor" con una nota
+  obligatoria (queda en la actividad); deja de figurar como pendiente.

@@ -1,6 +1,7 @@
 import { conTenant } from "@/nucleo/db/con-tenant";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
-import { Aviso, Insignia, Tabla, Tarjeta } from "@/ui";
+import { Aviso, Campo, Formulario, Insignia, Tabla, Tarjeta } from "@/ui";
+import { resueltoConProveedorAccion } from "./acciones";
 import { describirVariante } from "../comun";
 import { formatearPesos } from "@/nucleo/dinero";
 import { ESTADO_PANEL } from "../estados";
@@ -32,6 +33,12 @@ export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
           avisa.
         </Aviso>
       )}
+      {pedidos.some((p) => p.resolverConProveedor && !p.resueltoConProveedorEn) && (
+        <Aviso tono="error" titulo="Hay pedidos devueltos que ya estaban en producción." data-aviso-resolver>
+          El fan recibió su plata de vuelta (o hizo un contracargo) después de que el pedido se mandó a producir. Arreglalo con el proveedor (frenar,
+          retener o reprogramar) y marcalo resuelto.
+        </Aviso>
+      )}
       {pedidos.some((p) => p.estado === "EN_REVISION") && (
         <Aviso tono="error" titulo="Hay pagos a revisar.">
           La pasarela aprobó un monto que no coincide con el pedido. Revisalo en tu cuenta de la pasarela antes de despachar.
@@ -51,7 +58,7 @@ export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
             <div key="p" data-pedido={p.id}>
               <div className="font-medium text-primary">{FECHA.format(p.creadoEn)}</div>
               <div className="text-sm text-tertiary">
-                {p.items.map((i) => `${i.nombreProducto} × ${i.cantidad}${Object.keys(i.variante as object).length ? ` (${describirVariante(i.variante as Record<string, string>)})` : ""}`).join(", ")}
+                {p.items.map((i) => `${i.nombreProducto} × ${i.cantidad}${Object.keys(i.variante as object).length ? ` (${describirVariante(i.variante as Record<string, string>)})` : ""}${i.fueraDeCatalogo ? " · variante que ya no está en el catálogo (se produce tal cual)" : ""}`).join(", ")}
               </div>
             </div>,
             <div key="f" className="text-sm">
@@ -66,6 +73,16 @@ export async function PedidosTienda({ tenantId, slug }: PropsRutaPanel) {
             <div key="e" className="flex flex-col gap-1" data-estado={p.estado}>
               <Insignia color={ESTADO_PANEL[p.estado].color}>{ESTADO_PANEL[p.estado].texto}</Insignia>
               {p.observacion && <span className="text-xs text-error-primary">{p.observacion}</span>}
+              {p.resolverConProveedor &&
+                (p.resueltoConProveedorEn ? (
+                  <span className="text-xs text-tertiary" data-resuelto-proveedor>
+                    Resuelto con el proveedor: {p.resueltoConProveedorNota}
+                  </span>
+                ) : (
+                  <Formulario accion={resueltoConProveedorAccion.bind(null, slug, p.id)} puedeEditar={puedeEditar} enLinea variante="secundario" etiqueta="Ya lo resolví con el proveedor">
+                    <Campo name="nota" etiqueta="Cómo" placeholder="Lo frenó a tiempo / me lo quedo para el próximo show" />
+                  </Formulario>
+                ))}
               {p.ordenes.length > 1 &&
                 p.ordenes.map((o) => (
                   <span key={o.id} className="text-xs text-tertiary" data-orden={o.estado}>

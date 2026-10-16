@@ -74,6 +74,7 @@ export type OrdenDetalle = OrdenResumen & {
     productoBase: string;
     producto: string;
     variante: string;
+    fueraDeCatalogo: boolean;
     cantidad: number;
     especificacion: string;
     archivo: { nombre: string; url: string };
@@ -99,6 +100,7 @@ export async function ordenDelProveedor(usuarioId: string, ordenId: string, ahor
         id: true,
         nombreProducto: true,
         variante: true,
+        fueraDeCatalogo: true,
         cantidad: true,
         productoBase: true,
         // El diseño del renglón (el de cuando se compró), no el que el producto tiene hoy.
@@ -141,6 +143,8 @@ export async function ordenDelProveedor(usuarioId: string, ordenId: string, ahor
       productoBase: i.productoBase.nombre,
       producto: i.nombreProducto,
       variante: describirVariante(i.variante as Record<string, string>),
+      // Pedido de antes de que se quitara esa variante del catálogo: se produce tal cual se compró.
+      fueraDeCatalogo: i.fueraDeCatalogo,
       cantidad: i.cantidad,
       especificacion: describirEspecificacion(i.productoBase),
       archivo: { nombre: i.diseno.archivoNombre, url: links.get(i.diseno.archivoId)! },

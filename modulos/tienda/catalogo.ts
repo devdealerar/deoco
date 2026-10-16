@@ -366,9 +366,14 @@ export async function fijarCostosDelPedido(tx: TxTenant, pedidoId: string) {
     // El proveedor del pedido (lo guardó al crearse); los de antes de ese cambio, el del producto.
     const oferta = await ofertaDe(tx, item.productoBaseId, item.proveedorId ?? item.producto.proveedorId);
     if (!oferta) throw new ErrorCatalogo(`No hay oferta de ese proveedor para ${item.productoBase.nombre}.`);
+    // Lo que compró el fan queda como lo compró: si su variante ya no está en el base, se produce
+    // igual y queda marcada para el proveedor.
+    const opciones = item.productoBase.opciones as { nombre: string; valores: string[] }[];
+    const variante = item.variante as Record<string, string>;
+    const fueraDeCatalogo = Object.entries(variante).some(([k, v]) => !opciones.find((o) => o.nombre === k)?.valores.includes(v));
     await tx.tiendaPedidoItem.update({
       where: { id: item.id },
-      data: { costoProduccion: oferta.costoProduccion, costoEnvio: oferta.costoEnvio, proveedorId: oferta.proveedorId },
+      data: { costoProduccion: oferta.costoProduccion, costoEnvio: oferta.costoEnvio, proveedorId: oferta.proveedorId, fueraDeCatalogo },
     });
   }
 }

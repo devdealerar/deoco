@@ -1,5 +1,6 @@
 "use server";
 
+import { marcarResueltoConProveedor } from "../pagos";
 import { redirect } from "next/navigation";
 import { accionesDelPanel } from "@/nucleo/acceso/acciones";
 import { ErrorLimite } from "@/nucleo/cuenta";
@@ -132,5 +133,13 @@ export async function contactoAccion(slug: string, _: EstadoFormulario, fd: Form
   return conEdicion(slug, async ({ tenantId }) => {
     await guardarContacto(tenantId, { nombre: texto(fd, "nombre", 120), email: texto(fd, "email", 200), telefono: texto(fd, "telefono", 40) });
     return "Contacto guardado.";
+  });
+}
+
+/** Un pedido devuelto después de producirse: la banda lo marca resuelto con el proveedor. */
+export async function resueltoConProveedorAccion(slug: string, pedidoId: string, _: EstadoFormulario, fd: FormData) {
+  return conEdicion(slug, async ({ tenantId, usuarioId }) => {
+    await marcarResueltoConProveedor(tenantId, pedidoId, String(fd.get("nota") ?? ""), usuarioId);
+    return "Marcado como resuelto con el proveedor.";
   });
 }

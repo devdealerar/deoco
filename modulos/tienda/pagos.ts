@@ -7,6 +7,7 @@ import { titularDeBanda } from "@/nucleo/personas";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/pagos/registro";
 import { fijarCostosDelPedido } from "./catalogo";
+import { ErrorTienda } from "./productos";
 import { tituloEnvio } from "./comun";
 import tienda from "./index";
 import { DIAS_PEDIDO_PENDIENTE, type EnvioDeProveedor } from "./pedidos";
@@ -258,4 +259,21 @@ export async function conciliarPedidos(ahora = new Date()) {
       }
     }
   }
+}
+
+/**
+ * La banda marca resuelto con el proveedor un pedido devuelto después de mandarse a producir
+ * (C1.5): cómo lo arregló (lo devolvió, lo retuvo, lo reprogramó). Queda registrado.
+ */
+export async function marcarResueltoConProveedor(tenantId: string, pedidoId: string, nota: string, usuarioId: string) {
+  const texto = nota.trim().slice(0, 300);
+  if (!texto) throw new ErrorTienda("Contá en una línea cómo lo resolviste (queda en el registro).");
+  await conTenant(tenantId, async (tx) => {
+    const { count } = await tx.tiendaPedido.updateMany({
+      where: { id: pedidoId, estado: "DEVUELTO", resolverConProveedor: true, resueltoConProveedorEn: null },
+      data: { resueltoConProveedorEn: new Date(), resueltoConProveedorNota: texto },
+    });
+    if (count === 0) throw new ErrorTienda("Ese pedido no está esperando que lo resuelvas con el proveedor.");
+    await tx.auditoria.create({ data: { usuarioId, tenantId, accion: "tienda.pedido_resuelto_con_proveedor", detalle: { pedidoId, nota: texto } } });
+  });
 }

@@ -95,6 +95,11 @@ export async function PortalOrden({ usuarioId, params }: PropsRutaExterna) {
               <div className="text-lg font-semibold text-primary">
                 {r.cantidad} × {r.productoBase}
                 {r.variante && <span className="font-normal text-secondary"> · {r.variante}</span>}
+                {r.fueraDeCatalogo && (
+                  <span className="ml-2 font-normal text-warning-primary" data-fuera-de-catalogo>
+                    (pedido de antes de que se quitara esa variante del catálogo: producilo tal cual se compró)
+                  </span>
+                )}
               </div>
               <div className="text-sm text-tertiary">Producto de la banda: {r.producto}</div>
               <div className="text-sm">

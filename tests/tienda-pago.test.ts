@@ -449,6 +449,13 @@ describe("C1: lo que pierde plata", () => {
     expect(await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id } })).toMatchObject({
       estado: "DEVUELTO", contracargo: true, resolverConProveedor: true, observacion: expect.stringContaining("resolvelo con el proveedor"),
     });
+    // La banda lo marca resuelto, con una nota; queda en la actividad y no se marca dos veces.
+    const { marcarResueltoConProveedor } = await import("../modulos/tienda/pagos");
+    await expect(marcarResueltoConProveedor(e.a.id, pedido.id, " ", e.multi.id)).rejects.toThrow(/Contá en una línea/);
+    await marcarResueltoConProveedor(e.a.id, pedido.id, "El proveedor lo frenó a tiempo", e.multi.id);
+    expect(await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id } })).toMatchObject({ resueltoConProveedorEn: expect.any(Date), resueltoConProveedorNota: "El proveedor lo frenó a tiempo" });
+    expect(await dueno.auditoria.count({ where: { accion: "tienda.pedido_resuelto_con_proveedor", tenantId: e.a.id } })).toBe(1);
+    await expect(marcarResueltoConProveedor(e.a.id, pedido.id, "otra vez", e.multi.id)).rejects.toThrow(/no está esperando/);
   });
 
   it("desde la primera venta: foto fiscal (vendedor, comprador, renglones, IVA si discrimina) y país de destino", async () => {

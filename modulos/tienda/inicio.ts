@@ -19,6 +19,7 @@ export async function inicioTienda(tenantId: string) {
       deuda: await tx.tiendaDeuda.aggregate({ where: { saldadaEn: null }, _sum: { total: true } }),
       publicados: await tx.tiendaProducto.count({ where: { publicado: true } }),
       sinProveedor: await tx.tiendaProducto.count({ where: { sinOfertaDesde: { not: null } } }),
+      conProveedor: await tx.tiendaPedido.count({ where: { resolverConProveedor: true, resueltoConProveedorEn: null } }),
       aRevisar: await tx.tiendaProducto.count({ where: { revisarDesde: { not: null } } }),
     })),
     pasarelaLista(tienda, tenantId),
@@ -26,6 +27,7 @@ export async function inicioTienda(tenantId: string) {
   const pendientes = [];
   if (!lista) pendientes.push({ texto: "Conectá tu cuenta de cobro para poder vender.", href: "/credenciales" });
   if (r.revisar) pendientes.push({ texto: `${r.revisar} ${r.revisar === 1 ? "pago para revisar" : "pagos para revisar"} en la tienda.`, href: "/tienda/pedidos" });
+  if (r.conProveedor) pendientes.push({ texto: `${r.conProveedor} ${r.conProveedor === 1 ? "pedido devuelto ya estaba" : "pedidos devueltos ya estaban"} en producción: resolvelo con el proveedor.`, href: "/tienda/pedidos" });
   if (r.sinProveedor) pendientes.push({ texto: `${r.sinProveedor} ${r.sinProveedor === 1 ? "producto quedó" : "productos quedaron"} sin proveedor: elegí otro para volver a venderlos.`, href: "/tienda" });
   if (r.aRevisar) pendientes.push({ texto: `${r.aRevisar} ${r.aRevisar === 1 ? "producto dejó" : "productos dejaron"} de venderse porque cambió su producto base: revisá el arte o las variantes.`, href: "/tienda" });
   if (!r.publicados) pendientes.push({ texto: "Todavía no publicaste productos en la tienda.", href: "/tienda" });
