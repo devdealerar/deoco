@@ -52,14 +52,23 @@ muestra y la descuenta, pero no tiene la plata.
   sin saldar se migran a movimientos de consumo con saldo negativo, como único caso de deuda
   histórica, para que nadie pierda la cuenta.
 
-**Abierto, para decidir antes de construir**:
-1. El plazo para financiar una orden retenida antes de cancelarla y devolverle el dinero al fan.
-2. El plazo para que el proveedor valide una carga.
-3. Si una banda con saldo negativo heredado puede tener órdenes nuevas mientras lo debe. Propuesta:
-   no; queda retenida como si no tuviera saldo.
-4. **Choque con multipaís (d6)**: una banda y un proveedor de países distintos implican crédito en
-   otra moneda. Propuesta: el crédito queda en la moneda del proveedor, y una banda no puede
-   elegir un proveedor de otra moneda hasta que exista `multipais`.
+**Decidido (bloque C)**:
+1. Orden sin crédito:
+   - espera 72 horas con aviso a la banda;
+   - a los 7 días se cancela y el pedido del fan pasa a reembolso, desde la pasarela de la banda,
+     con `devolverPagoDeLaBanda`, que ya existe.
+2. El proveedor tiene 48 horas hábiles para validar una carga. Si vence el plazo, la carga se da
+   por aceptada y se le avisa.
+3. Los dos plazos van en la base, no fijos en el código, y cada proveedor puede tener los suyos:
+   - columnas en `tienda_proveedor` con el valor general como valor por defecto;
+   - el general, en la configuración de la tienda que edita el staff.
+4. Queda abierto:
+   - si una banda con saldo negativo heredado puede tener órdenes nuevas (la propuesta sigue
+     siendo que no);
+   - la moneda del crédito para multipaís.
+
+Con esto B4 queda listo para construir. No se construyó en el bloque C, porque el bloque no lo
+pedía.
 
 ## B6 · La unidad de cuenta es el músico (td2): estado del modelo (no se construye)
 

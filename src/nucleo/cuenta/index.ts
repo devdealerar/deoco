@@ -163,6 +163,8 @@ export async function bandasConExcedente(): Promise<string[]> {
 export type Limites = {
   /** Bytes para archivos. null: el de la plataforma (DEOCO_LIMITE_ALMACENAMIENTO). Ausente: no cambia. */
   almacenamiento?: bigint | null;
+  /** Dominio propio (false: el de la banda deja de servirse y vuelve el subdominio; nada se borra). Ausente: no cambia. */
+  dominiosPropios?: boolean;
   /** `<modulo>.<clave>` → tope (null: sin tope). Los que no se nombran no cambian. */
   topes?: Record<string, number | null>;
 };
@@ -200,9 +202,13 @@ export async function fijarLimites(
     if (limites.almacenamiento !== undefined) {
       await tx.tenant.update({ where: { id: tenantId }, data: { limiteAlmacenamiento: limites.almacenamiento } });
     }
+    if (limites.dominiosPropios !== undefined) {
+      await tx.tenant.update({ where: { id: tenantId }, data: { dominiosPropios: limites.dominiosPropios } });
+    }
     await auditar(tx, tenantId, modulo.id, "banda.limites_cambiados", {
       topes,
       almacenamiento: limites.almacenamiento === undefined ? "sin cambio" : (limites.almacenamiento?.toString() ?? null),
+      dominiosPropios: limites.dominiosPropios === undefined ? "sin cambio" : limites.dominiosPropios,
     });
     return bajaron;
   });

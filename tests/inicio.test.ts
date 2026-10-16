@@ -74,8 +74,7 @@ describe("el núcleo arma los bloques", () => {
 
 describe("con los módulos de verdad", () => {
   it("cuenta, sitio, tienda y entradas; con la ticketera apagada no hay bloque de entradas", async () => {
-    await alCrearBanda(e.a.id); // prueba de Medium: sitio + tienda
-    await dueno.moduloTenant.create({ data: { tenantId: e.a.id, moduloId: "ticketera" } });
+    await alCrearBanda(e.a.id); // prueba de Escenario: sitio, tienda y ticketera
     const show = await crearEvento(e.a.id, { nombre: "Gira", fecha: new Date(Date.now() + 5 * 86_400_000), lugar: "Club", ciudad: "Rosario", direccion: "", descripcion: "" });
     await crearTipo(e.a.id, show, { nombre: "General", precio: 100000, cupo: 120, ventaDesde: null, ventaHasta: null });
     await publicarEvento(e.a.id, show, true);
@@ -83,7 +82,7 @@ describe("con los módulos de verdad", () => {
     const r = await bloquesDeInicio(e.a.id, todos);
     expect(r.map((x) => x.titulo)).toEqual(["Tu cuenta", "Sitio", "Tienda", "Entradas"]);
     const dato = (titulo: string, etiqueta: string) => r.find((x) => x.titulo === titulo)!.datos.find((d) => d.etiqueta === etiqueta)?.valor;
-    expect(dato("Tu cuenta", "Plan")).toBe("Medium (prueba)");
+    expect(dato("Tu cuenta", "Plan")).toBe("Escenario (prueba)");
     expect(dato("Tienda", "Pedidos del mes")).toBe("0");
     expect(dato("Entradas", "Próximo show")).toMatch(/^Gira · /);
     expect(dato("Entradas", "Disponibles")).toBe("120");

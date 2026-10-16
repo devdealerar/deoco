@@ -4,6 +4,7 @@ import { registro } from "@/nucleo/modulos";
 import { dominiosDeBanda } from "@/nucleo/dominios";
 import { seguimientoDeCompras } from "@/nucleo/dominios/seguimiento";
 import { ventaHabilitada } from "@/nucleo/dominios/venta";
+import { conTenant } from "@/nucleo/db/con-tenant";
 import { Aviso, Boton, Tarjeta } from "@/ui";
 import { ListaDominios } from "../../../_dominios/lista";
 import { MarcoPanel } from "../marco";
@@ -30,6 +31,7 @@ export default async function Dominios({ params }: { params: Promise<{ slug: str
   const enCurso = compras.filter((c) => c.enCurso || c.corregir);
   const puedeComprar = ventaHabilitada() && (acceso.estado === "ACTIVO" || acceso.estado === "MOROSO");
   const terminaciones = ventaHabilitada() ? ((await registro().gestor?.gestion.dominios?.terminaciones()) ?? []) : [];
+  const conDominioPropio = (await conTenant(acceso.tenantId, (tx) => tx.tenant.findUniqueOrThrow({ where: { id: acceso.tenantId }, select: { dominiosPropios: true } }))).dominiosPropios;
   return (
     <MarcoPanel slug={slug} acceso={acceso}>
       <div className="flex flex-col gap-6">
@@ -39,6 +41,12 @@ export default async function Dominios({ params }: { params: Promise<{ slug: str
             El subdominio de Deoco anda siempre. Un dominio propio muestra el sitio cuando está verificado.
           </p>
         </header>
+        {!conDominioPropio && (
+          <Aviso tono="info" titulo="Tu plan no incluye dominio propio" data-testid="sin-dominio-propio">
+            Tu sitio se ve en el subdominio de Deoco. Tus dominios siguen siendo tuyos (podés llevártelos), pero no muestran el sitio: quien entra por
+            ellos llega al subdominio. Para usarlos, cambiá de plan en Plan y pago.
+          </Aviso>
+        )}
         {enCurso.length > 0 && (
           <div data-compras-en-curso>
             <Aviso tono={enCurso.some((c) => c.corregir) ? "advertencia" : "info"} titulo={enCurso.length === 1 ? `Tu compra de ${enCurso[0].dominio} está en marcha` : `${enCurso.length} compras en marcha`}>

@@ -14,7 +14,7 @@
 /// @global
 /// Un plan: lista de módulos + límites + precio. El staff los edita; el código no los conoce.
 model ComercialPlan {
-  /// "esencial", "medium", "premium", "pro".
+  /// "demo", "escenario", "gira", "sello" (los del 3.2).
   id             String   @id
   nombre         String
   /// Para quién es ("Banda que arranca: sitio y press kit").
@@ -29,8 +29,10 @@ model ComercialPlan {
   almacenamiento BigInt?
   /// Topes por límite de módulo: { "tienda.productos-publicados": 20 }. Sin clave (o null): sin tope.
   topes          Json?
-  /// false: no se elige solo (el Pro, a convenir): lo asigna el staff y no se cobra automático.
+  /// false: cerrado (Gira, Sello): no se elige solo; lo asigna el staff.
   aLaVenta       Boolean  @default(true)
+  /// Con dominio propio (sin él, el dominio propio de la banda deja de servirse: vuelve el subdominio).
+  dominioPropio  Boolean  @default(true)
   orden          Int      @default(0)
   actualizadoEn  DateTime @default(now()) @updatedAt
 
@@ -44,7 +46,7 @@ model ComercialConfig {
   /// Días de prueba al darse de alta.
   diasPrueba         Int      @default(14)
   /// Plan de la prueba.
-  planPrueba         String   @default("medium")
+  planPrueba         String   @default("escenario")
   /// La escalera de la cuota impaga, en días desde el vencimiento (en orden creciente):
   /// MOROSO: aviso en el panel y por mail.
   diasGracia         Int      @default(3)
@@ -87,6 +89,10 @@ model ComercialCuenta {
   /// vendido, pedidos sin despachar). Mientras dure se cobra el plan que lo incluye (`excedentePlanId`).
   excedenteDesde    DateTime?
   excedentePlanId   String?
+  /// Prorrateo: diferencia proporcional por subir a mitad de período (centavos), que se suma al
+  /// próximo cobro de la suscripción; con ese cobro aprobado vuelve a 0.
+  cargoPendiente    Int       @default(0)
+  cargoDetalle      String?
   creadoEn          DateTime  @default(now())
   actualizadoEn     DateTime  @default(now()) @updatedAt
 

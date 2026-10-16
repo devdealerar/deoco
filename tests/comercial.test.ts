@@ -29,7 +29,7 @@ import tienda from "../modulos/tienda";
 import { type ComoStaff as ComoStaffTienda, crearProductoBase, crearProveedor, leerOpciones } from "../modulos/tienda/catalogo";
 import { crearProducto, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
 import { crearEvento, crearTipo, publicarEvento } from "../modulos/ticketera/eventos";
-import { dueno, escenarioAcceso } from "./apoyo";
+import { dueno, escenarioAcceso, sembrarComercial } from "./apoyo";
 import { MercadoPagoFalso } from "./mercadopago-falso";
 
 // Planes y cuota mensual (módulo comercial) contra la base de pruebas y un Mercado Pago falso.
@@ -45,7 +45,7 @@ let remeraBase: { id: string };
 
 /** Precios (en centavos) que pone el staff: sin precio, un plan no se puede elegir. */
 async function ponerPrecios() {
-  const precios = { esencial: 800000, medium: 2000000, premium: 4500000 };
+  const precios = { demo: 800000, escenario: 2400000, gira: 5600000 };
   for (const [id, precio] of Object.entries(precios)) await dueno.comercialPlan.update({ where: { id }, data: { precio } });
 }
 
@@ -101,7 +101,7 @@ beforeEach(async () => {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   await dueno.tenant.updateMany({ data: { estado: "ACTIVO", limiteAlmacenamiento: null } });
-  await dueno.comercialPlan.updateMany({ data: { precio: null } });
+  await sembrarComercial(); // planes y plazos como los deja la migración
   await ponerPrecios();
 });
 afterAll(async () => {
@@ -111,24 +111,42 @@ afterAll(async () => {
 });
 
 describe("planes", () => {
-  it("una banda nueva arranca en prueba con el plan de prueba (Medium): sus módulos y sus topes", async () => {
+  it("los planes del 3.2: Demo y Escenario a la venta; Gira y Sello cerrados; precios de referencia cerca de 1/3/7", async () => {
+    const todos = await planes();
+    expect(todos.map((p) => [p.id, p.aLaVenta, p.precioUsd])).toEqual([
+      ["demo", true, "8 USD/mes"],
+      ["escenario", true, "24 USD/mes"],
+      ["gira", false, "56 USD/mes"],
+      ["sello", false, "por banda, a convenir"],
+    ]);
+    // Se diferencian por topes; el espacio es red de seguridad (~7 años al tope); Demo, sin dominio propio.
+    expect(todos.map((p) => [p.id, p.topes["tienda.productos-publicados"], p.topes["ticketera.shows-publicados"], Number(p.almacenamiento! / BigInt(1024 ** 2)), p.dominioPropio])).toEqual([
+      ["demo", 5, 1, 1536, false],
+      ["escenario", 30, 6, 10240, true],
+      ["gira", 100, 20, 36864, true],
+      ["sello", 100, 20, 36864, true],
+    ]);
+  });
+
+  it("una banda nueva arranca en prueba con el plan de prueba (Escenario): sus módulos y sus topes", async () => {
     await alCrearBanda(e.a.id);
     const c = (await cuentaDe(e.a.id))!;
-    expect(c.planId).toBe("medium");
+    expect(c.planId).toBe("escenario");
     expect(c.pruebaHasta!.getTime() - Date.now()).toBeGreaterThan(13.9 * DIA);
-    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "tienda"]);
-    expect(await dueno.limiteBanda.findMany({ where: { tenantId: e.a.id }, select: { limite: true, maximo: true } })).toEqual([
-      { limite: "tienda.productos-publicados", maximo: 20 },
+    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
+    expect(await dueno.limiteBanda.findMany({ where: { tenantId: e.a.id }, select: { limite: true, maximo: true }, orderBy: { limite: "asc" } })).toEqual([
+      { limite: "ticketera.shows-publicados", maximo: 6 },
+      { limite: "tienda.productos-publicados", maximo: 30 },
     ]);
-    expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).limiteAlmacenamiento).toBe(BigInt(5 * 1024 ** 3));
+    expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).limiteAlmacenamiento).toBe(BigInt(10 * 1024 ** 3));
   });
 
   it("el plan prende y apaga módulos (lo apagado conserva sus datos)", async () => {
     await alCrearBanda(e.a.id);
     const [p] = await productos(e.a.id, 1);
-    await asignarPlan(comoStaff, e.a.id, "premium", null);
+    await asignarPlan(comoStaff, e.a.id, "gira", null);
     expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
-    await asignarPlan(comoStaff, e.a.id, "esencial", null);
+    await asignarPlan(comoStaff, e.a.id, "demo", { precio: null, modulos: ["sitio"], almacenamiento: null, topes: {} });
     expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio"]);
     expect(await dueno.tiendaProducto.findUnique({ where: { id: p } })).not.toBeNull();
     // Queda en la auditoría quién lo hizo.
@@ -137,22 +155,23 @@ describe("planes", () => {
 
   it("al llegar al tope no se publica más, y el mensaje dice qué plan lo resuelve", async () => {
     await alCrearBanda(e.a.id);
-    const medium = (await planes()).find((p) => p.id === "medium")!;
-    await guardarPlan(comoStaff, "medium", { ...medium, topes: { "tienda.productos-publicados": 2 } });
+    const escenario = (await planes()).find((p) => p.id === "escenario")!;
+    await guardarPlan(comoStaff, "escenario", { ...escenario, topes: { "tienda.productos-publicados": 2 } });
     const ids = await productos(e.a.id, 3);
     await publicarProducto(e.a.id, ids[0], true);
     await publicarProducto(e.a.id, ids[1], true);
     const error = await publicarProducto(e.a.id, ids[2], true).catch((x) => x);
     expect(error).toBeInstanceOf(ErrorLimite);
     expect(error.message).toContain("Tu plan permite hasta 2 productos publicados y ya llegaste.");
-    expect(error.message).toContain("pasate al plan Premium (hasta 100)");
+    // Nunca sugiere bajar: arriba de Escenario solo hay planes cerrados (se abren a pedido).
+    expect(error.message).toContain("escribinos y lo vemos con el plan Gira");
     // No se rompió nada: los dos publicados siguen publicados.
     expect(await dueno.tiendaProducto.count({ where: { tenantId: e.a.id, publicado: true } })).toBe(2);
   });
 
   it("al bajar de plan: los productos que sobran se despublican por orden inverso de creación; los shows en venta, nunca (3.2 núcleo d5/d6)", async () => {
     await alCrearBanda(e.a.id);
-    await asignarPlan(comoStaff, e.a.id, "premium", null);
+    await asignarPlan(comoStaff, e.a.id, "gira", null);
     const ids = await productos(e.a.id, 4);
     // Se publican al revés de como se crearon: lo que cuenta es la creación.
     for (const id of [...ids].reverse()) {
@@ -167,7 +186,7 @@ describe("planes", () => {
       await publicarEvento(e.a.id, shows[i], true);
     }
     // Un plan a medida con topes más bajos (y la ticketera prendida).
-    await asignarPlan(comoStaff, e.a.id, "premium", {
+    await asignarPlan(comoStaff, e.a.id, "gira", {
       precio: null, modulos: ["sitio", "tienda", "ticketera"], almacenamiento: null,
       topes: { "tienda.productos-publicados": 2, "ticketera.shows-publicados": 1 },
     });
@@ -188,34 +207,58 @@ describe("planes", () => {
 describe("cuota", () => {
   it("elegir un plan lleva a la pasarela de DEOCO; al autorizarse, el plan se aplica", async () => {
     await alCrearBanda(e.a.id);
-    const r = await elegirPlan(e.a.id, "banda-a", "premium");
+    const r = await elegirPlan(e.a.id, "banda-a", "demo");
     expect("redireccion" in r && r.redireccion).toMatch(/\/suscribir\?id=/);
     const c = (await cuentaDe(e.a.id))!;
-    expect(c).toMatchObject({ planId: "medium", planElegido: "premium", suscripcionEstado: "pendiente" });
+    expect(c).toMatchObject({ planId: "escenario", planElegido: "demo", suscripcionEstado: "pendiente" });
     const s = mp.suscripciones.get(c.suscripcionId!)!;
-    expect(s).toMatchObject({ token: TOKEN_DEOCO, external_reference: e.a.id, monto: 45000 });
+    expect(s).toMatchObject({ token: TOKEN_DEOCO, external_reference: e.a.id, monto: 8000 });
     // El mail del titular (la banda A tiene dos).
     expect(["a@x.com", "multi@x.com"]).toContain(s.payer_email);
     // Primer cobro al terminar la prueba (no ahora).
     expect(new Date(s.start_date!).getTime()).toBe(c.pruebaHasta!.getTime());
     mp.autorizar(c.suscripcionId!);
     await avisoCuota("subscription_preapproval", c.suscripcionId!);
-    expect(await cuentaDe(e.a.id)).toMatchObject({ planId: "premium", planElegido: null, suscripcionEstado: "activa", medioDePago: "visa" });
-    expect(await modulosPrendidos(e.a.id)).toContain("ticketera");
+    expect(await cuentaDe(e.a.id)).toMatchObject({ planId: "demo", planElegido: null, suscripcionEstado: "activa", medioDePago: "visa" });
+    expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).dominiosPropios).toBe(false);
   });
 
   it("con la suscripción activa, cambiar de plan es inmediato y el monto nuevo va desde el próximo cobro", async () => {
     await alCrearBanda(e.a.id);
-    const id = await suscribir(e.a.id, "banda-a", "premium");
-    const r = await elegirPlan(e.a.id, "banda-a", "esencial");
-    expect(r).toMatchObject({ mensaje: expect.stringContaining("Listo: ya tenés el plan Esencial") });
-    expect(await modulosPrendidos(e.a.id)).not.toContain("tienda");
+    const id = await suscribir(e.a.id, "banda-a", "escenario");
+    const r = await elegirPlan(e.a.id, "banda-a", "demo");
+    expect(r).toMatchObject({ mensaje: expect.stringContaining("Listo: ya tenés el plan Demo") });
+    expect(await dueno.limiteBanda.findFirstOrThrow({ where: { tenantId: e.a.id, limite: "tienda.productos-publicados" } })).toMatchObject({ maximo: 5 });
     expect(mp.suscripciones.get(id)!.monto).toBe(8000);
   });
 
-  it("bajar de plan nunca corta lo vendido: la ticketera sigue como excedente (y se cobra Premium) hasta que el show termina", async () => {
+  it("subir a mitad del período: los límites crecen ya y la diferencia proporcional va con el próximo cobro (una vez)", async () => {
     await alCrearBanda(e.a.id);
-    const id = await suscribir(e.a.id, "banda-a", "premium");
+    const id = await suscribir(e.a.id, "banda-a", "demo");
+    await avisoCuota("subscription_authorized_payment", mp.cobrar(id, true)); // pagó el mes de Demo
+    const r = await elegirPlan(e.a.id, "banda-a", "escenario");
+    const c = (await cuentaDe(e.a.id))!;
+    // Pagó recién: queda casi todo el período → casi toda la diferencia (24.000 − 8.000).
+    expect(c.cargoPendiente).toBeGreaterThan(1590000);
+    expect(c.cargoPendiente).toBeLessThanOrEqual(1600000);
+    expect(r).toMatchObject({ mensaje: expect.stringContaining("se suma") });
+    expect(await dueno.limiteBanda.findFirstOrThrow({ where: { tenantId: e.a.id, limite: "tienda.productos-publicados" } })).toMatchObject({ maximo: 30 });
+    expect(mp.suscripciones.get(id)!.monto * 100).toBe(2400000 + c.cargoPendiente);
+    // El cobro con el cargo: después vuelve al precio del plan.
+    await avisoCuota("subscription_authorized_payment", mp.cobrar(id, true));
+    expect((await cuentaDe(e.a.id))!.cargoPendiente).toBe(0);
+    expect(mp.suscripciones.get(id)!.monto).toBe(24000);
+    // Bajar no genera cargo.
+    await elegirPlan(e.a.id, "banda-a", "demo");
+    expect((await cuentaDe(e.a.id))!.cargoPendiente).toBe(0);
+  });
+
+  it("bajar de plan nunca corta lo vendido: la ticketera sigue como excedente (y se cobra Escenario) hasta que el show termina", async () => {
+    await alCrearBanda(e.a.id);
+    // Un plan más barato sin la ticketera (el staff lo arma así para la prueba).
+    const demo = (await planes()).find((p) => p.id === "demo")!;
+    await guardarPlan(comoStaff, "demo", { ...demo, modulos: ["sitio", "tienda"] });
+    const id = await suscribir(e.a.id, "banda-a", "escenario");
     const showId = await crearEvento(e.a.id, { nombre: "Show", fecha: new Date(Date.now() + 2 * DIA), lugar: "Club", ciudad: "Rosario", direccion: "", descripcion: "" });
     await crearTipo(e.a.id, showId, { nombre: "General", precio: 1000000, cupo: 100, ventaDesde: null, ventaHasta: null });
     const tipoId = (await dueno.ticketeraTipo.findFirstOrThrow({ where: { eventoId: showId } })).id;
@@ -225,44 +268,45 @@ describe("cuota", () => {
     });
     await dueno.ticketeraEntrada.create({ data: { tenantId: e.a.id, compraId: compra.id, eventoId: showId, tipoId, nombre: "Fan", documento: "30111222", codigo: "ABCDEFGHIJ" } });
 
-    const r = await elegirPlan(e.a.id, "banda-a", "medium");
+    const r = await elegirPlan(e.a.id, "banda-a", "demo");
     expect(r).toMatchObject({ mensaje: expect.stringContaining("Lo que ya está vendido no se corta: sigue prendido ticketera (1 show con entradas vendidas que no terminó)") });
     expect(await modulosPrendidos(e.a.id)).toContain("ticketera"); // la puerta y las entradas siguen
-    expect(mp.suscripciones.get(id)!.monto).toBe(45000); // se cobra el plan que la incluye
-    expect(await cuentaDe(e.a.id)).toMatchObject({ planId: "medium", excedentePlanId: "premium" });
+    expect(mp.suscripciones.get(id)!.monto).toBe(24000); // se cobra el plan que la incluye
+    expect(await cuentaDe(e.a.id)).toMatchObject({ planId: "demo", excedentePlanId: "escenario" });
     // El aviso de un pago de entradas sigue entrando (no 404).
     // El barrido revisa: con el show por delante, nada cambia.
     await revisarExcedentes();
     expect(await modulosPrendidos(e.a.id)).toContain("ticketera");
 
-    // Terminó el show: el barrido la apaga y vuelve el precio de Medium.
+    // Terminó el show: el barrido la apaga y vuelve el precio de Demo.
     await dueno.ticketeraEvento.update({ where: { id: showId }, data: { fecha: new Date(Date.now() - 7 * 3600_000) } });
     await revisarExcedentes();
     expect(await modulosPrendidos(e.a.id)).not.toContain("ticketera");
-    expect(mp.suscripciones.get(id)!.monto).toBe(20000);
-    expect(await cuentaDe(e.a.id)).toMatchObject({ planId: "medium", excedentePlanId: null, excedenteDesde: null });
+    expect(mp.suscripciones.get(id)!.monto).toBe(8000);
+    expect(await cuentaDe(e.a.id)).toMatchObject({ planId: "demo", excedentePlanId: null, excedenteDesde: null });
+    await guardarPlan(comoStaff, "demo", demo);
   });
 
   it("lo mismo cuando el staff le saca un módulo a un plan: nada vendido se corta", async () => {
     await alCrearBanda(e.a.id);
-    await suscribir(e.a.id, "banda-a", "medium");
+    await suscribir(e.a.id, "banda-a", "escenario");
     const [p] = await productos(e.a.id, 1);
     await publicarProducto(e.a.id, p, true);
     const pedido = await dueno.tiendaPedido.create({
       data: { tenantId: e.a.id, nombre: "Fan", email: "fan@x.com", telefono: "1", calle: "C", numero: "1", ciudad: "R", provincia: "Santa Fe", codigoPostal: "2000", subtotal: 1, envio: 0, total: 1, token: "t".repeat(64) },
     });
-    const medium = (await planes()).find((x) => x.id === "medium")!;
-    await guardarPlan(comoStaff, "medium", { ...medium, modulos: ["sitio"] });
+    const escenario = (await planes()).find((x) => x.id === "escenario")!;
+    await guardarPlan(comoStaff, "escenario", { ...escenario, modulos: ["sitio"] });
     expect(await modulosPrendidos(e.a.id)).toContain("tienda"); // un pedido esperando el pago
     await dueno.tiendaPedido.delete({ where: { id: pedido.id } });
     await revisarExcedentes();
     expect(await modulosPrendidos(e.a.id)).not.toContain("tienda");
-    await guardarPlan(comoStaff, "medium", medium);
+    await guardarPlan(comoStaff, "escenario", escenario);
   });
 
   it("el pago regulariza al instante: SUSPENDIDO → ACTIVO con el aviso del cobro aprobado", async () => {
     await alCrearBanda(e.a.id);
-    const id = await suscribir(e.a.id, "banda-a", "medium");
+    const id = await suscribir(e.a.id, "banda-a", "escenario");
     await avisoCuota("subscription_authorized_payment", mp.cobrar(id, false));
     await revisarVencimientos(new Date(Date.now() + 61 * DIA));
     expect(await estado(e.a.id)).toBe("SUSPENDIDO");
@@ -276,7 +320,7 @@ describe("cuota", () => {
 
   it("con la suscripción autorizada, el fin de la prueba no suspende: espera el cobro", async () => {
     await alCrearBanda(e.a.id);
-    await suscribir(e.a.id, "banda-a", "medium");
+    await suscribir(e.a.id, "banda-a", "escenario");
     await revisarVencimientos(new Date(Date.now() + 15 * DIA));
     expect(await estado(e.a.id)).toBe("ACTIVO");
     // Sin cobro después de la gracia (3 días): mora.
@@ -286,7 +330,7 @@ describe("cuota", () => {
 
   it("cancelar deja de cobrar; la cuenta sigue hasta el vencimiento", async () => {
     await alCrearBanda(e.a.id);
-    const id = await suscribir(e.a.id, "banda-a", "medium");
+    const id = await suscribir(e.a.id, "banda-a", "escenario");
     expect(await cancelar(e.a.id)).toContain("Todo sigue funcionando hasta el");
     expect(mp.suscripciones.get(id)!.status).toBe("cancelled");
     expect(await estado(e.a.id)).toBe("ACTIVO");
@@ -309,7 +353,7 @@ describe("la cuota y las ventas de la banda nunca se mezclan", () => {
     await alCrearBanda(e.a.id);
     // La banda tiene su propia cuenta de cobro cargada (secreto del núcleo, módulo pagos).
     await guardarSecreto(e.multi.id, e.a.id, "pagos", "mercadopago_access_token", TOKEN_BANDA);
-    const id = await suscribir(e.a.id, "banda-a", "medium");
+    const id = await suscribir(e.a.id, "banda-a", "escenario");
 
     // 1. Cuenta y credenciales: la suscripción se crea con el token de DEOCO (entorno), nunca con el de la banda.
     expect(mp.suscripciones.get(id)!.token).toBe(TOKEN_DEOCO);
@@ -317,7 +361,7 @@ describe("la cuota y las ventas de la banda nunca se mezclan", () => {
     // Sin la cuenta de Deoco en el entorno no se cobra la cuota (y no se cae a la de la banda).
     delete process.env.DEOCO_CUOTA_MP_TOKEN;
     try {
-      await expect(elegirPlan(e.a.id, "banda-a", "premium")).rejects.toThrow(/DEOCO_CUOTA_MP_TOKEN/);
+      await expect(elegirPlan(e.a.id, "banda-a", "demo")).rejects.toThrow(/DEOCO_CUOTA_MP_TOKEN/);
     } finally {
       process.env.DEOCO_CUOTA_MP_TOKEN = TOKEN_DEOCO;
     }
@@ -360,7 +404,7 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
   // Plazos de la base (comercial_config), contados desde el vencimiento de la cuota.
   async function pagadaQueVence() {
     await alCrearBanda(e.a.id);
-    const id = await suscribir(e.a.id, "banda-a", "medium");
+    const id = await suscribir(e.a.id, "banda-a", "escenario");
     await avisoCuota("subscription_authorized_payment", mp.cobrar(id, true));
     const vence = (await cuentaDe(e.a.id))!.pagoHasta!;
     return { id, en: (dias: number) => new Date(vence.getTime() + dias * DIA + 60_000) };
@@ -407,7 +451,7 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
     expect(await estado(e.a.id)).toBe("ARCHIVADO");
     expect((await asuntos()).some((a) => a.includes("archivamos"))).toBe(true);
     // Nada se borró.
-    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "tienda"]);
+    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
     expect(await dueno.comercialCuenta.count({ where: { tenantId: e.a.id } })).toBe(1);
   });
 
@@ -419,7 +463,7 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
     expect((await cuentaDe(e.a.id))!.suscripcionEstado).toBe("cancelada");
     // Archivada a mano por el staff: lo mismo en la vuelta siguiente.
     // Vuelve: elige un plan (nueva suscripción), la autoriza y se cobra el primer mes.
-    const nueva = await suscribir(e.a.id, "banda-a", "medium");
+    const nueva = await suscribir(e.a.id, "banda-a", "escenario");
     await avisoCuota("subscription_authorized_payment", mp.cobrar(nueva, true));
     expect(await estado(e.a.id)).toBe("ACTIVO");
   });
@@ -445,7 +489,7 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
 
   it("un cobro rechazado pasa a aviso (MOROSO, con mail) y sigue la misma escalera desde el rechazo", async () => {
     await alCrearBanda(e.a.id);
-    const id = await suscribir(e.a.id, "banda-a", "medium");
+    const id = await suscribir(e.a.id, "banda-a", "escenario");
     await avisoCuota("subscription_authorized_payment", mp.cobrar(id, false));
     expect(await estado(e.a.id)).toBe("MOROSO");
     await revisarVencimientos(new Date(Date.now() + 29 * DIA));

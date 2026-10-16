@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { CABECERA, PREFIJO_CABECERAS } from "@/nucleo/tenant/cabeceras";
-import { esHostPlataforma, normalizarHost } from "@/nucleo/tenant/hosts";
+import { esDominioDePlataforma, esHostPlataforma, normalizarHost, subdominioDe } from "@/nucleo/tenant/hosts";
 import { decidirPorEstado, type RutaPanel, rutaPanelBanda, rutaPublicaDeModulo, type Superficie } from "@/nucleo/tenant/reglas";
 import {
   resolverTenantPorHost,
@@ -53,8 +53,14 @@ export async function proxy(request: NextRequest) {
   // redirigen al principal, con la misma ruta. Temporal (307): si la banda cambia de
   // principal, los navegadores no quedan con la redirección vieja guardada.
   // Con la banda cerrada no se redirige: el sitio no está publicado (sus dominios pueden estar yéndose).
-  if (superficie === "publico" && !decision.bandaCerrada && tenant.principal && tenant.principal !== host) {
-    return NextResponse.redirect(urlEnPrincipal(request, tenant.principal), 307);
+  if (superficie === "publico" && !decision.bandaCerrada) {
+    // Plan sin dominio propio (3.2 núcleo d6): el dominio propio deja de servirse y vuelve el
+    // subdominio (el dominio sigue siendo de la banda).
+    if (tenant.dominiosPropios === false) {
+      if (!esDominioDePlataforma(host)) return NextResponse.redirect(urlEnPrincipal(request, subdominioDe(tenant.slug)), 307);
+    } else if (tenant.principal && tenant.principal !== host) {
+      return NextResponse.redirect(urlEnPrincipal(request, tenant.principal), 307);
+    }
   }
 
   cabeceras.set(CABECERA.tenantId, tenant.id);

@@ -246,6 +246,11 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 
+- Planes del 3.2 (`docs/planes.md`): DEMO y ESCENARIO a la venta (Escenario es el de la prueba),
+  GIRA y SELLO cerrados (los asigna el staff). Se distinguen por topes; espacio 1,5 / 10 / 36 GB
+  (siete años al tope); `comercial_plan.dominioPropio` → `fijarLimites({ dominiosPropios })` →
+  `tenant.dominiosPropios` (sin él, el proxy manda el dominio propio al subdominio y no se suman
+  dominios). Subir a mitad de período: `cargoPendiente` (prorrateo) con el próximo cobro.
 - `gestionaCuenta` (uno solo): decide el estado (la escalera de la cuota, hasta ARCHIVADO; una banda
   archivada ya no la toca), módulos y topes con `@/nucleo/cuenta` (`fijarEstado`, `fijarModulos`, `fijarLimites`,
   `catalogoDeCuenta`); pinta `/b/<slug>/pago`. `bandaCreada()` en toda alta (prueba de Medium).

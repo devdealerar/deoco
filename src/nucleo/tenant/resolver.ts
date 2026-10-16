@@ -6,8 +6,10 @@ export type TenantResuelto = {
   id: string;
   slug: string;
   estado: EstadoTenant;
-  /** Solo por host: el dominio principal de la banda (siempre verificado), si tiene. */
+  /** Solo por host: el dominio principal de la banda (siempre verificado), si anda. */
   principal?: string | null;
+  /** Solo por host: si el plan incluye dominio propio (si no, el dominio propio va al subdominio). */
+  dominiosPropios?: boolean;
 };
 
 /**
@@ -34,7 +36,7 @@ async function cargar(id: string | null): Promise<TenantResuelto | null> {
 export async function resolverTenantPorHost(host: string): Promise<TenantResuelto | null> {
   if (!host) return null;
   const [fila] = await prisma.$queryRaw<TenantResuelto[]>`
-    SELECT id, slug, estado, principal FROM resolver_banda_por_host(${host})`;
+    SELECT id, slug, estado, principal, "dominiosPropios" FROM resolver_banda_por_host(${host})`;
   return fila ?? null;
 }
 

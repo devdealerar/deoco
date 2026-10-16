@@ -55,6 +55,9 @@ model Tenant {
   estado               EstadoTenant   @default(ACTIVO)
   /// Espacio para archivos, en bytes. null = DEOCO_LIMITE_ALMACENAMIENTO. Lo fija un plan (el núcleo no los conoce).
   limiteAlmacenamiento BigInt?
+  /// Dominio propio según el plan (lo fija el gestor). false: el dominio propio de la banda deja de
+  /// servirse (el proxy manda al subdominio) y no se suman nuevos; nada se borra.
+  dominiosPropios      Boolean        @default(true)
   /// "staff" (alta en el back office) o "autogestion" (la persona sola, en /registro).
   origen               String         @default("staff")
   /// Quién la creó, en autogestión (una por cuenta).

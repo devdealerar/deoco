@@ -373,6 +373,21 @@ describe("delegar (la zona es nuestra; la banda cambia los nameservers)", () => 
     // Se arregla: vuelve a redirigir al principal.
     await dueno.dominio.update({ where: { id }, data: { fallasSeguidas: 0 } });
     expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(307);
+
+    // Baja a un plan sin dominio propio (3.2 núcleo d6): el dominio deja de servirse y vuelve el
+    // subdominio; el dominio sigue siendo de la banda y no se suman nuevos.
+    await dueno.tenant.update({ where: { id: a.id }, data: { dominiosPropios: false } });
+    try {
+      const r = await proxy(pedido("lossatelites.com", "/fechas"));
+      expect(r.status).toBe(307);
+      expect(r.headers.get("location")).toBe("http://banda-a.deocoartist.com/fechas");
+      expect((await proxy(pedido("banda-a.deocoartist.com", "/fechas"))).status).toBe(200);
+      expect(await dueno.dominio.count({ where: { tenantId: a.id, dominio: "lossatelites.com" } })).toBe(1);
+      await expect(agregarDominio(ua.id, a.id, "otrodominio.com")).rejects.toThrow(/Tu plan no incluye dominio propio/);
+    } finally {
+      await dueno.tenant.update({ where: { id: a.id }, data: { dominiosPropios: true } });
+    }
+    expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(307);
   });
 
   it("la revisión lo detecta sola: la banda no tiene que volver a tocar nada", async () => {

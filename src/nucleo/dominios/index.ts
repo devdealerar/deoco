@@ -84,8 +84,10 @@ const NO_HABILITADO = "Los dominios propios todavía no están habilitados en De
 
 /** Una banda archivada solo puede llevarse (o quitar) sus dominios, no sumar nuevos. */
 async function exigirNoArchivada(tenantId: string) {
-  const t = await conTenant(tenantId, (tx) => tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { estado: true } }));
+  const t = await conTenant(tenantId, (tx) => tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { estado: true, dominiosPropios: true } }));
   if (t.estado === "ARCHIVADO") throw new ErrorDominio("La banda está archivada: solo podés llevarte o quitar tus dominios.");
+  // Sumar un dominio propio es del plan (3.2 núcleo d6); los que ya tiene siguen siendo suyos.
+  if (!t.dominiosPropios) throw new ErrorDominio("Tu plan no incluye dominio propio: tu sitio está en el subdominio. Para usar tu dominio, cambiá de plan en Plan y pago.");
 }
 
 function proveedor(): ProveedorDns {

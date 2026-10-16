@@ -31,10 +31,10 @@ beforeAll(async () => {
   await mp.iniciar(PUERTO_MP);
   e = await escenarioAcceso();
   await dominiosDeDesarrollo(e.a, e.b);
-  for (const [id, precio] of [["esencial", 800000], ["medium", 2000000], ["premium", 4500000]] as const) {
+  for (const [id, precio] of [["demo", 800000], ["escenario", 2400000], ["gira", 5600000]] as const) {
     await dueno.comercialPlan.update({ where: { id }, data: { precio } });
   }
-  // La banda A se dio de alta hoy: prueba de 14 días con Medium.
+  // La banda A se dio de alta hoy: prueba de 14 días con Escenario.
   process.env.DEOCO_MERCADOPAGO_API = mp.base;
   process.env.DEOCO_CUOTA_MP_TOKEN = TOKEN_CUOTA;
   await alCrearBanda(e.a.id);
@@ -48,28 +48,28 @@ afterAll(async () => {
 });
 
 describe("plan y pago", () => {
-  it("el titular ve su prueba, elige Premium, carga la tarjeta en la pasarela de Deoco y vuelve con el plan aplicado", async () => {
+  it("el titular ve su prueba, elige Demo, carga la tarjeta en la pasarela de Deoco y vuelve con el plan aplicado", async () => {
     const { page } = await logueado("multi@x.com");
     await page.goto(`${APP}/b/banda-a/pago`);
     const actual = page.locator('[data-testid="plan-actual"]');
-    expect(await actual.getAttribute("data-plan")).toBe("medium");
+    expect(await actual.getAttribute("data-plan")).toBe("escenario");
     expect(await actual.textContent()).toContain("Prueba gratis hasta el");
     await captura(page, "pago-prueba");
 
-    const premium = page.locator('[data-plan-opcion="premium"]');
-    await premium.locator("form[data-hidratado]").waitFor();
-    await premium.getByRole("button", { name: "Elegir Premium" }).click();
+    const demo = page.locator('[data-plan-opcion="demo"]');
+    await demo.locator("form[data-hidratado]").waitFor();
+    await demo.getByRole("button", { name: "Elegir Demo" }).click();
     await page.waitForURL(new RegExp(`^${mp.base}/suscribir\\?id=`));
     const id = new URL(page.url()).searchParams.get("id")!;
-    expect(mp.suscripciones.get(id)).toMatchObject({ token: TOKEN_CUOTA, external_reference: e.a.id, monto: 45000 });
+    expect(mp.suscripciones.get(id)).toMatchObject({ token: TOKEN_CUOTA, external_reference: e.a.id, monto: 8000 });
 
     // "Carga la tarjeta" y vuelve: al volver, la pantalla consulta la suscripción.
     mp.autorizar(id);
     await page.click("text=Volver");
     await page.waitForURL(`${APP}/b/banda-a/pago?suscripcion=volvio`);
-    expect(await page.locator('[data-testid="plan-actual"]').getAttribute("data-plan")).toBe("premium");
+    expect(await page.locator('[data-testid="plan-actual"]').getAttribute("data-plan")).toBe("demo");
     expect(await page.locator('[data-testid="forma-de-pago"]').textContent()).toContain("Mercado Pago · Visa");
-    await captura(page, "pago-premium");
+    await captura(page, "pago-demo");
     // La ticketera ya está en el menú.
     expect(await page.locator('nav a:text("Entradas")').count()).toBeGreaterThan(0);
   });
@@ -78,7 +78,7 @@ describe("plan y pago", () => {
     const { page } = await logueado("multi@x.com");
     await page.goto(`${APP}/b/banda-a`);
     await page.locator('[data-bloque="comercial"]').waitFor();
-    expect(await page.locator('[data-bloque="comercial"] [data-dato="Plan"]').textContent()).toBe("Premium (prueba)");
+    expect(await page.locator('[data-bloque="comercial"] [data-dato="Plan"]').textContent()).toBe("Demo (prueba)");
     expect(await page.locator("[data-bloque]").evaluateAll((els) => els.map((x) => x.getAttribute("data-bloque")))).toEqual(["comercial", "sitio", "tienda", "ticketera"]);
     expect(await page.locator('[data-testid="pendientes"]').textContent()).toContain("Tu sitio todavía no está publicado");
     await captura(page, "inicio");
@@ -138,15 +138,15 @@ describe("plan y pago", () => {
     await page.goto(`${APP}/admin/m/comercial`);
     const fila = page.locator('[data-cuenta="banda-a"]');
     await fila.waitFor();
-    expect(await page.locator('[data-plan="premium"]').count()).toBeGreaterThan(0);
+    expect(await page.locator('[data-plan="demo"]').count()).toBeGreaterThan(0);
     await captura(page, "admin-cuentas");
     await page.goto(`${APP}/admin/m/comercial/planes`);
-    const esencial = page.locator('section[data-plan="esencial"]');
-    await esencial.locator("form[data-hidratado]").waitFor();
-    await esencial.locator('input[name="precio"]').fill("9.500");
-    await esencial.getByRole("button", { name: "Guardar" }).click();
-    await esencial.locator("text=Plan guardado.").waitFor();
-    expect((await dueno.comercialPlan.findUniqueOrThrow({ where: { id: "esencial" } })).precio).toBe(950000);
+    const demo = page.locator('section[data-plan="demo"]');
+    await demo.locator("form[data-hidratado]").waitFor();
+    await demo.locator('input[name="precio"]').fill("9.500");
+    await demo.getByRole("button", { name: "Guardar" }).click();
+    await demo.locator("text=Plan guardado.").waitFor();
+    expect((await dueno.comercialPlan.findUniqueOrThrow({ where: { id: "demo" } })).precio).toBe(950000);
     await captura(page, "admin-planes");
   });
 });

@@ -71,6 +71,7 @@ export async function guardarPlanAccion(planId: string, _: EstadoFormulario, fd:
       precio: pesosOpcional(fd, "precio", "Precio"),
       almacenamiento: gigas(fd, "almacenamiento"),
       aLaVenta: fd.get("aLaVenta") === "on",
+      dominioPropio: fd.get("dominioPropio") === "on",
       ...modulosYTopes(fd),
     };
     const n = await guardarPlan(conStaff, planId, datos);

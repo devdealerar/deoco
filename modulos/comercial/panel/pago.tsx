@@ -28,7 +28,7 @@ function Detalle({ plan }: { plan: Plan }) {
   return (
     <ul className="flex flex-col gap-1 text-sm text-secondary">
       <li>Incluye: {nombres.length ? nombres.join(", ") : "—"}</li>
-      <li>Espacio para archivos: {plan.almacenamiento !== null ? formatearBytes(plan.almacenamiento) : "el de la plataforma"}</li>
+      <li>{plan.dominioPropio ? "Con dominio propio" : "Con subdominio (sin dominio propio)"}</li>
       {topes.map((t) => (
         <li key={t.etiqueta}>
           {t.etiqueta[0].toUpperCase() + t.etiqueta.slice(1)}: {t.tope === undefined ? "sin tope" : `hasta ${t.tope}`}
@@ -111,6 +111,12 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
                       : "Sin cargar"}
             </dd>
           </div>
+          {cuenta.cargoPendiente > 0 && (
+            <div>
+              <dt className="text-tertiary">Con el próximo cobro</dt>
+              <dd className="text-primary" data-testid="cargo-pendiente">{cuenta.cargoDetalle ?? formatearPesos(cuenta.cargoPendiente)}</dd>
+            </div>
+          )}
           {activa && cuenta.proximoCobro && (
             <div>
               <dt className="text-tertiary">Próximo cobro</dt>

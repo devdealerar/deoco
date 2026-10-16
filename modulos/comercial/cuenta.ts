@@ -9,7 +9,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ContextoStaff } from "@/nucleo/acceso/staff";
 import { bandasConExcedente, catalogoDeCuenta, fijarEstado, fijarLimites, fijarModulos, type ModuloRetenido } from "@/nucleo/cuenta";
-import { formatearBytes, LIMITE_ALMACENAMIENTO } from "@/nucleo/archivos";
+import { LIMITE_ALMACENAMIENTO } from "@/nucleo/archivos";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
 import { formatearPesos } from "@/nucleo/dinero";
@@ -46,6 +46,27 @@ export function sumarMes(d: Date): Date {
   r.setUTCDate(Math.min(dia, ultimo));
   return r;
 }
+/** Un mes calendario menos (el inicio del período que termina en `d`). */
+export function restarMes(d: Date): Date {
+  const r = new Date(d);
+  const dia = r.getUTCDate();
+  r.setUTCDate(1);
+  r.setUTCMonth(r.getUTCMonth() - 1);
+  const ultimo = new Date(Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + 1, 0)).getUTCDate();
+  r.setUTCDate(Math.min(dia, ultimo));
+  return r;
+}
+
+/**
+ * Prorrateo (3.2 núcleo d6): al subir de plan a mitad del período pagado, la diferencia de precio
+ * por los días que quedan (centavos). 0 si no sube o no hay período pagado por delante.
+ */
+export function diferenciaProporcional(precioAntes: number, precioNuevo: number, pagoHasta: Date | null, ahora: Date): number {
+  if (!pagoHasta || pagoHasta <= ahora || precioNuevo <= precioAntes) return 0;
+  const periodo = pagoHasta.getTime() - restarMes(pagoHasta).getTime();
+  const quedan = Math.min(periodo, pagoHasta.getTime() - ahora.getTime());
+  return Math.round(((precioNuevo - precioAntes) * quedan) / periodo);
+}
 
 // ── Planes y plazos (globales, los edita el staff) ─────────────────────────────────────────────
 
@@ -60,6 +81,8 @@ export type Plan = {
   almacenamiento: bigint | null;
   topes: Record<string, number>;
   aLaVenta: boolean;
+  /** Con dominio propio (sin él, el de la banda deja de servirse y vuelve el subdominio). */
+  dominioPropio: boolean;
   orden: number;
 };
 
@@ -101,6 +124,7 @@ export function planEfectivo(cuenta: Pick<Cuenta, "planId" | "pro">, todos: Plan
     almacenamiento: pro.almacenamiento ? BigInt(pro.almacenamiento) : null,
     topes: topesDe(pro.topes as Prisma.JsonValue) ?? {},
     aLaVenta: false,
+    dominioPropio: true,
   };
 }
 
@@ -140,7 +164,7 @@ export async function aplicarPlan(tenantId: string, ahora = new Date()): Promise
   const modulos = plan.modulos.filter((id) => reg.modulos.some((m) => m.id === id));
   // Primero los límites (con los módulos todavía prendidos, cada uno ajusta lo suyo).
   const topes = Object.fromEntries(reg.limites.map((l) => [l.id, plan.topes[l.id] ?? null]));
-  const despublicados = await fijarLimites(modulo, tenantId, { almacenamiento: plan.almacenamiento, topes });
+  const despublicados = await fijarLimites(modulo, tenantId, { almacenamiento: plan.almacenamiento, topes, dominiosPropios: plan.dominioPropio });
   const { prendidos, apagados, retenidos } = await fijarModulos(modulo, tenantId, modulos, undefined, ahora);
   const excedente = retenidos.length ? planQueCubre(cuenta, plan, [...modulos, ...retenidos.map((r) => r.moduloId)], todos) : null;
   await conTenant(tenantId, (tx) =>
@@ -171,12 +195,17 @@ function planQueCubre(cuenta: Cuenta, elegido: Plan, prendidos: string[], todos:
   return anterior ?? elegido;
 }
 
-/** Con la suscripción activa, deja el monto en `precio` (rige desde el próximo cobro). */
+/**
+ * Con la suscripción activa, deja el monto en `precio` más el cargo pendiente (el prorrateo, que
+ * va una sola vez con el próximo cobro). Rige desde el próximo cobro.
+ */
 async function ajustarMonto(tenantId: string, precio: number | null) {
   const cuenta = await cuentaDe(tenantId);
-  if (!cuenta?.suscripcionId || cuenta.suscripcionEstado !== "activa" || precio === null || precio === cuenta.montoSuscripcion) return;
-  await cambiarMontoSuscripcion(await comercial(), cuenta.suscripcionId, precio);
-  await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { montoSuscripcion: precio } }));
+  if (!cuenta?.suscripcionId || cuenta.suscripcionEstado !== "activa" || precio === null) return;
+  const monto = precio + cuenta.cargoPendiente;
+  if (monto === cuenta.montoSuscripcion) return;
+  await cambiarMontoSuscripcion(await comercial(), cuenta.suscripcionId, monto);
+  await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { montoSuscripcion: monto } }));
 }
 
 /**
@@ -270,22 +299,20 @@ export async function comoAmpliar(tenantId: string, limite: string, necesarios: 
   const todos = await planes();
   const actual = cuenta ? planEfectivo(cuenta, todos) : null;
   const moduloDelLimite = limite.split(".")[0];
-  const alcanza = (p: Plan) => {
-    if (limite === LIMITE_ALMACENAMIENTO) return p.almacenamiento !== null && p.almacenamiento >= BigInt(necesarios);
-    return p.modulos.includes(moduloDelLimite) && (p.topes[limite] === undefined || p.topes[limite] >= necesarios);
-  };
-  const candidato = todos.filter((p) => p.aLaVenta && p.precio !== null && p.id !== actual?.id && alcanza(p)).sort((a, b) => a.precio! - b.precio!)[0];
-  const espacio = limite === LIMITE_ALMACENAMIENTO;
+  const alcanza = (p: Plan) => p.modulos.includes(moduloDelLimite) && (p.topes[limite] === undefined || p.topes[limite] >= necesarios);
+  // El espacio no se vende (3.2 infra d1, núcleo d2): es una red de seguridad que el uso normal no
+  // alcanza. Si se llega, se habla con la banda.
+  if (limite === LIMITE_ALMACENAMIENTO) return "El espacio de tu cuenta alcanza para años de uso normal: si llegaste, escribinos y lo vemos.";
+  // Solo planes de arriba: nunca se sugiere bajar.
+  const arriba = (p: Plan) => actual?.precio == null || (p.precio !== null && p.precio > actual.precio);
+  const candidato = todos.filter((p) => p.aLaVenta && p.precio !== null && p.id !== actual?.id && arriba(p) && alcanza(p)).sort((a, b) => a.precio! - b.precio!)[0];
   if (candidato) {
-    const cuanto = espacio
-      ? formatearBytes(candidato.almacenamiento!)
-      : candidato.topes[limite] === undefined
-        ? "sin tope"
-        : `hasta ${candidato.topes[limite]}`;
-    return `Para ${espacio ? "tener más espacio" : "sumar más"}, pasate al plan ${candidato.nombre} (${cuanto}): quien es titular lo cambia en Plan y pago.`;
+    const cuanto = candidato.topes[limite] === undefined ? "sin tope" : `hasta ${candidato.topes[limite]}`;
+    return `Para sumar más, pasate al plan ${candidato.nombre} (${cuanto}): quien es titular lo cambia en Plan y pago.`;
   }
-  const pro = todos.find((p) => !p.aLaVenta);
-  return pro ? `Si necesitás más, escribinos y lo vemos con el plan ${pro.nombre}.` : null;
+  // Un plan cerrado que alcanza (Gira, Sello): se abre a pedido.
+  const cerrado = todos.filter((p) => !p.aLaVenta && alcanza(p)).sort((a, b) => a.orden - b.orden)[0];
+  return cerrado ? `Si necesitás más, escribinos y lo vemos con el plan ${cerrado.nombre}.` : null;
 }
 
 // ── Suscripción: elegir, cambiar y cancelar (el titular, en /pago) ──────────────────────────────
@@ -325,9 +352,23 @@ export async function elegirPlan(tenantId: string, slug: string, planId: string,
 
   if (cuenta.suscripcionId && cuenta.suscripcionEstado === "activa") {
     if (cuenta.planId === planId && !cuenta.planElegido) return { mensaje: `Ya tenés el plan ${plan.nombre}.` };
-    await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { planId, planElegido: null } }));
+    // Sube a mitad del período: la diferencia por los días que quedan se suma al próximo cobro
+    // (los límites se amplían ya). Bajar no devuelve nada: el período pagado sigue como estaba.
+    const antes = planEfectivo(cuenta, await planes());
+    const diferencia = diferenciaProporcional(antes.precio ?? 0, plan.precio, cuenta.pagoHasta, ahora);
+    await conTenant(tenantId, (tx) =>
+      tx.comercialCuenta.update({
+        where: { tenantId },
+        data: {
+          planId, planElegido: null,
+          ...(diferencia > 0
+            ? { cargoPendiente: cuenta.cargoPendiente + diferencia, cargoDetalle: `Diferencia proporcional de ${antes.nombre} a ${plan.nombre} (${formatearPesos(diferencia)}), con el próximo cobro.` }
+            : {}),
+        },
+      }),
+    );
     const r = await aplicarPlan(tenantId, ahora);
-    return { mensaje: mensajeDePlan(plan, r) };
+    return { mensaje: mensajeDePlan(plan, r) + (diferencia > 0 ? ` Por los días que quedan del período se suma ${formatearPesos(diferencia)} al próximo cobro.` : "") };
   }
 
   const banda = await conTenant(tenantId, async (tx) => ({
@@ -420,8 +461,13 @@ export async function registrarCobro(tenantId: string, cobro: CobroDeSuscripcion
     if (cobro.estado === "aprobado") {
       const c = (await tx.comercialCuenta.findUnique({ where: { tenantId } }))!;
       const desde = c.pagoHasta && c.pagoHasta > ahora ? c.pagoHasta : ahora;
-      await tx.comercialCuenta.update({ where: { tenantId }, data: { pagoHasta: sumarMes(desde), pruebaHasta: null, moraDesde: null } });
-      return "aprobado" as const;
+      // El cobro que llevaba el prorrateo: ya se cobró, el próximo vuelve al precio del plan.
+      const cobroElCargo = c.cargoPendiente > 0 && cobro.monto >= (c.montoSuscripcion ?? Infinity);
+      await tx.comercialCuenta.update({
+        where: { tenantId },
+        data: { pagoHasta: sumarMes(desde), pruebaHasta: null, moraDesde: null, ...(cobroElCargo ? { cargoPendiente: 0, cargoDetalle: null } : {}) },
+      });
+      return cobroElCargo ? ("aprobado-con-cargo" as const) : ("aprobado" as const);
     }
     if (cobro.estado === "rechazado") {
       const c = (await tx.comercialCuenta.findUnique({ where: { tenantId } }))!;
@@ -432,12 +478,16 @@ export async function registrarCobro(tenantId: string, cobro: CobroDeSuscripcion
   });
   // Aprobado: vuelve al día. También una banda archivada que volvió (eligió un plan desde Plan y
   // pago y pagó): sus datos nunca se borraron.
-  if (resultado === "aprobado") await fijarEstado(modulo, tenantId, "ACTIVO", "pago de la cuota aprobado", undefined, { volver: true });
+  if (resultado === "aprobado" || resultado === "aprobado-con-cargo") {
+    await fijarEstado(modulo, tenantId, "ACTIVO", "pago de la cuota aprobado", undefined, { volver: true });
+  }
+  // Se cobró el prorrateo: el próximo cobro vuelve al precio del plan.
+  if (resultado === "aprobado-con-cargo") await aplicarPlan(tenantId, ahora).catch((e) => console.error(`[comercial] monto después del prorrateo de ${tenantId}:`, e));
   // Rechazado: aviso ya (si estaba al día); los escalones siguientes cuentan desde el rechazo.
   if (resultado === "rechazado" && (await estadoDe(tenantId)) === "ACTIVO" && (await fijarEstado(modulo, tenantId, "MOROSO", "pago de la cuota rechazado"))) {
     await avisarMora(tenantId, "rechazado").catch((e) => console.error(`[comercial] mail de mora a ${tenantId}:`, e));
   }
-  return resultado;
+  return resultado === "aprobado-con-cargo" ? "aprobado" : resultado;
 }
 
 /** La escalera de la cuota impaga: días desde el vencimiento (comercial_config, la edita el staff). */
@@ -526,7 +576,7 @@ export async function revisarVencimientos(ahora = new Date()) {
 /** conStaff (o, en pruebas, conStaffComo con un usuario): verifica staff y audita. */
 export type ComoStaff = <T>(accion: string, fn: (tx: TxTenant, ctx: ContextoStaff) => Promise<T>) => Promise<T>;
 
-export type DatosPlan = Pick<Plan, "nombre" | "descripcion" | "precioUsd" | "precio" | "modulos" | "almacenamiento" | "topes" | "aLaVenta">;
+export type DatosPlan = Pick<Plan, "nombre" | "descripcion" | "precioUsd" | "precio" | "modulos" | "almacenamiento" | "topes" | "aLaVenta"> & { dominioPropio?: boolean };
 
 function validarPlan(d: DatosPlan): DatosPlan {
   if (!d.nombre.trim()) throw new ErrorComercial("El plan necesita un nombre.");

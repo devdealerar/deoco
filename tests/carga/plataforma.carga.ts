@@ -89,7 +89,7 @@ beforeAll(async () => {
     await dueno.dominio.create({ data: { tenantId: t.id, dominio: `${slug}.lvh.me`, esPrincipal: true, verificado: true } });
     await dueno.membresia.create({ data: { tenantId: t.id, usuarioId: titular.id, rol: "TITULAR" } });
     await dueno.moduloTenant.create({ data: { tenantId: t.id, moduloId: "comercial" } });
-    await alCrearBanda(t.id); // prueba de Medium: sitio + tienda
+    await alCrearBanda(t.id); // prueba de Escenario: sitio, tienda y ticketera
     await dueno.moduloTenant.create({ data: { tenantId: t.id, moduloId: "ticketera" } });
     await conTenant(t.id, (tx) => publicar(tx, t.id, titular.id));
     const show = await crearEvento(t.id, { nombre: `Gira ${n}`, fecha: new Date(Date.now() + 10 * 86_400_000), lugar: "Club", ciudad: "Rosario", direccion: "", descripcion: "" });

@@ -9,7 +9,11 @@ export const dueno = new PrismaClient({
 });
 
 /** Los planes y plazos que siembra la migración del módulo comercial (tablas globales). */
-const SEMILLA_COMERCIAL = readFileSync("prisma/migrations/20261103130000_comercial/migration.sql", "utf8").match(/INSERT INTO "comercial_[^;]+;/g) ?? [];
+// Planes y plazos como los deja la última migración que los define (los planes del 3.2).
+const SEMILLA_COMERCIAL = [
+  ...(readFileSync("prisma/migrations/20261103130000_comercial/migration.sql", "utf8").match(/INSERT INTO "comercial_config"[^;]+;/g) ?? []),
+  ...(readFileSync("prisma/migrations/20261124100001_comercial_planes_32/migration.sql", "utf8").match(/INSERT INTO "comercial_plan"[^;]+;/g) ?? []),
+];
 
 /** Vacía todas las tablas (núcleo y módulos), menos la de migraciones, y vuelve a sembrar los planes. */
 export async function limpiar() {

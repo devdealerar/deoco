@@ -98,7 +98,7 @@ describe("registro con email verificado", () => {
 });
 
 describe("crear la banda", () => {
-  it("queda en su panel con el sitio listo: subdominio en línea, titular, prueba de Medium; el staff la ve", async () => {
+  it("queda en su panel con el sitio listo: subdominio en línea, titular, prueba de Escenario; el staff la ve", async () => {
     const usuarioId = await cuentaVerificada();
     const r = await crearBandaPropia(usuarioId, { nombre: "Los Nuevos", subdominio: "los-nuevos", opcion: "prueba" }, "10.0.0.1");
     expect(r.redireccion).toBe("/b/los-nuevos");
@@ -108,19 +108,19 @@ describe("crear la banda", () => {
     expect(t.dominios).toMatchObject([{ dominio: "los-nuevos.lvh.me", esPrincipal: true, verificado: true }]);
     // El sitio público resuelve en su subdominio y el módulo sitio está prendido.
     expect((await resolverTenantPorHost("los-nuevos.lvh.me"))?.id).toBe(t.id);
-    expect([...(await modulosPrendidos(t.id))].sort()).toEqual(["comercial", "sitio", "tienda"]);
-    expect(await cuentaDe(t.id)).toMatchObject({ planId: "medium" });
+    expect([...(await modulosPrendidos(t.id))].sort()).toEqual(["comercial", "sitio", "ticketera", "tienda"]);
+    expect(await cuentaDe(t.id)).toMatchObject({ planId: "escenario" });
     // El staff la ve (auditoría con quién la creó).
     expect(await dueno.auditoria.findFirst({ where: { accion: "banda.autogestionada", tenantId: t.id } })).toMatchObject({ usuarioId });
     expect(await yaCreoBanda(usuarioId)).toBe(true);
   });
 
   it("eligiendo un plan: arranca la prueba y va a la pasarela de Deoco a cargar la forma de pago", async () => {
-    await dueno.comercialPlan.update({ where: { id: "premium" }, data: { precio: 4500000 } });
+    await dueno.comercialPlan.update({ where: { id: "demo" }, data: { precio: 4500000 } });
     const usuarioId = await cuentaVerificada();
-    const r = await crearBandaPropia(usuarioId, { nombre: "Con Plan", subdominio: "con-plan", opcion: "premium" }, "10.0.0.1");
+    const r = await crearBandaPropia(usuarioId, { nombre: "Con Plan", subdominio: "con-plan", opcion: "demo" }, "10.0.0.1");
     expect(r.redireccion).toMatch(new RegExp(`^${mp.base}/suscribir\\?id=`));
-    expect(await cuentaDe(r.tenantId)).toMatchObject({ planId: "medium", planElegido: "premium", suscripcionEstado: "pendiente" });
+    expect(await cuentaDe(r.tenantId)).toMatchObject({ planId: "escenario", planElegido: "demo", suscripcionEstado: "pendiente" });
   });
 
   it("subdominio reservado, inválido o tomado; una banda por cuenta", async () => {

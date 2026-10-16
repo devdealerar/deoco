@@ -262,6 +262,7 @@ export async function AdminPlanes(_: PropsRutaAdmin) {
             <Campo name="precio" etiqueta="Precio por mes (pesos)" ayuda="Lo que se cobra. Vacío: sin precio." defaultValue={p.precio !== null ? pesosParaCampo(p.precio) : ""} />
             <Campo name="almacenamiento" etiqueta="Espacio (GB)" ayuda={`Vacío: el de la plataforma.${p.almacenamiento !== null ? ` Hoy: ${formatearBytes(p.almacenamiento)}.` : ""}`} defaultValue={gb(p.almacenamiento)} />
             <Casilla name="aLaVenta" etiqueta="A la venta (la banda lo elige y paga sola)" marcada={p.aLaVenta} />
+            <Casilla name="dominioPropio" etiqueta="Con dominio propio (sin él, el dominio de la banda deja de servirse y vuelve el subdominio)" marcada={p.dominioPropio} />
             <CamposModulosYTopes prefijo="" plan={p} />
           </Formulario>
         </Tarjeta>

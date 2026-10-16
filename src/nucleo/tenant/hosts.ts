@@ -18,6 +18,12 @@ export function esHostPlataforma(host: string): boolean {
   return host === `app.${dominioRaiz()}`;
 }
 
+/** `<slug>.<raiz>`: el subdominio de una banda en la plataforma. */
+export const subdominioDe = (slug: string) => `${slug}.${dominioRaiz()}`;
+
+/** Un host de la plataforma (`<algo>.<raiz>`), no un dominio propio. */
+export const esDominioDePlataforma = (host: string) => host === dominioRaiz() || host.endsWith(`.${dominioRaiz()}`);
+
 /** `https://app.<raiz>` en producción; `http://app.<raiz>:<puerto>` en desarrollo. Para links absolutos. */
 export function origenPlataforma(): string {
   return process.env.NODE_ENV === "production"
