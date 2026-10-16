@@ -31,6 +31,7 @@ export async function comprarAccion(
       cantidad,
       nombre: campo("nombre"),
       email: campo("email"),
+      documento: campo("documento"),
       asistentes: Array.from(
         {
           length:

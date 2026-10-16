@@ -11,6 +11,7 @@ import type { Opcion } from "./catalogo";
 import { PROVINCIAS } from "./comun";
 import { pasarelaLista } from "@/nucleo/pagos";
 import { esEmail } from "@/nucleo/correo/direccion";
+import { documentoFiscal } from "@/nucleo/fiscal";
 
 export { describirVariante, PROVINCIAS } from "./comun";
 
@@ -163,6 +164,8 @@ export type DatosFan = {
   ciudad: string;
   provincia: string;
   codigoPostal: string;
+  /** DNI o CUIT, opcional (para la factura). */
+  documento?: string;
 };
 
 /** Valida y normaliza. Devuelve los problemas, campo por campo, en lenguaje del fan. */
@@ -180,6 +183,12 @@ export function validarDatosFan(d: DatosFan): { datos: DatosFan; problemas: stri
     codigoPostal: t(d.codigoPostal, 10).toUpperCase(),
   };
   const p: string[] = [];
+  const doc = t(d.documento ?? "", 20);
+  if (doc) {
+    const normal = documentoFiscal(doc);
+    if (normal) datos.documento = normal;
+    else p.push("Revisá el DNI o CUIT (o dejalo vacío).");
+  }
   if (!datos.nombre) p.push("Falta tu nombre.");
   if (!esEmail(datos.email)) p.push("Revisá tu email: ahí te llega la confirmación.");
   if (!/^[+\d][\d\s()-]{5,}$/.test(datos.telefono)) p.push("Revisá tu teléfono.");

@@ -450,5 +450,29 @@ describe("C1: lo que pierde plata", () => {
       estado: "DEVUELTO", contracargo: true, resolverConProveedor: true, observacion: expect.stringContaining("resolvelo con el proveedor"),
     });
   });
+
+  it("desde la primera venta: foto fiscal (vendedor, comprador, renglones, IVA si discrimina) y país de destino", async () => {
+    await dueno.datosFiscales.deleteMany();
+    const { remera } = await productos(e.a.id);
+    const pedido = await crearPedido(tienda, e.a.id, [{ productoId: remera.id, variante: { Talle: "M" }, cantidad: 1 }], { ...FAN, documento: "30.111.222" });
+    expect(await pago("920001", pedido.id, pedido.total)).toBe("pagado");
+    const p = await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id }, include: { ordenes: true } });
+    expect(p.pais).toBe("AR");
+    expect(p.ordenes.every((o) => o.pais === "AR")).toBe(true);
+    expect(p.fiscal).toMatchObject({
+      version: 1, pais: "AR", moneda: "ARS", total: pedido.total, impuestos: [],
+      vendedor: { condicion: "sin_declarar", cuit: null },
+      comprador: { nombre: FAN.nombre, email: FAN.email, documento: "30111222" },
+    });
+    // Responsable inscripto: el IVA va discriminado.
+    await dueno.datosFiscales.create({ data: { tenantId: e.a.id, condicion: "responsable_inscripto", cuit: "30712345678", razonSocial: "Los Satélites SRL" } });
+    const otro = await crearPedido(tienda, e.a.id, [{ productoId: remera.id, variante: { Talle: "M" }, cantidad: 1 }], FAN);
+    expect(await pago("920002", otro.id, otro.total)).toBe("pagado");
+    const f = (await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: otro.id } })).fiscal as { impuestos: { base: number; importe: number }[] };
+    expect(f.impuestos).toHaveLength(1);
+    expect(f.impuestos[0].base + f.impuestos[0].importe).toBe(otro.total);
+    await dueno.datosFiscales.deleteMany();
+    await expect(crearPedido(tienda, e.a.id, [{ productoId: remera.id, variante: { Talle: "M" }, cantidad: 1 }], { ...FAN, documento: "abc" })).rejects.toThrow(/DNI o CUIT/);
+  });
 });
 

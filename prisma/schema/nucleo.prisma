@@ -72,6 +72,7 @@ model Tenant {
   zonasSalientes       ZonaSaliente[]
   registradorClientes  RegistradorCliente[]
   comprasDeDominio     DominioCompra[]
+  datosFiscales        DatosFiscales?
   limites              LimiteBanda[]
 
   @@map("tenant")
@@ -512,4 +513,18 @@ model DominioCompra {
 
   @@unique([tenantId, cobroId])
   @@map("dominio_compra")
+}
+
+/// Datos fiscales de la banda (3.2, fiscal d1): cada venta guarda una foto de esto al pagarse
+/// (`@/nucleo/fiscal`). Sin fila, "sin_declarar". Todavía sin pantalla ni facturación.
+model DatosFiscales {
+  tenantId      String   @id @db.Uuid
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// responsable_inscripto | monotributo | exento | sin_declarar
+  condicion     String   @default("sin_declarar")
+  cuit          String?
+  razonSocial   String?
+  actualizadoEn DateTime @default(now())
+
+  @@map("datos_fiscales")
 }

@@ -14,7 +14,7 @@ import type { EstadoTenant } from "@/generated/prisma/client";
 const RUTA_PANEL_BANDA = /^\/b\/([^/]+)(\/.*)?$/;
 
 /** Rutas del panel que son del núcleo (primer segmento): ningún módulo las puede ocupar. */
-export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/devoluciones", "/archivos", "/dominios", "/correo", "/credenciales"];
+export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/devoluciones", "/actividad", "/archivos", "/dominios", "/correo", "/credenciales"];
 
 /**
  * `subruta`: "pago" para lo que la banda le debe resolver a alguien (Plan y pago, Pagos para

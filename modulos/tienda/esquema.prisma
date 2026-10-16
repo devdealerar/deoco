@@ -213,6 +213,12 @@ model TiendaPedido {
   resolverConProveedor Boolean   @default(false)
   /// Conciliación: la última vez que se le preguntó a la pasarela.
   conciliadoEn  DateTime?
+  /// País de destino (ISO 3166-1, hoy siempre AR): desde la primera venta (3.2, multipaís d4).
+  pais          String    @default("AR")
+  /// DNI o CUIT del comprador, si lo dio (para la factura).
+  documento     String?
+  /// Foto fiscal al pagarse (`@/nucleo/fiscal`): vendedor, comprador, renglones e impuestos.
+  fiscal        Json?
   /// Secreto para ver el pedido y pagarlo (cookie del navegador que compró o link del mail).
   token         String
 
@@ -295,6 +301,8 @@ enum TiendaEstadoOrden {
 /// (app.<raiz>/portal/tienda); lee entre bandas solo lo suyo (política proveedor_lee).
 model TiendaOrden {
   id            String            @id @default(uuid()) @db.Uuid
+  /// País de destino (copia del pedido).
+  pais        String   @default("AR")
   tenantId      String            @db.Uuid
   pedidoId      String            @db.Uuid
   pedido        TiendaPedido      @relation(fields: [tenantId, pedidoId], references: [tenantId, id], onDelete: Cascade)

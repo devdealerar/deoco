@@ -3,6 +3,7 @@
 // contrato (`edicion`) → la acción → refrescar la pantalla. Un error esperable (los que nombra
 // el módulo) se muestra tal cual; cualquier otro sigue de largo (error.tsx, log).
 import { revalidatePath } from "next/cache";
+import { conTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
@@ -32,8 +33,13 @@ export function accionesDelPanel(contrato: () => Modulo, errores: ClaseError[], 
     if (!(await puedeEnPedido(edicion.permiso, volver))) return { error: edicion.sinPermiso };
     try {
       const ok = await fn({ tenantId: acceso.tenantId, usuarioId: acceso.usuarioId });
+      // Registro de actividad obligatorio (td3): quién guardó qué pantalla, y qué le dijo el panel.
+      const mensaje = ok ?? edicion.guardado ?? "Guardado.";
+      await conTenant(acceso.tenantId, (tx) =>
+        tx.auditoria.createMany({ data: [{ usuarioId: acceso.usuarioId, tenantId: acceso.tenantId, accion: `${modulo.id}.panel_guardado`, detalle: { pantalla: edicion.ruta, mensaje } }] }),
+      );
       revalidatePath(volver, "layout");
-      return { ok: ok ?? edicion.guardado ?? "Guardado." };
+      return { ok: mensaje };
     } catch (e) {
       if (errores.some((E) => e instanceof E)) return { error: (e as Error).message };
       throw e;

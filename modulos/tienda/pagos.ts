@@ -12,6 +12,7 @@ import tienda from "./index";
 import { DIAS_PEDIDO_PENDIENTE, type EnvioDeProveedor } from "./pedidos";
 import { type CobroConsultado, conciliarCobros, crearCobro, ErrorPasarela } from "@/nucleo/pagos";
 import { prisma } from "@/nucleo/db/cliente";
+import { fotoFiscal } from "@/nucleo/fiscal";
 
 
 /**
@@ -114,9 +115,20 @@ const pedidoACobrar: CosaACobrar = {
     });
   },
   async alPagarse(tx, id) {
-    const { tenantId } = await tx.tiendaPedido.findUniqueOrThrow({ where: { id }, select: { tenantId: true } });
+    const p = await tx.tiendaPedido.findUniqueOrThrow({ where: { id }, include: { items: true } });
     await fijarCostosDelPedido(tx, id);
-    await registrarDeudas(tx, tenantId, id);
+    await registrarDeudas(tx, p.tenantId, id);
+    // La foto fiscal de la venta (3.2, fiscal d1): se guarda desde la primera, aunque no se facture.
+    const fiscal = await fotoFiscal(tx, p.tenantId, {
+      pais: p.pais,
+      comprador: { nombre: p.nombre, email: p.email, documento: p.documento },
+      renglones: [
+        ...p.items.map((i) => ({ descripcion: i.nombreProducto, cantidad: i.cantidad, precioUnitario: i.precioUnitario })),
+        ...(p.envio > 0 ? [{ descripcion: "Envío", cantidad: 1, precioUnitario: p.envio }] : []),
+      ],
+      total: p.total,
+    });
+    await tx.tiendaPedido.update({ where: { id }, data: { fiscal } });
   },
   evento: (pedidoId) => ({ nombre: "pedido.pagado", payload: { pedidoId } }),
 };
@@ -162,8 +174,9 @@ export async function registrarDeudas(tx: TxTenant, tenantId: string, pedidoId: 
     contactoEmail: config?.contactoEmail || titular?.email || "",
     contactoTelefono: config?.contactoTelefono ?? "",
   };
+  const { pais } = await tx.tiendaPedido.findUniqueOrThrow({ where: { id: pedidoId }, select: { pais: true } });
   await tx.tiendaOrden.createMany({
-    data: [...porProveedor.keys()].map((proveedorId) => ({ tenantId, pedidoId, proveedorId, bandaNombre, ...contacto })),
+    data: [...porProveedor.keys()].map((proveedorId) => ({ tenantId, pedidoId, proveedorId, bandaNombre, pais, ...contacto })),
     skipDuplicates: true,
   });
 }

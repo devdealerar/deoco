@@ -73,7 +73,9 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
   (`src/nucleo/acceso/banda-cerrada.ts`); la puerta, para los shows vendidos que no terminaron.
   Sitio: `SuperficiePublica`; las entradas y el pedido del fan. Lo demás → 404 (o el inicio).
 - Solo resuelven dominios **verificados**. En el sitio público, todo dominio de la banda que no
-  sea el principal redirige (307) al principal, misma ruta.
+  sea el principal redirige (307) al principal, misma ruta, SOLO si el principal anda
+  (`fallasSeguidas` = 0 y sin `problemaDesde`): si no, el sitio se sirve donde se pidió (el
+  subdominio es la red de seguridad de la banda).
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.
 
 ## Sesión, rol y permisos
@@ -291,6 +293,10 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - Vencimientos: el cobro lleva `vence` (y `soloInmediatos` en las entradas). Pedido: 7 días o un
   producto fuera de venta → CANCELADO. Compra: al cerrar la venta del tipo o empezar el show. Un
   pago que llega después → para devolver (tardío).
+- Desde la primera venta (3.2 fiscal d1, multipaís d4): `fotoFiscal(tx, …)` (`@/nucleo/fiscal`) al
+  pagarse, en `tienda_pedido.fiscal` / `ticketera_compra.fiscal` (vendedor de `datos_fiscales`,
+  sin fila "sin_declarar"; comprador con DNI/CUIT opcional; renglones; IVA discriminado si es
+  responsable inscripto). `tienda_pedido.pais` / `tienda_orden.pais` (hoy AR). Sin pantalla todavía.
 - Comunes del núcleo: `@/nucleo/dinero` (pesos), `@/nucleo/fechas` (hora argentina),
   `@/nucleo/publico/{origen,estilo,refrescar}`, `esEmail` (`@/nucleo/correo/direccion`).
 
@@ -396,7 +402,11 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - Conexión aparte: rol `deoco_admin` (BYPASSRLS), `DATABASE_URL_ADMIN`, cliente en
   `src/app/admin/_servidor/db.ts`. **Solo** se importa desde `src/app/admin`
   (`tests/admin.test.ts` falla si no).
-- Auditoría: tabla `auditoria` (núcleo). Toda acción del back office escribe su fila en la
+- Auditoría: tabla `auditoria` (núcleo), SOLO SE AGREGA: ni deoco_app ni deoco_admin pueden
+  cambiarla o borrarla (REVOKE + disparador `auditoria_inmutable`; la retención, si llega, la corre
+  el dueño). Pantallas: `/admin/auditoria` (todo, filtros en la URL) y `/b/<slug>/actividad` (la
+  banda, titular; nombres por `autores_de_actividad()`, el staff como "Equipo de Deoco").
+  `accionesDelPanel` deja `<modulo>.panel_guardado` en cada guardado. Toda acción del back office escribe su fila en la
   misma transacción (`auditar()`); para lo que corre en el núcleo (módulos, reproceso) se pasa
   `registrar` y va en la transacción del núcleo. Accesos del staff a un panel: `registrarAccesoStaff()`.
 - Pantallas: bandas (listado, alta, detalle: estado, módulos, dominios, miembros), usuarios,

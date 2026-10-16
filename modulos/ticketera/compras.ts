@@ -9,6 +9,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { type CobroConsultado, conciliarCobros, crearCobro, ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
 import { prisma } from "@/nucleo/db/cliente";
+import { documentoFiscal, fotoFiscal } from "@/nucleo/fiscal";
 import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/pagos/registro";
 import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { ErrorTicketera, esUuid } from "./eventos";
@@ -41,7 +42,7 @@ export const cierreDeVenta = (tipo: { ventaHasta: Date | null }, evento: { fecha
 const DOCUMENTO = /^[0-9A-Za-z.\- ]{5,20}$/;
 
 export type Asistente = { nombre: string; documento: string };
-export type DatosCompra = { tipoId: string; cantidad: number; nombre: string; email: string; asistentes: Asistente[] };
+export type DatosCompra = { tipoId: string; cantidad: number; nombre: string; email: string; asistentes: Asistente[]; documento?: string };
 
 function validar(d: DatosCompra): DatosCompra {
   const nombre = d.nombre.trim().replace(/\s+/g, " ");
@@ -57,8 +58,11 @@ function validar(d: DatosCompra): DatosCompra {
     if (a.nombre.length < 2 || a.nombre.length > 100) problemas.push(`Entrada ${i + 1}: falta el nombre.`);
     if (!DOCUMENTO.test(a.documento)) problemas.push(`Entrada ${i + 1}: el documento no parece válido.`);
   });
+  const doc = (d.documento ?? "").trim();
+  const documento = doc ? documentoFiscal(doc) : null;
+  if (doc && !documento) problemas.push("Revisá el DNI o CUIT (o dejalo vacío).");
   if (problemas.length) throw new ErrorTicketera(problemas.join(" "));
-  return { ...d, nombre, email, asistentes };
+  return { ...d, nombre, email, asistentes, documento: documento ?? undefined };
 }
 
 /**
@@ -144,6 +148,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
         venceEn: new Date(ahora.getTime() + RESERVA_MINUTOS * 60_000),
         token: randomBytes(16).toString("hex"),
         ipHash,
+        documento: d.documento ?? null,
       },
       include: { evento: true, tipo: true },
     });
@@ -261,7 +266,14 @@ const compraACobrar: CosaACobrar = {
     if (c.estado === "PAGADA") await sumarOcupadas(tx, c.tipoId, -c.cantidad);
   },
   async alPagarse(tx, id) {
-    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } });
+    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id }, include: { evento: true, tipo: true } });
+    // La foto fiscal de la venta (3.2, fiscal d1): se guarda desde la primera, aunque no se facture.
+    const fiscal = await fotoFiscal(tx, c.tenantId, {
+      comprador: { nombre: c.nombre, email: c.email, documento: c.documento },
+      renglones: [{ descripcion: `${c.evento.nombre} · ${c.tipo.nombre}`, cantidad: c.cantidad, precioUnitario: c.precioUnitario }],
+      total: c.total,
+    });
+    await tx.ticketeraCompra.update({ where: { id }, data: { fiscal } });
     await tx.ticketeraEntrada.createMany({
       data: (c.asistentes as Asistente[]).map((a) => ({
         tenantId: c.tenantId, compraId: c.id, eventoId: c.eventoId, tipoId: c.tipoId, nombre: a.nombre, documento: a.documento, codigo: codigoFirmado(c.tenantId, nuevoCodigo()),

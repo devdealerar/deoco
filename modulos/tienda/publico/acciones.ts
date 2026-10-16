@@ -48,6 +48,7 @@ export async function confirmarAccion(_: EstadoCheckout, fd: FormData): Promise<
       nombre: campo("nombre"),
       email: campo("email"),
       telefono: campo("telefono"),
+      documento: campo("documento"),
       calle: campo("calle"),
       numero: campo("numero"),
       piso: campo("piso"),

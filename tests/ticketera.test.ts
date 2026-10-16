@@ -389,5 +389,14 @@ describe("C1: lo que pierde plata", () => {
     await conciliarCompras(new Date(Date.now() + 10 * 60_000));
     expect(await dueno.ticketeraEntrada.count({ where: { compraId: c.compraId } })).toBe(2);
   });
+
+  it("foto fiscal de la compra al pagarse, con el DNI o CUIT si lo dio", async () => {
+    const { tipoId } = await showDeA(5);
+    const c = await comprar(e.a.id, { tipoId, cantidad: 1, nombre: "Lucía Fan", email: "fiscal@x.com", documento: "20-30111222-3", asistentes: [persona(1)] }, ORIGEN);
+    expect(await registrarPago(e.a.id, "mercadopago", aprobado(c.compraId, "fis-1", 1500000))).toBe("pagada");
+    expect((await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } })).fiscal).toMatchObject({
+      comprador: { email: "fiscal@x.com", documento: "20301112223" }, total: 1500000, renglones: [{ cantidad: 1, precioUnitario: 1500000, importe: 1500000 }],
+    });
+  });
 });
 

@@ -102,6 +102,10 @@ model TicketeraCompra {
   ipHash         String?
   /// Conciliación: la última vez que se le preguntó a la pasarela.
   conciliadaEn   DateTime?
+  /// DNI o CUIT de quien compra, si lo dio (para la factura).
+  documento      String?
+  /// Foto fiscal al pagarse (`@/nucleo/fiscal`): vendedor, comprador, renglones e impuestos.
+  fiscal         Json?
   /// Secreto del link para volver a ver las entradas (/fechas/compra/<id>?t=<token>): el id
   /// solo no alcanza, las entradas dejan entrar.
   token          String

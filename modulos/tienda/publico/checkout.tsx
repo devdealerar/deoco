@@ -44,6 +44,7 @@ export function Checkout() {
           <Campo name="nombre" etiqueta="Nombre y apellido" autoComplete="name" required />
           <Campo name="email" etiqueta="Email" type="email" autoComplete="email" required />
           <Campo name="telefono" etiqueta="Teléfono" type="tel" autoComplete="tel" required />
+          <Campo name="documento" etiqueta="DNI o CUIT (opcional, para la factura)" inputMode="numeric" />
         </fieldset>
         <fieldset className="grid gap-4 sm:grid-cols-6">
           <legend className="mb-3 text-lg font-black">Envío</legend>

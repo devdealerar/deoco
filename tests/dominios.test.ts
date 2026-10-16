@@ -361,6 +361,18 @@ describe("delegar (la zona es nuestra; la banda cambia los nameservers)", () => 
     cf.activarZona("lossatelites.com", "active");
     await marcarPrincipal(ua.id, a.id, id);
     expect((await proxy(pedido("www.lossatelites.com", "/fechas"))).headers.get("location")).toBe("http://lossatelites.com/fechas");
+
+    // Red de seguridad (C1.9): si el principal falla (una revisión ya alcanza), el subdominio y los
+    // demás dominios NO redirigen al dominio roto: sirven el sitio ahí mismo.
+    expect((await proxy(pedido("banda-a.deocoartist.com", "/fechas"))).status).toBe(307);
+    await dueno.dominio.update({ where: { id }, data: { fallasSeguidas: 1 } });
+    const sub = await proxy(pedido("banda-a.deocoartist.com", "/fechas"));
+    expect(sub.status).toBe(200);
+    expect(sub.headers.get("location")).toBeNull();
+    expect((await proxy(pedido("www.lossatelites.com"))).headers.get("location")).toBeNull();
+    // Se arregla: vuelve a redirigir al principal.
+    await dueno.dominio.update({ where: { id }, data: { fallasSeguidas: 0 } });
+    expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(307);
   });
 
   it("la revisión lo detecta sola: la banda no tiene que volver a tocar nada", async () => {

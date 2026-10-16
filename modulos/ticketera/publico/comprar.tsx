@@ -45,6 +45,10 @@ export function Comprar({ tipos, maximo }: { tipos: Tipo[]; maximo: number }) {
           Email (te llegan las entradas)
           <input name="email" type="email" autoComplete="email" required className={c.campo} />
         </label>
+        <label className="flex flex-col gap-1 text-sm font-bold">
+          DNI o CUIT (opcional, para la factura)
+          <input name="documento" inputMode="numeric" className={c.campo} />
+        </label>
       </fieldset>
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-2 text-lg font-black">¿A nombre de quién?</legend>

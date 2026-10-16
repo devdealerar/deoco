@@ -22,6 +22,7 @@ export default async function LayoutAdmin({ children }: { children: ReactNode })
         { href: "/admin", etiqueta: "Bandas" },
         { href: "/admin/usuarios", etiqueta: "Usuarios" },
         { href: "/admin/eventos", etiqueta: "Eventos fallidos" },
+        { href: "/admin/auditoria", etiqueta: "Auditoría" },
         { href: "/admin/dominios", etiqueta: "Dominios comprados" },
       ],
     },
