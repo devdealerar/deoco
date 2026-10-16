@@ -1,5 +1,32 @@
 # Tareas
 
+## A · Auditoría contra el documento maestro
+
+Documento maestro: `docs/documento-maestro.md`. Auditoría: `docs/auditoria-documento-maestro.md`.
+
+### A1 · Bloque crítico ✅
+
+- 9.16: PUERTA solo valida (sin `tienda.producto.ver` ni `sitio.contenido.ver`). `tests/roles.test.ts`
+  exige que el único permiso con PUERTA sea `ticketera.puerta.validar`.
+- 14.3: con la banda SUSPENDIDA o ARCHIVADA, la puerta sigue para los shows con entradas vendidas
+  que no terminaron. Genérico: `conBandaCerrada` en las rutas de panel del contrato; el proxy deja
+  pasar las rutas de módulo marcadas y `accesoPanel` decide con la ruta del pedido y la de quien
+  llama (`src/nucleo/acceso/banda-cerrada.ts`). Pruebas: `tests/banda-cerrada.test.ts`,
+  `tests/proxy.test.ts`, e2e en `tests/e2e/ticketera.e2e.ts`. El plazo de suspensión no se tocó.
+- 9.11: QR firmado (`modulos/ticketera/firma.ts`): 10 al azar + 10 de HMAC por banda con
+  `DEOCO_CLAVE_QR` (`entorno` en el contrato, lo exige el arranque). La puerta verifica antes de
+  tocar la base; los códigos de 10 caracteres sin firma se siguen buscando (transición).
+  `tests/ticketera-qr.test.ts`.
+- 7.32: `tienda_pedido_item.disenoId` (migración `tienda_item_diseno`): el portal y el mail al
+  proveedor usan el diseño del renglón; la política del proveedor sobre `tienda_diseno` mira sus
+  renglones. Los renglones viejos toman el diseño actual de su producto.
+- 7.33: duplicar un producto (`duplicarProducto`, botón en el producto; la foto se copia con
+  `leerArchivo` del núcleo).
+- 6.1: las fechas cargadas a mano conviven con los shows de la ticketera (misma fecha y sala: una
+  vez, la de la ticketera).
+- Pendiente de decisión: 7.31 (cambiar el diseño de un producto publicado crea una versión nueva):
+  modelo propuesto, sin construir.
+
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 
 Diseño: `docs/diseno-dominios.md` (caminos, transiciones, certificado, correo, compra).
