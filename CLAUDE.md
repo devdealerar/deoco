@@ -434,6 +434,13 @@ módulos y que el build sea de producción (`generadoPara`), y si algo falla el 
 falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va a mano
 (`CLAVE=… node scripts/crear-staff.mjs <email> "<nombre>"` en la consola de la app); el resto, desde `/admin`.
 
+## Copias y monitoreo (`docs/copias-y-monitoreo.md`)
+
+- `infra/copias` (servicio aparte): `copia.sh` diario (pg_dump cifrado con age + archivos, rclone a
+  otro proveedor, retención 30 d / 12 meses, aviso a Healthchecks) y `restaurar.sh` (carga en
+  `deoco_restauracion`, compara filas, prueba que deoco_app la usa). La copia lleva los GRANT.
+- `/api/salud` (200/503, sin detalles) para el monitoreo; `DEOCO_LATIDO_URL`: latido del barrido.
+
 ## Público: errores, acceso y carga
 
 - Ningún error técnico al público: `mensajeParaElPublico()` (`src/nucleo/publico/errores.ts`) y

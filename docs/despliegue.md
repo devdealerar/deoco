@@ -251,8 +251,10 @@ volver a cargar sus credenciales:
 
 ## Respaldos
 
-Dos cosas, juntas: la **base** `deoco` (backups del servicio Postgres o `pg_dump` programado) y
-el **volumen** `/data/archivos` (la base sabe qué archivo es de quién; el volumen tiene los bytes).
+Dos cosas, juntas: la **base** `deoco` y el **volumen** `/data/archivos` (la base sabe qué archivo
+es de quién; el volumen tiene los bytes). Las dos van FUERA del VPS todos los días con el servicio
+`infra/copias` (cifradas, con restauración de prueba): **`docs/copias-y-monitoreo.md`**. Ahí también
+el monitoreo (`/api/salud`, `DEOCO_LATIDO_URL`). Sin esto no se suma una banda real.
 
 ## Actualizar
 

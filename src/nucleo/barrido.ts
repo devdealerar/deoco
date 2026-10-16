@@ -123,6 +123,19 @@ let ultimosVencimientosHechos: ResultadoBarrido["vencimientos"] = null;
 /** Para pruebas: espera la revisión de vencimientos que haya quedado corriendo aparte. */
 export const esperarVencimientos = async () => void (await vencimientosCorriendo);
 
+/**
+ * Latido del barrido para el monitoreo externo (un "dead man's switch", p. ej. Healthchecks.io):
+ * si DEOCO_LATIDO_URL está, cada tanto se le avisa que el barrido sigue vivo. Si deja de llegar,
+ * el servicio avisa (el barrido se colgó o el proceso se cayó). Nunca frena ni tira.
+ */
+let ultimoLatido = 0;
+function latir(ahora = Date.now()) {
+  const url = process.env.DEOCO_LATIDO_URL?.trim();
+  if (!url || ahora - ultimoLatido < 5 * 60_000) return;
+  ultimoLatido = ahora;
+  void fetch(url, { signal: AbortSignal.timeout(10_000) }).catch((e) => console.warn("[barrido] latido:", e instanceof Error ? e.message : e));
+}
+
 let corriendo = false;
 let reloj: NodeJS.Timeout | undefined;
 
@@ -132,6 +145,7 @@ export async function vuelta(): Promise<ResultadoBarrido | null> {
   corriendo = true;
   try {
     const r = await barrer();
+    latir();
     // Solo cuando hizo algo: así los logs muestran que el barrido corre sin llenarse de líneas.
     if (r.bandas || r.dominios.revisados || r.dominios.delegados) {
       console.log(`[barrido] pendientes de ${r.bandas} banda(s) · dominios revisados: ${r.dominios.revisados}, con problema: ${r.dominios.conProblema}, delegados activados: ${r.dominios.delegados}`);
