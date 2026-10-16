@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { exigirPlataforma, usuarioDeSesion } from "@/nucleo/acceso/panel";
 import { cambiarClave, ErrorClave } from "@/nucleo/auth/clave";
+import { renovarSesionPropia } from "@/nucleo/auth";
 import type { EstadoFormulario } from "@/ui";
 
 export async function guardarClave(volver: string, _: EstadoFormulario, fd: FormData): Promise<EstadoFormulario> {
@@ -15,5 +16,6 @@ export async function guardarClave(volver: string, _: EstadoFormulario, fd: Form
     if (e instanceof ErrorClave) return { error: e.message };
     throw e;
   }
+  await renovarSesionPropia(usuarioId);
   redirect(volver.startsWith("/") && !volver.startsWith("//") ? volver : "/");
 }

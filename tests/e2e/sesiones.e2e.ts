@@ -29,6 +29,11 @@ describe("sesiones que se cierran de verdad", () => {
     expect((await enPanel(otro)).status).toBe(200);
     // Cambia la clave desde "uno" (como /clave: el disparador sube la versión).
     await dueno.usuario.update({ where: { id: e.multi.id }, data: { hashContrasena: await hashearContrasena(CONTRASENA) } });
+    // Un "update" pedido desde el navegador no la revive (la prueba de renovación la arma solo el servidor).
+    await otro.evaluate(async () => {
+      const { csrfToken } = await (await fetch("/api/auth/csrf")).json();
+      await fetch("/api/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ csrfToken, data: { renovar: "inventada" } }) });
+    });
     const r = await enPanel(otro);
     expect(r.url).toContain("/ingresar");
     expect((await enPanel(uno)).url).toContain("/ingresar"); // también la del que cambió (vuelve a entrar con la nueva)

@@ -52,9 +52,12 @@ describe("avisos externos por HTTP real", () => {
     expect(await dueno.evento.count({ where: { tenantId: e.a.id, claveUnica: "pago:pago-e2e" } })).toBe(1);
   });
 
-  it("firma inválida → 401; banda con el módulo apagado → 404", async () => {
+  it("firma inválida → 401; con el módulo apagado se atiende igual (es plata que ya se movió): responde el módulo", async () => {
     expect((await enviar("app.lvh.me", `/avisos/${e.a.id}/prueba/pago`, '{"id":"x"}', { "x-firma": "00" })).estado).toBe(401);
-    expect((await enviar("app.lvh.me", `/avisos/${e.b.id}/prueba/pago`, '{"id":"x"}')).estado).toBe(404);
+    // B tiene el módulo apagado: el aviso llega al módulo, que contesta que B no cargó su token.
+    expect((await enviar("app.lvh.me", `/avisos/${e.b.id}/prueba/pago`, '{"id":"x"}')).estado).toBe(409);
+    // Una banda que no existe, 404.
+    expect((await enviar("app.lvh.me", `/avisos/00000000-0000-4000-8000-000000000000/prueba/pago`, '{"id":"x"}')).estado).toBe(404);
   });
 
   it("en el host de una banda, /avisos no existe", async () => {

@@ -82,7 +82,8 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 
 - Auth.js (`src/nucleo/auth`): email + contraseña (argon2id). La sesión (JWT) lleva SOLO `sub` + `v`
   (`usuario.versionSesion`: cambiar la clave o "Cerrar sesiones" en `/admin/usuarios` la sube y la
-  sesión abierta deja de valer en la acción siguiente).
+  sesión abierta deja de valer en la acción siguiente; quien cambió la clave sigue: `renovarSesionPropia`,
+  con una prueba HMAC que solo arma el servidor).
   Cookie `deoco.sesion` (`__Host-deoco.sesion` en producción), host-only de `app.<raiz>`:
   los sitios públicos no la reciben. Auth.js, `/ingresar` y el selector dan 404 en hosts de banda.
 - Rol por pedido: sesión + tenant del proxy → `membresia` (`src/nucleo/acceso/resolver.ts`).
