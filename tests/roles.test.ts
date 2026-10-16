@@ -32,6 +32,16 @@ describe("registro de roles", () => {
   });
 });
 
+describe("PUERTA solo escanea", () => {
+  it("de todos los permisos declarados, el único que trae PUERTA es validar en la puerta", () => {
+    const conPuerta = registro()
+      .modulos.flatMap((m) => m.permisos)
+      .filter((p) => p.rolesPorDefecto.includes("PUERTA"))
+      .map((p) => p.clave);
+    expect(conPuerta).toEqual(["ticketera.puerta.validar"]);
+  });
+});
+
 describe("un rol de módulo cuenta solo con su módulo prendido", () => {
   let e: Awaited<ReturnType<typeof dosBandas>>;
   beforeAll(async () => {
@@ -42,15 +52,16 @@ describe("un rol de módulo cuenta solo con su módulo prendido", () => {
     await dueno.$disconnect();
   });
 
-  it("PUERTA ve la tienda solo si la ticketera (que declara PUERTA) está prendida", async () => {
+  it("PUERTA valida solo si la ticketera (que declara PUERTA) está prendida, y nunca ve la tienda", async () => {
     const p = await dueno.usuario.create({ data: { email: "puerta@x.com", nombre: "P", hashContrasena: "x" } });
     await dueno.membresia.create({ data: { tenantId: e.a.id, usuarioId: p.id, rol: "PUERTA" } });
     await dueno.moduloTenant.create({ data: { tenantId: e.a.id, moduloId: "tienda" } });
     expect(rolVigente("PUERTA", new Set(["tienda"]))).toBe(false);
-    expect(await puede(p.id, e.a.id, "tienda.producto.ver")).toBe(false);
+    expect(await puede(p.id, e.a.id, "ticketera.puerta.validar")).toBe(false);
     await dueno.moduloTenant.create({ data: { tenantId: e.a.id, moduloId: "ticketera" } });
-    expect(await puede(p.id, e.a.id, "tienda.producto.ver")).toBe(true);
     expect(await puede(p.id, e.a.id, "ticketera.puerta.validar")).toBe(true);
+    // Con el rol vigente sigue sin ver pedidos, montos ni la deuda con proveedores.
+    expect(await puede(p.id, e.a.id, "tienda.producto.ver")).toBe(false);
     // Un rol que ya no existe en el build no da nada, y la base no acepta cualquier cosa.
     expect(rolVigente("VIEJO", new Set(["tienda", "ticketera"]))).toBe(false);
     await expect(dueno.membresia.update({ where: { usuarioId_tenantId: { usuarioId: p.id, tenantId: e.a.id } }, data: { rol: "no válido" } })).rejects.toThrow();

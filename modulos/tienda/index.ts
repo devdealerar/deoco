@@ -34,7 +34,8 @@ const tienda: Modulo = {
   // Rol de negocio de la tienda (el mismo que el de la ticketera: es el mismo rol).
   roles: [{ clave: "COMERCIAL", etiqueta: "Comercial", descripcion: "Maneja precios y ventas." }],
   permisos: [
-    { clave: VER, rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL", "PUERTA", "LECTURA"] },
+    // PUERTA no: solo valida en la puerta (no ve pedidos, montos ni la deuda con proveedores).
+    { clave: VER, rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL", "LECTURA"] },
     // Productos y precios: el responsable comercial es el que fija precios.
     { clave: "tienda.producto.editar", rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL"] },
     // Probar la conexión con la cuenta de cobro: solo el titular (ni otro rol ni el staff).

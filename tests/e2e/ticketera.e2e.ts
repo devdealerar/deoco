@@ -128,7 +128,10 @@ describe("ticketera", () => {
     await p.setViewportSize({ width: 390, height: 844 });
     await p.goto(`${APP}/b/banda-a/puerta`);
     // Solo ve la puerta (no las ventas).
-    expect(await p.locator('nav[aria-label="Panel"]').textContent()).not.toContain("Entradas");
+    const menu = await p.locator('nav[aria-label="Panel"]').textContent();
+    expect(menu).not.toContain("Entradas");
+    expect(menu).not.toContain("Sitio");
+    expect(menu).not.toContain("Tienda");
     await p.locator('[data-puerta-evento="Gira Satélite"]').click();
     await p.waitForURL(/\/puerta\/[0-9a-f-]+$/);
     await p.locator("[data-puerta][data-hidratado]").waitFor(); // antes de hidratar, el formulario no valida
