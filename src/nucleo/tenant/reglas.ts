@@ -14,11 +14,12 @@ import type { EstadoTenant } from "@/generated/prisma/client";
 const RUTA_PANEL_BANDA = /^\/b\/([^/]+)(\/.*)?$/;
 
 /** Rutas del panel que son del núcleo (primer segmento): ningún módulo las puede ocupar. */
-export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/devoluciones", "/actividad", "/equipo", "/archivos", "/dominios", "/correo", "/credenciales"];
+export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/devoluciones", "/exportar", "/actividad", "/equipo", "/archivos", "/dominios", "/correo", "/credenciales"];
 
 /**
- * `subruta`: "pago" para lo que la banda le debe resolver a alguien (Plan y pago, Pagos para
- * devolver: abiertos en todos los estados, solo para el titular cuando la banda está cerrada);
+ * `subruta`: "pago" para lo que la banda le debe resolver a alguien o se lleva (Plan y pago, Pagos
+ * para devolver, Exportar todo: abiertos en todos los estados, solo para el titular cuando la
+ * banda está cerrada);
  * "dominios" (llevarse sus dominios); "modulo" si la ruta no es del núcleo. `resto`: lo que sigue
  * al slug ("/" si nada).
  */
@@ -36,7 +37,7 @@ export function rutaPanelBanda(pathname: string): RutaPanel | null {
     return null;
   }
   const es = (r: string) => resto === r || resto.startsWith(r + "/");
-  const subruta = es("/pago") || es("/devoluciones") ? "pago" : es("/dominios") ? "dominios" : RUTAS_NUCLEO_PANEL.some((r) => r !== "/" && es(r)) || resto === "/" ? null : "modulo";
+  const subruta = es("/pago") || es("/devoluciones") || es("/exportar") ? "pago" : es("/dominios") ? "dominios" : RUTAS_NUCLEO_PANEL.some((r) => r !== "/" && es(r)) || resto === "/" ? null : "modulo";
   return { slug, subruta, resto };
 }
 

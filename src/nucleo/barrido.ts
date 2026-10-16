@@ -10,6 +10,7 @@
 import { prisma } from "@/nucleo/db/cliente";
 import { CORREO_COLGADO_MS, retomarCorreos } from "@/nucleo/correo";
 import { limpiarHuerfanos } from "@/nucleo/archivos";
+import { revisarExportaciones } from "@/nucleo/exportacion";
 import { limpiarCorreos } from "@/nucleo/correo/limpieza";
 import { revisarDominios } from "@/nucleo/dominios";
 import { revisarCorreosPendientes } from "@/nucleo/dominios/correo";
@@ -101,6 +102,12 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
       ultimosVencimientosHechos = { ...v, transferidos };
     })().finally(() => (vencimientosCorriendo = null));
   }
+  // Exportaciones (td3): armar las pendientes y borrar los zips vencidos. Aparte: pueden tardar.
+  if (!exportacionesCorriendo) {
+    exportacionesCorriendo = revisarExportaciones(ahora)
+      .catch((e) => console.error("[barrido] exportaciones:", e))
+      .finally(() => (exportacionesCorriendo = null));
+  }
   const tareas = await correrTareas(ahora);
   // Una vez por día (en este proceso): la limpieza de correos enviados.
   if (ahora.getTime() - ultimaLimpieza >= 86_400_000) {
@@ -126,6 +133,9 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
 
 let ultimaLimpieza = 0;
 let huerfanosCorriendo: Promise<void> | null = null;
+let exportacionesCorriendo: Promise<void> | null = null;
+/** Para pruebas: espera la revisión de exportaciones que haya quedado corriendo aparte. */
+export const esperarRevisionDeExportaciones = async () => void (await exportacionesCorriendo);
 let ultimosVencimientos = 0;
 let vencimientosCorriendo: Promise<void> | null = null;
 let ultimosVencimientosHechos: ResultadoBarrido["vencimientos"] = null;

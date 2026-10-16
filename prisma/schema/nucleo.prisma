@@ -81,6 +81,7 @@ model Tenant {
   datosFiscales        DatosFiscales?
   limites              LimiteBanda[]
   limitesExtra         LimiteExtra[]
+  exportaciones        Exportacion[]
 
   @@map("tenant")
 }
@@ -416,6 +417,29 @@ model LimiteExtra {
   @@unique([tenantId, origen])
   @@index([tenantId, limite])
   @@map("limite_extra")
+}
+
+/// Exportación completa de la banda (td3): un zip con un CSV y un JSON por tabla y los archivos.
+/// Se arma en segundo plano (`src/nucleo/exportacion`); una en curso por banda.
+model Exportacion {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  pedidaPor   String?   @db.Uuid
+  /// pendiente | armando | lista | fallida | vencida
+  estado      String    @default("pendiente")
+  tomadaEn    DateTime?
+  terminadaEn DateTime?
+  venceEn     DateTime?
+  bytes       BigInt?
+  tablas      Int?
+  archivos    Int?
+  error       String?
+  intentos    Int       @default(0)
+  creadoEn    DateTime  @default(now())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, creadoEn])
+  @@map("exportacion")
 }
 
 /// Registro sin verificar (autogestión). Nadie lo lee: solo registro_solicitar/registro_confirmar.

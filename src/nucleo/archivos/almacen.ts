@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { mkdir, readdir, rm, stat, statfs, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rm, stat, statfs, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
@@ -19,6 +19,8 @@ export interface Almacen {
   carpetas(): Promise<string[]>;
   /** Bytes libres donde guarda (null si no se sabe: un almacén remoto). */
   libre(): Promise<number | null>;
+  /** Guarda un archivo grande que ya está en el disco local (la exportación), sin cargarlo en memoria. */
+  guardarDesde(clave: string, rutaLocal: string): Promise<void>;
 }
 
 /** Disco del VPS: en Easypanel, un volumen persistente montado en DEOCO_ARCHIVOS_DIR. */
@@ -36,6 +38,12 @@ export class AlmacenDisco implements Almacen {
     const ruta = this.ruta(clave);
     await mkdir(path.dirname(ruta), { recursive: true });
     await writeFile(ruta, datos);
+  }
+
+  async guardarDesde(clave: string, rutaLocal: string) {
+    const ruta = this.ruta(clave);
+    await mkdir(path.dirname(ruta), { recursive: true });
+    await copyFile(rutaLocal, ruta);
   }
 
   async leer(clave: string) {

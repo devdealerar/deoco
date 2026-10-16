@@ -796,3 +796,12 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
   fuera de venta, el pedido sin pagar se cancela como cualquier producto despublicado.)
 - **Pedido devuelto ya producido**: la banda lo marca "resuelto con el proveedor" con una nota
   obligatoria (queda en la actividad); deja de figurar como pendiente.
+- **Exportación**: "por tabla", genérica (toda tabla con `tenantId`, bajo RLS), así ningún módulo
+  nuevo queda afuera. Solo el titular la pide y la baja (tiene datos personales de los fans: ante
+  duda de privacidad, la menor cantidad de personas). No salen hashes, tokens, credenciales
+  cifradas ni el cuerpo de los mails. Siempre en segundo plano (no hay umbral de "si pesa mucho":
+  así el panel nunca se cuelga); el link del mail lleva al panel (con sesión), no a un archivo
+  público, y vence a los 7 días.
+- **Copia local** (sin contratar nada): `DEOCO_COPIA_DESTINO=/copias` con 7 días. **Discos**: la
+  app deja una reserva libre de 2 GB en el disco de los archivos, y `infra/disco/volumenes.sh` (a
+  correr en el VPS, no lo corrí) pone archivos y copias en imágenes de tamaño fijo.

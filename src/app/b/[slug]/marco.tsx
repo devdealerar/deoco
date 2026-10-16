@@ -72,6 +72,14 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                   </Link>
                 </li>
               )}
+              {/* Exportar todo, en cualquier estado (td3): los datos son de la banda. */}
+              {esTitular && (
+                <li>
+                  <Link href={`/b/${slug}/exportar`} className={item}>
+                    Exportar todo
+                  </Link>
+                </li>
+              )}
               {/* Dominios, también archivada: la cuota impaga no le impide llevarse sus dominios. */}
               {esTitular && (
                 <li>

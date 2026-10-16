@@ -453,12 +453,24 @@ módulos y que el build sea de producción (`generadoPara`), y si algo falla el 
 falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va a mano
 (`CLAVE=… node scripts/crear-staff.mjs <email> "<nombre>"` en la consola de la app); el resto, desde `/admin`.
 
+## Exportación completa (td3, `src/nucleo/exportacion`)
+
+- `/b/<slug>/exportar` (núcleo, solo titular, en TODOS los estados: subruta "pago"): "Exportar todo"
+  → `exportacion` (una en curso por banda, índice único) → se arma aparte del barrido
+  (`revisarExportaciones`) → zip en el almacén (`exportaciones/<banda>/<id>.zip`, yazl, ZIP64) →
+  mail al titular → se baja con sesión hasta `venceEn` (7 días; después se borra).
+- Contenido genérico (el núcleo no nombra módulos): toda tabla con `tenantId` + `tenant`, leída bajo
+  RLS en lotes, un CSV (BOM) y un JSON por tabla; `equipo.csv`; los archivos originales; `LEEME.txt`.
+  No salen llaves (`NO_SE_EXPORTA`: hashes, tokens, `cifrado`, `ipHash`) ni cuerpos/adjuntos de mails.
+
 ## Copias y monitoreo (`docs/copias-y-monitoreo.md`)
 
 - `infra/copias` (servicio aparte): `copia.sh` diario (pg_dump cifrado con age + archivos, rclone a
   otro proveedor, retención 30 d / 12 meses, aviso a Healthchecks) y `restaurar.sh` (carga en
   `deoco_restauracion`, compara filas, prueba que deoco_app la usa). La copia lleva los GRANT.
 - `/api/salud` (200/503, sin detalles) para el monitoreo; `DEOCO_LATIDO_URL`: latido del barrido.
+- Mientras no haya destino de afuera: modo local (`DEOCO_COPIA_DESTINO=/copias`, 7 días). Discos aparte:
+  `infra/disco/volumenes.sh` + reserva libre en el de archivos (`DEOCO_ARCHIVOS_RESERVA_MB`, 2 GB).
 
 ## Público: errores, acceso y carga
 
