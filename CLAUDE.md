@@ -223,6 +223,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - `gestionaCuenta` (uno solo): decide el estado (la escalera de la cuota, hasta ARCHIVADO; una banda
   archivada ya no la toca), módulos y topes con `@/nucleo/cuenta` (`fijarEstado`, `fijarModulos`, `fijarLimites`,
   `catalogoDeCuenta`); pinta `/b/<slug>/pago`. `bandaCreada()` en toda alta (prueba de Medium).
+- `mediciones: [{ clave, etiqueta, medir }]` en el contrato + archivos (núcleo): el uso de cada banda,
+  en la ficha de `/admin` (`medicionDeBanda`, `src/nucleo/cuenta/medicion.ts`). Mide, no limita.
 - `limites` en el contrato + `exigirLimite(tx, …)` antes de publicar (`ErrorLimite`, dice qué plan
   amplía). Bajar el tope → `ajustar` despublica lo último publicado (`publicadoEn`), nunca borra.
 - LA CUOTA ES LA EXCEPCIÓN AL DINERO: cuenta de Mercado Pago de Deoco, `DEOCO_CUOTA_MP_TOKEN` /

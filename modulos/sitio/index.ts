@@ -2,6 +2,7 @@
 // Borrador (tablas sitio_*) → publicar → sitio_publicacion (lo que ve el público).
 import { inicioSitio } from "./inicio";
 import type { Modulo } from "@/nucleo/modulos/contrato";
+import { conTenant } from "@/nucleo/db/con-tenant";
 import { HomePanel } from "./panel/home";
 import { Identidad } from "./panel/identidad";
 import { PrensaPanel } from "./panel/prensa";
@@ -17,6 +18,14 @@ const sitio: Modulo = {
   permisos: [
     { clave: "sitio.contenido.editar", rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL"] },
     { clave: VER, rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL", "LECTURA"] },
+  ],
+  // Uso de la banda (se ve en /admin): imágenes del borrador (slider y fotos del press kit).
+  mediciones: [
+    {
+      clave: "sitio.imagenes",
+      etiqueta: "Imágenes del sitio",
+      medir: (t) => conTenant(t, async (tx) => (await tx.sitioSlide.count()) + (await tx.sitioDescargable.count({ where: { tipo: "FOTO" } }))),
+    },
   ],
   // Archivos del sitio; en el panel (borrador, vista previa) los ve quien ve el sitio.
   archivos: ["logo", "fondo", "slide", "rider", "descargable"].map((recurso) => ({ recurso, permiso: VER })),

@@ -87,6 +87,9 @@ export type RutaModulo<P> = {
  * `titulo` de una página: "Press kit" → "Press kit · <banda>". `imagen`: URL absoluta o
  * ruta del mismo sitio (`urlArchivo(...)` de un archivo público).
  */
+/** Algo que el módulo cuenta de una banda ("productos", "shows"): un número. */
+export type DefinicionMedicion = { clave: string; etiqueta: string; medir: (tenantId: string) => Promise<number> };
+
 /** Un recurso con archivos del módulo ("diseno", "logo") y el permiso que hace falta para verlos en el panel. */
 export type DefinicionArchivo = { recurso: string; permiso: string };
 
@@ -401,6 +404,11 @@ export type Modulo = {
    * archivo se entrega solo a quien tiene el permiso de su recurso. Tener el id no alcanza.
    */
   archivos?: DefinicionArchivo[];
+  /**
+   * Lo que cuenta de cada banda, para medir el uso (se ve en /admin): productos, shows,
+   * imágenes… Sin medición no se pueden poner topes buenos. Clave `<id>.<nombre>`.
+   */
+  mediciones?: DefinicionMedicion[];
   /**
    * Cuentas externas: usuarios que no son de una banda sino de algo del módulo (p. ej. un
    * proveedor). `etiqueta`: nombre del portal ("Panel de proveedor"). Exige rutasExternas.

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { formatearBytes } from "@/nucleo/archivos";
+import { medicionDeBanda } from "@/nucleo/cuenta/medicion";
 import { dominiosDeBanda } from "@/nucleo/dominios";
 import { registro } from "@/nucleo/modulos";
 import { Campo, Casilla, Formulario, Insignia, Selector, Tabla, Tarjeta } from "@/ui";
@@ -65,6 +67,20 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
           <Selector name="estado" etiqueta="Estado" defaultValue={banda.estado} opciones={ESTADOS} />
           <Casilla name="confirmarArchivo" etiqueta="Si elijo Archivado: confirmo que el panel y el sitio de la banda van a dejar de responder." />
         </Formulario>
+      </Tarjeta>
+
+      <Tarjeta titulo="Uso" descripcion="Lo que tiene la banda hoy. Se mide para poner topes buenos; no limita nada.">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4" data-testid="uso">
+          {(await medicionDeBanda(id)).map((m) => (
+            <div key={m.clave} data-medida={m.clave}>
+              <dt className="text-sm text-tertiary">
+                {m.clave === "nucleo.almacenamiento" ? "Espacio usado" : m.etiqueta}
+                {m.moduloId && !prendidos.has(m.moduloId) ? " (módulo apagado)" : ""}
+              </dt>
+              <dd className="text-md font-semibold text-primary tabular-nums">{m.clave === "nucleo.almacenamiento" ? formatearBytes(m.valor) : m.valor}</dd>
+            </div>
+          ))}
+        </dl>
       </Tarjeta>
 
       <Tabla

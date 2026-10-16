@@ -320,6 +320,12 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     }
 
     const clavesSecretos = new Set<string>();
+    const medidas = new Set<string>();
+    for (const md of m.mediciones ?? []) {
+      if (!md.clave.startsWith(`${m.id}.`)) throw new ErrorRegistro(m.id, `mediciones: la clave "${md.clave}" tiene que empezar con "${m.id}."`);
+      if (medidas.has(md.clave)) throw new ErrorRegistro(m.id, `mediciones: clave "${md.clave}" repetida`);
+      medidas.add(md.clave);
+    }
     const recursos = new Set<string>();
     for (const a of m.archivos ?? []) {
       if (!RECURSO_ARCHIVO.test(a.recurso)) throw new ErrorRegistro(m.id, `archivos: el recurso "${a.recurso}" no tiene la forma (minúsculas y guiones)`);

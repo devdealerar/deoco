@@ -132,6 +132,9 @@ describe("prueba 6: archivar y reactivar una banda", () => {
     expect((await v.goto(sitio("banda-b")))!.status()).toBe(200);
 
     await page.goto(`${APP}/admin/bandas/banda-b`);
+    // El uso de la banda (medición, no limita): archivos y lo que cuenta cada módulo.
+    expect(await page.locator('[data-medida="nucleo.archivos"] dd').textContent()).toMatch(/^\d+$/);
+    expect(await page.locator('[data-medida="tienda.productos"]').count()).toBe(1);
     const estado = page.locator("section", { has: page.getByRole("heading", { name: "Estado" }) }).locator("form[data-hidratado]");
     await estado.waitFor();
     await estado.locator('select[name="estado"]').selectOption("ARCHIVADO");

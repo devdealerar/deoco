@@ -3,6 +3,7 @@
 // El dinero nunca pasa por Deoco.
 import { inicioTienda } from "./inicio";
 import type { Modulo } from "@/nucleo/modulos/contrato";
+import { conTenant } from "@/nucleo/db/con-tenant";
 import { AdminCatalogo } from "./admin/catalogo";
 import { AdminProductoBase } from "./admin/producto";
 import { AdminDeudas } from "./admin/deudas";
@@ -40,6 +41,11 @@ const tienda: Modulo = {
     { clave: "tienda.producto.editar", rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL"] },
     // Probar la conexión con la cuenta de cobro: solo el titular (ni otro rol ni el staff).
     { clave: "tienda.pasarela.conectar", rolesPorDefecto: ["TITULAR"], exclusivoTitular: true },
+  ],
+  // Uso de la banda (se ve en /admin).
+  mediciones: [
+    { clave: "tienda.productos", etiqueta: "Productos", medir: (t) => conTenant(t, (tx) => tx.tiendaProducto.count()) },
+    { clave: "tienda.productos-publicados", etiqueta: "Productos publicados", medir: contarPublicados },
   ],
   // Archivos: el de impresión y la foto de cada producto; en el panel los ve quien ve la tienda.
   archivos: [

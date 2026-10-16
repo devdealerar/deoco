@@ -2,6 +2,7 @@
 // banda (núcleo: @/nucleo/pagos; el dinero nunca pasa por Deoco), y validación en la puerta.
 import { inicioTicketera } from "./inicio";
 import type { Modulo } from "@/nucleo/modulos/contrato";
+import { conTenant } from "@/nucleo/db/con-tenant";
 import { avisoDePago } from "./aviso";
 import { alPagarseCompra } from "./correos";
 import { proximasFechas } from "./eventos";
@@ -27,6 +28,12 @@ const ticketera: Modulo = {
     { clave: "ticketera.eventos.editar", rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL"] },
     // La puerta: el rol PUERTA (y el titular). Solo valida: no ve compras ni datos de compradores.
     { clave: VALIDAR, rolesPorDefecto: ["TITULAR", "PUERTA"] },
+  ],
+  // Uso de la banda (se ve en /admin).
+  mediciones: [
+    { clave: "ticketera.shows", etiqueta: "Shows", medir: (t) => conTenant(t, (tx) => tx.ticketeraEvento.count()) },
+    { clave: "ticketera.shows-publicados", etiqueta: "Shows próximos publicados", medir: contarShowsPublicados },
+    { clave: "ticketera.entradas-vendidas", etiqueta: "Entradas vendidas", medir: (t) => conTenant(t, (tx) => tx.ticketeraEntrada.count()) },
   ],
   // La foto de cada show; en el panel la ve quien ve los shows (no la puerta).
   archivos: [{ recurso: "foto-show", permiso: VER }],
