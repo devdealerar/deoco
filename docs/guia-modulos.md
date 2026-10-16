@@ -208,6 +208,15 @@ secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ay
 
 - Nunca la loguees, la pongas en un mensaje de error ni la mandes al navegador.
 
+### Variables de entorno de la plataforma
+
+Lo que no es de una banda sino de Deoco (la clave que firma los QR de la ticketera) va en el
+entorno. El módulo la declara y el arranque de producción no levanta sin ella:
+
+```ts
+entorno: [{ variable: "DEOCO_CLAVE_QR", ayuda: "32 bytes en base64 (`openssl rand -base64 32`).", valida: (v) => Buffer.from(v, "base64").length >= 32 }],
+```
+
 ## 5. Rutas y navegación
 
 - `rutasPanel` se montan en `app.deocoartist.com/b/<slug><ruta>`. El componente recibe

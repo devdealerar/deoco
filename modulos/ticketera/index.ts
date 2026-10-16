@@ -48,6 +48,14 @@ const ticketera: Modulo = {
     { etiqueta: "Puerta", href: "/puerta", permiso: VALIDAR, orden: 26 },
     { etiqueta: "Fechas", href: "/fechas", publica: true, orden: 15 },
   ],
+  // Los QR van firmados (firma.ts): sin la clave, no se vende.
+  entorno: [
+    {
+      variable: "DEOCO_CLAVE_QR",
+      ayuda: "la clave que firma los QR de las entradas, 32 bytes en base64 (`openssl rand -base64 32`). Cambiarla invalida las entradas ya vendidas.",
+      valida: (v) => Buffer.from(v, "base64").length >= 32,
+    },
+  ],
   // Cobra con la pasarela de la banda; el aviso llega a app.<raiz>/avisos/<banda>/ticketera/pago/<pasarela>.
   cobros: true,
   avisos: [{ ruta: "/pago/[pasarela]", metodos: ["POST", "GET"], manejador: avisoDePago }],

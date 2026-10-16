@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { problemasDeBase, problemasDeEntorno, problemasDeVenta } from "@/nucleo/arranque";
+import { problemasDeBase, problemasDeEntorno, problemasDeEntornoDeModulos, problemasDeVenta } from "@/nucleo/arranque";
+import { registro } from "@/nucleo/modulos";
 import type { GestionCuenta } from "@/nucleo/modulos/contrato";
 import { prisma } from "@/nucleo/db/cliente";
 
@@ -47,6 +48,21 @@ describe("verificación de arranque: entorno", () => {
     expect(problemasDeEntorno(BIEN, { generadoPara: "desarrollo" })).toEqual([
       "La lista de módulos no es de producción (incluiría módulos de desarrollo): construí con `next build`.",
     ]);
+  });
+});
+
+describe("verificación de arranque: variables que pide un módulo (entorno en el contrato)", () => {
+  const ticketera = registro().modulos.filter((m) => m.id === "ticketera");
+  const CLAVE = Buffer.alloc(32, 7).toString("base64");
+
+  it("la ticketera no arranca sin la clave que firma los QR, ni con una corta", () => {
+    expect(problemasDeEntornoDeModulos(ticketera, {})).toEqual([expect.stringMatching(/ticketera.*DEOCO_CLAVE_QR/)]);
+    expect(problemasDeEntornoDeModulos(ticketera, { DEOCO_CLAVE_QR: Buffer.alloc(16).toString("base64") })).toEqual([expect.stringMatching(/DEOCO_CLAVE_QR/)]);
+    expect(problemasDeEntornoDeModulos(ticketera, { DEOCO_CLAVE_QR: CLAVE })).toEqual([]);
+  });
+
+  it("sin el módulo en el build, la variable no hace falta", () => {
+    expect(problemasDeEntornoDeModulos(registro().modulos.filter((m) => m.id !== "ticketera"), {})).toEqual([]);
   });
 });
 

@@ -86,6 +86,9 @@ export type RutaModulo<P> = {
  * `titulo` de una página: "Press kit" → "Press kit · <banda>". `imagen`: URL absoluta o
  * ruta del mismo sitio (`urlArchivo(...)` de un archivo público).
  */
+/** Una variable de entorno que el módulo necesita. `ayuda`: qué es y cómo se genera. */
+export type DefinicionEntorno = { variable: string; ayuda: string; valida?: (valor: string) => boolean };
+
 export type MetadatosPagina = { titulo?: string; descripcion?: string; imagen?: string };
 
 export type EntradaNavegacion = {
@@ -383,6 +386,12 @@ export type Modulo = {
   avisos?: DefinicionAviso[];
   /** Credenciales por banda que necesita (cifradas; solo las carga el titular). */
   secretos?: DefinicionSecreto[];
+  /**
+   * Variables de entorno de la plataforma sin las que el módulo no funciona (p. ej. la clave que
+   * firma los QR de la ticketera). En producción el arranque no levanta si falta alguna o si
+   * `valida` dice que no sirve: mejor eso que fallar en el primer pedido de una banda.
+   */
+  entorno?: DefinicionEntorno[];
   /**
    * Cuentas externas: usuarios que no son de una banda sino de algo del módulo (p. ej. un
    * proveedor). `etiqueta`: nombre del portal ("Panel de proveedor"). Exige rutasExternas.

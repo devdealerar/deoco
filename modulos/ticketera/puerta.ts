@@ -2,9 +2,10 @@
 // teléfonos que escanean el mismo QR a la vez → uno "válida" y el otro "ya entró a las …".
 // Con mala señal el teléfono reintenta el MISMO intento (mismo `intento`): si el primero llegó
 // y se perdió la respuesta, el reintento responde "válida" otra vez, no "ya validada".
-// Sin conexión no hay verde: nadie entra dos veces.
+// Sin conexión no hay verde: nadie entra dos veces. El código está firmado (firma.ts).
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { desdeAhora, esUuid } from "./eventos";
+import { firmaValida, LARGO_FIRMADO, LARGO_VIEJO } from "./firma";
 
 export type ResultadoValidacion =
   | { resultado: "valida"; nombre: string; documento: string; tipo: string }
@@ -24,7 +25,11 @@ export async function validarEntrada(
   ahora = new Date(),
 ): Promise<ResultadoValidacion> {
   const codigo = normalizarCodigo(codigoCrudo);
-  if (!esUuid(eventoId) || !INTENTO.test(intento) || codigo.length !== 10) return { resultado: "invalida" };
+  if (!esUuid(eventoId) || !INTENTO.test(intento)) return { resultado: "invalida" };
+  // La firma se verifica antes de tocar la base: uno inventado, o de otra banda, ni se busca.
+  // Transición: los códigos de antes de la firma (10 caracteres, sin firma) se siguen buscando
+  // mientras haya shows vendidos con ellos; un código nuevo nunca tiene ese largo.
+  if (codigo.length === LARGO_FIRMADO ? !firmaValida(tenantId, codigo) : codigo.length !== LARGO_VIEJO) return { resultado: "invalida" };
   return conTenant(tenantId, async (tx) => {
     const e = await tx.ticketeraEntrada.findUnique({
       where: { tenantId_codigo: { tenantId, codigo } },

@@ -5,12 +5,13 @@
 //
 // El pago es el del núcleo (@/nucleo/pagos), con la pasarela de la banda: la plata va a la
 // banda. La fuente de verdad es la CONSULTA a la API, nunca el aviso.
-import { randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { type CobroConsultado, crearCobro, ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
 import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/pagos/registro";
 import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { ErrorTicketera, esUuid } from "./eventos";
+import { codigoFirmado, nuevoCodigo } from "./firma";
 import ticketera from "./index";
 import { esEmail } from "@/nucleo/correo/direccion";
 
@@ -149,9 +150,6 @@ export async function intentarComprar(
 
 // ---------- Pago ----------
 
-const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-/** Código de la entrada (va en el QR y se tipea en la puerta): 10 caracteres sin 0/O/1/I. */
-export const nuevoCodigo = () => Array.from({ length: 10 }, () => ALFABETO[randomInt(ALFABETO.length)]).join("");
 
 export type ResultadoPago = "pagada" | "ya-pagada" | Exclude<ResultadoCobro, "pagado" | "ya-pagado">;
 
@@ -197,7 +195,7 @@ const compraACobrar: CosaACobrar = {
     const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } });
     await tx.ticketeraEntrada.createMany({
       data: (c.asistentes as Asistente[]).map((a) => ({
-        tenantId: c.tenantId, compraId: c.id, eventoId: c.eventoId, tipoId: c.tipoId, nombre: a.nombre, documento: a.documento, codigo: nuevoCodigo(),
+        tenantId: c.tenantId, compraId: c.id, eventoId: c.eventoId, tipoId: c.tipoId, nombre: a.nombre, documento: a.documento, codigo: codigoFirmado(c.tenantId, nuevoCodigo()),
       })),
     });
   },

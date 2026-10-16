@@ -14,6 +14,7 @@ import { desdeAhora, eventoPublicado, eventos } from "../eventos";
 import ticketera from "../index";
 import { canjearEntradasAccion } from "./acciones";
 import { Comprar } from "./comprar";
+import { formatearCodigo } from "../firma";
 import { c } from "@/nucleo/publico/estilo";
 import { Refrescar } from "@/nucleo/publico/refrescar";
 
@@ -168,7 +169,7 @@ export async function CompraPublica({ tenantId, params, consulta }: PropsRutaPub
               <div className={c.suave}>
                 Documento {e.documento} · {compra.tipo.nombre}
               </div>
-              <div className="font-mono tracking-widest">{e.codigo}</div>
+              <div className="font-mono tracking-widest">{formatearCodigo(e.codigo)}</div>
               {e.validadaEn && <div className="text-sm font-bold">Ya usada</div>}
             </li>
           ))}

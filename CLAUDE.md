@@ -180,6 +180,9 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 
 - Shows, tipos con cupo (CHECK en la base), compra con `@/nucleo/pagos`, entradas nominadas
   con QR (mail con `adjuntos` cid:), puerta (`/b/<slug>/puerta`, rol PUERTA). Pestaña "Fechas".
+- QR firmado (`firma.ts`): 10 al azar + 10 de HMAC por banda con `DEOCO_CLAVE_QR` (`entorno` en
+  el contrato: el arranque la exige). La puerta verifica la firma antes de tocar la base; los
+  códigos viejos de 10 caracteres se siguen buscando (transición).
   La compra redirige a la pasarela desde el servidor (`redirect()` en `comprarAccion`): con las
   últimas entradas la página se rehace como "agotada" y un efecto del formulario no correría.
   El sitio lee sus fechas con la consulta `ticketera.proximas-fechas`.

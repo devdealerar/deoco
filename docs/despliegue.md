@@ -106,6 +106,7 @@ VPS de Hostinger con Easypanel. Los certificados salen de Let's Encrypt con un *
    | `DEOCO_DOMINIO_RAIZ` | `deocoartist.com` |
    | `DEOCO_LIMITE_ALMACENAMIENTO` | opcional: bytes por banda (por defecto 1 GiB) |
    | `DEOCO_CLAVE_SECRETOS` | `openssl rand -base64 32` — cifra las credenciales de las bandas. Hoy opcional; obligatoria cuando se prenda un módulo con credenciales (la tienda). **Fija**: guardala aparte |
+   | `DEOCO_CLAVE_QR` | `openssl rand -base64 32` — firma los QR de las entradas (ticketera). Sin ella la app no arranca. **Fija**: si cambia, las entradas vendidas dejan de pasar la puerta |
 
    `NODE_ENV`, el puerto y `DEOCO_ARCHIVOS_DIR=/data/archivos` ya los fija la imagen. Si una
    clave tiene caracteres como `@`, `:` o `/`, va codificada en la URL (o generala sin ellos).
@@ -204,6 +205,7 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_LIMITE_ALMACENAMIENTO` | no | espacio por banda en bytes; por defecto 1 GiB |
 | `DEOCO_CLAVE_SECRETOS` | si algún módulo guarda credenciales | `openssl rand -base64 32` — **fija**: si cambia sin rotar, las credenciales de las bandas no se pueden leer. Para cambiarla, ver "Rotar la clave de secretos" |
 | `DEOCO_CLAVE_SECRETOS_ANTERIOR` | solo durante una rotación | La clave vieja: lo que todavía no se recifró se lee con ella |
+| `DEOCO_CLAVE_QR` | con la ticketera en el build | `openssl rand -base64 32` — firma los QR de las entradas (HMAC por banda). **Fija**: si cambia, las entradas ya vendidas no pasan la puerta |
 | `DEOCO_CORREO` | para que salgan correos | `smtp` (producción) o `memoria` (desarrollo). Sin ella, en producción los correos quedan pendientes |
 | `DEOCO_SMTP_URL` | con `DEOCO_CORREO=smtp` | `smtps://resend:<API key>@smtp.resend.com:465` |
 | `DEOCO_CORREO_REMITENTE` | con `DEOCO_CORREO=smtp` | `tiendas@deocoartist.com` (dominio verificado en Resend) |

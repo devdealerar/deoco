@@ -92,6 +92,18 @@ export function problemasDeSecretos(modulos: readonly Modulo[], env: Entorno): s
   ];
 }
 
+/** Las variables de entorno que declaran los módulos del build (`entorno` en el contrato). */
+export function problemasDeEntornoDeModulos(modulos: readonly Modulo[], env: Entorno): string[] {
+  return modulos.flatMap((m) =>
+    (m.entorno ?? [])
+      .filter((v) => {
+        const valor = env[v.variable]?.trim();
+        return !valor || (v.valida && !v.valida(valor));
+      })
+      .map((v) => `El módulo ${m.id} necesita ${v.variable}: ${v.ayuda}`),
+  );
+}
+
 export async function problemasDeBase(env: Entorno): Promise<string[]> {
   const p: string[] = [];
   let app: { usuario: string; rolsuper: boolean; rolbypassrls: boolean; tablas: number };
@@ -134,6 +146,7 @@ export async function verificarArranque(env: Entorno = process.env) {
   const problemas = problemasDeEntorno(env, { generadoPara });
   try {
     problemas.push(...problemasDeSecretos(registro().modulos, env)); // registro() valida el contrato
+    problemas.push(...problemasDeEntornoDeModulos(registro().modulos, env));
     problemas.push(...problemasDeVenta(registro(), env));
   } catch (e) {
     problemas.push(`Registro de módulos inválido: ${e instanceof Error ? e.message : e}`);

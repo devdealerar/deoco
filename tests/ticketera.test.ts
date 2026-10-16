@@ -177,7 +177,8 @@ describe("pago: entradas nominadas, QR por mail y página para verlas", () => {
     await esperarCorreos();
     const entradas = await dueno.ticketeraEntrada.findMany({ orderBy: { nombre: "asc" } });
     expect(entradas.map((x) => [x.nombre, x.documento])).toEqual([["Fan 0", "30000000"], ["Fan 1", "30000001"]]);
-    expect(entradas.every((x) => /^[A-HJ-NP-Z2-9]{10}$/.test(x.codigo))).toBe(true);
+    // Firmado: 10 al azar + 10 de firma de la banda (modulos/ticketera/firma.ts).
+    expect(entradas.every((x) => /^[A-HJ-NP-Z2-9]{20}$/.test(x.codigo))).toBe(true);
     const [m] = bandejaDeSalida();
     expect(m).toMatchObject({ para: "lucia@fan.com", asunto: "Tus entradas · Gira Satélite · Banda A" });
     // Quien responde le escribe a la banda (su titular), no a Deoco.

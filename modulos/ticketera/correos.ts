@@ -6,6 +6,7 @@ import { conTenant } from "@/nucleo/db/con-tenant";
 import { origenDeBanda } from "@/nucleo/publico/origen";
 import type { Evento } from "@/nucleo/modulos/contrato";
 import { FECHA_LARGA } from "@/nucleo/fechas";
+import { formatearCodigo } from "./firma";
 import ticketera from "./index";
 
 export const qrPng = (codigo: string) => QRCode.toBuffer(codigo, { type: "png", width: 320, margin: 2, errorCorrectionLevel: "M" });
@@ -39,7 +40,7 @@ ${c.entradas
 <img src="cid:qr-${e.codigo}" width="220" height="220" alt="QR de la entrada ${e.codigo}">
 <div style="font-size:18px;font-weight:700">${h(e.nombre)}</div>
 <div style="color:#57534e">Documento ${h(e.documento)} · ${h(c.tipo.nombre)}</div>
-<div style="font-family:monospace;font-size:16px;letter-spacing:2px;margin-top:4px">${e.codigo}</div>
+<div style="font-family:monospace;font-size:16px;letter-spacing:2px;margin-top:4px">${formatearCodigo(e.codigo)}</div>
 </div>`,
   )
   .join("\n")}
@@ -51,7 +52,7 @@ ${url ? `<p>Si perdés este mail, tus entradas están siempre en <a href="${h(ur
     `${cuando} · ${c.evento.lugar}, ${c.evento.ciudad}${c.evento.direccion ? ` (${c.evento.direccion})` : ""}`,
     "",
     "Mostrá el QR de cada entrada en la puerta. Si no se ve, el código se puede tipear:",
-    ...c.entradas.map((e) => `- ${e.nombre} (documento ${e.documento}) · ${c.tipo.nombre}: ${e.codigo}`),
+    ...c.entradas.map((e) => `- ${e.nombre} (documento ${e.documento}) · ${c.tipo.nombre}: ${formatearCodigo(e.codigo)}`),
     "",
     ...(url ? [`Si perdés este mail, tus entradas están acá: ${url} (no compartas ese link: es tu acceso)`] : []),
     "",
