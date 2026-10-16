@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { rutaAbiertaConBandaCerrada } from "@/nucleo/acceso/banda-cerrada";
 import { type AccesoPanel, prendidosDelPedido } from "@/nucleo/acceso/panel";
 import { registro } from "@/nucleo/modulos";
 import { menuPanel } from "@/nucleo/modulos/navegacion";
@@ -25,11 +26,17 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   const porVencer = esTitular ? await delegacionesPorVencer(acceso.tenantId) : [];
   // Dominios que vencen en 30 días o ya vencieron (comprados: renovar; delegados: en su registrador).
   const vencen = esTitular ? await dominiosPorVencerEnPanel(acceso.tenantId) : [];
-  // Suspendida: solo se puede pagar (el resto del panel da 403). El sitio público sigue.
+  // Suspendida: solo se puede pagar (el resto del panel da 403, salvo la puerta de un show ya
+  // vendido). El sitio público sigue.
   // Archivada: el panel no existe más, salvo Dominios para el titular (el dominio es suyo).
   const archivada = acceso.estado === "ARCHIVADO";
   const suspendida = acceso.estado === "SUSPENDIDO" || archivada;
   const conPago = esTitular && Boolean(reg.gestor) && !archivada;
+  // Con la banda cerrada, del menú quedan solo las rutas de módulo que siguen abiertas (la puerta
+  // de un show ya vendido).
+  const visibles = suspendida
+    ? (await Promise.all(menu.map(async (m) => ((await rutaAbiertaConBandaCerrada(acceso, m.href.slice(`/b/${slug}`.length) || "/", reg)) ? m : null)))).filter((m) => m !== null)
+    : menu;
   const item = "block rounded-md px-3 py-2 text-md font-semibold text-secondary hover:bg-primary_hover hover:text-secondary_hover";
   return (
     <div className="min-h-dvh bg-secondary lg:flex">
@@ -76,7 +83,7 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                   </Link>
                 </li>
               )}
-              {!suspendida && menu.map((m) => (
+              {visibles.map((m) => (
                 <li key={m.href} data-modulo={m.moduloId}>
                   <Link href={m.href} className={item}>
                     {m.etiqueta}

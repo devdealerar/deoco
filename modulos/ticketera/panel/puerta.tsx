@@ -4,12 +4,16 @@ import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { Tarjeta } from "@/ui";
 import { FECHA_CORTA } from "@/nucleo/fechas";
 import { desdeAhora, evento as leerEvento, eventos } from "../eventos";
-import { resumenPuerta } from "../puerta";
+import { resumenPuerta, showsConEntradasPorDelante } from "../puerta";
 import { Puerta } from "./puerta-cliente";
 
 /** Panel · Puerta: elegir el show (los de hoy y los próximos). */
-export async function PuertaPanel({ tenantId, slug }: PropsRutaPanel) {
-  const lista = (await eventos(tenantId, { desde: desdeAhora() })).filter((e) => e.publicado);
+export async function PuertaPanel({ tenantId, slug, acceso }: PropsRutaPanel) {
+  // Banda suspendida o archivada: solo los shows ya vendidos que no terminaron (los únicos que abren).
+  const cerrada = acceso.estado === "SUSPENDIDO" || acceso.estado === "ARCHIVADO";
+  const lista = cerrada
+    ? await eventos(tenantId, { ids: await showsConEntradasPorDelante(tenantId) })
+    : (await eventos(tenantId, { desde: desdeAhora() })).filter((e) => e.publicado);
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-display-xs font-semibold text-primary">Puerta</h1>

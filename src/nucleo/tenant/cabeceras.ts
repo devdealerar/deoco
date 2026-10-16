@@ -6,6 +6,10 @@ export const CABECERA = {
   /** "panel" (app.<raiz>/b/<slug>) o "publico" (host de la banda: sitio público). */
   superficie: "x-deoco-superficie",
   soloTitular: "x-deoco-solo-titular",
+  /** Banda SUSPENDIDA o ARCHIVADA en una ruta de módulo: la decide la ruta (accesoPanel). */
+  bandaCerrada: "x-deoco-banda-cerrada",
+  /** La ruta del panel después de /b/<slug> ("/puerta/<id>"), para decidir con la banda cerrada. */
+  rutaPanel: "x-deoco-ruta-panel",
 } as const;
 
 export const PREFIJO_CABECERAS = "x-deoco-";

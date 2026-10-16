@@ -213,6 +213,9 @@ secretos: [{ clave: "access_token", etiqueta: "Access token de Mercado Pago", ay
 - `rutasPanel` se montan en `app.deocoartist.com/b/<slug><ruta>`. El componente recibe
   `{ tenantId, slug, acceso, params, consulta }`. El núcleo ya verificó sesión, membresía,
   módulo prendido y el `permiso` de la ruta.
+- Con la banda SUSPENDIDA o ARCHIVADA el panel se cierra. Una ruta de panel puede seguir abierta
+  con `conBandaCerrada: (tenantId, params) => Promise<boolean>` (exige `permiso`): la puerta de la
+  ticketera la usa para que el escaneo no se corte por la cuota mientras haya un show vendido.
 - `rutasPublicas` se montan en la raíz del sitio de la banda (`labanda.deocoartist.com<ruta>`).
   El componente recibe `{ tenantId, params, consulta }`. Es anónimo: no hay sesión.
 - Segmentos dinámicos: `/tienda/[producto]` → `params.producto`. Las rutas fijas ganan.

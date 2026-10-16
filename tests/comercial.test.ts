@@ -239,9 +239,16 @@ describe("cuota", () => {
     expect(decidirPorEstado("ARCHIVADO", "panel", "pago")).toEqual({ tipo: "no-encontrado" });
     expect(decidirPorEstado("ARCHIVADO", "panel")).toEqual({ tipo: "no-encontrado" });
     expect(decidirPorEstado("ARCHIVADO", "publico", "dominios")).toEqual({ tipo: "no-encontrado" });
-    expect(rutaPanelBanda("/b/x/pago")).toEqual({ slug: "x", subruta: "pago" });
-    expect(rutaPanelBanda("/b/x/dominios")).toEqual({ slug: "x", subruta: "dominios" });
-    expect(rutaPanelBanda("/b/x/tienda")).toEqual({ slug: "x", subruta: null });
+    // Una ruta de módulo con la banda cerrada pasa marcada: la decide la ruta (conBandaCerrada).
+    expect(decidirPorEstado("SUSPENDIDO", "panel", "modulo")).toEqual({ tipo: "seguir", soloTitular: false, bandaCerrada: true });
+    expect(decidirPorEstado("ARCHIVADO", "panel", "modulo")).toEqual({ tipo: "seguir", soloTitular: false, bandaCerrada: true });
+    expect(decidirPorEstado("ACTIVO", "panel", "modulo")).toEqual({ tipo: "seguir", soloTitular: false });
+    expect(rutaPanelBanda("/b/x/pago")).toEqual({ slug: "x", subruta: "pago", resto: "/pago" });
+    expect(rutaPanelBanda("/b/x/dominios")).toEqual({ slug: "x", subruta: "dominios", resto: "/dominios" });
+    expect(rutaPanelBanda("/b/x/tienda")).toEqual({ slug: "x", subruta: "modulo", resto: "/tienda" });
+    expect(rutaPanelBanda("/b/x")).toEqual({ slug: "x", subruta: null, resto: "/" });
+    expect(rutaPanelBanda("/b/x/credenciales")).toEqual({ slug: "x", subruta: null, resto: "/credenciales" });
+    expect(rutaPanelBanda("/b/x/archivos/1/a.png")).toEqual({ slug: "x", subruta: null, resto: "/archivos/1/a.png" });
     expect(decidirPorEstado("MOROSO", "panel")).toEqual({ tipo: "seguir", soloTitular: false });
   });
 

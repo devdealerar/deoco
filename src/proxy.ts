@@ -9,7 +9,8 @@ import {
 } from "@/nucleo/tenant/resolver";
 
 const noEncontrado = () => new NextResponse("No encontrado", { status: 404 });
-// El único 403 del proxy: el panel de una banda SUSPENDIDA (salvo Plan y pago, y Dominios). Una página que
+// El único 403 del proxy: el panel de una banda SUSPENDIDA (salvo Plan y pago, Dominios y las rutas
+// de módulo, que decide accesoPanel y que mandan acá lo que no abren). Una página que
 // explica qué pasó y qué hacer, no un "Prohibido" pelado.
 const panelSuspendido = (slug: string) =>
   new NextResponse(
@@ -44,6 +45,7 @@ export async function proxy(request: NextRequest) {
   let tenant: TenantResuelto | null;
   let superficie: Superficie;
   let subruta: RutaPanel["subruta"] = null;
+  let resto: string | null = null;
 
   if (esHostPlataforma(host)) {
     const ruta = rutaPanelBanda(request.nextUrl.pathname);
@@ -51,6 +53,7 @@ export async function proxy(request: NextRequest) {
     tenant = await resolverTenantPorSlug(ruta.slug);
     superficie = "panel";
     subruta = ruta.subruta;
+    resto = ruta.resto;
   } else {
     tenant = await resolverTenantPorHost(host);
     superficie = "publico";
@@ -73,6 +76,10 @@ export async function proxy(request: NextRequest) {
   cabeceras.set(CABECERA.estado, tenant.estado);
   cabeceras.set(CABECERA.superficie, superficie);
   if (decision.soloTitular) cabeceras.set(CABECERA.soloTitular, "1");
+  if (decision.bandaCerrada && resto) {
+    cabeceras.set(CABECERA.bandaCerrada, "1");
+    cabeceras.set(CABECERA.rutaPanel, resto);
+  }
   return seguir();
 }
 

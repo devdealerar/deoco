@@ -7,6 +7,7 @@ import { alPagarseCompra } from "./correos";
 import { proximasFechas } from "./eventos";
 import { EventoPanel, EventosPanel } from "./panel/paginas";
 import { PuertaEvento, PuertaPanel } from "./panel/puerta";
+import { puertaAbiertaConBandaCerrada, puertaDeShowAbiertaConBandaCerrada } from "./puerta";
 import { CompraPublica, EventoPublico, FechasPublicas, metadatosEvento } from "./publico/paginas";
 import { LIMITE_SHOWS, ajustarShowsPublicados, contarShowsPublicados } from "./eventos";
 
@@ -32,8 +33,10 @@ const ticketera: Modulo = {
   rutasPanel: [
     { ruta: "/entradas", permiso: VER, componente: EventosPanel },
     { ruta: "/entradas/[id]", permiso: VER, componente: EventoPanel },
-    { ruta: "/puerta", permiso: VALIDAR, componente: PuertaPanel },
-    { ruta: "/puerta/[id]", permiso: VALIDAR, componente: PuertaEvento },
+    // Con la banda suspendida o archivada, la puerta sigue para los shows ya vendidos que no
+    // terminaron: el escaneo no se corta por la cuota (documento maestro §14).
+    { ruta: "/puerta", permiso: VALIDAR, componente: PuertaPanel, conBandaCerrada: puertaAbiertaConBandaCerrada },
+    { ruta: "/puerta/[id]", permiso: VALIDAR, componente: PuertaEvento, conBandaCerrada: puertaDeShowAbiertaConBandaCerrada },
   ],
   rutasPublicas: [
     { ruta: "/fechas", componente: FechasPublicas, metadatos: () => ({ titulo: "Fechas" }) },

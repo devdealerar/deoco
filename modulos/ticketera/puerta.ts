@@ -4,7 +4,7 @@
 // y se perdió la respuesta, el reintento responde "válida" otra vez, no "ya validada".
 // Sin conexión no hay verde: nadie entra dos veces.
 import { conTenant } from "@/nucleo/db/con-tenant";
-import { esUuid } from "./eventos";
+import { desdeAhora, esUuid } from "./eventos";
 
 export type ResultadoValidacion =
   | { resultado: "valida"; nombre: string; documento: string; tipo: string }
@@ -64,3 +64,22 @@ export async function resumenPuerta(tenantId: string, eventoId: string): Promise
     return { vendidas, entraron, faltan: vendidas - entraron, porTipo };
   });
 }
+
+/**
+ * Shows con entradas vendidas que no terminaron (siguen a la vista hasta 6 h después de empezar).
+ * Con la banda suspendida o archivada, la puerta sigue abierta solo para estos: el escaneo no se
+ * corta por la cuota hasta que el show termina (documento maestro §14). Publicado o no.
+ */
+export async function showsConEntradasPorDelante(tenantId: string, ahora = new Date()): Promise<string[]> {
+  const filas = await conTenant(tenantId, (tx) =>
+    tx.ticketeraEvento.findMany({ where: { fecha: { gte: desdeAhora(ahora) }, entradas: { some: {} } }, select: { id: true } }),
+  );
+  return filas.map((f) => f.id);
+}
+
+/** La puerta (la lista) abre con la banda cerrada si hay al menos un show así. */
+export const puertaAbiertaConBandaCerrada = async (tenantId: string) => (await showsConEntradasPorDelante(tenantId)).length > 0;
+
+/** La puerta de un show abre con la banda cerrada si es uno de esos. */
+export const puertaDeShowAbiertaConBandaCerrada = async (tenantId: string, params: Record<string, string>) =>
+  esUuid(params.id ?? "") && (await showsConEntradasPorDelante(tenantId)).includes(params.id);

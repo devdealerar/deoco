@@ -35,6 +35,10 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
   `/b/<slug>/dominios` también (la cuota impaga no le impide llevarse sus dominios), y es lo único
   abierto con la banda ARCHIVADA (solo titular; el selector se la muestra con el link; no suma
   dominios nuevos).
+- Con la banda SUSPENDIDA o ARCHIVADA, una ruta de módulo pasa el proxy marcada (`bandaCerrada`) y
+  la decide `accesoPanel`: abre solo si declara `conBandaCerrada` en el contrato (con permiso) y da
+  true, tanto la del pedido como la que nombra quien llama (`src/nucleo/acceso/banda-cerrada.ts`).
+  Lo usa la puerta: sigue para los shows con entradas vendidas que no terminaron. Lo demás → inicio.
 - Solo resuelven dominios **verificados**. En el sitio público, todo dominio de la banda que no
   sea el principal redirige (307) al principal, misma ruta.
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.

@@ -1,5 +1,6 @@
 import { type DefinicionRol, FORMA_ROL, ROLES_NUCLEO } from "@/nucleo/acceso/roles";
 import { problemaNombreEvento } from "@/nucleo/eventos/nombre";
+import { RUTAS_NUCLEO_PANEL } from "@/nucleo/tenant/reglas";
 import type {
   CabeceraPublica,
   DefinicionAviso,
@@ -25,7 +26,7 @@ const CLAVE_PERMISO = /^[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*$/;
 const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 
 // Rutas que son del núcleo y ningún módulo puede ocupar.
-const RESERVADAS_PANEL = ["/", "/pago", "/archivos", "/dominios", "/correo", "/credenciales"]; // home del panel, pago de la cuota, archivos, dominios, correo, secretos
+const RESERVADAS_PANEL = RUTAS_NUCLEO_PANEL; // home del panel, pago de la cuota, archivos, dominios, correo, secretos
 /** Ids que usa el núcleo como "módulo" (p. ej. las credenciales de cobro en `secreto`). */
 const ID_RESERVADOS = ["pagos", "nucleo"];
 const NOMBRE_CONSULTA = /^[a-z][a-z0-9-]{0,62}$/;
@@ -212,6 +213,9 @@ export function crearRegistro(modulos: Modulo[]): Registro {
       validarRuta(m, r.ruta, RESERVADAS_PANEL);
       permisoPropio(r.permiso, `ruta de panel "${r.ruta}"`);
       if (r.metadatos) throw new ErrorRegistro(m.id, `ruta de panel "${r.ruta}": los metadatos son solo del sitio público`);
+      if (r.conBandaCerrada && !r.permiso) {
+        throw new ErrorRegistro(m.id, `ruta de panel "${r.ruta}": conBandaCerrada necesita un permiso (no se abre a cualquier miembro)`);
+      }
       const otro = ocupadasPanel.get(canonica(r.ruta));
       if (otro) throw new ErrorRegistro(m.id, `la ruta de panel "${r.ruta}" ya la declara "${otro}"`);
       ocupadasPanel.set(canonica(r.ruta), m.id);
@@ -220,6 +224,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     for (const r of m.rutasPublicas ?? []) {
       validarRuta(m, r.ruta, RESERVADAS_PUBLICAS);
       if (r.permiso) throw new ErrorRegistro(m.id, `ruta pública "${r.ruta}": el sitio público no lleva permisos`);
+      if (r.conBandaCerrada) throw new ErrorRegistro(m.id, `ruta pública "${r.ruta}": conBandaCerrada es solo del panel`);
       const otro = ocupadasPublicas.get(canonica(r.ruta));
       if (otro) throw new ErrorRegistro(m.id, `la ruta pública "${r.ruta}" ya la declara "${otro}"`);
       ocupadasPublicas.set(canonica(r.ruta), m.id);
@@ -231,6 +236,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     for (const r of m.rutasAdmin ?? []) {
       validarRuta(m, r.ruta, []);
       if (r.permiso) throw new ErrorRegistro(m.id, `ruta de admin "${r.ruta}": no lleva permiso (es solo del staff)`);
+      if (r.conBandaCerrada) throw new ErrorRegistro(m.id, `ruta de admin "${r.ruta}": conBandaCerrada es solo del panel`);
       if (r.metadatos) throw new ErrorRegistro(m.id, `ruta de admin "${r.ruta}": los metadatos son solo del sitio público`);
       if (ocupadasAdmin.has(canonica(r.ruta))) throw new ErrorRegistro(m.id, `ruta de admin "${r.ruta}" repetida`);
       ocupadasAdmin.add(canonica(r.ruta));
@@ -243,6 +249,7 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     for (const r of m.rutasExternas ?? []) {
       validarRuta(m, r.ruta, []);
       if (r.permiso) throw new ErrorRegistro(m.id, `ruta externa "${r.ruta}": no lleva permiso (es de la cuenta externa)`);
+      if (r.conBandaCerrada) throw new ErrorRegistro(m.id, `ruta externa "${r.ruta}": conBandaCerrada es solo del panel`);
       if (r.metadatos) throw new ErrorRegistro(m.id, `ruta externa "${r.ruta}": los metadatos son solo del sitio público`);
       if (ocupadasExternas.has(canonica(r.ruta))) throw new ErrorRegistro(m.id, `ruta externa "${r.ruta}" repetida`);
       ocupadasExternas.add(canonica(r.ruta));

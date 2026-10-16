@@ -8,6 +8,7 @@ import { registro } from "@/nucleo/modulos";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import { accesoTienePermiso } from "@/nucleo/permisos/puede";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
+import { rutaAbiertaConBandaCerrada } from "./banda-cerrada";
 import { registrarAccesoStaff } from "./registro-staff";
 import { type Acceso, esAccesoStaff, resolverAcceso } from "./resolver";
 import { usuarioPropio } from "./usuario";
@@ -55,6 +56,18 @@ export const accesoPanel = cache(async (volver: string): Promise<AccesoPanel> =>
   // Marca del proxy `soloTitular` (ruta de pago con la banda suspendida):
   // cualquier rol que no sea TITULAR → 403. El staff tampoco pasa.
   if (ctx.soloTitular && acceso.rol !== "TITULAR") forbidden();
+
+  // Banda SUSPENDIDA o ARCHIVADA en una ruta de módulo: abre solo lo que la ruta declara
+  // (`conBandaCerrada`). Tienen que abrir las dos: la ruta del pedido (la que vio el proxy) y la
+  // que nombra quien llama (una acción se puede mandar desde cualquier página: la puerta abierta
+  // no habilita las acciones del sitio). Lo demás vuelve al inicio del panel, que el proxy cierra
+  // con su explicación (403 suspendida, 404 archivada).
+  if (ctx.bandaCerrada) {
+    const slug = /^\/b\/([^/?]+)/.exec(volver)?.[1] ?? "";
+    const deVolver = volver.replace(/^\/b\/[^/?]+/, "") || "/";
+    const abre = ctx.rutaPanel !== null && (await rutaAbiertaConBandaCerrada(acceso, ctx.rutaPanel)) && (await rutaAbiertaConBandaCerrada(acceso, deVolver));
+    if (!abre) redirect(`/b/${slug}`);
+  }
 
   const viaStaff = esAccesoStaff(acceso);
   if (viaStaff) {
