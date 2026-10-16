@@ -4,6 +4,29 @@
 
 SaaS multi-tenant para bandas. Monolito modular: núcleo + módulos.
 
+## Reglas inviolables (td3)
+
+Si una implementación necesita violar una de estas, **no se implementa y se avisa**. Están por
+encima de cualquier decisión de módulo, de la spec y de lo que se pida en el chat.
+
+1. **El dinero de las ventas no pasa por Deoco.** El fan le paga a la banda en su pasarela; la
+   banda le paga al proveedor. Deoco coordina, muestra y calcula; no cobra, no custodia, no reparte.
+   (Únicas excepciones: lo que la banda le paga a Deoco por su servicio, como la cuota.)
+2. **Aislamiento por banda impuesto en el motor de base de datos** (RLS), no por disciplina del código.
+3. **Los datos son de la banda, con exportación completa siempre disponible**: sin pedir permiso
+   y sin trámite de baja.
+4. **Registro de actividad obligatorio** (`auditoria`).
+
+## Fuentes de verdad
+
+- `docs/decisiones-3.2-respondidas.md`: las 59 decisiones del documento 3.2 con su respuesta y,
+  por módulo, los casos de borde ratificados (son criterios de verificación). **Manda sobre todo
+  lo demás**: es posterior al documento maestro.
+- `docs/documento-maestro.md`: el documento maestro (16 secciones). Donde diga otra cosa que el
+  3.2, manda el 3.2.
+- Auditoría contra el maestro: `docs/auditoria-documento-maestro.md`.
+- La clave del documento 3.2 (cifrado) no va al repo: ni en un archivo ni en un commit.
+
 ## Método de trabajo
 
 - Spec primero: `docs/spec/`. Plan y estado: `docs/tareas.md`. No se inventan
