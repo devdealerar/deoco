@@ -5,6 +5,7 @@ import { inicioTienda } from "./inicio";
 import { tiendaEnCurso } from "./en-curso";
 import { conciliarPedidos } from "./pagos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
+import { buscarDatosTienda, suprimirDatosTienda } from "./datos-personales";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { AdminCatalogo } from "./admin/catalogo";
 import { AdminProductoBase } from "./admin/producto";
@@ -116,6 +117,14 @@ const tienda: Modulo = {
   // Bloque "Tienda" del inicio del panel.
   consultas: [{ nombre: "inicio", responder: inicioTienda }],
   // Un cambio de plan no la apaga con pedidos por pagar, en revisión o sin despachar.
+  // Derechos del fan sobre sus datos (D2): lo que hay de una persona y cómo se anonimiza.
+  datosPersonales: {
+    buscar: buscarDatosTienda,
+    suprimir: suprimirDatosTienda,
+    queRecolecta: "Si comprás en la tienda: nombre, email, teléfono y domicilio de envío (obligatorios, para mandarte el pedido) y DNI o CUIT (opcional, para la factura).",
+    compartidoCon: "Con el proveedor que fabrica y envía tu pedido: solo lo necesario para hacerlo (nombre, domicilio, teléfono).",
+    terminos: { titulo: "Tienda", texto: "Los productos se fabrican a pedido y los envía el proveedor que elige la banda, con su plazo y su costo de envío, que se muestran antes de pagar. El pedido sin pagar vence a los 7 días." },
+  },
   enCurso: tiendaEnCurso,
   // Conciliación (los avisos se pierden) y vencimiento de los pedidos sin pagar.
   tareasPeriodicas: [{ nombre: "conciliar-pedidos", cadaSegundos: 120, correr: conciliarPedidos }],

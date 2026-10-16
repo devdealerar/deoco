@@ -805,3 +805,19 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
 - **Copia local** (sin contratar nada): `DEOCO_COPIA_DESTINO=/copias` con 7 días. **Discos**: la
   app deja una reserva libre de 2 GB en el disco de los archivos, y `infra/disco/volumenes.sh` (a
   correr en el VPS, no lo corrí) pone archivos y copias en imágenes de tamaño fijo.
+- **Legal (D2)**: los textos (términos de Deoco, contrato de encargo, política y términos de cada
+  sitio) son un **borrador técnico** a revisar por un abogado: lo dicen la pantalla y el archivo.
+  Lo que no se pudo verificar está marcado "a consultar con abogado" en `docs/privacidad.md`.
+- **Cookies**: hoy el sitio solo usa cookies necesarias. Igual hay aviso con "Aceptar todas",
+  "Solo las necesarias" y "Configurar" en la primera capa (rechazar tan fácil como aceptar), con
+  registro y revocación desde el pie, para que el día que se sume analítica ya esté.
+- **Aceptación**: no bloquea el panel ni corta ventas (nunca se corta una operación): un aviso
+  arriba de todas las pantallas del titular hasta que acepte. En la autogestión es obligatoria.
+- **Feriados**: solo los inamovibles y los de fecha cierta (Carnaval, Viernes Santo) de 2026 y
+  2027. Los trasladables y los puentes no: contarlos alargaría un plazo legal. Con menos feriados
+  el plazo vence antes, nunca tarde. Revisar cada año.
+- **Supresión**: anonimiza (no borra filas). Se conserva la foto fiscal y el cobro (comprobante:
+  obligación legal; plazo a consultar), y lo en curso (pedido sin despachar, entrada de un show
+  que no pasó) hasta que termine, y se le dice al fan.
+- **Arrepentimiento**: va por el mismo registro que los derechos del fan (tipo "arrepentimiento",
+  confirmación en 24 h). La devolución la hace la banda desde su cuenta (como las demás).

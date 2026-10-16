@@ -457,6 +457,26 @@ export type Modulo = {
    * plan lo deja prendido como excedente (`fijarModulos`) y el staff no lo puede apagar. Rápido.
    */
   enCurso?: (tenantId: string) => Promise<string[]>;
+  /**
+   * Los datos personales que el módulo guarda de una persona (por su email), para atender sus
+   * derechos (Ley 25.326 arts. 14 y 16, LGPD art. 18; D2). `buscar`: lo que hay, legible, para
+   * mostrárselo a la banda y mandárselo al fan. `suprimir`: anonimiza (no borra filas) lo que se
+   * puede; lo que la ley obliga a conservar (la foto fiscal, los cobros) y lo que está en curso (un
+   * pedido sin despachar, una entrada para un show que no pasó) queda, y se dice por qué.
+   */
+  datosPersonales?: {
+    buscar: (tenantId: string, email: string) => Promise<SeccionDeDatos[]>;
+    suprimir: (tenantId: string, email: string) => Promise<{ anonimizados: number; conservados: string[] }>;
+    /** Para la política de privacidad del sitio (Ley 25.326 art. 6): qué recolecta, si es obligatorio y para qué. */
+    queRecolecta: string;
+    /** Con quién se comparte, si con alguien (p. ej. el proveedor que envía). */
+    compartidoCon?: string;
+    /** Su sección de los términos del sitio (p. ej. "Entradas"). */
+    terminos?: { titulo: string; texto: string };
+  };
   /** Lo que el staff tiene que mirar ya (p. ej. una devolución que no salió). Rápido: corre en cada página del back office. */
   alertasAdmin?: () => Promise<AlertaAdmin[]>;
 };
+
+/** Una sección de "los datos de esta persona" (p. ej. "Pedidos de la tienda"). */
+export type SeccionDeDatos = { titulo: string; filas: Record<string, string | number | boolean | null>[] };

@@ -453,6 +453,23 @@ módulos y que el build sea de producción (`generadoPara`), y si algo falla el 
 falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va a mano
 (`CLAVE=… node scripts/crear-staff.mjs <email> "<nombre>"` en la consola de la app); el resto, desde `/admin`.
 
+## Legal y privacidad (D2, `src/nucleo/legal`, `docs/privacidad.md`)
+
+- La banda es responsable de los datos de sus fans; Deoco, encargado. Términos de Deoco y contrato de
+  encargo (`textos.ts`, versionados): se aceptan al crear la banda (`/registro/banda`) o en
+  `/b/<slug>/legal` (aviso arriba del panel hasta aceptar); `aceptacion_legal` (solo se agrega).
+- Sitio de cada banda: `/privacidad` y `/terminos` (en `app.` son los de Deoco; `/encargo`, el
+  contrato), armados con `legal_banda` + lo que cada módulo prendido declara en
+  `datosPersonales.queRecolecta/compartidoCon/terminos`; cada texto publicado es una
+  `legal_version` y el pedido/compra guarda `privacidadVersion`. Pie legal y aviso de cookies en
+  `MarcoDeLaBanda` (`CapaLegal`; `consentimiento_cookies`, una fila por decisión, sin datos de la
+  persona); `AvisoDeDatos` (leyenda AAIP) junto a checkout y compra de entradas.
+- Derechos del fan: `/datos-personales` y `/arrepentimiento` (confirmación por mail, token después
+  de "#") → `pedido_datos` con vencimiento (acceso 10 corridos, resto 5 hábiles: `sumarDiasHabiles`,
+  feriados inamovibles) → `/b/<slug>/datos-personales` (titular, todos los estados): ver sus datos
+  (`datosPersonales.buscar` de cada módulo), mandárselos (JSON), suprimir (anonimiza, conserva lo
+  fiscal y lo en curso; `supresion_datos` en hash). Rutas legales abiertas en TODOS los estados.
+
 ## Exportación completa (td3, `src/nucleo/exportacion`)
 
 - `/b/<slug>/exportar` (núcleo, solo titular, en TODOS los estados: subruta "pago"): "Exportar todo"

@@ -3,7 +3,7 @@ import { exigirPlataforma, usuarioActivo } from "@/nucleo/acceso/panel";
 import { yaCreoBanda } from "@/nucleo/autogestion";
 import { opcionesDeAlta } from "@/nucleo/cuenta";
 import { dominioRaiz } from "@/nucleo/tenant/hosts";
-import { Aviso, Boton, Campo, Formulario, Selector, Tarjeta } from "@/ui";
+import { Aviso, Boton, Campo, Casilla, Formulario, Selector, Tarjeta } from "@/ui";
 import { crearBandaAccion } from "../acciones";
 
 // Crear la banda (autogestión): nombre, subdominio y, si el gestor de cuenta ofrece, prueba o plan.
@@ -39,6 +39,7 @@ export default async function CrearBanda() {
                   {opciones.map((o) => o.detalle && <li key={o.valor}>{`${o.texto}: ${o.detalle}`}</li>)}
                 </ul>
               )}
+              <Casilla name="acepto" etiqueta="Leí y acepto los términos del servicio (/terminos) y el contrato de encargo de tratamiento de datos (/encargo)" />
             </Formulario>
           )}
         </Tarjeta>

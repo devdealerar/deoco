@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { registro } from "@/nucleo/modulos";
 import { nombreDeBanda, resolverMetadatos } from "@/nucleo/modulos/metadatos";
 import { elementosDelMarco } from "@/nucleo/publico/marco";
+import { CapaLegal } from "@/nucleo/publico/legal/pie";
 import { origenDelPedido } from "@/nucleo/publico/origen";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 
@@ -36,7 +37,7 @@ export async function SuperficiePublica({
   consulta: URLSearchParams;
 }) {
   const reg = registro();
-  const { prendidos, pestanas: items, cabecera } = await elementosDelMarco(tenantId, path, reg);
+  const { prendidos } = await elementosDelMarco(tenantId, path, reg);
   const encontrada = reg.rutaPublica(path);
   const visible = encontrada && prendidos.has(encontrada.moduloId) ? encontrada : undefined;
   if (!visible && path !== "/") notFound();
@@ -47,22 +48,39 @@ export async function SuperficiePublica({
     if (!abre) notFound();
   }
 
-  const pestanas = items.map(({ etiqueta, href }) => ({ etiqueta, href }));
   const Componente = visible?.ruta.componente;
   const contenido = Componente ? <Componente tenantId={tenantId} params={visible.params} consulta={consulta} /> : null;
+  return (
+    <MarcoDeLaBanda tenantId={tenantId} path={path}>
+      {contenido}
+    </MarcoDeLaBanda>
+  );
+}
 
+/**
+ * El marco del sitio de la banda (el del módulo que lo da, o uno neutro), con lo legal abajo: el
+ * pie (privacidad, términos, tus datos, arrepentimiento, cookies) y el aviso de cookies. Lo usan
+ * las rutas de módulos y las páginas legales del núcleo.
+ */
+export async function MarcoDeLaBanda({ tenantId, path, children }: { tenantId: string; path: string; children: ReactNode }) {
+  const reg = registro();
+  const { prendidos, pestanas: items, cabecera } = await elementosDelMarco(tenantId, path, reg);
+  const pestanas = items.map(({ etiqueta, href }) => ({ etiqueta, href }));
+  const conVentas = reg.modulos.some((m) => m.cobros && prendidos.has(m.id));
+  const legal = <CapaLegal conVentas={conVentas} />;
   const marco = reg.marcoPublico && prendidos.has(reg.marcoPublico.moduloId) ? reg.marcoPublico.componente : null;
   if (marco) {
     const Marco = marco;
     return (
       <Marco tenantId={tenantId} pestanas={pestanas} path={path} cabecera={cabecera}>
-        {contenido}
+        {children}
+        {legal}
       </Marco>
     );
   }
   return (
-    <MarcoNeutro tenantId={tenantId} pestanas={items} cabecera={cabecera}>
-      {contenido}
+    <MarcoNeutro tenantId={tenantId} pestanas={items} cabecera={cabecera} pie={legal}>
+      {children}
     </MarcoNeutro>
   );
 }
@@ -72,11 +90,13 @@ async function MarcoNeutro({
   pestanas,
   cabecera,
   children,
+  pie,
 }: {
   tenantId: string;
   pestanas: { etiqueta: string; href: string; moduloId: string }[];
   cabecera: ReactNode;
   children: ReactNode;
+  pie: ReactNode;
 }) {
   const tenant = await nombreDeBanda(tenantId);
   return (
@@ -99,6 +119,7 @@ async function MarcoNeutro({
         {cabecera && <div className="ml-auto">{cabecera}</div>}
       </header>
       <main className="py-6">{children ?? <h1 className="text-2xl">{tenant?.nombre}</h1>}</main>
+      {pie}
     </div>
   );
 }

@@ -222,6 +222,8 @@ model TiendaPedido {
   resueltoConProveedorNota String?
   /// Conciliación: la última vez que se le preguntó a la pasarela.
   conciliadoEn  DateTime?
+  /// La versión de la política de privacidad del sitio que tenía a la vista (D2).
+  privacidadVersion Int?
   /// País de destino (ISO 3166-1, hoy siempre AR): desde la primera venta (3.2, multipaís d4).
   pais          String    @default("AR")
   /// DNI o CUIT del comprador, si lo dio (para la factura).

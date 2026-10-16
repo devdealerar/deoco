@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { accesoRecordado } from "@/nucleo/publico/acceso";
 import { CanjearLink } from "@/nucleo/publico/canjear-link";
+import { AvisoDeDatos } from "@/nucleo/publico/legal/pie";
 import { tieneAcceso } from "../acceso";
 import { canjearPedidoAccion } from "./acciones";
 import { cache } from "react";
@@ -135,10 +136,13 @@ export function CarritoPublico(_: PropsRutaPublica) {
   );
 }
 
-export function CheckoutPublico(_: PropsRutaPublica) {
+export async function CheckoutPublico({ tenantId }: PropsRutaPublica) {
   return (
     <Pagina titulo="Checkout">
       <Checkout />
+      <div className="mt-6">
+        <AvisoDeDatos tenantId={tenantId} />
+      </div>
     </Pagina>
   );
 }

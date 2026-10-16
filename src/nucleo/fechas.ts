@@ -33,3 +33,42 @@ export function mesArgentino(d: Date): { desde: Date; hasta: Date; clave: string
   const hasta = new Date(Date.UTC(m === 12 ? y + 1 : y, m === 12 ? 0 : m, 1, 3));
   return { desde, hasta, clave };
 }
+
+/**
+ * Feriados nacionales de Argentina INAMOVIBLES y los de fecha cierta de cada año (Carnaval,
+ * Viernes Santo). Los trasladables y los "puentes" NO están a propósito: contar un día hábil como
+ * feriado alargaría un plazo legal (un pedido de datos vencería tarde). Con menos feriados el
+ * plazo vence antes, nunca después. Revisar cada año contra el decreto de feriados.
+ */
+const FERIADOS_AR = new Set([
+  // 2026 (Pascua: 5 de abril)
+  "2026-01-01", "2026-02-16", "2026-02-17", "2026-03-24", "2026-04-02", "2026-04-03", "2026-05-01", "2026-05-25", "2026-06-20", "2026-07-09", "2026-12-08", "2026-12-25",
+  // 2027 (Pascua: 28 de marzo)
+  "2027-01-01", "2027-02-08", "2027-02-09", "2027-03-24", "2027-03-26", "2027-04-02", "2027-05-01", "2027-05-25", "2027-06-20", "2027-07-09", "2027-12-08", "2027-12-25",
+]);
+
+/** ¿Es día hábil en Argentina? (lunes a viernes que no es feriado de FERIADOS_AR) */
+export function esDiaHabil(d: Date): boolean {
+  const dia = diaArgentino(d);
+  const semana = new Date(`${dia}T12:00:00Z`).getUTCDay();
+  return semana !== 0 && semana !== 6 && !FERIADOS_AR.has(dia);
+}
+
+/** `n` días hábiles después de `d` (para los plazos de la Ley 25.326: 5 días hábiles). Fin del día. */
+export function sumarDiasHabiles(d: Date, n: number): Date {
+  let x = new Date(d);
+  let quedan = n;
+  while (quedan > 0) {
+    x = new Date(x.getTime() + 86_400_000);
+    if (esDiaHabil(x)) quedan--;
+  }
+  return finDelDiaArgentino(x);
+}
+
+/** `n` días corridos después de `d`, al final de ese día (hora argentina). */
+export const sumarDiasCorridos = (d: Date, n: number) => finDelDiaArgentino(new Date(d.getTime() + n * 86_400_000));
+
+/** Las 23:59:59 (hora argentina) del día de `d`. */
+export function finDelDiaArgentino(d: Date): Date {
+  return new Date(new Date(`${diaArgentino(d)}T23:59:59.999-03:00`).getTime());
+}

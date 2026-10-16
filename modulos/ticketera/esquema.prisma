@@ -88,6 +88,8 @@ model TicketeraCompra {
   precioUnitario Int
   total          Int
   /// Quien compra (le llega el mail con las entradas).
+  /// La versión de la política de privacidad del sitio que tenía a la vista (D2).
+  privacidadVersion Int?
   nombre         String
   email          String
   /// Una por entrada: [{ "nombre": "...", "documento": "..." }]

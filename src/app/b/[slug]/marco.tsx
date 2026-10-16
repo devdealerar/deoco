@@ -9,6 +9,8 @@ import { dominioDeEnvio } from "@/nucleo/dominios/envio";
 import { pagosParaDevolver } from "@/nucleo/pagos/registro";
 import { dominiosPorVencerEnPanel } from "@/nucleo/dominios/vencimiento";
 import { bandaCobra } from "@/nucleo/pagos";
+import { pendientesDeAceptar } from "@/nucleo/legal";
+import { pedidosPorVencer } from "@/nucleo/legal/derechos";
 import { Aviso } from "@/ui";
 import { BotonSalir } from "../../salir";
 
@@ -18,6 +20,10 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   const prendidos = await prendidosDelPedido(acceso.tenantId);
   const menu = menuPanel(reg, prendidos, acceso, slug);
   const esTitular = acceso.rol === "TITULAR";
+  // Legal (D2): lo que el titular no aceptó de Deoco (no se esconde en un pie: arriba, hasta que
+  // lo acepte) y los pedidos de datos de fans que vencen pronto.
+  const sinAceptar = esTitular ? await pendientesDeAceptar(acceso.tenantId) : [];
+  const datosPorVencer = esTitular ? await pedidosPorVencer(acceso.tenantId) : [];
   const conCredenciales =
     esTitular && (reg.modulos.some((m) => prendidos.has(m.id) && m.secretos?.length) || (await bandaCobra(acceso.tenantId, reg)));
   // Dominios propios con un problema (los marca el barrido según Cloudflare): lo ve quien lo
@@ -69,6 +75,21 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                 <li>
                   <Link href={`/b/${slug}/devoluciones`} className={item}>
                     Pagos para devolver{paraDevolver > 0 ? ` (${paraDevolver})` : ""}
+                  </Link>
+                </li>
+              )}
+              {/* Datos personales de los fans, en cualquier estado (los plazos legales no se suspenden). */}
+              {esTitular && (
+                <li>
+                  <Link href={`/b/${slug}/datos-personales`} className={item}>
+                    Datos personales
+                  </Link>
+                </li>
+              )}
+              {esTitular && !archivada && (
+                <li>
+                  <Link href={`/b/${slug}/legal`} className={item}>
+                    Legal y privacidad
                   </Link>
                 </li>
               )}
@@ -153,6 +174,26 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
               <Aviso tono="error" titulo="La banda está archivada." data-testid="aviso-archivada">
                 El sitio y el panel ya no están en Deoco. Tus dominios siguen siendo tuyos: desde acá podés llevártelos. En Plan y pago podés
                 darte de baja o volver.
+              </Aviso>
+            </div>
+          )}
+          {sinAceptar.length > 0 && (
+            <div className="mb-6">
+              <Aviso tono="advertencia" titulo="Falta que aceptes los términos de Deoco y el contrato de encargo de tratamiento de datos." data-testid="aviso-aceptar">
+                Tu banda es la responsable de los datos de sus fans y Deoco los trata por su cuenta: eso tiene que quedar aceptado y registrado.{" "}
+                <Link href={`/b/${slug}/legal`} className="font-semibold underline">
+                  Leer y aceptar
+                </Link>
+              </Aviso>
+            </div>
+          )}
+          {datosPorVencer.length > 0 && (
+            <div className="mb-6">
+              <Aviso tono="error" titulo={`${datosPorVencer.length === 1 ? "Un fan espera" : `${datosPorVencer.length} fans esperan`} respuesta sobre sus datos.`} data-testid="aviso-datos">
+                La ley pone plazo (el primero vence el {datosPorVencer[0].venceEn?.toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" })}).{" "}
+                <Link href={`/b/${slug}/datos-personales`} className="font-semibold underline">
+                  Responder
+                </Link>
               </Aviso>
             </div>
           )}

@@ -460,3 +460,22 @@ No se leyó el Boletín Oficial.
 | Alcance de la LGPD | LGPD art. 3 | Detectar ventas a Brasil | a consultar |
 | Arrepentimiento (10 días, código en 24 h) | Ley 24.240 art. 34; Disp. 954/2025 | Botón en el sitio de la banda, código, pedido en el panel, anulación de entradas | a consultar (texto de la Disp. 954/2025 y la norma de 2026) |
 | Botón de baja | Disp. 954/2025 | Baja de la cuota de Deoco en `/pago`; baja del newsletter | a consultar |
+
+## Qué quedó construido (bloque D2)
+
+| Obligación | Dónde |
+|---|---|
+| Informar antes de recolectar (art. 6, Res. AAIP 14/2018) | `/privacidad` de cada sitio (versionada, `legal_version`), `AvisoDeDatos` con la leyenda AAIP junto al checkout y la compra de entradas, pie legal en todo el sitio |
+| Identidad y domicilio del responsable | `/b/<slug>/legal` (`legal_banda`); aviso si faltan |
+| Encargo de tratamiento (art. 25; LGPD art. 39) | `/encargo` + aceptación registrada (`aceptacion_legal`): obligatoria al crear la banda, aviso arriba del panel hasta aceptar |
+| Subencargados por país | `SUBENCARGADOS` en `src/nucleo/legal/textos.ts`, en la política de cada sitio (**a confirmar los proveedores reales y su región**) |
+| Acceso (10 días corridos) | `/datos-personales` → confirmación por mail → `pedido_datos` con vencimiento → la banda le manda sus datos en JSON |
+| Rectificación, supresión, oposición (5 días hábiles) | mismo registro; supresión = anonimizar por módulo + lista en hash (`supresion_datos`) |
+| Cookies | aviso en la primera capa con rechazar, registro (`consentimiento_cookies`), revocación desde el pie |
+| Arrepentimiento (Ley 24.240) | `/arrepentimiento` en sitios con ventas, confirmación por mail con código |
+| Abierto aunque la banda no pague | las rutas legales del sitio y `/b/<slug>/datos-personales` se abren en todos los estados |
+
+Sigue sin construir: el registro de incidentes del staff (§11), el aviso al cesionario en una
+rectificación (§2), la destrucción al fin del servicio con autorización de 2 años (§4) y la
+inscripción en el Registro Nacional (§5, trámite de la banda). Todo lo marcado "a consultar con
+abogado" sigue pendiente de esa consulta.

@@ -82,6 +82,12 @@ model Tenant {
   limites              LimiteBanda[]
   limitesExtra         LimiteExtra[]
   exportaciones        Exportacion[]
+  legal                LegalBanda?
+  legalVersiones       LegalVersion[]
+  aceptacionesLegales  AceptacionLegal[]
+  consentimientos      ConsentimientoCookies[]
+  pedidosDatos         PedidoDatos[]
+  supresiones          SupresionDatos[]
 
   @@map("tenant")
 }
@@ -579,4 +585,97 @@ model DatosFiscales {
   actualizadoEn DateTime @default(now())
 
   @@map("datos_fiscales")
+}
+
+/// Datos de la banda para su política de privacidad y sus términos (Ley 25.326 art. 6).
+model LegalBanda {
+  tenantId        String   @id @db.Uuid
+  responsable     String   @default("")
+  domicilio       String   @default("")
+  emailDatos      String   @default("")
+  extraPrivacidad String   @default("")
+  extraTerminos   String   @default("")
+  actualizadoEn   DateTime @default(now())
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("legal_banda")
+}
+
+/// Texto publicado de la política o los términos del sitio de la banda, tal cual se mostró.
+model LegalVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  /// privacidad | terminos
+  tipo        String
+  version     Int
+  contenido   String
+  publicadaEn DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, tipo, version])
+  @@map("legal_version")
+}
+
+/// Lo que la banda aceptó de Deoco (términos, contrato de encargo): quién, qué versión, cuándo.
+model AceptacionLegal {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  usuarioId  String   @db.Uuid
+  /// terminos-deoco | encargo-tratamiento
+  documento  String
+  version    String
+  aceptadoEn DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, documento])
+  @@map("aceptacion_legal")
+}
+
+/// Decisión de cookies de un visitante del sitio de una banda (la última manda). Sin datos personales.
+model ConsentimientoCookies {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  visitante String   @db.Uuid
+  analitica Boolean
+  marketing Boolean
+  version   String
+  creadoEn  DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, visitante, creadoEn])
+  @@map("consentimiento_cookies")
+}
+
+/// Pedido de un fan sobre sus datos (acceso, rectificación, supresión, oposición) o arrepentimiento.
+model PedidoDatos {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  tipo          String
+  email         String
+  nombre        String    @default("")
+  detalle       String    @default("")
+  /// sin-verificar | abierto | resuelto | rechazado
+  estado        String    @default("sin-verificar")
+  tokenHash     String?
+  verificadoEn  DateTime?
+  venceEn       DateTime?
+  respuesta     String?
+  respondidoEn  DateTime?
+  respondidoPor String?   @db.Uuid
+  creadoEn      DateTime  @default(now())
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, estado])
+  @@map("pedido_datos")
+}
+
+/// Email (en hash) que pidió la supresión de sus datos en esta banda.
+model SupresionDatos {
+  tenantId  String   @db.Uuid
+  emailHash String
+  creadoEn  DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, emailHash])
+  @@map("supresion_datos")
 }

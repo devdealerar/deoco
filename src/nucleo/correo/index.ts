@@ -34,7 +34,7 @@ export type Correo = {
   adjuntos?: { nombre: string; tipo: string; cid?: string; contenido: Buffer }[];
 };
 
-const TIPOS_ADJUNTO = ["image/png", "image/jpeg", "application/pdf", "text/calendar"];
+const TIPOS_ADJUNTO = ["image/png", "image/jpeg", "application/pdf", "text/calendar", "application/json"]; // json: los datos de un fan que pidió acceso (D2)
 type AdjuntoGuardado = { nombre: string; tipo: string; cid?: string; base64: string };
 
 const sinSaltos = (t: string) => /[\r\n]/.test(t);

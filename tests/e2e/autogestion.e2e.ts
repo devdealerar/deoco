@@ -51,11 +51,18 @@ describe("autogestión del alta", () => {
     await b.waitFor();
     await b.locator('input[name="nombre"]').fill("Vera y los Nuevos");
     await b.locator('input[name="subdominio"]').fill("admin");
+    // Sin aceptar los términos y el contrato de encargo, no se crea (D2).
+    await b.getByRole("button", { name: "Crear banda" }).click();
+    await page.locator("text=aceptá los términos del servicio").waitFor();
+    await b.getByText("Leí y acepto los términos").click();
     await b.getByRole("button", { name: "Crear banda" }).click();
     await page.locator("text=está reservado").waitFor();
     await b.locator('input[name="subdominio"]').fill("vera-nuevos");
     await captura(page, "registro-banda");
     await Promise.all([page.waitForURL(`${APP}/b/vera-nuevos`), b.getByRole("button", { name: "Crear banda" }).click()]);
+    // Aceptación registrada: los dos documentos, con su versión.
+    const creada = await dueno.tenant.findUniqueOrThrow({ where: { slug: "vera-nuevos" } });
+    expect((await dueno.aceptacionLegal.findMany({ where: { tenantId: creada.id } })).map((a) => a.documento).sort()).toEqual(["encargo-tratamiento", "terminos-deoco"]);
     expect(await page.locator('nav a:text("Sitio")').count()).toBeGreaterThan(0);
     await captura(page, "registro-panel");
 

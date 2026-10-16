@@ -14,7 +14,7 @@ import type { EstadoTenant } from "@/generated/prisma/client";
 const RUTA_PANEL_BANDA = /^\/b\/([^/]+)(\/.*)?$/;
 
 /** Rutas del panel que son del núcleo (primer segmento): ningún módulo las puede ocupar. */
-export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/devoluciones", "/exportar", "/actividad", "/equipo", "/archivos", "/dominios", "/correo", "/credenciales"];
+export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/devoluciones", "/exportar", "/datos-personales", "/legal", "/actividad", "/equipo", "/archivos", "/dominios", "/correo", "/credenciales"];
 
 /**
  * `subruta`: "pago" para lo que la banda le debe resolver a alguien o se lleva (Plan y pago, Pagos
@@ -23,7 +23,7 @@ export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/devoluciones", "/exportar", "
  * "dominios" (llevarse sus dominios); "modulo" si la ruta no es del núcleo. `resto`: lo que sigue
  * al slug ("/" si nada).
  */
-export type RutaPanel = { slug: string; subruta: "pago" | "dominios" | "modulo" | null; resto: string };
+export type RutaPanel = { slug: string; subruta: "pago" | "dominios" | "modulo" | "legal" | null; resto: string };
 
 /** Si `pathname` es el panel de una banda, su slug; si no, null (selector, login, etc.). */
 export function rutaPanelBanda(pathname: string): RutaPanel | null {
@@ -37,7 +37,7 @@ export function rutaPanelBanda(pathname: string): RutaPanel | null {
     return null;
   }
   const es = (r: string) => resto === r || resto.startsWith(r + "/");
-  const subruta = es("/pago") || es("/devoluciones") || es("/exportar") ? "pago" : es("/dominios") ? "dominios" : RUTAS_NUCLEO_PANEL.some((r) => r !== "/" && es(r)) || resto === "/" ? null : "modulo";
+  const subruta = es("/pago") || es("/devoluciones") || es("/exportar") || es("/datos-personales") ? "pago" : es("/dominios") ? "dominios" : RUTAS_NUCLEO_PANEL.some((r) => r !== "/" && es(r)) || resto === "/" ? null : "modulo";
   return { slug, subruta, resto };
 }
 
@@ -52,11 +52,20 @@ export type Decision =
   | { tipo: "no-encontrado" }; // 404
 
 /** Rutas del sitio público que son del núcleo (primer segmento). Las demás son de módulos. */
-export const RUTAS_NUCLEO_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal", "/registro"];
+export const RUTAS_NUCLEO_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal", "/registro", "/encargo", "/privacidad", "/terminos", "/datos-personales", "/arrepentimiento"];
 
-/** En el sitio público de una banda: "modulo" si la ruta es de un módulo (la home también), null si es del núcleo. */
-export function rutaPublicaDeModulo(pathname: string): "modulo" | null {
-  return RUTAS_NUCLEO_PUBLICAS.some((r) => pathname === r || pathname.startsWith(r + "/")) ? null : "modulo";
+/**
+ * Las páginas legales del sitio de la banda (D2): abiertas en TODOS los estados, también con el
+ * sitio suspendido o la banda archivada. Los plazos de la ley (acceso, borrado, arrepentimiento)
+ * no se suspenden por la cuota impaga de la banda.
+ */
+export const RUTAS_LEGALES_PUBLICAS = ["/privacidad", "/terminos", "/datos-personales", "/arrepentimiento"];
+
+/** En el sitio público de una banda: "modulo" si la ruta es de un módulo (la home también), "legal" si es legal, null si es del núcleo. */
+export function rutaPublicaDeModulo(pathname: string): "modulo" | "legal" | null {
+  const es = (r: string) => pathname === r || pathname.startsWith(r + "/");
+  if (RUTAS_LEGALES_PUBLICAS.some(es)) return "legal";
+  return RUTAS_NUCLEO_PUBLICAS.some(es) ? null : "modulo";
 }
 
 const seguir = { tipo: "seguir", soloTitular: false } as const;
@@ -79,6 +88,7 @@ export function decidirPorEstado(
   superficie: Superficie,
   subruta: RutaPanel["subruta"] = null,
 ): Decision {
+  if (superficie === "publico" && subruta === "legal") return seguir;
   switch (estado) {
     case "ACTIVO":
     case "MOROSO":

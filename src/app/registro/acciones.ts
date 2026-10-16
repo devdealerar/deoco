@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { exigirPlataforma, usuarioActivo } from "@/nucleo/acceso/panel";
 import { confirmarRegistro, crearBandaPropia, ErrorAutogestion, solicitarRegistro } from "@/nucleo/autogestion";
+import { aceptarDocumentos } from "@/nucleo/legal";
 import { ipDelVisitante } from "@/nucleo/publico/visitante";
 import type { EstadoFormulario } from "@/ui";
 
@@ -38,9 +39,13 @@ export async function crearBandaAccion(_: EstadoFormulario, fd: FormData): Promi
   await exigirPlataforma();
   const usuarioId = await usuarioActivo();
   if (!usuarioId) redirect("/ingresar?volver=/registro/banda");
+  // Los términos y el contrato de encargo (D2): aceptados y registrados al crear la banda.
+  if (fd.get("acepto") !== "on") return { error: "Para crear la banda, aceptá los términos del servicio y el contrato de encargo de tratamiento de datos." };
   let destino: string;
   try {
-    destino = (await crearBandaPropia(usuarioId, { nombre: campo(fd, "nombre"), subdominio: campo(fd, "subdominio"), opcion: campo(fd, "opcion") || undefined }, await ip())).redireccion;
+    const r = await crearBandaPropia(usuarioId, { nombre: campo(fd, "nombre"), subdominio: campo(fd, "subdominio"), opcion: campo(fd, "opcion") || undefined }, await ip());
+    await aceptarDocumentos(r.tenantId, usuarioId);
+    destino = r.redireccion;
   } catch (e) {
     if (e instanceof ErrorAutogestion) return { error: e.message };
     throw e;

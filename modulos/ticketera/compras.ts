@@ -6,6 +6,7 @@
 // El pago es el del núcleo (@/nucleo/pagos), con la pasarela de la banda: la plata va a la
 // banda. La fuente de verdad es la CONSULTA a la API, nunca el aviso.
 import { createHash, randomUUID } from "node:crypto";
+import { versionDePrivacidad } from "@/nucleo/legal";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { type CobroConsultado, conciliarCobros, crearCobro, ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
 import { prisma } from "@/nucleo/db/cliente";
@@ -136,6 +137,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
   // El token de acceso del fan: en la base solo su hash y su cifrado (nunca en claro).
   const compraId = randomUUID();
   const acceso = nuevoTokenDeAcceso(contextoDeToken(tenantId, ticketera.id, compraId), 16);
+  const privacidadVersion = await versionDePrivacidad(tenantId);
   const compra = await conTenant(tenantId, async (tx) => {
     const bloqueado = await bloquearTipo(tx, d.tipoId);
     if (!bloqueado) throw new ErrorTicketera("Ese tipo de entrada no existe.");
@@ -173,6 +175,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
         tokenCifrado: acceso.cifrado,
         ipHash,
         documento: d.documento ?? null,
+        privacidadVersion,
       },
       include: { evento: true, tipo: true },
     });

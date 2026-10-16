@@ -4,6 +4,7 @@ import { inicioTicketera } from "./inicio";
 import { ticketeraEnCurso } from "./en-curso";
 import { conciliarCompras } from "./compras";
 import type { Modulo } from "@/nucleo/modulos/contrato";
+import { buscarDatosTicketera, suprimirDatosTicketera } from "./datos-personales";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { avisoDePago } from "./aviso";
 import { alPagarseCompra } from "./correos";
@@ -32,6 +33,13 @@ const ticketera: Modulo = {
     { clave: VALIDAR, rolesPorDefecto: ["TITULAR", "PUERTA"] },
   ],
   // Un cambio de plan no la apaga con shows vendidos por delante, reservas o pagos en revisión.
+  // Derechos del fan sobre sus datos (D2): lo que hay de una persona y cómo se anonimiza.
+  datosPersonales: {
+    buscar: buscarDatosTicketera,
+    suprimir: suprimirDatosTicketera,
+    queRecolecta: "Si comprás entradas: nombre y email de quien compra, y nombre y documento de cada asistente (obligatorios: las entradas son nominadas y se validan en la puerta); DNI o CUIT de quien compra (opcional, para la factura).",
+    terminos: { titulo: "Entradas", texto: "Las entradas son nominadas: cada una va a nombre de un asistente y tiene un código único que se valida en la puerta una sola vez. La reserva vence si no se paga a tiempo." },
+  },
   enCurso: ticketeraEnCurso,
   // Conciliación: las compras sin pago se le preguntan a la pasarela (los avisos se pierden).
   tareasPeriodicas: [{ nombre: "conciliar-compras", cadaSegundos: 120, correr: conciliarCompras }],

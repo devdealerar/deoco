@@ -3,6 +3,7 @@
 // (precio, que siga publicado, que la variante exista). El pedido nace PENDIENTE con su copia
 // de precios y envíos.
 import { randomUUID } from "node:crypto";
+import { versionDePrivacidad } from "@/nucleo/legal";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
@@ -216,11 +217,13 @@ export async function crearPedido(tienda: Modulo, tenantId: string, lineas: Line
   // El token de acceso del fan: en la base solo su hash y su cifrado (nunca en claro).
   const id = randomUUID();
   const acceso = nuevoTokenDeAcceso(contextoDeToken(tenantId, tienda.id, id));
+  const privacidadVersion = await versionDePrivacidad(tenantId);
   return conTenant(tenantId, async (tx) => {
     const creado = await tx.tiendaPedido.create({
       data: {
         id,
         tenantId,
+        privacidadVersion,
         ...datos,
         subtotal: revision.subtotal,
         envio: revision.envio,

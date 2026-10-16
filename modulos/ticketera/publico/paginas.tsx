@@ -6,6 +6,7 @@ import type { MetadatosPagina, PropsRutaPublica } from "@/nucleo/modulos/contrat
 import { pasarelaLista } from "@/nucleo/pagos";
 import { accesoRecordado } from "@/nucleo/publico/acceso";
 import { CanjearLink } from "@/nucleo/publico/canjear-link";
+import { AvisoDeDatos } from "@/nucleo/publico/legal/pie";
 import { compraConToken, estadoDeCompra, frenosDe } from "../compras";
 import { qrSvg } from "../correos";
 import { formatearPesos } from "@/nucleo/dinero";
@@ -106,10 +107,15 @@ export async function EventoPublico({ tenantId, params }: PropsRutaPublica) {
             {e.tipos.every((t) => t.venta === "agotada") ? "Entradas agotadas." : "No hay entradas a la venta en este momento."}
           </p>
         ) : (
-          <Comprar
-            tipos={aLaVenta.map((t) => ({ id: t.id, nombre: t.nombre, precio: formatearPesos(t.precio), disponibles: t.disponibles }))}
-            maximo={frenosDe(e.frenos).maxPorCompra}
-          />
+          <>
+            <Comprar
+              tipos={aLaVenta.map((t) => ({ id: t.id, nombre: t.nombre, precio: formatearPesos(t.precio), disponibles: t.disponibles }))}
+              maximo={frenosDe(e.frenos).maxPorCompra}
+            />
+            <div className="mt-4">
+              <AvisoDeDatos tenantId={tenantId} />
+            </div>
+          </>
         )}
       </div>
     </div>
