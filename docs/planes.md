@@ -5,12 +5,18 @@ migración `20261124100001_comercial_planes_32`. El staff los edita en `/admin/m
 
 ## La grilla
 
-| Plan | Estado | Precio de referencia | Productos publicados | Shows a la venta a la vez | Dominio propio | Espacio (red de seguridad) |
-|---|---|---|---|---|---|---|
-| **Demo** | a la venta | 8 USD/mes | 5 | 1 | no (subdominio) | 1,5 GB |
-| **Escenario** | a la venta (también es el plan de la prueba) | 24 USD/mes | 30 | 6 | sí | 10 GB |
-| **Gira** | definido y cerrado | 56 USD/mes | 100 | 20 | sí | 36 GB |
-| **Sello** | definido y cerrado | por banda, a convenir | 100 por banda | 20 por banda | sí | 36 GB por banda |
+| Plan | Estado | Precio de referencia | Productos publicados | Shows publicados por mes | Imágenes del sitio | Entradas por mes (solo mide) | Dominio propio | Espacio (red de seguridad) |
+|---|---|---|---|---|---|---|---|---|
+| **Demo** | a la venta | 8 USD/mes | 5 | 1 | 30 | 200 | no (subdominio) | 1,5 GB |
+| **Escenario** | a la venta (también es el plan de la prueba) | 24 USD/mes | 30 | 6 | 150 | 2.000 | sí | 10 GB |
+| **Gira** | definido y cerrado | 56 USD/mes | 100 | 20 | 600 | 10.000 | sí | 36 GB |
+| **Sello** | definido y cerrado | por banda, a convenir | 100 por banda | 20 por banda | 600 por banda | 10.000 por banda | sí | 36 GB por banda |
+
+- **Shows por mes**: publicados con fecha en un mismo mes calendario (hora argentina).
+- **Entradas por mes**: nunca cortan una venta. Lo que pasa del tope se ve en Plan y pago con el
+  plan y el complemento que lo cubren (no se cobra solo).
+- **Complementos sueltos** (3.2 núcleo d6): "Un show más este mes", "1.000 entradas más". Los
+  define el staff; la banda los compra en Plan y pago para el mes que elige.
 
 Reglas generales:
 
@@ -86,16 +92,7 @@ espacio alcanza para años de uso normal y que escriban.
 
 ## Lo que la grilla nombra y todavía no existe
 
-- **Tope de entradas** (Demo 200, Escenario 2.000, Gira 10.000):
-  - No está construido. Según el 3.2 nunca corta una venta: se permite el excedente y se factura
-    o se sugiere subir de plan.
-  - Falta definir si se cuenta por mes, por show o por período de facturación, y cuánto cuesta
-    cada entrada de más.
-- **Eventos**: la grilla dice "un evento por mes" para Demo y "seis" y "veinte" para los otros.
-  - Hoy el tope es de shows publicados con fecha por delante, a la vez (1 / 6 / 20).
-  - Si se quiere por mes calendario, hay que cambiar el límite de la ticketera.
-- **Imágenes** (núcleo d2 las nombra entre lo que separa los planes): se miden (`sitio.imagenes`)
-  pero no tienen tope. La grilla del 3.2 no da los números.
+- **Cobrar el excedente de entradas solo**: hoy se muestra y se sugiere el plan o el complemento.
+  Facturarlo automáticamente necesita facturación (no está).
 - **Idiomas**: Gira es "sin límite de idiomas". No hay idiomas en el producto.
-- **Complementos por consumo** (bloques de entradas, almacenamiento, idiomas, créditos): no están
-  construidos (núcleo d6, "complemento suelto").
+- **Precio decreciente de Sello** y la vista del manager: ver el módulo `manager`.
