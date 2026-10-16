@@ -16,6 +16,10 @@ export type Cobro = {
   total: number;
   comprador: { nombre: string; email: string };
   urls: { exito: string; fallo: string; pendiente: string; aviso: string };
+  /** Hasta cuándo se puede pagar: después la pasarela no lo acepta (un pago tardío no entra). */
+  vence?: Date;
+  /** Solo medios de aprobación inmediata (sin efectivo, cajero ni transferencia): para lo que reserva cupo un rato. */
+  soloInmediatos?: boolean;
 };
 
 export type EstadoDeCobro = "aprobado" | "pendiente" | "rechazado" | "devuelto";
@@ -90,6 +94,8 @@ export interface SuscripcionesPasarela {
   /** Qué avisa (la suscripción cambió o hubo un cobro). Firma inválida → ErrorPasarela. null: otra cosa. */
   leerAviso(aviso: Omit<AvisoEntrante, "tenantId">, cred: Credenciales): AvisoDeSuscripcion | null;
   consultarCobro(cred: Credenciales, cobroId: string): Promise<CobroDeSuscripcion>;
+  /** Los cobros mensuales de una suscripción (conciliación: por si un aviso se perdió). */
+  cobrosDe(cred: Credenciales, suscripcionId: string): Promise<CobroDeSuscripcion[]>;
 }
 
 // ── Pagos únicos a Deoco: SOLO los dominios (ver ./cuota.ts) ─────────────────────────────────
@@ -155,6 +161,8 @@ export interface Pasarela {
   leerAviso(aviso: AvisoEntrante, cred: Credenciales): string | null;
   /** Consulta el cobro a la API de la pasarela, con las credenciales de la banda. */
   consultarCobro(cred: Credenciales, cobroId: string): Promise<CobroConsultado>;
+  /** Los cobros hechos con esa referencia (conciliación: por si un aviso se perdió). */
+  buscarCobros(cred: Credenciales, referencia: string): Promise<CobroConsultado[]>;
   /**
    * Devolución total de un cobro, con las credenciales de quien cobró (la plata vuelve desde esa
    * cuenta). `clave`: idempotencia, repetirla nunca devuelve dos veces. `hecha`: ya volvió; si

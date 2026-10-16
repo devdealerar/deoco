@@ -34,8 +34,8 @@ async function auditar(tx: TxTenant, tenantId: string, por: string, accion: stri
 
 /**
  * Cambia el estado de la banda (cualquiera de la escalera, ARCHIVADO incluido). Una banda ya
- * ARCHIVADA no se toca (la desarchiva el staff).
- * Devuelve si cambió algo. Queda en la auditoría con el motivo.
+ * ARCHIVADA no se toca, salvo `volver` (la banda volvió y pagó desde Plan y pago); si no, la
+ * desarchiva el staff. Devuelve si cambió algo. Queda en la auditoría con el motivo.
  */
 export async function fijarEstado(
   modulo: Modulo,
@@ -43,11 +43,12 @@ export async function fijarEstado(
   estado: EstadoAutomatico,
   motivo: string,
   reg: Registro = registroGlobal(),
+  opciones: { volver?: boolean } = {},
 ): Promise<boolean> {
   exigirGestor(modulo, reg);
   return conTenant(tenantId, async (tx) => {
     const [actual] = await tx.$queryRaw<{ estado: EstadoTenant }[]>`SELECT estado FROM "tenant" WHERE id = ${tenantId}::uuid FOR UPDATE`;
-    if (!actual || actual.estado === "ARCHIVADO" || actual.estado === estado) return false;
+    if (!actual || actual.estado === estado || (actual.estado === "ARCHIVADO" && !(opciones.volver && estado === "ACTIVO"))) return false;
     await tx.tenant.update({ where: { id: tenantId }, data: { estado } });
     await auditar(tx, tenantId, modulo.id, "banda.estado_cambiado", { de: actual.estado, a: estado, motivo });
     return true;
@@ -57,9 +58,12 @@ export async function fijarEstado(
 /** Lo que un módulo tiene abierto en la banda (`enCurso`). Si la consulta falla, se asume que hay algo: nunca se apaga a ciegas. */
 export async function abiertoEn(moduloId: string, tenantId: string, reg: Registro = registroGlobal()): Promise<string[]> {
   const m = reg.modulo(moduloId);
-  if (!m?.enCurso) return [];
+  if (!m) return [];
   try {
-    return await m.enCurso(tenantId);
+    // Pagos que la banda todavía tiene que devolver: su pantalla del módulo los muestra.
+    const devolver = m.cobros ? await conTenant(tenantId, (tx) => tx.cobroDuplicado.count({ where: { moduloId, devueltoEn: null } })) : 0;
+    const propio = m.enCurso ? await m.enCurso(tenantId) : [];
+    return [...propio, ...(devolver ? [`${devolver} ${devolver === 1 ? "pago para devolver" : "pagos para devolver"}`] : [])];
   } catch (e) {
     console.error(`[cuenta] enCurso(${moduloId}):`, e);
     return ["no se pudo revisar lo que tiene abierto"];

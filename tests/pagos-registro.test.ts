@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { CobroConsultado } from "@/nucleo/pagos";
-import { type CosaACobrar, cobrosDuplicados, registrarCobro } from "@/nucleo/pagos/registro";
+import { type CosaACobrar, cobrosDuplicados, pagosParaDevolver, registrarCobro } from "@/nucleo/pagos/registro";
 import { prisma } from "@/nucleo/db/cliente";
 import { esperarEventos } from "@/nucleo/eventos/bus";
 import type { Modulo } from "@/nucleo/modulos/contrato";
@@ -20,7 +20,7 @@ const falso: Modulo = {
 };
 const reg = crearRegistro([falso]);
 
-type Fila = { estado: "abierta" | "pagada" | "en-revision"; total: number; cobroId: string | null; observacion?: string; entregada: number; motivo?: string };
+type Fila = { estado: "abierta" | "pagada" | "en-revision" | "cerrada"; total: number; cobroId: string | null; observacion?: string; entregada: number; motivo?: string; devuelta?: { contracargo: boolean } };
 let filas: Map<string, Fila>;
 const cosa: CosaACobrar = {
   nombre: "la cosa",
@@ -34,7 +34,12 @@ const cosa: CosaACobrar = {
     Object.assign(f, { estado: "pagada", cobroId: c.cobroId });
     return true;
   },
-  alPagarse: async (_, id) => void filas.get(id)!.entregada++,
+  alPagarse: async (_, id) => {
+    // Lento a propósito: dos avisos a la vez se tienen que esperar (bloqueo por referencia).
+    await new Promise((r) => setTimeout(r, 30));
+    filas.get(id)!.entregada++;
+  },
+  alDevolverse: async (_, id, c) => void Object.assign(filas.get(id)!, { estado: "cerrada", devuelta: { contracargo: c.contracargo } }),
   evento: (id) => ({ nombre: "prueba.verificada", payload: { id } }),
 };
 
@@ -106,5 +111,35 @@ describe("registrarCobro: la misma regla para todo módulo que cobra", () => {
     await registrar(cobro("11", A));
     expect(await cobrosDuplicados(falso, e.a.id, [A], reg)).toHaveLength(1);
     expect(await cobrosDuplicados(falso, e.b.id, [A], reg)).toHaveLength(0);
+  });
+
+  it("dos pagos del mismo pedido a la vez: uno lo paga y el otro queda para devolver (nunca se pierde)", async () => {
+    const r = await Promise.all([registrar(cobro("20", A)), registrar(cobro("21", A))]);
+    expect(r.sort()).toEqual(["duplicado", "pagado"]);
+    expect(filas.get(A)!.entregada).toBe(1);
+    const lista = await pagosParaDevolver(e.a.id, { pendientes: true });
+    expect(lista).toHaveLength(1);
+    expect(lista[0]).toMatchObject({ motivo: "duplicado", referencia: A, moduloId: "cobrador" });
+  });
+
+  it("pago que llega con la cosa cerrada (vencida): no se entrega y queda para devolver, como tardío", async () => {
+    filas.get(A)!.estado = "cerrada";
+    expect(await registrar(cobro("30", A))).toBe("tardio");
+    expect(filas.get(A)!.entregada).toBe(0);
+    expect(await pagosParaDevolver(e.a.id, { pendientes: true })).toMatchObject([{ motivo: "tardio", cobroId: "30" }]);
+    // Que no coincide y el que frena el módulo, también para devolver.
+    expect(await registrar(cobro("31", B, { monto: 1 }))).toBe("en-revision");
+    expect((await pagosParaDevolver(e.a.id, { pendientes: true })).map((x) => x.motivo).sort()).toEqual(["no-coincide", "tardio"]);
+  });
+
+  it("devolución o contracargo del cobro con que se pagó: el módulo lo da de baja; de un pago para devolver, queda resuelto", async () => {
+    await registrar(cobro("40", A));
+    expect(await registrar(cobro("40", A, { estado: "devuelto", estadoPasarela: "charged_back" }))).toBe("devuelto");
+    expect(filas.get(A)).toMatchObject({ estado: "cerrada", devuelta: { contracargo: true } });
+    await registrar(cobro("41", B));
+    await registrar(cobro("42", B)); // duplicado
+    expect(await registrar(cobro("42", B, { estado: "devuelto", estadoPasarela: "refunded" }))).toBe("devuelto");
+    expect(filas.get(B)!.estado).toBe("pagada"); // la compra sigue: se devolvió el duplicado
+    expect(await pagosParaDevolver(e.a.id, { pendientes: true })).toEqual([]);
   });
 });

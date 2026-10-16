@@ -8,7 +8,18 @@ import { esperarEventos } from "@/nucleo/eventos/bus";
 import { guardarSecreto } from "@/nucleo/secretos/carga";
 import { conFechasVivas } from "../modulos/sitio/fechas";
 import type { ContenidoSitio } from "../modulos/sitio/contenido";
-import { comprar, compraConToken, registrarPago, RESERVA_MINUTOS } from "../modulos/ticketera/compras";
+import {
+  comprar,
+  compraConToken,
+  conciliarCompras,
+  MAXIMO_POR_COMPRA,
+  MAXIMO_POR_EMAIL_Y_SHOW,
+  RESERVAS_ABIERTAS_POR_EMAIL,
+  RESERVAS_ABIERTAS_POR_IP,
+  registrarPago,
+  RESERVA_MINUTOS,
+} from "../modulos/ticketera/compras";
+import { pagosParaDevolver } from "@/nucleo/pagos/registro";
 import { crearEvento, crearTipo, actualizarTipo, evento, publicarEvento, proximasFechas, cambiarFoto } from "../modulos/ticketera/eventos";
 import { resumenPuerta, validarEntrada } from "../modulos/ticketera/puerta";
 import { dueno, escenarioAcceso } from "./apoyo";
@@ -36,8 +47,8 @@ async function showDeA(cupo = 3) {
 }
 
 const persona = (i: number) => ({ nombre: `Fan ${i}`, documento: `3000000${i}` });
-const compraDe = (tipoId: string, cantidad: number, ahora?: Date) =>
-  comprar(e.a.id, { tipoId, cantidad, nombre: "Lucía Fan", email: "lucia@fan.com", asistentes: Array.from({ length: cantidad }, (_, i) => persona(i)) }, ORIGEN, ahora);
+const compraDe = (tipoId: string, cantidad: number, ahora?: Date, email = "lucia@fan.com", ip: string | null = null) =>
+  comprar(e.a.id, { tipoId, cantidad, nombre: "Lucía Fan", email, asistentes: Array.from({ length: cantidad }, (_, i) => persona(i)) }, ORIGEN, ahora, ip);
 
 async function compraPagada(tipoId: string, cantidad: number, cobro: string) {
   const c = await compraDe(tipoId, cantidad);
@@ -126,7 +137,7 @@ describe("compra y cupo", () => {
 
   it("compras a la vez no sobrevenden: la base corta en el cupo", async () => {
     const { tipoId } = await showDeA(5);
-    const resultados = await Promise.allSettled(Array.from({ length: 8 }, () => compraDe(tipoId, 1)));
+    const resultados = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => compraDe(tipoId, 1, undefined, `fan${i}@x.com`)));
     expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(5);
     expect(resultados.filter((r) => r.status === "rejected").map((r) => String((r as PromiseRejectedResult).reason.message))).toEqual(
       Array(3).fill('"General" está agotada.'),
@@ -174,10 +185,10 @@ describe("cuota impaga (escalera): las ventas siguen hasta SUSPENDIDO; lo ya cob
     const { tipoId } = await showDeA(5);
     try {
       await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "SOLO_LECTURA" } });
-      await expect(compraDe(tipoId, 1)).resolves.toHaveProperty("redireccion");
-      const enCurso = await compraDe(tipoId, 1);
+      await expect(compraDe(tipoId, 1, undefined, "uno@x.com")).resolves.toHaveProperty("redireccion");
+      const enCurso = await compraDe(tipoId, 1, undefined, "dos@x.com");
       await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "SUSPENDIDO" } });
-      await expect(compraDe(tipoId, 1)).rejects.toThrow(/No pudimos abrir el pago/);
+      await expect(compraDe(tipoId, 1, undefined, "tres@x.com")).rejects.toThrow(/No pudimos abrir el pago/);
       const fila = await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: enCurso.compraId } });
       expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "p-susp", estado: "aprobado", estadoPasarela: "approved", referencia: enCurso.compraId, monto: fila.total, moneda: "ARS" })).toBe("pagada");
     } finally {
@@ -309,3 +320,74 @@ describe("el sitio muestra las fechas de la ticketera (consulta), o las cargadas
     ]);
   });
 });
+
+describe("C1: lo que pierde plata", () => {
+  const aprobado = (id: string, cobro: string, monto: number) => ({ cobroId: cobro, estado: "aprobado" as const, estadoPasarela: "approved", referencia: id, monto, moneda: "ARS" });
+
+  it("el cobro vence con la reserva y solo acepta medios inmediatos", async () => {
+    const { tipoId } = await showDeA(5);
+    const c = await compraDe(tipoId, 1);
+    const pref = mp.preferencias.at(-1)!.cuerpo as Record<string, unknown>;
+    const fila = await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } });
+    expect(pref).toMatchObject({ binary_mode: true, expires: true, expiration_date_to: fila.venceEn.toISOString() });
+    expect(fila.venceEn.getTime() - fila.creadoEn.getTime()).toBeLessThanOrEqual(RESERVA_MINUTOS * 60_000 + 1000);
+  });
+
+  it("acaparamiento: tope por compra, reservas abiertas por email y por IP, y entradas por persona y show", async () => {
+    const { tipoId } = await showDeA(100);
+    await expect(compraDe(tipoId, MAXIMO_POR_COMPRA + 1)).rejects.toThrow(new RegExp(`de 1 a ${MAXIMO_POR_COMPRA}`));
+    for (let i = 0; i < RESERVAS_ABIERTAS_POR_EMAIL; i++) await compraDe(tipoId, 1);
+    await expect(compraDe(tipoId, 1)).rejects.toThrow(/Ya tenés compras esperando el pago/);
+    for (let i = 0; i < RESERVAS_ABIERTAS_POR_IP; i++) await compraDe(tipoId, 1, undefined, `ip${i}@x.com`, "200.1.2.3");
+    await expect(compraDe(tipoId, 1, undefined, "otra@x.com", "200.1.2.3")).rejects.toThrow(/Ya tenés compras esperando el pago/);
+    // La IP no se guarda: solo su hash.
+    expect((await dueno.ticketeraCompra.findMany({ where: { ipHash: { not: null } } })).every((x) => x.ipHash !== "200.1.2.3" && x.ipHash!.length === 64)).toBe(true);
+    // Por persona y show, sumando lo pagado: 12.
+    for (let i = 0; i < 2; i++) {
+      const c = await compraDe(tipoId, MAXIMO_POR_COMPRA, undefined, "mucho@x.com");
+      expect(await registrarPago(e.a.id, "mercadopago", aprobado(c.compraId, `m-${i}`, MAXIMO_POR_COMPRA * 1500000))).toBe("pagada");
+    }
+    expect(MAXIMO_POR_COMPRA * 2).toBe(MAXIMO_POR_EMAIL_Y_SHOW);
+    await expect(compraDe(tipoId, 1, undefined, "mucho@x.com")).rejects.toThrow(/hasta 12 entradas por persona y ya llegaste/);
+  });
+
+  it("pago tardío: después del cierre de la venta (o empezado el show) no se acepta y queda para devolver", async () => {
+    const { id, tipoId } = await showDeA(5);
+    const c = await compraDe(tipoId, 1);
+    await dueno.ticketeraEvento.update({ where: { id }, data: { fecha: new Date(Date.now() - 60_000) } }); // empezó
+    expect(await registrarPago(e.a.id, "mercadopago", aprobado(c.compraId, "tarde-show", 1500000))).toBe("tardio");
+    expect((await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } })).estado).not.toBe("PAGADA");
+    expect(await dueno.ticketeraEntrada.count()).toBe(0);
+    expect(await pagosParaDevolver(e.a.id, { pendientes: true })).toMatchObject([{ motivo: "tardio", cobroId: "tarde-show", moduloId: "ticketera" }]);
+    // Cerrada la preventa, igual.
+    await dueno.ticketeraEvento.update({ where: { id }, data: { fecha: EN_UN_MES } });
+    const otra = await compraDe(tipoId, 1, undefined, "pre@x.com");
+    await dueno.ticketeraTipo.update({ where: { id: tipoId }, data: { ventaHasta: new Date(Date.now() - 1000) } });
+    expect(await registrarPago(e.a.id, "mercadopago", aprobado(otra.compraId, "tarde-pre", 1500000))).toBe("tardio");
+  });
+
+  it("devolución o contracargo: la compra queda DEVUELTA, las entradas no entran en la puerta y el lugar vuelve", async () => {
+    const { id, tipoId } = await showDeA(5);
+    const c = await compraPagada(tipoId, 2, "pago-1");
+    const [entrada] = await dueno.ticketeraEntrada.findMany({ where: { compraId: c.compraId } });
+    expect(await registrarPago(e.a.id, "mercadopago", { ...aprobado(c.compraId, "pago-1", 3000000), estado: "devuelto", estadoPasarela: "charged_back" })).toBe("devuelto");
+    expect(await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } })).toMatchObject({ estado: "DEVUELTA", contracargo: true });
+    expect((await validarEntrada(e.a.id, id, entrada.codigo, e.multi.id, "intento-1")).resultado).toBe("invalida");
+    expect((await dueno.ticketeraTipo.findUniqueOrThrow({ where: { id: tipoId } })).ocupadas).toBe(0);
+  });
+
+  it("conciliación: un pago aprobado cuyo aviso se perdió se registra en el barrido", async () => {
+    const { tipoId } = await showDeA(5);
+    const c = await compraDe(tipoId, 2);
+    const pref = mp.preferencias.at(-1)!;
+    mp.pagar(pref.id, { monto: 30000 }); // pagó, y el aviso nunca llegó
+    await dueno.ticketeraCompra.update({ where: { id: c.compraId }, data: { creadoEn: new Date(Date.now() - 5 * 60_000) } });
+    await conciliarCompras();
+    expect((await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } })).estado).toBe("PAGADA");
+    expect(await dueno.ticketeraEntrada.count({ where: { compraId: c.compraId } })).toBe(2);
+    // Repetirlo no cambia nada.
+    await conciliarCompras(new Date(Date.now() + 10 * 60_000));
+    expect(await dueno.ticketeraEntrada.count({ where: { compraId: c.compraId } })).toBe(2);
+  });
+});
+

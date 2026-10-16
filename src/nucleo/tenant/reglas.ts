@@ -14,9 +14,14 @@ import type { EstadoTenant } from "@/generated/prisma/client";
 const RUTA_PANEL_BANDA = /^\/b\/([^/]+)(\/.*)?$/;
 
 /** Rutas del panel que son del núcleo (primer segmento): ningún módulo las puede ocupar. */
-export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/archivos", "/dominios", "/correo", "/credenciales"];
+export const RUTAS_NUCLEO_PANEL = ["/", "/pago", "/devoluciones", "/archivos", "/dominios", "/correo", "/credenciales"];
 
-/** `subruta`: "modulo" si la ruta no es del núcleo; `resto`: lo que sigue al slug ("/" si nada). */
+/**
+ * `subruta`: "pago" para lo que la banda le debe resolver a alguien (Plan y pago, Pagos para
+ * devolver: abiertos en todos los estados, solo para el titular cuando la banda está cerrada);
+ * "dominios" (llevarse sus dominios); "modulo" si la ruta no es del núcleo. `resto`: lo que sigue
+ * al slug ("/" si nada).
+ */
 export type RutaPanel = { slug: string; subruta: "pago" | "dominios" | "modulo" | null; resto: string };
 
 /** Si `pathname` es el panel de una banda, su slug; si no, null (selector, login, etc.). */
@@ -31,7 +36,7 @@ export function rutaPanelBanda(pathname: string): RutaPanel | null {
     return null;
   }
   const es = (r: string) => resto === r || resto.startsWith(r + "/");
-  const subruta = es("/pago") ? "pago" : es("/dominios") ? "dominios" : RUTAS_NUCLEO_PANEL.some((r) => r !== "/" && es(r)) || resto === "/" ? null : "modulo";
+  const subruta = es("/pago") || es("/devoluciones") ? "pago" : es("/dominios") ? "dominios" : RUTAS_NUCLEO_PANEL.some((r) => r !== "/" && es(r)) || resto === "/" ? null : "modulo";
   return { slug, subruta, resto };
 }
 
@@ -64,8 +69,9 @@ const seguir = { tipo: "seguir", soloTitular: false } as const;
  *   SUSPENDIDO                    además, el sitio deja de estar publicado: solo quedan las rutas
  *                                 de módulo que abren con la banda cerrada (las entradas y el
  *                                 pedido del fan). Las ventas se cortan en crearCobro.
- *   ARCHIVADO                     todo 404, salvo Dominios para el titular y lo que abra una ruta
- *                                 con la banda cerrada (la puerta de un show ya vendido).
+ *   ARCHIVADO                     todo 404, salvo Plan y pago (darse de baja o volver), Pagos para
+ *                                 devolver y Dominios para el titular, y lo que abra una ruta con
+ *                                 la banda cerrada (la puerta de un show ya vendido).
  */
 export function decidirPorEstado(
   estado: EstadoTenant,
@@ -86,7 +92,7 @@ export function decidirPorEstado(
       return { ...seguir, soloLectura: true };
     case "ARCHIVADO":
       if (subruta === "modulo") return { ...seguir, bandaCerrada: true };
-      return superficie === "panel" && subruta === "dominios" ? { tipo: "seguir", soloTitular: true } : { tipo: "no-encontrado" };
+      return superficie === "panel" && (subruta === "dominios" || subruta === "pago") ? { tipo: "seguir", soloTitular: true } : { tipo: "no-encontrado" };
     default: {
       const _exhaustivo: never = estado;
       return _exhaustivo;

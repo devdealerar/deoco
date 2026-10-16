@@ -160,12 +160,15 @@ model TiendaProducto {
 /// EN_REVISION: la pasarela aprobó un pago que no coincide (monto o moneda): hay que revisarlo.
 /// CANCELADO: reservado. DESPACHADO: todos sus proveedores lo despacharon (panel del proveedor).
 /// No hay ENTREGADO: el proveedor no tiene cómo saberlo de verdad (lo sabe el correo).
+/// PENDIENTE vence a los 7 días o si un producto deja de estar a la venta (→ CANCELADO). DEVUELTO:
+/// la pasarela devolvió o contracargó el pago (si ya se produjo, `resolverConProveedor`).
 enum TiendaEstadoPedido {
   PENDIENTE
   PAGADO
   EN_REVISION
   CANCELADO
   DESPACHADO
+  DEVUELTO
 }
 
 /// Pedido de un fan. Se crea PENDIENTE al confirmar el checkout, con su copia de precios.
@@ -201,8 +204,15 @@ model TiendaPedido {
   /// Id del pago aprobado (el que lo marcó PAGADO) y lo último que dijo la pasarela.
   cobroId       String?
   estadoCobro   String?
-  /// Por qué quedó EN_REVISION (monto o moneda distintos).
+  /// Por qué quedó EN_REVISION (monto o moneda distintos), CANCELADO o DEVUELTO.
   observacion   String?
+  /// DEVUELTO: cuándo, si fue contracargo, y si ya se había mandado a producir (la banda lo
+  /// resuelve con el proveedor).
+  devueltoEn           DateTime?
+  contracargo          Boolean   @default(false)
+  resolverConProveedor Boolean   @default(false)
+  /// Conciliación: la última vez que se le preguntó a la pasarela.
+  conciliadoEn  DateTime?
   /// Secreto para ver el pedido y pagarlo (cookie del navegador que compró o link del mail).
   token         String
 

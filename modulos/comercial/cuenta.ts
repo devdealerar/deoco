@@ -19,6 +19,7 @@ import {
   type SuscripcionConsultada,
   cambiarMontoSuscripcion,
   cancelarSuscripcion,
+  cobrosDeSuscripcion,
   consultarSuscripcion,
   crearSuscripcion,
   cuotaConfigurada,
@@ -176,6 +177,43 @@ async function ajustarMonto(tenantId: string, precio: number | null) {
   if (!cuenta?.suscripcionId || cuenta.suscripcionEstado !== "activa" || precio === null || precio === cuenta.montoSuscripcion) return;
   await cambiarMontoSuscripcion(await comercial(), cuenta.suscripcionId, precio);
   await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { montoSuscripcion: precio } }));
+}
+
+/**
+ * Conciliación de la cuota (los avisos se pierden): trae la suscripción y sus cobros de la
+ * pasarela de Deoco y los registra (idempotente). false si la pasarela no respondió.
+ */
+export async function conciliarCuota(tenantId: string, ahora = new Date()): Promise<boolean> {
+  const cuenta = await cuentaDe(tenantId);
+  if (!cuenta?.suscripcionId || !cuotaConfigurada()) return true;
+  try {
+    await sincronizar(tenantId);
+    for (const c of await cobrosDeSuscripcion(await comercial(), cuenta.suscripcionId)) await registrarCobro(tenantId, c, ahora);
+    return true;
+  } catch (e) {
+    console.error(`[comercial] conciliar la cuota de ${tenantId}:`, e instanceof Error ? e.message : e);
+    return false;
+  }
+}
+
+/**
+ * Una banda archivada no se cobra: su suscripción se cancela en la pasarela (la archive el gestor
+ * por la escalera o el staff a mano). Si quiere volver, elige un plan en Plan y pago.
+ */
+export async function cancelarDeArchivadas() {
+  if (!cuotaConfigurada()) return;
+  const ids = await prisma.$queryRaw<{ id: string }[]>`SELECT c AS id FROM comercial_archivadas_con_suscripcion() AS c`;
+  for (const { id } of ids) {
+    const cuenta = await cuentaDe(id);
+    if (!cuenta?.suscripcionId) continue;
+    try {
+      await cancelarSuscripcion(await comercial(), cuenta.suscripcionId);
+      await conTenant(id, (tx) => tx.comercialCuenta.update({ where: { tenantId: id }, data: { suscripcionEstado: "cancelada", planElegido: null } }));
+      await conTenant(id, (tx) => tx.auditoria.createMany({ data: [{ usuarioId: null, tenantId: id, accion: "comercial.suscripcion_cancelada", detalle: { por: "comercial", motivo: "banda archivada" } }] }));
+    } catch (e) {
+      console.error(`[comercial] cancelar la suscripción de la archivada ${id}:`, e instanceof Error ? e.message : e);
+    }
+  }
 }
 
 /** El barrido: las bandas con excedente vuelven a aplicar su plan (se apaga lo que ya cerró). */
@@ -392,7 +430,9 @@ export async function registrarCobro(tenantId: string, cobro: CobroDeSuscripcion
     }
     return "sin-cambios" as const;
   });
-  if (resultado === "aprobado") await fijarEstado(modulo, tenantId, "ACTIVO", "pago de la cuota aprobado");
+  // Aprobado: vuelve al día. También una banda archivada que volvió (eligió un plan desde Plan y
+  // pago y pagó): sus datos nunca se borraron.
+  if (resultado === "aprobado") await fijarEstado(modulo, tenantId, "ACTIVO", "pago de la cuota aprobado", undefined, { volver: true });
   // Rechazado: aviso ya (si estaba al día); los escalones siguientes cuentan desde el rechazo.
   if (resultado === "rechazado" && (await estadoDe(tenantId)) === "ACTIVO" && (await fijarEstado(modulo, tenantId, "MOROSO", "pago de la cuota rechazado"))) {
     await avisarMora(tenantId, "rechazado").catch((e) => console.error(`[comercial] mail de mora a ${tenantId}:`, e));
@@ -447,6 +487,9 @@ async function avisarEscalon(tenantId: string, estado: Escalon, causa: "prueba" 
  */
 export async function revisarCuenta(tenantId: string, ahora: Date, cfg: Escalera): Promise<Escalon | "nada"> {
   const modulo = await comercial();
+  // Antes de subir un escalón, se le pregunta a la pasarela: un cobro aprobado cuyo aviso se
+  // perdió no puede terminar en mora. Si la pasarela no responde, esta vuelta no se sube nada.
+  if (!(await conciliarCuota(tenantId, ahora))) return "nada";
   const cuenta = await cuentaDe(tenantId);
   if (!cuenta) return "nada";
   const d = decidir(cuenta, cfg, ahora);
@@ -467,11 +510,14 @@ const estadoDe = async (tenantId: string) => (await conTenant(tenantId, (tx) => 
 
 /** Tarea periódica: las cuentas vencidas, en mora o con la prueba terminada, de todas las bandas. */
 export async function revisarVencimientos(ahora = new Date()) {
+  await cancelarDeArchivadas();
   const cfg = await plazos();
   const ids = await prisma.$queryRaw<{ id: string }[]>`SELECT c AS id FROM comercial_cuentas_a_revisar(${ahora}::timestamp) AS c`;
   for (const { id } of ids) {
     await revisarCuenta(id, ahora, cfg).catch((e) => console.error(`[comercial] revisar ${id}:`, e));
   }
+  // Las que se archivaron en esta vuelta dejan de cobrarse ya.
+  await cancelarDeArchivadas();
   return ids.length;
 }
 

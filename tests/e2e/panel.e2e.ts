@@ -132,7 +132,7 @@ describe("prueba 7: banda SUSPENDIDO", () => {
     expect((await staff.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
   });
 
-  it("ARCHIVADO: el titular entra solo a Dominios (para llevárselos); el resto, 404; otro rol tampoco", async () => {
+  it("ARCHIVADO: el titular entra solo a Dominios (para llevárselos) y a Plan y pago (darse de baja o volver); el resto, 404; otro rol tampoco", async () => {
     const editor = (await logueado("editor-a@x.com")).page;
     await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ARCHIVADO" } });
     try {
@@ -145,8 +145,10 @@ describe("prueba 7: banda SUSPENDIDO", () => {
       expect(await titular.getByTestId("aviso-archivada").textContent()).toContain("Tus dominios siguen siendo tuyos");
       expect(await titular.getByRole("button", { name: "Delegar dominio" }).count()).toBe(0);
       expect((await titular.goto(`${APP}/b/banda-a`))!.status()).toBe(404);
-      expect((await titular.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(404);
+      expect((await titular.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(200);
+      expect((await titular.goto(`${APP}/b/banda-a/credenciales`))!.status()).toBe(404);
       expect((await editor.goto(`${APP}/b/banda-a/dominios`))!.status()).toBe(403);
+      expect((await editor.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
     } finally {
       await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ACTIVO" } });
     }
@@ -192,3 +194,32 @@ describe("prueba 8: la cookie de sesión no viaja al sitio público", () => {
     expect((await page.goto(`${SITIO_A}/api/auth/session`))!.status()).toBe(404);
   });
 });
+
+describe("pagos para devolver (C1.4)", () => {
+  it("el titular ve el aviso y la lista; lo marca resuelto con una nota; el editor no entra", async () => {
+    await dueno.cobroDuplicado.deleteMany({ where: { tenantId: e.a.id } });
+    await dueno.cobroDuplicado.create({
+      data: { tenantId: e.a.id, moduloId: "tienda", referencia: "11111111-1111-4111-8111-111111111111", pasarela: "mercadopago", cobroId: "555", monto: 2500000, moneda: "ARS", motivo: "duplicado" },
+    });
+    try {
+      const titular = (await logueado("multi@x.com")).page;
+      await titular.goto(`${APP}/b/banda-a`);
+      expect(await titular.getByTestId("aviso-devoluciones").textContent()).toContain("un pago para devolver");
+      await titular.getByRole("link", { name: "Ver y devolver" }).click();
+      await titular.waitForURL(`${APP}/b/banda-a/devoluciones`);
+      const fila = titular.locator('[data-devolucion="555"]').locator("xpath=ancestor::tr");
+      expect(await fila.textContent()).toContain("Pagó dos veces");
+      const form = fila.locator("form[data-hidratado]").last();
+      await form.waitFor();
+      await form.locator('input[name="nota"]').fill("Devuelto desde Mercado Pago");
+      await form.getByRole("button", { name: "Ya lo resolví" }).click();
+      await titular.locator('[data-devolucion="555"]').locator("xpath=ancestor::tr").getByText("Resuelto").waitFor();
+      expect((await dueno.cobroDuplicado.findFirstOrThrow({ where: { cobroId: "555" } })).nota).toBe("Devuelto desde Mercado Pago");
+      const editor = (await logueado("editor-a@x.com")).page;
+      expect((await editor.goto(`${APP}/b/banda-a/devoluciones`))!.status()).toBe(403);
+    } finally {
+      await dueno.cobroDuplicado.deleteMany({ where: { tenantId: e.a.id } });
+    }
+  });
+});
+

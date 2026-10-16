@@ -55,10 +55,11 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - `app.<DEOCO_DOMINIO_RAIZ>` sin `/b/<slug>` → plataforma (selector de bandas, login), sin tenant.
 - Cualquier otro host (`labanda.deocoartist.com`, dominio propio) → sitio público (superficie
   `"publico"`), tenant por host. Anónimo.
-- `/b/<slug>/pago` lo define el núcleo: abierto con la banda suspendida, solo para el titular.
-  `/b/<slug>/dominios` también (la cuota impaga no le impide llevarse sus dominios), y es lo único
-  abierto con la banda ARCHIVADA (solo titular; el selector se la muestra con el link; no suma
-  dominios nuevos).
+- `/b/<slug>/pago` y `/b/<slug>/devoluciones` los define el núcleo: abiertos en todos los estados,
+  también ARCHIVADA (darse de baja o volver; devolver lo que debe), solo para el titular.
+  `/b/<slug>/dominios` también (la cuota impaga no le impide llevarse sus dominios; archivada no suma
+  dominios nuevos). Archivada: el gestor cancela la suscripción (`cancelarDeArchivadas`); si vuelve
+  y paga, `fijarEstado(…, { volver: true })` la deja ACTIVA.
 - Escalera de la cuota impaga (`reglas.ts`, días en `comercial_config`, los edita el staff): 3 MOROSO
   (aviso + mail), 15 MOROSO_GRAVE (aviso permanente), 30 SOLO_LECTURA (el panel se ve y no guarda:
   marca `soloLectura` → `accesoPanel`; el permiso de `edicion` de cada módulo da false y
@@ -217,6 +218,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 
 - Shows, tipos con cupo (CHECK en la base), compra con `@/nucleo/pagos`, entradas nominadas
   con QR (mail con `adjuntos` cid:), puerta (`/b/<slug>/puerta`, rol PUERTA). Pestaña "Fechas".
+- Acaparamiento (`compras.ts`): reserva de 10 min (el cobro vence con ella), 6 por compra, 12 por
+  email y show (pagadas + reservadas), 2 reservas abiertas por email y 4 por IP (`ipHash`, nunca la IP).
 - QR firmado (`firma.ts`): 10 al azar + 10 de HMAC por banda con `DEOCO_CLAVE_QR` (`entorno` en
   el contrato: el arranque la exige). La puerta verifica la firma antes de tocar la base; los
   códigos viejos de 10 caracteres se siguen buscando (transición).
@@ -271,8 +274,23 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   módulo `pagos`, Credenciales → Cobros). Módulos con `cobros: true` + aviso `/pago/[pasarela]`
   usan `pasarelaLista`, `crearCobro`, `cobroDelAviso`, `probarConexion`. Lo usan tienda y ticketera.
 - Registrar el pago: `registrarCobro(modulo, tenantId, pasarela, cobro, cosa)` (`src/nucleo/pagos/registro.ts`),
-  la única regla (revisión, duplicado, pagado una vez); el módulo da su `CosaACobrar`. Duplicados
-  en `cobro_duplicado` (núcleo, RLS), se leen con `cobrosDuplicados`.
+  la única regla, con un bloqueo por referencia (dos avisos a la vez no se pisan); el módulo da su
+  `CosaACobrar` (`buscar` → abierta/pagada/en-revision/**cerrada**, `alDevolverse`).
+- Pagos para devolver (`cobro_duplicado`, motivo duplicado | tardio | no-coincide): todo pago que
+  entró y no se entrega. Pantalla del núcleo `/b/<slug>/devoluciones` (titular, abierta en todo
+  estado): "Devolver desde mi cuenta" (`devolverPagoDeLaBanda`, la pasarela con las credenciales
+  de la banda: la plata va de la banda al comprador) o "Ya lo resolví". Pendientes = algo abierto
+  del módulo (no se apaga).
+- Devuelto o contracargo del cobro con que se pagó → `alDevolverse`: compra DEVUELTA (entradas
+  `anuladaEn`, no entran en la puerta, el lugar vuelve); pedido DEVUELTO (`resolverConProveedor` si
+  ya se mandó a producir).
+- Conciliación (los avisos se pierden): `conciliarCobros(modulo, tenantId, referencia, registrar)`
+  (`buscarCobros` de la pasarela) en tareas del barrido: `conciliarCompras`, `conciliarPedidos`
+  (también vence los pedidos) y la cuota (`conciliarCuota` antes de subir un escalón; si la
+  pasarela no responde, no sube).
+- Vencimientos: el cobro lleva `vence` (y `soloInmediatos` en las entradas). Pedido: 7 días o un
+  producto fuera de venta → CANCELADO. Compra: al cerrar la venta del tipo o empezar el show. Un
+  pago que llega después → para devolver (tardío).
 - Comunes del núcleo: `@/nucleo/dinero` (pesos), `@/nucleo/fechas` (hora argentina),
   `@/nucleo/publico/{origen,estilo,refrescar}`, `esEmail` (`@/nucleo/correo/direccion`).
 

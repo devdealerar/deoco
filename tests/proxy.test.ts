@@ -171,7 +171,9 @@ describe("prueba 5: reglas de estado en los dos caminos", () => {
   it("ARCHIVADO: panel 404 (salvo lo que abra una ruta), los datos se conservan", async () => {
     await ponerEstado(a.id, "ARCHIVADO");
     expect((await proxy(pedido(APP, "/b/banda-a"))).status).toBe(404);
-    expect((await proxy(pedido(APP, "/b/banda-a/pago"))).status).toBe(404);
+    // Plan y pago (darse de baja o volver) y Pagos para devolver: abiertos, solo para el titular.
+    expect(cabeceraReenviada(await proxy(pedido(APP, "/b/banda-a/pago")), CABECERA.soloTitular)).toBe("1");
+    expect(cabeceraReenviada(await proxy(pedido(APP, "/b/banda-a/devoluciones")), CABECERA.soloTitular)).toBe("1");
     expect((await proxy(pedido(APP, "/b/banda-a/credenciales"))).status).toBe(404);
     // El sitio: lo decide la página (solo abren las entradas y el pedido del fan); lo del núcleo, 404.
     expect(cabeceraReenviada(await proxy(pedido("banda-a.deocoartist.com", "/")), CABECERA.bandaCerrada)).toBe("1");

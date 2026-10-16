@@ -58,12 +58,14 @@ model TicketeraTipo {
 
 /// RESERVADA: esperando el pago (ocupa cupo hasta `venceEn`). PAGADA: con sus entradas.
 /// VENCIDA: no se pagó a tiempo (liberó el cupo). EN_REVISION: pago que no coincide o llegó
-/// tarde sin cupo: la banda lo devuelve desde su pasarela.
+/// tarde sin cupo: la banda lo devuelve (está en sus pagos para devolver). DEVUELTA: la
+/// pasarela devolvió o contracargó el pago: las entradas dejan de valer y el lugar vuelve.
 enum TicketeraEstadoCompra {
   RESERVADA
   PAGADA
   VENCIDA
   EN_REVISION
+  DEVUELTA
 }
 
 /// Compra de un fan: un tipo, una cantidad, una entrada nominada por persona.
@@ -93,6 +95,13 @@ model TicketeraCompra {
   pagadaEn       DateTime?
   /// Por qué quedó EN_REVISION, o pagos duplicados.
   observacion    String?
+  /// DEVUELTA: cuándo, y si fue un contracargo (el comprador desconoció el pago).
+  devueltaEn     DateTime?
+  contracargo    Boolean               @default(false)
+  /// Freno de acaparamiento: hash de la IP de quien reservó (nunca la IP).
+  ipHash         String?
+  /// Conciliación: la última vez que se le preguntó a la pasarela.
+  conciliadaEn   DateTime?
   /// Secreto del link para volver a ver las entradas (/fechas/compra/<id>?t=<token>): el id
   /// solo no alcanza, las entradas dejan entrar.
   token          String
@@ -118,6 +127,8 @@ model TicketeraEntrada {
   nombre          String
   documento       String
   codigo          String
+  /// La compra se devolvió (o contracargó): la entrada ya no deja entrar.
+  anuladaEn       DateTime?
   /// Validada en la puerta: cuándo, quién y con qué intento (un reintento del mismo pedido
   /// por mala señal responde "válida" de nuevo, no "ya validada").
   validadaEn      DateTime?

@@ -1,10 +1,12 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { ipDelVisitante } from "@/nucleo/publico/visitante";
 import { recordarAcceso } from "@/nucleo/publico/acceso";
 import { origenDelPedido } from "@/nucleo/publico/origen";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
-import { compraConToken, intentarComprar } from "../compras";
+import { compraConToken, intentarComprar, MAXIMO_POR_COMPRA } from "../compras";
 
 export type EstadoCompra = { error?: string };
 
@@ -32,7 +34,7 @@ export async function comprarAccion(
       asistentes: Array.from(
         {
           length:
-            Number.isInteger(cantidad) && cantidad > 0 && cantidad <= 10
+            Number.isInteger(cantidad) && cantidad > 0 && cantidad <= MAXIMO_POR_COMPRA
               ? cantidad
               : 0,
         },
@@ -43,6 +45,8 @@ export async function comprarAccion(
       ),
     },
     await origenDelPedido(),
+    new Date(),
+    ipDelVisitante(await headers()),
   );
   if (!r.ok) return { error: r.error };
   // Este navegador queda con acceso a las entradas: al volver de la pasarela las ve.

@@ -35,7 +35,8 @@ export async function validarEntrada(
       where: { tenantId_codigo: { tenantId, codigo } },
       include: { tipo: { select: { nombre: true } }, evento: { select: { nombre: true, fecha: true } }, compra: { select: { estado: true } } },
     });
-    if (!e || e.compra.estado !== "PAGADA") return { resultado: "invalida" };
+    // Una entrada de una compra devuelta (o contracargada) no deja entrar.
+    if (!e || e.compra.estado !== "PAGADA" || e.anuladaEn) return { resultado: "invalida" };
     if (e.eventoId !== eventoId) return { resultado: "otro-show", show: e.evento.nombre };
     const { count } = await tx.ticketeraEntrada.updateMany({
       where: { id: e.id, validadaEn: null },
@@ -57,8 +58,8 @@ export async function resumenPuerta(tenantId: string, eventoId: string): Promise
   if (!esUuid(eventoId)) return { vendidas: 0, entraron: 0, faltan: 0, porTipo: [] };
   return conTenant(tenantId, async (tx) => {
     const tipos = await tx.ticketeraTipo.findMany({ where: { eventoId }, select: { id: true, nombre: true }, orderBy: { precio: "asc" } });
-    const filas = await tx.ticketeraEntrada.groupBy({ by: ["tipoId"], where: { eventoId }, _count: { _all: true } });
-    const adentro = await tx.ticketeraEntrada.groupBy({ by: ["tipoId"], where: { eventoId, validadaEn: { not: null } }, _count: { _all: true } });
+    const filas = await tx.ticketeraEntrada.groupBy({ by: ["tipoId"], where: { eventoId, anuladaEn: null }, _count: { _all: true } });
+    const adentro = await tx.ticketeraEntrada.groupBy({ by: ["tipoId"], where: { eventoId, anuladaEn: null, validadaEn: { not: null } }, _count: { _all: true } });
     const porTipo = tipos.map((t) => ({
       nombre: t.nombre,
       vendidas: filas.find((f) => f.tipoId === t.id)?._count._all ?? 0,
@@ -77,7 +78,7 @@ export async function resumenPuerta(tenantId: string, eventoId: string): Promise
  */
 export async function showsConEntradasPorDelante(tenantId: string, ahora = new Date()): Promise<string[]> {
   const filas = await conTenant(tenantId, (tx) =>
-    tx.ticketeraEvento.findMany({ where: { fecha: { gte: desdeAhora(ahora) }, entradas: { some: {} } }, select: { id: true } }),
+    tx.ticketeraEvento.findMany({ where: { fecha: { gte: desdeAhora(ahora) }, entradas: { some: { anuladaEn: null } } }, select: { id: true } }),
   );
   return filas.map((f) => f.id);
 }

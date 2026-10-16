@@ -6,6 +6,7 @@ import { registro } from "@/nucleo/modulos";
 import { menuPanel } from "@/nucleo/modulos/navegacion";
 import { delegacionesPorVencer, dominiosConProblema } from "@/nucleo/dominios";
 import { dominioDeEnvio } from "@/nucleo/dominios/envio";
+import { pagosParaDevolver } from "@/nucleo/pagos/registro";
 import { dominiosPorVencerEnPanel } from "@/nucleo/dominios/vencimiento";
 import { bandaCobra } from "@/nucleo/pagos";
 import { Aviso } from "@/ui";
@@ -31,7 +32,10 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   // el sitio no está publicado). Archivada: el panel no existe más, salvo Dominios para el titular
   // y la puerta de un show ya vendido.
   const archivada = acceso.estado === "ARCHIVADO";
-  const conPago = esTitular && Boolean(reg.gestor) && !archivada;
+  // Plan y pago, también archivada: para darse de baja o volver.
+  const conPago = esTitular && Boolean(reg.gestor);
+  // Pagos que la banda tiene que devolver (duplicados, tardíos, que no coinciden): el titular.
+  const paraDevolver = esTitular ? (await pagosParaDevolver(acceso.tenantId, { pendientes: true })).length : 0;
   // Archivada: del menú quedan solo las rutas de módulo que siguen abiertas (la puerta de un show
   // ya vendido).
   const visibles = archivada
@@ -58,6 +62,13 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                 <li>
                   <Link href={`/b/${slug}/pago`} className={item}>
                     Plan y pago
+                  </Link>
+                </li>
+              )}
+              {esTitular && (paraDevolver > 0 || (await bandaCobra(acceso.tenantId, reg))) && (
+                <li>
+                  <Link href={`/b/${slug}/devoluciones`} className={item}>
+                    Pagos para devolver{paraDevolver > 0 ? ` (${paraDevolver})` : ""}
                   </Link>
                 </li>
               )}
@@ -118,7 +129,18 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
           {archivada && esTitular && (
             <div className="mb-6">
               <Aviso tono="error" titulo="La banda está archivada." data-testid="aviso-archivada">
-                El sitio y el panel ya no están en Deoco. Tus dominios siguen siendo tuyos: desde acá podés llevártelos.
+                El sitio y el panel ya no están en Deoco. Tus dominios siguen siendo tuyos: desde acá podés llevártelos. En Plan y pago podés
+                darte de baja o volver.
+              </Aviso>
+            </div>
+          )}
+          {paraDevolver > 0 && (
+            <div className="mb-6">
+              <Aviso tono="advertencia" titulo={`Tenés ${paraDevolver === 1 ? "un pago" : `${paraDevolver} pagos`} para devolver.`} data-testid="aviso-devoluciones">
+                Llegaron a tu cuenta pagos que no corresponden (duplicados, tardíos o que no coinciden).{" "}
+                <Link href={`/b/${slug}/devoluciones`} className="font-semibold underline">
+                  Ver y devolver
+                </Link>
               </Aviso>
             </div>
           )}

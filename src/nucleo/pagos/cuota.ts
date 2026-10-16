@@ -97,6 +97,12 @@ export async function consultarCobroCuota(modulo: Modulo, cobroId: string, reg: 
   return api.consultarCobro(cred, cobroId);
 }
 
+/** Los cobros mensuales de una suscripción (conciliación: un aviso perdido no deja un pago sin registrar). */
+export async function cobrosDeSuscripcion(modulo: Modulo, suscripcionId: string, reg: Registro = registroGlobal()): Promise<CobroDeSuscripcion[]> {
+  const { cred, sus: api } = paraElGestor(modulo, reg);
+  return api.cobrosDe(cred, suscripcionId);
+}
+
 // ── Dominios: pagos únicos a Deoco ─────────────────────────────────────────────────────────
 // Misma cuenta de Deoco, pero NADA en común con la cuota: otro tipo de cobro (pago único, no
 // suscripción), otra URL de aviso (/dominio/<pasarela>, nunca /cuota), otras tablas del gestor.

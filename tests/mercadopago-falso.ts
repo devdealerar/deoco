@@ -94,6 +94,16 @@ export class MercadoPagoFalso {
           res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
           return res.end(`<!doctype html><title>Mercado Pago (falso)</title><h1 data-pasarela-suscripcion>Suscribite con Mercado Pago</h1><p>${s?.reason ?? ""}</p><a href="${s?.back_url ?? "/"}">Volver</a>`);
         }
+        if (req.method === "GET" && url.pathname === "/authorized_payments/search") {
+          const sid = url.searchParams.get("preapproval_id");
+          const results = [...this.cobros.entries()]
+            .filter(([, c]) => c.token === token && c.preapproval_id === sid)
+            .map(([id, c]) => ({
+              id, preapproval_id: c.preapproval_id, status: c.status, transaction_amount: c.transaction_amount, debit_date: c.debit_date,
+              payment: c.payment_status ? { id: Number(id.replace(/\D/g, "") || 1), status: c.payment_status } : null,
+            }));
+          return json(200, { results, paging: { total: results.length } });
+        }
         const cobro = /^\/authorized_payments\/([\w-]+)$/.exec(url.pathname);
         if (req.method === "GET" && cobro) {
           const c = this.cobros.get(cobro[1]);

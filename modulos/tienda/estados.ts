@@ -13,7 +13,9 @@ export function estadoParaFan(p: Pedido, resultado?: string | null): { titulo: s
     case "DESPACHADO":
       return { titulo: "¡Tu pedido salió!", detalle: "El proveedor lo despachó. Te mandamos el número de seguimiento por mail." };
     case "CANCELADO":
-      return { titulo: "Pedido cancelado", detalle: "Este pedido no sigue." };
+      return { titulo: "Pedido cancelado", detalle: "Este pedido no sigue: no se pagó a tiempo o algún producto dejó de estar a la venta. Si pagaste igual, la banda te lo devuelve." };
+    case "DEVUELTO":
+      return { titulo: "Pago devuelto", detalle: "El pago de este pedido se devolvió. Si tenés dudas, escribile a la banda." };
   }
   if (resultado === "exito" || p.estadoCobro === "approved") {
     return { titulo: "Estamos confirmando tu pago", detalle: "Puede tardar unos minutos. Esta página se actualiza sola cuando se acredite." };
@@ -34,4 +36,5 @@ export const ESTADO_PANEL: Record<string, { texto: string; color: "gris" | "exit
   EN_REVISION: { texto: "Pago a revisar", color: "error" },
   CANCELADO: { texto: "Cancelado", color: "gris" },
   DESPACHADO: { texto: "Despachado", color: "exito" },
+  DEVUELTO: { texto: "Pago devuelto", color: "error" },
 };

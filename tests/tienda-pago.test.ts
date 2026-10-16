@@ -13,7 +13,8 @@ import { verificarFirma } from "@/nucleo/archivos/firmados";
 import { bandejaDeSalida, esperarCorreos, vaciarBandeja } from "@/nucleo/correo";
 import { alPagarsePedido, VALIDEZ_LINK_IMPRESION } from "../modulos/tienda/correos";
 import { guardarContacto } from "../modulos/tienda/contacto";
-import { deudaDeBanda, deudaDeTodas, iniciarCobro, registrarPago } from "../modulos/tienda/pagos";
+import { conciliarPedidos, deudaDeBanda, deudaDeTodas, iniciarCobro, registrarPago } from "../modulos/tienda/pagos";
+import { pagosParaDevolver } from "@/nucleo/pagos/registro";
 import { crearPedido, type DatosFan, revisarCarrito } from "../modulos/tienda/pedidos";
 import { crearProducto, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
 import { dueno, escenarioAcceso } from "./apoyo";
@@ -395,3 +396,59 @@ describe("prueba 6: pago duplicado", () => {
     expect(await dueno.cobroDuplicado.count()).toBe(1);
   });
 });
+
+describe("C1: lo que pierde plata", () => {
+  const pago = (id: string, pedidoId: string, total: number, extra: Partial<{ estado: "aprobado" | "devuelto"; estadoPasarela: string }> = {}) =>
+    registrarPago(e.a.id, "mercadopago", { cobroId: id, estado: "aprobado", estadoPasarela: "approved", referencia: pedidoId, monto: total, moneda: "ARS", ...extra });
+
+  it("el cobro vence con el pedido (7 días)", async () => {
+    const { pedido } = await pedidoDeA();
+    const pref = mp.preferencias.at(-1)!.cuerpo as { expires?: boolean; expiration_date_to?: string };
+    expect(pref.expires).toBe(true);
+    expect(new Date(pref.expiration_date_to!).getTime()).toBe(pedido.creadoEn.getTime() + 7 * 86_400_000);
+  });
+
+  it("conciliación: un pago aprobado cuyo aviso se perdió se registra en el barrido (una vez)", async () => {
+    const { pedido } = await pedidoDeA();
+    aprobar("700001", pedido.id, pedido.total);
+    await dueno.tiendaPedido.update({ where: { id: pedido.id }, data: { creadoEn: new Date(Date.now() - 5 * 60_000) } });
+    await conciliarPedidos();
+    expect((await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id } })).estado).toBe("PAGADO");
+    await conciliarPedidos(new Date(Date.now() + 3600_000));
+    expect(await dueno.tiendaOrden.count({ where: { pedidoId: pedido.id } })).toBe(2);
+  });
+
+  it("vence a los 7 días o si un producto deja de estar a la venta; un pago que llega después va a devolución", async () => {
+    const { pedido } = await pedidoDeA();
+    await dueno.tiendaPedido.update({ where: { id: pedido.id }, data: { creadoEn: new Date(Date.now() - 8 * 86_400_000) } });
+    await conciliarPedidos();
+    expect(await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id } })).toMatchObject({ estado: "CANCELADO", observacion: expect.stringContaining("venció") });
+    expect(await pago("800001", pedido.id, pedido.total)).toBe("tardio");
+    expect(await pagosParaDevolver(e.a.id, { pendientes: true })).toMatchObject([{ motivo: "tardio", cobroId: "800001", moduloId: "tienda" }]);
+    expect(await dueno.tiendaOrden.count({ where: { pedidoId: pedido.id } })).toBe(0);
+
+    // Un producto despublicado: el pedido ya no se puede pagar (ni mandar a pagar).
+    const { remera } = await productos(e.a.id);
+    const otro = await crearPedido(tienda, e.a.id, [{ productoId: remera.id, variante: { Talle: "M" }, cantidad: 1 }], FAN);
+    await publicarProducto(e.a.id, remera.id, false);
+    await expect(iniciarCobro(tienda, e.a.id, otro.id, ORIGEN)).rejects.toThrow(/dejó de estar a la venta/);
+    expect(await pago("800002", otro.id, otro.total)).toBe("tardio");
+  });
+
+  it("dos avisos a la vez de dos pagos del mismo pedido: uno lo paga, el otro queda para devolver", async () => {
+    const { pedido } = await pedidoDeA();
+    const r = await Promise.all([pago("900001", pedido.id, pedido.total), pago("900002", pedido.id, pedido.total)]);
+    expect(r.sort()).toEqual(["duplicado", "pagado"]);
+    expect(await pagosParaDevolver(e.a.id, { pendientes: true })).toHaveLength(1);
+  });
+
+  it("contracargo de un pedido ya mandado a producir: DEVUELTO y marcado para resolverlo con el proveedor", async () => {
+    const { pedido } = await pedidoDeA();
+    expect(await pago("910001", pedido.id, pedido.total)).toBe("pagado");
+    expect(await pago("910001", pedido.id, pedido.total, { estado: "devuelto", estadoPasarela: "charged_back" })).toBe("devuelto");
+    expect(await dueno.tiendaPedido.findUniqueOrThrow({ where: { id: pedido.id } })).toMatchObject({
+      estado: "DEVUELTO", contracargo: true, resolverConProveedor: true, observacion: expect.stringContaining("resolvelo con el proveedor"),
+    });
+  });
+});
+

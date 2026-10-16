@@ -132,7 +132,8 @@ export async function CompraPublica({ tenantId, params, consulta }: PropsRutaPub
   if (!compra) return <CompraSinAcceso tenantId={tenantId} id={params.id} resultado={consulta.get("resultado")} />;
   const resultado = consulta.get("resultado");
   const esperando = compra.estado === "RESERVADA" && (resultado === "exito" || compra.estadoCobro === "approved" || resultado === "pendiente");
-  const qrs = await Promise.all(compra.entradas.map(async (e) => ({ ...e, svg: await qrSvg(e.codigo) })));
+  // Anuladas (pago devuelto) no se muestran: no dejan entrar.
+  const qrs = await Promise.all(compra.entradas.filter((e) => !e.anuladaEn).map(async (e) => ({ ...e, svg: await qrSvg(e.codigo) })));
   return (
     <Pagina titulo="Tus entradas">
       <div className="flex flex-col gap-1">
@@ -158,6 +159,7 @@ export async function CompraPublica({ tenantId, params, consulta }: PropsRutaPub
           ))}
         {compra.estado === "VENCIDA" && <p className="font-bold">La reserva venció sin pago. Si querés, volvé a comprar.</p>}
         {compra.estado === "EN_REVISION" && <p className="font-bold">Recibimos un pago que hay que revisar. La banda te contacta.</p>}
+        {compra.estado === "DEVUELTA" && <p className="font-bold">El pago se devolvió: estas entradas ya no son válidas.</p>}
       </div>
       {esperando && <Refrescar />}
       {qrs.length > 0 && (

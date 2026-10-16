@@ -367,6 +367,24 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
   }
   const asuntos = async () => (await esperarCorreos(), bandejaDeSalida().map((m) => m.asunto));
 
+  it("conciliación: el cobro del mes aprobado cuyo aviso se perdió no termina en mora", async () => {
+    const { id, en } = await pagadaQueVence();
+    const antes = (await cuentaDe(e.a.id))!.pagoHasta!;
+    mp.cobrar(id, true); // Mercado Pago cobró; el aviso nunca llegó
+    await revisarVencimientos(en(3));
+    expect(await estado(e.a.id)).toBe("ACTIVO");
+    expect((await cuentaDe(e.a.id))!.pagoHasta!.getTime()).toBeGreaterThan(antes.getTime());
+    // Si la pasarela no responde, no se sube ningún escalón esa vuelta.
+    await mp.cerrar();
+    try {
+      await revisarVencimientos(en(40));
+      expect(await estado(e.a.id)).toBe("ACTIVO");
+    } finally {
+      await mp.iniciar();
+      process.env.DEOCO_MERCADOPAGO_API = mp.base;
+    }
+  });
+
   it("los seis escalones: 0 nada, 3 aviso (mail), 15 aviso fuerte, 30 solo lectura, 60 suspendida, 90 archivada", async () => {
     const { en } = await pagadaQueVence();
     vaciarBandeja();
@@ -391,6 +409,19 @@ describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => 
     // Nada se borró.
     expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "tienda"]);
     expect(await dueno.comercialCuenta.count({ where: { tenantId: e.a.id } })).toBe(1);
+  });
+
+  it("archivada: la suscripción se cancela en la pasarela; si vuelve desde Plan y pago y paga, queda activa", async () => {
+    const { id, en } = await pagadaQueVence();
+    await revisarVencimientos(en(91));
+    expect(await estado(e.a.id)).toBe("ARCHIVADO");
+    expect(mp.suscripciones.get(id)!.status).toBe("cancelled");
+    expect((await cuentaDe(e.a.id))!.suscripcionEstado).toBe("cancelada");
+    // Archivada a mano por el staff: lo mismo en la vuelta siguiente.
+    // Vuelve: elige un plan (nueva suscripción), la autoriza y se cobra el primer mes.
+    const nueva = await suscribir(e.a.id, "banda-a", "medium");
+    await avisoCuota("subscription_authorized_payment", mp.cobrar(nueva, true));
+    expect(await estado(e.a.id)).toBe("ACTIVO");
   });
 
   it("con el barrido parado, salta directo al escalón que corresponde", async () => {

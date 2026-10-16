@@ -150,29 +150,40 @@ const suscripciones: SuscripcionesPasarela = {
   },
 
   async consultarCobro(cred, id): Promise<CobroDeSuscripcion> {
-    // Un "pago autorizado" (la factura del mes) y, si ya se intentó, su pago.
-    const a = await llamar<{
-      id: number | string;
-      preapproval_id?: string;
-      status?: string;
-      transaction_amount?: number;
-      debit_date?: string;
-      date_created?: string;
-      payment?: { id?: number | string; status?: string } | null;
-    }>(cred, "GET", `/authorized_payments/${encodeURIComponent(id)}`);
-    const estadoPago = a.payment?.status;
-    // El estado del PAGO manda; sin pago todavía, la factura sigue pendiente (o se canceló).
-    const estado: EstadoDeCobro = estadoPago ? (ESTADOS[estadoPago] ?? "pendiente") : a.status === "cancelled" ? "rechazado" : "pendiente";
-    return {
-      cobroId: String(a.id),
-      suscripcionId: a.preapproval_id ?? null,
-      estado,
-      estadoPasarela: estadoPago ?? a.status ?? "",
-      monto: Math.round(Number(a.transaction_amount ?? 0) * 100),
-      fecha: fecha(a.debit_date ?? a.date_created),
-    };
+    return vistaAutorizado(await llamar<Autorizado>(cred, "GET", `/authorized_payments/${encodeURIComponent(id)}`));
+  },
+
+  async cobrosDe(cred, suscripcionId) {
+    const q = new URLSearchParams({ preapproval_id: suscripcionId, limit: "50" });
+    const r = await llamar<{ results?: Autorizado[] }>(cred, "GET", `/authorized_payments/search?${q}`);
+    return (r.results ?? []).map(vistaAutorizado);
   },
 };
+
+/** Un "pago autorizado" (la factura del mes) y, si ya se intentó, su pago. */
+type Autorizado = {
+  id: number | string;
+  preapproval_id?: string;
+  status?: string;
+  transaction_amount?: number;
+  debit_date?: string;
+  date_created?: string;
+  payment?: { id?: number | string; status?: string } | null;
+};
+
+function vistaAutorizado(a: Autorizado): CobroDeSuscripcion {
+  const estadoPago = a.payment?.status;
+  // El estado del PAGO manda; sin pago todavía, la factura sigue pendiente (o se canceló).
+  const estado: EstadoDeCobro = estadoPago ? (ESTADOS[estadoPago] ?? "pendiente") : a.status === "cancelled" ? "rechazado" : "pendiente";
+  return {
+    cobroId: String(a.id),
+    suscripcionId: a.preapproval_id ?? null,
+    estado,
+    estadoPasarela: estadoPago ?? a.status ?? "",
+    monto: Math.round(Number(a.transaction_amount ?? 0) * 100),
+    fecha: fecha(a.debit_date ?? a.date_created),
+  };
+}
 
 // ── Pagos únicos: SOLO los dominios, con la cuenta de Deoco ────────────────────────────────
 // Checkout Pro con `binary_mode` (el pago queda aprobado o rechazado; uno que quedaría pendiente
@@ -192,6 +203,15 @@ type Pago = {
   currency_id: string;
   payment_type_id?: string | null;
 };
+
+const vistaCobro = (p: Pago): CobroConsultado => ({
+  cobroId: String(p.id),
+  estado: ESTADOS[p.status] ?? "pendiente",
+  estadoPasarela: p.status,
+  referencia: p.external_reference || null,
+  monto: Math.round(Number(p.transaction_amount) * 100),
+  moneda: p.currency_id,
+});
 
 const vistaPago = (p: Pago): PagoConsultado => ({
   pagoId: String(p.id),
@@ -277,6 +297,10 @@ export const mercadoPago: Pasarela = {
       auto_return: "approved",
       notification_url: cobro.urls.aviso,
       external_reference: cobro.referencia,
+      // Lo que reserva cupo un rato (entradas): solo medios inmediatos, aprobado o rechazado.
+      ...(cobro.soloInmediatos ? { binary_mode: true, payment_methods: { excluded_payment_types: MEDIOS_DIFERIDOS.map((id) => ({ id })) } } : {}),
+      // Vencida la preferencia, Mercado Pago no la deja pagar: no entra un pago tardío.
+      ...(cobro.vence ? { expires: true, expiration_date_from: new Date().toISOString(), expiration_date_to: cobro.vence.toISOString() } : {}),
     });
     if (!r.init_point || !r.id) throw new ErrorPasarela("Mercado Pago no devolvió adónde pagar.");
     return { redireccion: r.init_point, preferenciaId: r.id };
@@ -297,21 +321,13 @@ export const mercadoPago: Pasarela = {
   },
 
   async consultarCobro(cred, cobroId): Promise<CobroConsultado> {
-    const p = await llamar<{
-      id: number | string;
-      status: string;
-      external_reference: string | null;
-      transaction_amount: number;
-      currency_id: string;
-    }>(cred, "GET", `/v1/payments/${encodeURIComponent(cobroId)}`);
-    return {
-      cobroId: String(p.id),
-      estado: ESTADOS[p.status] ?? "pendiente",
-      estadoPasarela: p.status,
-      referencia: p.external_reference || null,
-      monto: Math.round(Number(p.transaction_amount) * 100),
-      moneda: p.currency_id,
-    };
+    return vistaCobro(await llamar<Pago>(cred, "GET", `/v1/payments/${encodeURIComponent(cobroId)}`));
+  },
+
+  async buscarCobros(cred, referencia) {
+    const q = new URLSearchParams({ external_reference: referencia, sort: "date_created", criteria: "asc", limit: "50" });
+    const r = await llamar<{ results?: Pago[] }>(cred, "GET", `/v1/payments/search?${q}`);
+    return (r.results ?? []).map(vistaCobro);
   },
 
   devolver: devolverPago,

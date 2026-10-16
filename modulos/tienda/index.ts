@@ -3,6 +3,7 @@
 // El dinero nunca pasa por Deoco.
 import { inicioTienda } from "./inicio";
 import { tiendaEnCurso } from "./en-curso";
+import { conciliarPedidos } from "./pagos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { AdminCatalogo } from "./admin/catalogo";
@@ -116,6 +117,8 @@ const tienda: Modulo = {
   consultas: [{ nombre: "inicio", responder: inicioTienda }],
   // Un cambio de plan no la apaga con pedidos por pagar, en revisión o sin despachar.
   enCurso: tiendaEnCurso,
+  // Conciliación (los avisos se pierden) y vencimiento de los pedidos sin pagar.
+  tareasPeriodicas: [{ nombre: "conciliar-pedidos", cadaSegundos: 120, correr: conciliarPedidos }],
   tablasGlobales: ["tienda_proveedor", "tienda_producto_base", "tienda_oferta"],
 };
 

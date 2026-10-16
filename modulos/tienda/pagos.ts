@@ -9,17 +9,24 @@ import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/
 import { fijarCostosDelPedido } from "./catalogo";
 import { tituloEnvio } from "./comun";
 import tienda from "./index";
-import type { EnvioDeProveedor } from "./pedidos";
-import { type CobroConsultado, crearCobro, ErrorPasarela } from "@/nucleo/pagos";
+import { DIAS_PEDIDO_PENDIENTE, type EnvioDeProveedor } from "./pedidos";
+import { type CobroConsultado, conciliarCobros, crearCobro, ErrorPasarela } from "@/nucleo/pagos";
+import { prisma } from "@/nucleo/db/cliente";
 
 
 /**
  * Crea el cobro del pedido en la pasarela de la banda, con SUS credenciales, y devuelve adónde
  * mandar al fan. `origen`: el sitio de la banda (para volver después de pagar).
  */
-export async function iniciarCobro(tienda: Modulo, tenantId: string, pedidoId: string, origen: string): Promise<string> {
+export async function iniciarCobro(tienda: Modulo, tenantId: string, pedidoId: string, origen: string, ahora = new Date()): Promise<string> {
   const pedido = await conTenant(tenantId, (tx) => tx.tiendaPedido.findUnique({ where: { id: pedidoId }, include: { items: true } }));
   if (!pedido || pedido.estado !== "PENDIENTE") throw new ErrorPasarela("Ese pedido no está esperando un pago.");
+  // Antes de mandar a pagar, se revisa otra vez: vencido o con un producto que ya no está a la venta, no.
+  const motivo = await conTenant(tenantId, (tx) => motivoDeCierre(tx, pedido.id, ahora));
+  if (motivo) {
+    await cancelarPedido(tenantId, pedido.id, motivo);
+    throw new ErrorPasarela(`Este pedido ya no se puede pagar: ${motivo} Armá uno nuevo desde la tienda.`);
+  }
   const volver = (resultado: string) => `${origen}/tienda/pedido/${pedido.id}?resultado=${resultado}`;
   const { pasarela, redireccion, preferenciaId } = await crearCobro(tienda, tenantId, {
     referencia: pedido.id,
@@ -28,6 +35,8 @@ export async function iniciarCobro(tienda: Modulo, tenantId: string, pedidoId: s
     total: pedido.total,
     comprador: { nombre: pedido.nombre, email: pedido.email },
     urls: { exito: volver("exito"), fallo: volver("fallo"), pendiente: volver("pendiente") },
+    // Después del vencimiento la pasarela no lo deja pagar (y si un pago llega igual, va a devolución).
+    vence: venceDe(pedido.creadoEn),
   });
   await conTenant(tenantId, (tx) =>
     tx.tiendaPedido.update({ where: { id: pedido.id }, data: { pasarela, preferenciaId, urlPago: redireccion } }),
@@ -37,13 +46,42 @@ export async function iniciarCobro(tienda: Modulo, tenantId: string, pedidoId: s
 
 export type ResultadoPago = ResultadoCobro;
 
+/** Hasta cuándo se puede pagar un pedido. */
+export const venceDe = (creadoEn: Date) => new Date(creadoEn.getTime() + DIAS_PEDIDO_PENDIENTE * 86_400_000);
+
+/**
+ * Por qué un pedido sin pagar ya no se puede pagar (null: se puede): venció (7 días) o algún
+ * producto dejó de estar a la venta (despublicado, o el proveedor ya no lo ofrece).
+ */
+export async function motivoDeCierre(tx: TxTenant, pedidoId: string, ahora = new Date()): Promise<string | null> {
+  const p = await tx.tiendaPedido.findUnique({ where: { id: pedidoId }, select: { creadoEn: true, items: { select: { productoId: true, nombreProducto: true } } } });
+  if (!p) return null;
+  if (ahora >= venceDe(p.creadoEn)) return `venció a los ${DIAS_PEDIDO_PENDIENTE} días sin pagarse.`;
+  const ids = [...new Set(p.items.map((i) => i.productoId))];
+  const aLaVenta = new Set((await tx.tiendaProducto.findMany({ where: { id: { in: ids }, publicado: true }, select: { id: true } })).map((x) => x.id));
+  const fuera = p.items.find((i) => !aLaVenta.has(i.productoId));
+  return fuera ? `"${fuera.nombreProducto}" dejó de estar a la venta.` : null;
+}
+
+/** Un pedido sin pagar que ya no se puede pagar: CANCELADO (un pago que llegue después va a devolución). */
+export async function cancelarPedido(tenantId: string, pedidoId: string, motivo: string) {
+  await conTenant(tenantId, (tx) =>
+    tx.tiendaPedido.updateMany({ where: { id: pedidoId, estado: "PENDIENTE" }, data: { estado: "CANCELADO", observacion: `No se pagó a tiempo: ${motivo}` } }),
+  );
+}
+
 /** Un pedido, como lo cobra el registro del núcleo (registrarCobro). */
 const pedidoACobrar: CosaACobrar = {
   nombre: "el pedido",
   async buscar(tx, id) {
-    const p = await tx.tiendaPedido.findUnique({ where: { id }, select: { estado: true, total: true, cobroId: true } });
+    // Bloquea el pedido: lo que se decide acá (pagado, cerrado) no cambia hasta terminar.
+    const [p] = await tx.$queryRaw<{ estado: string; total: number; cobroId: string | null }[]>`
+      SELECT estado::text AS estado, total, "cobroId" FROM tienda_pedido WHERE id = ${id}::uuid FOR UPDATE`;
     if (!p) return null;
-    return { estado: p.estado === "PENDIENTE" ? "abierta" : p.estado === "EN_REVISION" ? "en-revision" : "pagada", total: p.total, cobroId: p.cobroId };
+    // Vencido o con un producto fuera de venta: un pago que llega no se entrega (va a devolución).
+    const cerrado = p.estado === "CANCELADO" || p.estado === "DEVUELTO" || (p.estado === "PENDIENTE" && (await motivoDeCierre(tx, id)) !== null);
+    const estado = cerrado ? "cerrada" : p.estado === "PENDIENTE" ? "abierta" : p.estado === "EN_REVISION" ? "en-revision" : "pagada";
+    return { estado, total: p.total, cobroId: p.cobroId };
   },
   async anotarEstado(tx, id, estadoCobro) {
     await tx.tiendaPedido.updateMany({ where: { id, estado: "PENDIENTE" }, data: { estadoCobro } });
@@ -60,6 +98,20 @@ const pedidoACobrar: CosaACobrar = {
       data: { estado: "PAGADO", pagadoEn: new Date(), cobroId: c.cobroId, estadoCobro: c.estadoPasarela, pasarela: c.pasarela },
     });
     return count === 1;
+  },
+  // Devuelto o contracargo: el pedido queda DEVUELTO; si ya se mandó a producir, marcado para que
+  // la banda lo resuelva con el proveedor (Deoco no media ni mueve plata).
+  async alDevolverse(tx, id, cobro) {
+    const p = await tx.tiendaPedido.findUniqueOrThrow({ where: { id }, include: { ordenes: { select: { id: true } } } });
+    if (p.estado === "DEVUELTO") return;
+    const producido = p.ordenes.length > 0;
+    await tx.tiendaPedido.update({
+      where: { id },
+      data: {
+        estado: "DEVUELTO", devueltoEn: new Date(), contracargo: cobro.contracargo, estadoCobro: cobro.estadoPasarela, resolverConProveedor: producido,
+        observacion: `${cobro.contracargo ? "El comprador desconoció el pago (contracargo)." : "El pago se devolvió."}${producido ? " Ya se había mandado a producir: resolvelo con el proveedor." : ""}`,
+      },
+    });
   },
   async alPagarse(tx, id) {
     const { tenantId } = await tx.tiendaPedido.findUniqueOrThrow({ where: { id }, select: { tenantId: true } });
@@ -155,4 +207,42 @@ export async function deudaDeTodas(tx: TxTenant) {
   return bandas
     .map((b) => ({ banda: b, proveedores: agrupar(filas.filter((f) => f.tenantId === b.id)) }))
     .sort((a, b) => a.banda.nombre.localeCompare(b.banda.nombre));
+}
+
+// ---------- Conciliación y vencimiento (los avisos se pierden) ----------
+
+/** Cada cuánto se le vuelve a preguntar a la pasarela por un pedido sin pago, según su edad. */
+function intervalo(edadMs: number): number {
+  if (edadMs < 3600_000) return 2 * 60_000;
+  if (edadMs < 86_400_000) return 30 * 60_000;
+  return 6 * 3600_000;
+}
+
+/**
+ * El barrido: los pedidos sin pagar. Los que se mandaron a pagar se le preguntan a la pasarela
+ * de la banda (un pago aprobado con aviso perdido se registra igual). Los vencidos (7 días) o con
+ * un producto fuera de venta pasan a CANCELADO, después de una última consulta.
+ */
+export async function conciliarPedidos(ahora = new Date()) {
+  const desde = new Date(ahora.getTime() - (DIAS_PEDIDO_PENDIENTE + 30) * 86_400_000);
+  const bandas = await prisma.$queryRaw<{ id: string }[]>`SELECT b AS id FROM tienda_bandas_a_conciliar(${desde}::timestamp, ${ahora}::timestamp) AS b`;
+  for (const { id: tenantId } of bandas) {
+    const pedidos = await conTenant(tenantId, (tx) =>
+      tx.tiendaPedido.findMany({ where: { estado: "PENDIENTE", creadoEn: { gte: desde } }, select: { id: true, creadoEn: true, conciliadoEn: true, preferenciaId: true }, orderBy: { creadoEn: "asc" }, take: 300 }),
+    );
+    for (const p of pedidos) {
+      try {
+        const motivo = await conTenant(tenantId, (tx) => motivoDeCierre(tx, p.id, ahora));
+        const edad = ahora.getTime() - p.creadoEn.getTime();
+        const toca = !p.conciliadoEn || ahora.getTime() - p.conciliadoEn.getTime() >= intervalo(edad) || motivo !== null;
+        if (p.preferenciaId && toca && edad >= 2 * 60_000) {
+          await conciliarCobros(tienda, tenantId, p.id, (pasarela, cobro) => registrarPago(tenantId, pasarela, cobro));
+          await conTenant(tenantId, (tx) => tx.tiendaPedido.update({ where: { id: p.id }, data: { conciliadoEn: ahora } }));
+        }
+        if (motivo) await cancelarPedido(tenantId, p.id, motivo);
+      } catch (e) {
+        console.error(`[tienda] conciliar ${p.id}:`, e instanceof Error ? e.message : e);
+      }
+    }
+  }
 }

@@ -5,9 +5,10 @@
 //
 // El pago es el del núcleo (@/nucleo/pagos), con la pasarela de la banda: la plata va a la
 // banda. La fuente de verdad es la CONSULTA a la API, nunca el aviso.
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
-import { type CobroConsultado, crearCobro, ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
+import { type CobroConsultado, conciliarCobros, crearCobro, ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
+import { prisma } from "@/nucleo/db/cliente";
 import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/pagos/registro";
 import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { ErrorTicketera, esUuid } from "./eventos";
@@ -15,8 +16,28 @@ import { codigoFirmado, nuevoCodigo } from "./firma";
 import ticketera from "./index";
 import { esEmail } from "@/nucleo/correo/direccion";
 
-export const RESERVA_MINUTOS = 20;
-export const MAXIMO_POR_COMPRA = 10;
+// Frenos contra el acaparamiento (un script que reserva un show entero y lo mantiene "agotado").
+// Propuestos; los revisa el titular del producto.
+/** La reserva vence rápido: el lugar vuelve si no se paga. El cobro vence con ella. */
+export const RESERVA_MINUTOS = 10;
+/** Entradas por compra. */
+export const MAXIMO_POR_COMPRA = 6;
+/** Por email y show: entradas sumando las pagadas y las reservadas vigentes. */
+export const MAXIMO_POR_EMAIL_Y_SHOW = 12;
+/** Compras esperando el pago a la vez, por email (en toda la banda). */
+export const RESERVAS_ABIERTAS_POR_EMAIL = 2;
+/** Compras esperando el pago a la vez, por IP (en toda la banda). */
+export const RESERVAS_ABIERTAS_POR_IP = 4;
+
+/** Hash de la IP para el freno: se guarda esto, nunca la IP. */
+export const hashIp = (tenantId: string, ip: string) => createHash("sha256").update(`${tenantId}:${ip}`).digest("hex");
+
+/**
+ * Hasta cuándo se acepta el pago de una compra: al cerrar la venta de ese tipo (la preventa) o al
+ * empezar el show, lo que pase primero. Después, un pago que llega no se entrega: va a devolución.
+ */
+export const cierreDeVenta = (tipo: { ventaHasta: Date | null }, evento: { fecha: Date }) =>
+  tipo.ventaHasta && tipo.ventaHasta < evento.fecha ? tipo.ventaHasta : evento.fecha;
 const DOCUMENTO = /^[0-9A-Za-z.\- ]{5,20}$/;
 
 export type Asistente = { nombre: string; documento: string };
@@ -38,6 +59,28 @@ function validar(d: DatosCompra): DatosCompra {
   });
   if (problemas.length) throw new ErrorTicketera(problemas.join(" "));
   return { ...d, nombre, email, asistentes };
+}
+
+/**
+ * Los frenos contra el acaparamiento, en la transacción de la compra. El mensaje es para el fan:
+ * dice qué hacer, nunca cómo se detecta.
+ */
+async function exigirFrenos(tx: TxTenant, q: { email: string; ipHash: string | null; eventoId: string; cantidad: number }, ahora: Date) {
+  const vigente = { OR: [{ estado: "PAGADA" as const }, { estado: "RESERVADA" as const, venceEn: { gt: ahora } }] };
+  const abiertas = { estado: "RESERVADA" as const, venceEn: { gt: ahora } };
+  const [delEmail, delShow, deLaIp] = await Promise.all([
+    tx.ticketeraCompra.count({ where: { email: q.email, ...abiertas } }),
+    tx.ticketeraCompra.aggregate({ where: { email: q.email, eventoId: q.eventoId, ...vigente }, _sum: { cantidad: true } }),
+    q.ipHash ? tx.ticketeraCompra.count({ where: { ipHash: q.ipHash, ...abiertas } }) : Promise.resolve(0),
+  ]);
+  if (delEmail >= RESERVAS_ABIERTAS_POR_EMAIL || deLaIp >= RESERVAS_ABIERTAS_POR_IP) {
+    throw new ErrorTicketera(`Ya tenés compras esperando el pago. Terminalas (o esperá ${RESERVA_MINUTOS} minutos a que venzan) y volvé a intentar.`);
+  }
+  const yaTiene = delShow._sum.cantidad ?? 0;
+  if (yaTiene + q.cantidad > MAXIMO_POR_EMAIL_Y_SHOW) {
+    const quedan = Math.max(0, MAXIMO_POR_EMAIL_Y_SHOW - yaTiene);
+    throw new ErrorTicketera(`Para este show se pueden comprar hasta ${MAXIMO_POR_EMAIL_Y_SHOW} entradas por persona${quedan ? `: te quedan ${quedan}` : " y ya llegaste"}.`);
+  }
 }
 
 /** Bloquea la fila del tipo (las compras de ese tipo pasan de a una). */
@@ -63,8 +106,9 @@ async function liberarVencidas(tx: TxTenant, tipoId: string, ahora: Date) {
  * Reserva las entradas (ocupa cupo) y crea el cobro en la pasarela de la banda. Devuelve la
  * compra y adónde mandar al fan. Sin cupo, fuera de la ventana de venta o sin pasarela: no.
  */
-export async function comprar(tenantId: string, datos: DatosCompra, origen: string, ahora = new Date()) {
+export async function comprar(tenantId: string, datos: DatosCompra, origen: string, ahora = new Date(), ip: string | null = null) {
   const d = validar(datos);
+  const ipHash = ip ? hashIp(tenantId, ip) : null;
   const { lista } = await pasarelaLista(ticketera, tenantId);
   if (!lista) throw new ErrorTicketera("La venta de entradas no está disponible en este momento.");
   const compra = await conTenant(tenantId, async (tx) => {
@@ -75,6 +119,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
     if (tipo.ventaDesde && ahora < tipo.ventaDesde) throw new ErrorTicketera(`La venta de "${tipo.nombre}" todavía no empezó.`);
     if (tipo.ventaHasta && ahora > tipo.ventaHasta) throw new ErrorTicketera(`La venta de "${tipo.nombre}" ya terminó.`);
     await liberarVencidas(tx, tipo.id, ahora);
+    await exigirFrenos(tx, { email: d.email, ipHash, eventoId: tipo.eventoId, cantidad: d.cantidad }, ahora);
     const ocupadas = (await bloquearTipo(tx, d.tipoId))!.ocupadas;
     const quedan = tipo.cupo - ocupadas;
     if (quedan < d.cantidad) {
@@ -98,6 +143,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
         asistentes: d.asistentes,
         venceEn: new Date(ahora.getTime() + RESERVA_MINUTOS * 60_000),
         token: randomBytes(16).toString("hex"),
+        ipHash,
       },
       include: { evento: true, tipo: true },
     });
@@ -113,6 +159,10 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
       total: compra.total,
       comprador: { nombre: compra.nombre, email: compra.email },
       urls: { exito: volver("exito"), fallo: volver("fallo"), pendiente: volver("pendiente") },
+      // El cobro vence con la reserva y solo con medios inmediatos: nadie paga en efectivo tres
+      // días después un lugar que ya se liberó.
+      vence: compra.venceEn,
+      soloInmediatos: true,
     });
     await conTenant(tenantId, (tx) =>
       tx.ticketeraCompra.update({ where: { id: compra.id }, data: { pasarela: cobro.pasarela, preferenciaId: cobro.preferenciaId, urlPago: cobro.redireccion } }),
@@ -139,9 +189,10 @@ export async function intentarComprar(
   datos: DatosCompra,
   origen: string,
   ahora = new Date(),
+  ip: string | null = null,
 ): Promise<{ ok: true; compraId: string; token: string; redireccion: string } | { ok: false; error: string }> {
   try {
-    return { ok: true, ...(await comprar(tenantId, datos, origen, ahora)) };
+    return { ok: true, ...(await comprar(tenantId, datos, origen, ahora, ip)) };
   } catch (e) {
     if (e instanceof ErrorTicketera) return { ok: false, error: e.message };
     return { ok: false, error: mensajeParaElPublico(e, "ticketera: compra") };
@@ -160,8 +211,10 @@ const compraACobrar: CosaACobrar = {
     const previa = await tx.ticketeraCompra.findUnique({ where: { id }, select: { tipoId: true } });
     if (!previa) return null;
     await bloquearTipo(tx, previa.tipoId); // el cupo no se mueve mientras se registra
-    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } }); // releída con el tipo bloqueado
-    const estado = c.estado === "PAGADA" ? "pagada" : c.estado === "EN_REVISION" ? "en-revision" : "abierta";
+    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id }, include: { tipo: true, evento: true } }); // releída con el tipo bloqueado
+    // Pasado el cierre de la venta (o empezado el show), lo que no se pagó ya no se puede pagar.
+    const cerrada = c.estado === "DEVUELTA" || ((c.estado === "RESERVADA" || c.estado === "VENCIDA") && new Date() >= cierreDeVenta(c.tipo, c.evento));
+    const estado = cerrada ? "cerrada" : c.estado === "PAGADA" ? "pagada" : c.estado === "EN_REVISION" ? "en-revision" : "abierta";
     return { estado, total: c.total, cobroId: c.cobroId };
   },
   async anotarEstado(tx, id, estadoCobro) {
@@ -172,7 +225,7 @@ const compraACobrar: CosaACobrar = {
     const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } });
     if (c.estado !== "VENCIDA") return null;
     const t = (await bloquearTipo(tx, c.tipoId))!;
-    if (t.cupo - t.ocupadas < c.cantidad) return `Pagó (cobro ${cobroId}) cuando la reserva ya había vencido y no queda cupo. Devolvé el pago desde tu pasarela.`;
+    if (t.cupo - t.ocupadas < c.cantidad) return `Pagó (cobro ${cobroId}) cuando la reserva ya había vencido y no queda cupo. Está en Pagos para devolver.`;
     await sumarOcupadas(tx, c.tipoId, c.cantidad);
     return null;
   },
@@ -190,6 +243,22 @@ const compraACobrar: CosaACobrar = {
       data: { estado: "PAGADA", pagadaEn: new Date(), cobroId: cobro.cobroId, estadoCobro: cobro.estadoPasarela, pasarela: cobro.pasarela },
     });
     return count === 1;
+  },
+  // Devuelto o contracargo del pago: las entradas dejan de valer en la puerta y el lugar vuelve.
+  async alDevolverse(tx, id, cobro) {
+    const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } });
+    if (c.estado === "DEVUELTA") return;
+    await bloquearTipo(tx, c.tipoId);
+    const { count } = await tx.ticketeraCompra.updateMany({
+      where: { id, estado: { in: ["PAGADA", "EN_REVISION"] } },
+      data: {
+        estado: "DEVUELTA", devueltaEn: new Date(), contracargo: cobro.contracargo, estadoCobro: cobro.estadoPasarela,
+        observacion: cobro.contracargo ? "El comprador desconoció el pago (contracargo): las entradas quedaron anuladas." : "El pago se devolvió: las entradas quedaron anuladas.",
+      },
+    });
+    if (!count) return;
+    await tx.ticketeraEntrada.updateMany({ where: { compraId: id, anuladaEn: null }, data: { anuladaEn: new Date() } });
+    if (c.estado === "PAGADA") await sumarOcupadas(tx, c.tipoId, -c.cantidad);
   },
   async alPagarse(tx, id) {
     const c = await tx.ticketeraCompra.findUniqueOrThrow({ where: { id } });
@@ -234,4 +303,44 @@ export async function compraConToken(tenantId: string, id: string, token: string
   const a = Buffer.from(c.token);
   const b = Buffer.from(token);
   return a.length === b.length && timingSafeEqual(a, b) ? c : null;
+}
+
+// ---------- Conciliación (los avisos se pierden) ----------
+
+/** Cada cuánto se le vuelve a preguntar a la pasarela por una compra sin pago, según su edad. */
+export function intervaloDeConciliacion(edadMs: number): number {
+  if (edadMs < 3600_000) return 2 * 60_000;
+  if (edadMs < 86_400_000) return 30 * 60_000;
+  return 6 * 3600_000;
+}
+
+/**
+ * El barrido: las compras mandadas a pagar que siguen sin pago (hasta 3 días): se le pregunta a
+ * la pasarela de la banda si hay un cobro con esa referencia y, si lo hay, se registra como si
+ * hubiera llegado el aviso (la misma regla: pagado una vez, tardío para devolver…).
+ */
+export async function conciliarCompras(ahora = new Date()) {
+  const desde = new Date(ahora.getTime() - 3 * 86_400_000);
+  const hasta = new Date(ahora.getTime() - 2 * 60_000);
+  const bandas = await prisma.$queryRaw<{ id: string }[]>`SELECT b AS id FROM ticketera_bandas_a_conciliar(${desde}::timestamp, ${hasta}::timestamp) AS b`;
+  for (const { id: tenantId } of bandas) {
+    const compras = await conTenant(tenantId, (tx) =>
+      tx.ticketeraCompra.findMany({
+        where: { estado: { in: ["RESERVADA", "VENCIDA"] }, preferenciaId: { not: null }, creadoEn: { gte: desde, lte: hasta } },
+        select: { id: true, creadoEn: true, conciliadaEn: true },
+        orderBy: { creadoEn: "desc" },
+        take: 200,
+      }),
+    );
+    for (const c of compras) {
+      const edad = ahora.getTime() - c.creadoEn.getTime();
+      if (c.conciliadaEn && ahora.getTime() - c.conciliadaEn.getTime() < intervaloDeConciliacion(edad)) continue;
+      try {
+        await conciliarCobros(ticketera, tenantId, c.id, (pasarela, cobro) => registrarPago(tenantId, pasarela, cobro));
+        await conTenant(tenantId, (tx) => tx.ticketeraCompra.update({ where: { id: c.id }, data: { conciliadaEn: ahora } }));
+      } catch (e) {
+        console.error(`[ticketera] conciliar ${c.id}:`, e instanceof Error ? e.message : e);
+      }
+    }
+  }
 }

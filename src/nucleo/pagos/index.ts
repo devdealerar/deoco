@@ -120,9 +120,73 @@ export async function cobroDelAviso(
   return { pasarela: pasarela.id, cobro: await pasarela.consultarCobro(cred, cobroId) };
 }
 
+/**
+ * Conciliación (los avisos se pierden): busca en la pasarela de la banda los cobros hechos con
+ * esa referencia y los pasa a `registrar` (el registro del módulo, idempotente: lo ya registrado
+ * no cambia). Para lo que sigue abierto un rato después de mandar al comprador a pagar. Sin
+ * credenciales cargadas, no hace nada. Devuelve cuántos cobros encontró.
+ */
+export async function conciliarCobros(
+  modulo: Modulo,
+  tenantId: string,
+  referencia: string,
+  registrar: (pasarela: string, cobro: CobroConsultado) => Promise<unknown>,
+  reg: Registro = registroGlobal(),
+): Promise<number> {
+  exigirCobrador(modulo, reg);
+  let n = 0;
+  for (const pasarela of PASARELAS) {
+    const cred = await credencialesDe(tenantId, pasarela);
+    if (!pasarela.obligatorias.every((c) => cred[c])) continue;
+    for (const cobro of await pasarela.buscarCobros(cred, referencia)) {
+      if (cobro.referencia !== referencia) continue;
+      await registrar(pasarela.id, cobro);
+      n++;
+    }
+  }
+  return n;
+}
+
 /** A nombre de quién cobra la banda (para que el titular confirme que es su cuenta). */
 export async function probarConexion(modulo: Modulo, tenantId: string, reg: Registro = registroGlobal()) {
   const { lista, pasarela } = await pasarelaLista(modulo, tenantId, reg);
   if (!lista) throw new ErrorPasarela("Faltan las credenciales de cobro.");
   return { pasarela: pasarela.nombre, ...(await pasarela.probarConexion(await credencialesDe(tenantId, pasarela))) };
+}
+
+/**
+ * La banda devuelve un pago de su lista (duplicado, tardío o que no coincide) DESDE SU CUENTA:
+ * Deoco le pide la devolución a la pasarela con las credenciales de la banda (la plata vuelve de
+ * la banda al comprador; nunca pasa por Deoco). Idempotente (clave = el pago). Lo deja en la
+ * auditoría con quien lo hizo.
+ */
+export async function devolverPagoDeLaBanda(tenantId: string, id: string, usuarioId: string): Promise<{ hecha: boolean }> {
+  const fila = await conTenant(tenantId, (tx) => tx.cobroDuplicado.findUnique({ where: { id } }));
+  if (!fila) throw new ErrorPasarela("Ese pago no está en la lista.");
+  if (fila.devueltoEn) return { hecha: true };
+  const pasarela = pasarelaDe(fila.pasarela);
+  if (!pasarela) throw new ErrorPasarela("Pasarela desconocida.");
+  const cred = await credencialesDe(tenantId, pasarela);
+  if (!pasarela.obligatorias.every((c) => cred[c])) throw new ErrorPasarela("Faltan las credenciales de cobro: cargalas en Credenciales → Cobros.");
+  const r = await pasarela.devolver(cred, fila.cobroId, `devolucion:${fila.id}`);
+  await conTenant(tenantId, async (tx) => {
+    await tx.cobroDuplicado.update({
+      where: { id },
+      data: { devolucionId: r.devolucionId, ...(r.hecha ? { devueltoEn: new Date(), devueltoPor: usuarioId, nota: `Devuelto desde Deoco (${pasarela.nombre}).` } : {}) },
+    });
+    await tx.auditoria.createMany({
+      data: [{ usuarioId, tenantId, accion: "pagos.devolucion_pedida", detalle: { id, moduloId: fila.moduloId, referencia: fila.referencia, cobroId: fila.cobroId, monto: fila.monto, hecha: r.hecha } }],
+    });
+  });
+  return { hecha: r.hecha };
+}
+
+/** La banda lo devolvió por su lado (o lo resolvió con el comprador): queda resuelto, con la nota. */
+export async function marcarPagoDevuelto(tenantId: string, id: string, usuarioId: string, nota: string) {
+  const texto = nota.trim().slice(0, 300);
+  if (!texto) throw new ErrorPasarela("Contá cómo lo resolviste (p. ej. \"devuelto desde Mercado Pago el 3/11\").");
+  await conTenant(tenantId, async (tx) => {
+    const { count } = await tx.cobroDuplicado.updateMany({ where: { id, devueltoEn: null }, data: { devueltoEn: new Date(), devueltoPor: usuarioId, nota: texto } });
+    if (count) await tx.auditoria.createMany({ data: [{ usuarioId, tenantId, accion: "pagos.devolucion_marcada", detalle: { id, nota: texto } }] });
+  });
 }
