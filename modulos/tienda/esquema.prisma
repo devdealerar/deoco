@@ -83,6 +83,10 @@ model TiendaDiseno {
   altoPt        Float?
   /// PNG: hay versión liviana para ver en el panel.
   conVistaPrevia Boolean @default(false)
+  /// Versión de un producto ya vendido: el diseño que reemplazó (el arte vendido no se pisa nunca).
+  reemplazaAId  String?  @db.Uuid
+  reemplazaA    TiendaDiseno? @relation("versiones", fields: [tenantId, reemplazaAId], references: [tenantId, id], onDelete: Restrict)
+  reemplazadoPor TiendaDiseno[] @relation("versiones")
   creadoEn      DateTime @default(now())
 
   productos TiendaProducto[]

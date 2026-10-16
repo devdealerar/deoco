@@ -7,8 +7,9 @@ import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
 import { AreaTexto, Campo, CampoArchivo, Casilla, Formulario, Insignia, Selector, Tarjeta } from "@/ui";
 import type { Opcion } from "../catalogo";
 import { formatearPesos, pesosParaCampo } from "@/nucleo/dinero";
+import { FECHA_CORTA } from "@/nucleo/fechas";
 import { describirEspecificacion, medidaDeDiseno, problemasDeImpresion } from "../impresion";
-import { ErrorTienda, listarDisenos, margen, productoDe } from "../productos";
+import { ErrorTienda, historialDeArte, listarDisenos, margen, productoDe } from "../productos";
 import { actualizarProductoAccion, crearProductoAccion, duplicarProductoAccion, publicarAccion } from "./acciones";
 import { Encabezado, PanelMargen, puedeEditar as puedeEditarEn } from "./comun";
 
@@ -18,6 +19,8 @@ type Producto = Awaited<ReturnType<typeof productoDe>>;
 /** Campos del producto: diseño, nombre, descripción, precio, variantes ofrecidas, foto. */
 async function Campos({ tenantId, base, producto }: { tenantId: string; base: Base; producto?: Producto }) {
   const disenos = (await listarDisenos(tenantId)).filter((d) => problemasDeImpresion(medidaDeDiseno(d), base).length === 0 || d.id === producto?.disenoId);
+  // El arte actual puede ser una versión de este producto (no está en la biblioteca): va primero.
+  if (producto && !disenos.some((d) => d.id === producto.disenoId)) disenos.unshift({ ...producto.diseno, nombre: `${producto.diseno.nombre} (el actual)` });
   const ofrecidas = (producto?.variantes ?? null) as Opcion[] | null;
   return (
     <div className="flex flex-col gap-4">
@@ -146,11 +149,34 @@ export async function EditarProducto({ tenantId, slug, params, consulta }: Props
         </div>
       </div>
       <PanelMargen m={margen(producto.precio, base)} envio={base.costoEnvio} />
+      <HistorialArte tenantId={tenantId} productoId={producto.id} />
       <Tarjeta titulo="Datos" descripcion={`${base.nombre} · archivo de impresión: ${describirEspecificacion(base)}`}>
         <Formulario accion={actualizarProductoAccion.bind(null, slug, producto.id)} puedeEditar={puedeEditar}>
           <Campos tenantId={tenantId} base={base} producto={producto} />
         </Formulario>
       </Tarjeta>
     </div>
+  );
+}
+
+/** Las artes que tuvo el producto: el arte vendido no se pisa nunca (cada pedido conserva el suyo). */
+async function HistorialArte({ tenantId, productoId }: { tenantId: string; productoId: string }) {
+  const artes = await historialDeArte(tenantId, productoId);
+  return (
+    <Tarjeta titulo="Historial del arte" descripcion="Si cambiás el arte de un producto ya vendido, se crea una versión nueva: cada pedido conserva el arte con que se compró.">
+      <ul className="flex flex-col gap-2 text-md" data-historial-arte>
+        {artes.map((a) => (
+          <li key={a.disenoId} className="flex flex-wrap items-baseline gap-x-3" data-arte={a.archivoNombre}>
+            <span className="font-medium text-primary">{a.nombre}</span>
+            <span className="text-sm text-tertiary">{a.archivoNombre}</span>
+            <span className="text-sm text-tertiary">desde el {FECHA_CORTA.format(a.desde)}</span>
+            <span className="text-sm text-tertiary" data-pedidos>
+              {a.pedidos === 1 ? "1 pedido" : `${a.pedidos} pedidos`}
+            </span>
+            {a.actual && <Insignia color="exito">Actual</Insignia>}
+          </li>
+        ))}
+      </ul>
+    </Tarjeta>
   );
 }

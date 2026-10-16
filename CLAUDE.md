@@ -218,6 +218,13 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   últimas entradas la página se rehace como "agotada" y un efecto del formulario no correría.
   El sitio lee sus fechas con la consulta `ticketera.proximas-fechas`.
 
+## Tienda: el arte vendido no se pisa (`modulos/tienda/productos.ts`)
+
+- Cada renglón del pedido guarda su `disenoId`. Cambiar el arte de un producto con un pedido pagado
+  crea una versión (`tienda_diseno.reemplazaAId` → la anterior); sin ventas se pisa como siempre (una
+  versión, solo si nadie más la usa). `historialDeArte` y su tarjeta en el producto. La biblioteca
+  (`listarDisenos`) no muestra versiones.
+
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 
 - `gestionaCuenta` (uno solo): decide el estado (la escalera de la cuota, hasta ARCHIVADO; una banda

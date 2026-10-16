@@ -12,7 +12,7 @@ import tienda from "../modulos/tienda";
 import { type ComoStaff, crearProductoBase, crearProveedor, leerOpciones } from "../modulos/tienda/catalogo";
 import { deudaDeBanda, registrarPago } from "../modulos/tienda/pagos";
 import { crearPedido, type DatosFan } from "../modulos/tienda/pedidos";
-import { actualizarProducto, crearProducto, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
+import { actualizarProducto, crearProducto, duplicarProducto, historialDeArte, publicarProducto, subirDiseno } from "../modulos/tienda/productos";
 import {
   accesosDeProveedor,
   cuentaCorriente,
@@ -189,6 +189,50 @@ describe("la orden conserva para siempre su diseño (documento maestro §7)", ()
     // Y el diseño nuevo, que no está en ninguna de sus órdenes, ni lo ve.
     const ve = await conCuentaExterna(delSur, tienda, (tx) => tx.tiendaDiseno.findMany({ select: { id: true } }));
     expect(ve.map((x) => x.id)).toEqual([original.id]);
+  });
+
+  it("con un pedido pagado, cambiar el arte crea una versión nueva (reemplazaA) y el historial dice cuántos pedidos salieron con cada una", async () => {
+    await pedidoPagado(e.a.id, "p-version");
+    const remera = await dueno.tiendaProducto.findFirstOrThrow({ where: { tenantId: e.a.id, nombre: "Remera Gira" } });
+    const viejo = remera.disenoId;
+    const nuevo = await subirDiseno(e.a.id, "Logo 2027", { nombre: "logo-2027.png", datos: await png(4300, 5100) });
+    await actualizarProducto(e.a.id, remera.id, { disenoId: nuevo.id, nombre: remera.nombre, descripcion: "", precio: remera.precio, variantes: [{ nombre: "Talle", valores: ["M"] }] });
+
+    // El producto apunta a una versión nueva: mismo archivo que el elegido, enlazada a la anterior.
+    const ahora = await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: remera.id }, include: { diseno: true } });
+    expect(ahora.disenoId).not.toBe(nuevo.id);
+    expect(ahora.diseno).toMatchObject({ archivoId: nuevo.archivoId, reemplazaAId: viejo });
+    // El diseño elegido de la biblioteca no cambia (lo pueden usar otros productos).
+    expect((await dueno.tiendaDiseno.findUniqueOrThrow({ where: { id: nuevo.id } })).reemplazaAId).toBeNull();
+    // El pedido viejo sigue con su arte: en el portal, el archivo viejo.
+    const d = (await ordenDelProveedor(delSur, (await ordenDe(delSur, "Banda A")).id))!;
+    expect(d.renglones[0].archivo.nombre).toBe("logo.png");
+
+    // Historial: qué artes tuvo, desde cuándo, cuántos pedidos pagados salieron con cada uno.
+    const h = await historialDeArte(e.a.id, remera.id);
+    expect(h.map((x) => [x.archivoNombre, x.pedidos, x.actual])).toEqual([["logo-2027.png", 0, true], ["logo.png", 1, false]]);
+    expect(h[0].desde.getTime()).toBeGreaterThanOrEqual(h[1].desde.getTime());
+
+    // Volver a cambiar sin ventas del arte actual: se pisa esa versión, no se encadena otra.
+    const otro = await subirDiseno(e.a.id, "Logo 2028", { nombre: "logo-2028.png", datos: await png(4300, 5100) });
+    await actualizarProducto(e.a.id, remera.id, { disenoId: otro.id, nombre: remera.nombre, descripcion: "", precio: remera.precio, variantes: [{ nombre: "Talle", valores: ["M"] }] });
+    expect((await historialDeArte(e.a.id, remera.id)).map((x) => x.archivoNombre)).toEqual(["logo-2028.png", "logo.png"]);
+
+    // Un duplicado comparte esa versión: cambiarle el arte al duplicado no toca la del original.
+    const copia = await duplicarProducto(e.a.id, remera.id);
+    const otroMas = await subirDiseno(e.a.id, "Logo 2029", { nombre: "logo-2029.png", datos: await png(4300, 5100) });
+    await actualizarProducto(e.a.id, copia.id, { disenoId: otroMas.id, nombre: copia.nombre, descripcion: "", precio: copia.precio, variantes: [{ nombre: "Talle", valores: ["M"] }] });
+    expect((await historialDeArte(e.a.id, remera.id))[0].archivoNombre).toBe("logo-2028.png");
+    expect((await historialDeArte(e.a.id, copia.id))[0].archivoNombre).toBe("logo-2029.png");
+  });
+
+  it("sin pedidos pagados, cambiar el arte pisa el diseño como siempre (sin versiones)", async () => {
+    const d = await subirDiseno(e.a.id, "Logo", { nombre: "logo.png", datos: await png(4200, 5000) });
+    const p = await crearProducto(e.a.id, remeraBase.id, { disenoId: d.id, nombre: "Remera sin ventas", descripcion: "", precio: 2500000, variantes: [{ nombre: "Talle", valores: ["M"] }] });
+    const otro = await subirDiseno(e.a.id, "Logo 2", { nombre: "logo2.png", datos: await png(4200, 5000) });
+    await actualizarProducto(e.a.id, p.id, { disenoId: otro.id, nombre: p.nombre, descripcion: "", precio: p.precio, variantes: [{ nombre: "Talle", valores: ["M"] }] });
+    expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: p.id } })).disenoId).toBe(otro.id);
+    expect(await historialDeArte(e.a.id, p.id)).toHaveLength(1);
   });
 });
 

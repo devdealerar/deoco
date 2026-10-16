@@ -132,6 +132,9 @@ describe("panel de la tienda", () => {
     const copia = await dueno.tiendaProducto.findFirstOrThrow({ where: { nombre: "Remera Gira 2026 (copia)" } });
     expect([copia.precio, copia.disenoId, copia.variantes]).toEqual([650000, producto.disenoId, producto.variantes]);
     expect((await dueno.tiendaProducto.findUniqueOrThrow({ where: { id: producto.id } })).publicado).toBe(true);
+    // El historial del arte: una sola arte, la actual, sin pedidos.
+    expect(await page.locator('[data-historial-arte] li').count()).toBe(1);
+    expect(await page.locator("[data-historial-arte] [data-pedidos]").textContent()).toBe("0 pedidos");
     await page.goto(`${APP}/b/banda-a/tienda`);
     await captura(page, "tienda-productos");
   });

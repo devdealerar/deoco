@@ -4,7 +4,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { borrarArchivos, ErrorArchivo, guardarArchivo, leerArchivo, marcarPublicos } from "@/nucleo/archivos";
 import { exigirLimite } from "@/nucleo/cuenta";
-import { conTenant } from "@/nucleo/db/con-tenant";
+import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
 import { MODULO, type Opcion } from "./catalogo";
 import { type Especificacion, ErrorImpresion, medidaDeDiseno, medir, problemasDeImpresion } from "./impresion";
@@ -63,8 +63,12 @@ export async function subirDiseno(tenantId: string, nombre: string, archivo: Arc
   );
 }
 
+/** La biblioteca de diseños de la banda (sin las versiones, que son de un producto ya vendido). */
 export const listarDisenos = (tenantId: string) =>
-  conTenant(tenantId, (tx) => tx.tiendaDiseno.findMany({ orderBy: { creadoEn: "desc" } }));
+  conTenant(tenantId, (tx) => tx.tiendaDiseno.findMany({ where: { reemplazaAId: null }, orderBy: { creadoEn: "desc" } }));
+
+/** Pedidos que ya cuentan como venta (el fan pagó): su arte no se puede pisar. */
+const VENDIDO = { estado: { in: ["PAGADO", "EN_REVISION", "DESPACHADO"] as ("PAGADO" | "EN_REVISION" | "DESPACHADO")[] } };
 
 // ---------- Productos ----------
 
@@ -166,6 +170,7 @@ export async function actualizarProducto(
   const f = foto ? await subirFoto(tenantId, foto) : null;
   return conLimpieza(tenantId, f ? [f.id] : [], () =>
     conTenant(tenantId, async (tx) => {
+      if (datos.disenoId !== actual.disenoId) datos.disenoId = await arteNuevo(tx, actual, datos.disenoId);
       const cambiaFoto = f || quitarFoto;
       if (cambiaFoto && actual.fotoArchivoId) await borrarArchivos(tx, tenantId, [actual.fotoArchivoId]);
       if (f && actual.publicado) await marcarPublicos(tx, [f.id], true);
@@ -175,6 +180,55 @@ export async function actualizarProducto(
       });
     }),
   );
+}
+
+/**
+ * El arte de un producto cambia (documento maestro §7; 3.2). Si el arte actual ya se vendió (un
+ * pedido pagado lo usa), no se pisa: se crea una versión nueva del diseño, con el archivo elegido,
+ * que apunta a la que reemplaza (`reemplazaAId`); los pedidos viejos conservan la suya. Si no se
+ * vendió: si es una versión de este producto, se le cambia el archivo; si es de la biblioteca, el
+ * producto pasa a usar el elegido. Devuelve el diseño que queda en el producto.
+ */
+async function arteNuevo(tx: TxTenant, actual: { id: string; disenoId: string; diseno: { reemplazaAId: string | null } }, elegidoId: string): Promise<string> {
+  const elegido = await tx.tiendaDiseno.findUniqueOrThrow({ where: { id: elegidoId } });
+  const vendido = (await tx.tiendaPedidoItem.count({ where: { productoId: actual.id, disenoId: actual.disenoId, pedido: VENDIDO } })) > 0;
+  const archivo = {
+    nombre: elegido.nombre, archivoId: elegido.archivoId, archivoNombre: elegido.archivoNombre, formato: elegido.formato,
+    anchoPx: elegido.anchoPx, altoPx: elegido.altoPx, dpi: elegido.dpi, anchoPt: elegido.anchoPt, altoPt: elegido.altoPt, conVistaPrevia: elegido.conVistaPrevia,
+  };
+  if (vendido) {
+    const version = await tx.tiendaDiseno.create({ data: { tenantId: elegido.tenantId, ...archivo, reemplazaAId: actual.disenoId } });
+    return version.id;
+  }
+  if (actual.diseno.reemplazaAId) {
+    // Una versión se pisa solo si nadie más la usa: ni otro producto (uno duplicado), ni un pedido
+    // todavía sin pagar (fabricaría el arte nuevo). Si no, otra versión encima.
+    const usada =
+      (await tx.tiendaPedidoItem.count({ where: { disenoId: actual.disenoId } })) +
+      (await tx.tiendaProducto.count({ where: { disenoId: actual.disenoId, id: { not: actual.id } } }));
+    if (usada) return (await tx.tiendaDiseno.create({ data: { tenantId: elegido.tenantId, ...archivo, reemplazaAId: actual.disenoId } })).id;
+    await tx.tiendaDiseno.update({ where: { id: actual.disenoId }, data: archivo });
+    return actual.disenoId;
+  }
+  return elegidoId;
+}
+
+export type ArteDelProducto = { disenoId: string; nombre: string; archivoNombre: string; archivoId: string; desde: Date; pedidos: number; actual: boolean };
+
+/** Las artes que tuvo un producto, de la actual a la primera: desde cuándo y cuántos pedidos pagados salieron con cada una. */
+export async function historialDeArte(tenantId: string, productoId: string): Promise<ArteDelProducto[]> {
+  return conTenant(tenantId, async (tx) => {
+    const producto = await tx.tiendaProducto.findUniqueOrThrow({ where: { id: productoId }, select: { disenoId: true, creadoEn: true } });
+    const artes: ArteDelProducto[] = [];
+    for (let id: string | null = producto.disenoId; id && artes.length < 100; ) {
+      const d: { id: string; nombre: string; archivoNombre: string; archivoId: string; creadoEn: Date; reemplazaAId: string | null } = await tx.tiendaDiseno.findUniqueOrThrow({ where: { id } });
+      const pedidos = await tx.tiendaPedidoItem.count({ where: { productoId, disenoId: d.id, pedido: VENDIDO } });
+      // La primera arte rige desde que existe el producto; cada versión, desde que se creó.
+      artes.push({ disenoId: d.id, nombre: d.nombre, archivoNombre: d.archivoNombre, archivoId: d.archivoId, desde: d.reemplazaAId ? d.creadoEn : producto.creadoEn, pedidos, actual: artes.length === 0 });
+      id = d.reemplazaAId;
+    }
+    return artes;
+  });
 }
 
 /** Publicado se ve en la tienda; borrador, no. La foto propia se hace pública con el producto. */
