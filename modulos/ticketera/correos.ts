@@ -1,5 +1,6 @@
 // compra.pagada → mail al comprador con un QR por entrada (imágenes embebidas, cid:) y el link
 // para volver a verlas. Una vez por compra (clave única).
+import { contextoDeToken, tokenParaEnlace } from "@/nucleo/publico/token";
 import QRCode from "qrcode";
 import { enviarCorreo, escaparHtml as h } from "@/nucleo/correo";
 import { conTenant } from "@/nucleo/db/con-tenant";
@@ -25,7 +26,8 @@ export async function alPagarseCompra(evento: Evento) {
   if (!datos || datos.c.estado !== "PAGADA") return;
   const { c, banda, sitio } = datos;
   // El token va después de "#": el navegador nunca lo manda a un servidor (ni en Referer ni en logs).
-  const url = sitio ? `${sitio}/fechas/compra/${c.id}#${c.token}` : null;
+  const token = tokenParaEnlace(c.tokenCifrado, contextoDeToken(c.tenantId, "ticketera", c.id));
+  const url = sitio && token ? `${sitio}/fechas/compra/${c.id}#${token}` : null;
   const cuando = FECHA_LARGA.format(c.evento.fecha);
   const adjuntos = await Promise.all(
     c.entradas.map(async (e) => ({ nombre: `entrada-${e.codigo}.png`, tipo: "image/png", cid: `qr-${e.codigo}`, contenido: await qrPng(e.codigo) })),

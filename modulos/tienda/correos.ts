@@ -1,6 +1,7 @@
 // Mails de la tienda, colgados de pedido.pagado: la confirmación al fan y una orden de
 // producción por proveedor. Cada uno con su clave única: un aviso repetido o un reproceso del
 // evento no los manda dos veces. La orden al proveedor NO lleva montos de venta ni datos de pago.
+import { contextoDeToken, tokenParaEnlace } from "@/nucleo/publico/token";
 import { urlFirmada } from "@/nucleo/archivos/firmados";
 import { enviarCorreo, escaparHtml as h } from "@/nucleo/correo";
 import { conTenant } from "@/nucleo/db/con-tenant";
@@ -42,7 +43,8 @@ const celda = "padding:6px 0;border-bottom:1px solid #e7e5e4;vertical-align:top"
 export function correoAlFan({ pedido, banda, sitio }: Datos, contacto: Contacto) {
   const envios = pedido.envios as { monto: number; productos: string[] }[];
   // El token va después de "#": el navegador nunca lo manda a un servidor (ni en Referer ni en logs).
-  const url = sitio ? `${sitio}/tienda/pedido/${pedido.id}#${pedido.token}` : null;
+  const token = tokenParaEnlace(pedido.tokenCifrado, contextoDeToken(pedido.tenantId, "tienda", pedido.id));
+  const url = sitio && token ? `${sitio}/tienda/pedido/${pedido.id}#${token}` : null;
   const [linea1, linea2] = direccion(pedido);
   const renglones = pedido.items.map((i) => ({
     nombre: i.nombreProducto,
@@ -197,7 +199,8 @@ export async function alDespacharseOrden(evento: Evento) {
   if (!datos) return;
   const { orden, pedido, items, otras, faltan, banda, sitio } = datos;
   const contacto = await contactoDeTienda(evento.tenantId);
-  const url = sitio ? `${sitio}/tienda/pedido/${pedido.id}#${pedido.token}` : null;
+  const token = tokenParaEnlace(pedido.tokenCifrado, contextoDeToken(pedido.tenantId, "tienda", pedido.id));
+  const url = sitio && token ? `${sitio}/tienda/pedido/${pedido.id}#${token}` : null;
   const renglones = items.map((i) => {
     const variante = describirVariante(i.variante as Record<string, string>);
     return `${i.nombreProducto} × ${i.cantidad}${variante ? ` (${variante})` : ""}`;

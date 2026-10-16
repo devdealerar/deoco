@@ -447,7 +447,8 @@ falta de `DATABASE_URL_MIGRACIONES`). Solo la primera persona de staff va a mano
   `src/app/error.tsx`. Pool y tiempos: `src/nucleo/db/config.ts` (`DEOCO_DB_CONEXIONES`).
 - Acceso sin cuenta a algo privado (entradas, pedido): cookie del sitio de la banda
   (`recordarAcceso`/`accesoRecordado`) + link del mail con el token después de "#" (`CanjearLink`).
-  Nunca un token en una URL que vea un tercero.
+  Nunca un token en una URL que vea un tercero. En la base, nunca en claro (`@/nucleo/publico/token`):
+  `tokenHash` (sha256, se compara con `tokenCoincide`) y `tokenCifrado` (para armar el link del mail).
 
 ## Comandos
 

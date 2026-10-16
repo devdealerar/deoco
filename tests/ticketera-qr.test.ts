@@ -22,7 +22,7 @@ async function entrada(codigo: string) {
   const c = await dueno.ticketeraCompra.create({
     data: {
       tenantId: e.a.id, eventoId, tipoId: t.id, estado: "PAGADA", cantidad: 1, precioUnitario: 100, total: 100,
-      nombre: "Fan", email: "fan@x.com", asistentes: [], venceEn: new Date(), token: "t", pagadaEn: new Date(),
+      nombre: "Fan", email: "fan@x.com", asistentes: [], venceEn: new Date(), tokenHash: "h".repeat(64), pagadaEn: new Date(),
     },
   });
   await dueno.ticketeraEntrada.create({ data: { tenantId: e.a.id, compraId: c.id, eventoId, tipoId: t.id, nombre: "Fan", documento: "30000000", codigo } });

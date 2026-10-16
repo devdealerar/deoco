@@ -20,7 +20,7 @@ async function show(fecha: Date, vendidas: number) {
     const c = await dueno.ticketeraCompra.create({
       data: {
         tenantId: e.a.id, eventoId: ev.id, tipoId: t.id, estado: "PAGADA", cantidad: vendidas, precioUnitario: 100, total: 100 * vendidas,
-        nombre: "Fan", email: "fan@x.com", asistentes: [], venceEn: new Date(), token: "t", pagadaEn: new Date(),
+        nombre: "Fan", email: "fan@x.com", asistentes: [], venceEn: new Date(), tokenHash: "h".repeat(64), pagadaEn: new Date(),
       },
     });
     for (let i = 0; i < vendidas; i++) {

@@ -398,5 +398,14 @@ describe("C1: lo que pierde plata", () => {
       comprador: { email: "fiscal@x.com", documento: "20301112223" }, total: 1500000, renglones: [{ cantidad: 1, precioUnitario: 1500000, importe: 1500000 }],
     });
   });
+
+  it("el token del fan nunca está en claro en la base: hash para comprobar y cifrado para el link", async () => {
+    const { tipoId } = await showDeA(5);
+    const c = await compraDe(tipoId, 1, undefined, "tok@x.com");
+    const fila = await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } });
+    expect(JSON.stringify({ ...fila, tokenCifrado: Buffer.from(fila.tokenCifrado!).toString("hex") })).not.toContain(c.token);
+    expect(await compraConToken(e.a.id, c.compraId, c.token)).not.toBeNull();
+    expect(await compraConToken(e.a.id, c.compraId, fila.tokenHash)).toBeNull(); // el hash no abre nada
+  });
 });
 

@@ -1,3 +1,4 @@
+import { contextoDeToken, hashDeToken, tokenParaEnlace } from "@/nucleo/publico/token";
 import { request } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { guardarArchivo } from "@/nucleo/archivos";
@@ -84,7 +85,11 @@ describe("ticketera", () => {
     const compra = await dueno.ticketeraCompra.findFirstOrThrow();
     expect(compra).toMatchObject({ estado: "RESERVADA", cantidad: 2, total: 3000000, email: "lucia@fan.com" });
     // La pasarela no recibió el token de las entradas.
-    expect(JSON.stringify(mp.preferencias[0].cuerpo)).not.toContain(compra.token);
+    // Ni la base lo tiene en claro: solo su hash y su cifrado.
+    expect(compra.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    const tokenDeLaCompra = tokenParaEnlace(compra.tokenCifrado, contextoDeToken(compra.tenantId, "ticketera", compra.id))!;
+    expect(hashDeToken(tokenDeLaCompra)).toBe(compra.tokenHash);
+    expect(JSON.stringify(mp.preferencias[0].cuerpo)).not.toContain(tokenDeLaCompra);
     // Vuelve antes del aviso (como lo devuelve la pasarela, sin token): "confirmando".
     await page.goto(`${SITIO}/fechas/compra/${compra.id}?resultado=exito`);
     expect(await page.locator("[data-estado-compra]").textContent()).toContain("Estamos confirmando tu pago");
@@ -111,7 +116,7 @@ describe("ticketera", () => {
     expect(await otro.locator("[data-estado-compra]").textContent()).toContain("abrí el link de ese mail");
     expect(await otro.locator("[data-entrada]").count()).toBe(0);
     const link = mail.texto.match(/https?:\/\/\S+#[0-9a-f]+/)![0];
-    expect(link).toBe(`${SITIO}/fechas/compra/${compra.id}#${compra.token}`);
+    expect(link).toBe(`${SITIO}/fechas/compra/${compra.id}#${tokenDeLaCompra}`);
     const delMail = (await anonimo()).page; // el link del mail abre una pestaña nueva
     await delMail.goto(link);
     await delMail.locator("[data-entrada]").first().waitFor();

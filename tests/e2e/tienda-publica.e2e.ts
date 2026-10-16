@@ -1,3 +1,4 @@
+import { contextoDeToken, tokenParaEnlace } from "@/nucleo/publico/token";
 import { request } from "node:http";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -162,7 +163,9 @@ describe("tienda pública", () => {
     expect(await page.locator("[data-titulo-estado]").textContent()).toBe("Estamos confirmando tu pago");
     await page.locator("header [data-carrito='0']").waitFor(); // el carrito se vació
     // La pasarela no recibió el token del pedido; otro navegador sin el link del mail solo ve el estado.
-    expect(JSON.stringify(mp.preferencias[0].cuerpo)).not.toContain(pedido.token);
+    const tokenDelPedido = tokenParaEnlace(pedido.tokenCifrado, contextoDeToken(pedido.tenantId, "tienda", pedido.id))!;
+    expect(tokenDelPedido).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(mp.preferencias[0].cuerpo)).not.toContain(tokenDelPedido);
     const ajeno = (await anonimo()).page;
     await ajeno.goto(`${SITIO}/tienda/pedido/${pedido.id}`);
     await ajeno.locator("[data-sin-acceso]").waitFor();

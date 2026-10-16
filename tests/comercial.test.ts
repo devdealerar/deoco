@@ -264,7 +264,7 @@ describe("cuota", () => {
     const tipoId = (await dueno.ticketeraTipo.findFirstOrThrow({ where: { eventoId: showId } })).id;
     await publicarEvento(e.a.id, showId, true);
     const compra = await dueno.ticketeraCompra.create({
-      data: { tenantId: e.a.id, eventoId: showId, tipoId, estado: "PAGADA", cantidad: 1, precioUnitario: 1000000, total: 1000000, nombre: "Fan", email: "fan@x.com", asistentes: [{ nombre: "Fan", documento: "30111222" }], venceEn: new Date(), token: "t".repeat(32) },
+      data: { tenantId: e.a.id, eventoId: showId, tipoId, estado: "PAGADA", cantidad: 1, precioUnitario: 1000000, total: 1000000, nombre: "Fan", email: "fan@x.com", asistentes: [{ nombre: "Fan", documento: "30111222" }], venceEn: new Date(), tokenHash: "h".repeat(64) },
     });
     await dueno.ticketeraEntrada.create({ data: { tenantId: e.a.id, compraId: compra.id, eventoId: showId, tipoId, nombre: "Fan", documento: "30111222", codigo: "ABCDEFGHIJ" } });
 
@@ -293,7 +293,7 @@ describe("cuota", () => {
     const [p] = await productos(e.a.id, 1);
     await publicarProducto(e.a.id, p, true);
     const pedido = await dueno.tiendaPedido.create({
-      data: { tenantId: e.a.id, nombre: "Fan", email: "fan@x.com", telefono: "1", calle: "C", numero: "1", ciudad: "R", provincia: "Santa Fe", codigoPostal: "2000", subtotal: 1, envio: 0, total: 1, token: "t".repeat(64) },
+      data: { tenantId: e.a.id, nombre: "Fan", email: "fan@x.com", telefono: "1", calle: "C", numero: "1", ciudad: "R", provincia: "Santa Fe", codigoPostal: "2000", subtotal: 1, envio: 0, total: 1, tokenHash: "h".repeat(64) },
     });
     const escenario = (await planes()).find((x) => x.id === "escenario")!;
     await guardarPlan(comoStaff, "escenario", { ...escenario, modulos: ["sitio"] });

@@ -106,9 +106,11 @@ model TicketeraCompra {
   documento      String?
   /// Foto fiscal al pagarse (`@/nucleo/fiscal`): vendedor, comprador, renglones e impuestos.
   fiscal         Json?
-  /// Secreto del link para volver a ver las entradas (/fechas/compra/<id>?t=<token>): el id
-  /// solo no alcanza, las entradas dejan entrar.
-  token          String
+  /// Secreto del link para volver a ver las entradas (/fechas/compra/<id>#<token>): el id solo
+  /// no alcanza, las entradas dejan entrar. En la base nunca en claro: el hash para comprobarlo y
+  /// el cifrado para armar el link (`@/nucleo/publico/token`; null en compras de antes).
+  tokenHash      String
+  tokenCifrado   Bytes?
   creadoEn       DateTime              @default(now())
 
   entradas TicketeraEntrada[]

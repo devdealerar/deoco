@@ -5,11 +5,12 @@
 //
 // El pago es el del núcleo (@/nucleo/pagos), con la pasarela de la banda: la plata va a la
 // banda. La fuente de verdad es la CONSULTA a la API, nunca el aviso.
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { type CobroConsultado, conciliarCobros, crearCobro, ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
 import { prisma } from "@/nucleo/db/cliente";
 import { documentoFiscal, fotoFiscal } from "@/nucleo/fiscal";
+import { contextoDeToken, nuevoTokenDeAcceso, tokenCoincide } from "@/nucleo/publico/token";
 import { type CosaACobrar, registrarCobro, type ResultadoCobro } from "@/nucleo/pagos/registro";
 import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { ErrorTicketera, esUuid } from "./eventos";
@@ -115,6 +116,9 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
   const ipHash = ip ? hashIp(tenantId, ip) : null;
   const { lista } = await pasarelaLista(ticketera, tenantId);
   if (!lista) throw new ErrorTicketera("La venta de entradas no está disponible en este momento.");
+  // El token de acceso del fan: en la base solo su hash y su cifrado (nunca en claro).
+  const compraId = randomUUID();
+  const acceso = nuevoTokenDeAcceso(contextoDeToken(tenantId, ticketera.id, compraId), 16);
   const compra = await conTenant(tenantId, async (tx) => {
     const bloqueado = await bloquearTipo(tx, d.tipoId);
     if (!bloqueado) throw new ErrorTicketera("Ese tipo de entrada no existe.");
@@ -146,7 +150,9 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
         email: d.email,
         asistentes: d.asistentes,
         venceEn: new Date(ahora.getTime() + RESERVA_MINUTOS * 60_000),
-        token: randomBytes(16).toString("hex"),
+        id: compraId,
+        tokenHash: acceso.hash,
+        tokenCifrado: acceso.cifrado,
         ipHash,
         documento: d.documento ?? null,
       },
@@ -172,7 +178,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
     await conTenant(tenantId, (tx) =>
       tx.ticketeraCompra.update({ where: { id: compra.id }, data: { pasarela: cobro.pasarela, preferenciaId: cobro.preferenciaId, urlPago: cobro.redireccion } }),
     );
-    return { compraId: compra.id, token: compra.token, redireccion: cobro.redireccion };
+    return { compraId: compra.id, token: acceso.token, redireccion: cobro.redireccion };
   } catch (e) {
     // Sin cobro, la reserva no sirve: libera el lugar ya.
     await conTenant(tenantId, async (tx) => {
@@ -311,10 +317,7 @@ export async function compraConToken(tenantId: string, id: string, token: string
   const c = await conTenant(tenantId, (tx) =>
     tx.ticketeraCompra.findUnique({ where: { id }, include: { evento: true, tipo: true, entradas: { orderBy: { nombre: "asc" } } } }),
   );
-  if (!c) return null;
-  const a = Buffer.from(c.token);
-  const b = Buffer.from(token);
-  return a.length === b.length && timingSafeEqual(a, b) ? c : null;
+  return c && tokenCoincide(token, c.tokenHash) ? c : null;
 }
 
 // ---------- Conciliación (los avisos se pierden) ----------

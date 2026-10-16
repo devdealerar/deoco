@@ -2,7 +2,7 @@
 // decide nada: al revisarlo y al confirmar, todo se recalcula contra la base de la banda
 // (precio, que siga publicado, que la variante exista). El pedido nace PENDIENTE con su copia
 // de precios y envíos.
-import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/nucleo/db/cliente";
 import { conTenant } from "@/nucleo/db/con-tenant";
@@ -12,6 +12,7 @@ import { PROVINCIAS } from "./comun";
 import { pasarelaLista } from "@/nucleo/pagos";
 import { esEmail } from "@/nucleo/correo/direccion";
 import { documentoFiscal } from "@/nucleo/fiscal";
+import { contextoDeToken, nuevoTokenDeAcceso } from "@/nucleo/publico/token";
 
 export { describirVariante, PROVINCIAS } from "./comun";
 
@@ -212,18 +213,24 @@ export async function crearPedido(tienda: Modulo, tenantId: string, lineas: Line
   const problemas = [...revision.problemas, ...deFan];
   if (problemas.length) throw new ErrorCompra(problemas);
 
+  // El token de acceso del fan: en la base solo su hash y su cifrado (nunca en claro).
+  const id = randomUUID();
+  const acceso = nuevoTokenDeAcceso(contextoDeToken(tenantId, tienda.id, id));
   return conTenant(tenantId, async (tx) => {
-    const pedido = await tx.tiendaPedido.create({
+    const creado = await tx.tiendaPedido.create({
       data: {
+        id,
         tenantId,
         ...datos,
         subtotal: revision.subtotal,
         envio: revision.envio,
         envios: revision.envios as unknown as Prisma.InputJsonValue,
         total: revision.total,
-        token: randomBytes(32).toString("hex"),
+        tokenHash: acceso.hash,
+        tokenCifrado: acceso.cifrado,
       },
     });
+    const pedido = { ...creado, token: acceso.token };
     for (const l of revision.lineas) {
       // Defensa en dos capas: la revisión buscó el producto bajo RLS (de esta banda), y la clave
       // foránea compuesta (tenantId, productoId) hace que la base rechace uno de otra banda.

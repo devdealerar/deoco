@@ -222,8 +222,11 @@ model TiendaPedido {
   documento     String?
   /// Foto fiscal al pagarse (`@/nucleo/fiscal`): vendedor, comprador, renglones e impuestos.
   fiscal        Json?
-  /// Secreto para ver el pedido y pagarlo (cookie del navegador que compró o link del mail).
-  token         String
+  /// Secreto para ver el pedido y pagarlo (cookie del navegador que compró o link del mail). En
+  /// la base nunca en claro: el hash para comprobarlo y el cifrado para armar el link
+  /// (`@/nucleo/publico/token`; null en pedidos de antes).
+  tokenHash     String
+  tokenCifrado  Bytes?
 
   items       TiendaPedidoItem[]
   deudas      TiendaDeuda[]
