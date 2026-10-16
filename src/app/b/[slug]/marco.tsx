@@ -87,6 +87,13 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                   </Link>
                 </li>
               )}
+              {!archivada && !acceso.viaStaff && (
+                <li>
+                  <Link href={`/b/${slug}/equipo`} className={item}>
+                    Equipo
+                  </Link>
+                </li>
+              )}
               {esTitular && !archivada && (
                 <li>
                   <Link href={`/b/${slug}/actividad`} className={item}>

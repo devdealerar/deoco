@@ -48,4 +48,22 @@ describe("sesiones que se cierran de verdad", () => {
     expect((await enPanel(titular)).url).toContain("/ingresar");
     expect(await dueno.auditoria.count({ where: { accion: "usuario.sesiones_cerradas", usuarioId: e.staff.id } })).toBe(1);
   });
+
+  it("el titular saca a alguien desde Equipo: el panel abierto de esa persona deja de entrar en su próximo clic", async () => {
+    await dueno.usuario.update({ where: { id: e.multi.id }, data: { versionSesion: 0 } });
+    const editora = (await logueado("editor-a@x.com")).page;
+    expect((await editora.goto(`${APP}/b/banda-a/equipo`))!.status()).toBe(200);
+    expect(await editora.getByRole("button", { name: "Sacar de la banda" }).count()).toBe(0); // no es titular
+
+    const titular = (await logueado("multi@x.com")).page;
+    await titular.goto(`${APP}/b/banda-a/equipo`);
+    const fila = titular.locator('[data-miembro="editor-a@x.com"]').locator("xpath=ancestor::tr");
+    const form = fila.locator("form[data-hidratado]").filter({ has: titular.getByRole("button", { name: "Sacar de la banda" }) });
+    await form.waitFor();
+    await form.getByText("Confirmo: pierde el acceso").click();
+    await form.getByRole("button", { name: "Sacar de la banda" }).click();
+    for (let i = 0; i < 50 && (await dueno.membresia.count({ where: { tenantId: e.a.id, usuarioId: e.editorA.id } })) > 0; i++) await new Promise((r) => setTimeout(r, 100));
+    expect((await editora.goto(`${APP}/b/banda-a`))!.status()).toBe(403);
+    expect(await dueno.auditoria.count({ where: { accion: "membresia.quitada", tenantId: e.a.id, usuarioId: e.multi.id } })).toBe(1);
+  });
 });

@@ -46,6 +46,67 @@ Documento maestro: `docs/documento-maestro.md`. Auditoría: `docs/auditoria-docu
   hallazgos mal construidos en su §5, conflictos para decidir en su §6). Arreglado de paso: textos de
   la cuota que seguían prometiendo "el sitio sigue online".
 
+### C · Lo que pierde plata y lo que no se recupera ✅
+
+C1 (cada punto con su prueba):
+- C1.1 Cambiar de plan nunca corta lo vendido ni lo abierto: un módulo con algo en curso
+  (`enCurso` del contrato, devoluciones pendientes incluidas) queda prendido como excedente
+  (`moduloTenant.excedenteDesde`) y se cobra el plan que lo cubre hasta que cierra. Mismo patrón
+  en apagar módulos (staff). `tests/cuenta.test.ts`, `tests/comercial.test.ts`.
+- C1.2 Conciliación con la pasarela: tienda (`conciliarPedidos`), ticketera (`conciliarCompras`) y
+  cuota (`conciliarCuota`, antes de subir un escalón). Un pago aprobado cuyo aviso se perdió se
+  registra igual.
+- C1.3 Vencimientos: pedido de tienda a los 7 días o al dejar de estar a la venta; compra de
+  entradas al cerrar la preventa o al empezar el show (lo primero). Pago tardío → no se acepta y
+  queda para devolver.
+- C1.4 Duplicados siempre registrados; pantalla `/b/<slug>/devoluciones` con aviso en el panel.
+- C1.5 Contracargos y devoluciones cambian el estado (`alDevolverse`): las entradas dejan de valer
+  en la puerta (`anuladaEn`); un pedido ya producido queda marcado para resolver con el proveedor.
+- C1.6 Archivada: la suscripción se cancela en la pasarela (`cancelarDeArchivadas`); `/pago` sigue
+  abierto para el titular (darse de baja o volver).
+- C1.7 `auditoria` inmutable para `deoco_app` (REVOKE + disparador); pantallas en `/admin/auditoria`
+  y `/b/<slug>/actividad`; cada guardado del panel de un módulo queda registrado.
+- C1.8 Acaparamiento de entradas: reserva de 10 min, 6 por compra, 12 por email y show, 2 reservas
+  abiertas por email y 4 por IP (`ipHash`). **Números propuestos, para revisar.**
+- C1.9 El subdominio no cae con un dominio propio roto: solo se redirige al principal si está sano.
+- C1.10 Datos fiscales y país de destino desde la primera venta (`@/nucleo/fiscal`, foto por venta).
+
+Decisiones aplicadas: B3 según el 3.2 (despublicar + reasignar en un clic, lo pagado se produce);
+plazos del crédito B4 en la base por proveedor (`docs/decisiones-pendientes.md`); planes del 3.2
+(Demo y Escenario a la venta, Gira y Sello cerrados, prorrateo al subir; `docs/planes.md`); grilla
+de espacio 1,5 / 10 / 36 GB por la cuenta de los siete años.
+
+C2: copias diarias fuera del VPS, restauración probada (contra la base de pruebas) y monitoreo:
+`docs/copias-y-monitoreo.md`. **No se contrató nada**: propuesta Backblaze B2 + Better Stack +
+Healthchecks.io, USD 0 a 2 por mes al arrancar. Falta la restauración de verdad en el VPS.
+
+C3 (menores del §5 de la segunda vuelta):
+- Tokens del fan: hash para comprobar y cifrado para el link (nunca en claro).
+- Compartimentos de conexiones por banda (`DEOCO_DB_CONEXIONES_POR_BANDA`, `ErrorBandaOcupada`).
+- Sesiones: `usuario.versionSesion` (cambiar la clave o "Cerrar sesiones" en `/admin/usuarios`).
+- La baja voluntaria recibe "terminó el período que pagaste", no mails de mora.
+- Archivos sin huérfanos (cuota → bytes → fila; `limpiarHuerfanos` diario); el sitio no borra al
+  publicar una imagen recién subida; `DEOCO_LIMITE_ALMACENAMIENTO` validado al arrancar.
+- Lo que el staff cambia en un producto base llega a los productos (`tienda_base_cambiada`).
+- Menores del §5.18: el pedido conserva el proveedor cuyo envío pagó el fan; la puerta no abre
+  shows pasados o en borrador; el inicio no corta pendientes en silencio. ("Envío incluido" en el
+  esquema ya estaba corregido.)
+
+C4 (casos de borde del núcleo, 3.2 núcleo d6):
+
+| Caso | Estado | Dónde |
+|---|---|---|
+| Tope de entradas con la venta abierta | No hay tope de entradas: nunca se corta, pero tampoco se factura ni se sugiere subir | `docs/planes.md` |
+| Tope de almacenamiento | OK: se bloquean cargas, no se borra nada | `tests/archivos.test.ts` |
+| Baja con más productos que el tope | OK: borrador por orden inverso de creación | `tests/comercial.test.ts` |
+| Baja con dominio propio | OK: redirige al subdominio, el dominio sigue de la banda, no suma nuevos | `tests/dominios.test.ts` |
+| Sube a mitad de período | OK: límites ya, diferencia proporcional en el próximo cobro | `tests/comercial.test.ts` |
+| Evento puntual que excede el plan | FALTA: no hay complementos sueltos | |
+| El titular se va | OK: la base impone que nunca quede sin titular; pasar la titularidad y dejar la banda desde `/b/<slug>/equipo` | `tests/equipo.test.ts` |
+| Conflicto interno | PARCIAL: una persona titular no saca ni baja a otra desde el panel, pero puede haber varias titulares y no hay "titular registrado" único | |
+| Usuario revocado con sesión abierta | OK: membresía (rol por pedido), clave o "Cerrar sesiones" | `tests/equipo.test.ts`, `tests/e2e/sesiones.e2e.ts` |
+| Un manager pierde la representación | OK lo de la banda (la saca desde Equipo); el módulo `manager` no existe | |
+
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 
 Diseño: `docs/diseno-dominios.md` (caminos, transiciones, certificado, correo, compra).

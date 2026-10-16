@@ -95,6 +95,9 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
   ni el staff (pasarela de cobro). La excepción del staff está en `src/nucleo/permisos/puede.ts`.
   Un permiso de un módulo apagado para la banda es siempre false.
 - Staff sin membresía: `registrarAccesoStaff()` lo deja en `auditoria` (una fila cada 10 min).
+- Equipo (`/b/<slug>/equipo`, `src/nucleo/acceso/equipo.ts`): el titular saca gente, cambia roles y
+  pasa la titularidad; cualquiera deja la banda. A otra persona TITULAR no se la toca desde el panel.
+  Nunca sin titular: lo impone la base (`banda_con_titular`, diferido). Sumar gente: el staff.
 - Formularios del panel de un módulo: `edicion: { permiso, ruta, sinPermiso, guardado? }` en el
   contrato (el registro lo valida al arrancar) + `accionesDelPanel(() => modulo, [errores])`
   (`src/nucleo/acceso/acciones.ts`). Todo permiso escrito en un módulo debe estar declarado (prueba).
@@ -114,7 +117,7 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   (con cualquier comando) y npm antes de test/typecheck.
   El núcleo nunca nombra un módulo (lo verifica `tests/modulos.test.ts`).
 - El registro (`src/nucleo/modulos/registro.ts`) valida el contrato al arrancar: ids, permisos
-  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`/`, `/pago`, `/archivos`, `/dominios`, `/correo`, `/credenciales` en el panel;
+  `<id>.recurso.accion`, rutas sin choques ni rutas del núcleo (`RUTAS_NUCLEO_PANEL`: `/`, `/pago`, `/devoluciones`, `/actividad`, `/equipo`, `/archivos`, `/dominios`, `/correo`, `/credenciales` en el panel;
   `/ingresar`, `/api`, `/b`, `/archivos`, `/admin`, `/avisos`, `/clave`, `/descargas`, `/portal` en el sitio), navegación que apunta a rutas propias.
 - Rutas: las de panel se montan en `/b/<slug>/<ruta>`, las públicas en la raíz del host de
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
