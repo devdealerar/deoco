@@ -1,5 +1,5 @@
 import { formatearBytes, usoAlmacenamiento } from "@/nucleo/archivos";
-import { catalogoDeCuenta, usoDeLimites } from "@/nucleo/cuenta";
+import { catalogoDeCuenta, excedentesDe, usoDeLimites } from "@/nucleo/cuenta";
 import { formatearPesos } from "@/nucleo/dinero";
 import { ZONA } from "@/nucleo/fechas";
 import type { PropsRutaPanel } from "@/nucleo/modulos/contrato";
@@ -60,7 +60,8 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
   const todos = await planes();
   const actual = planEfectivo(cuenta, todos);
   const elegido = cuenta.planElegido ? todos.find((p) => p.id === cuenta.planElegido) : null;
-  const [uso, limites, cfg] = await Promise.all([usoAlmacenamiento(tenantId), usoDeLimites(tenantId), plazos()]);
+  const [uso, limites, cfg, excedentes] = await Promise.all([usoAlmacenamiento(tenantId), usoDeLimites(tenantId), plazos(), excedentesDe(tenantId)]);
+  const excedente = cuenta.excedentePlanId ? todos.find((p) => p.id === cuenta.excedentePlanId) : null;
   const s = situacion(cuenta, ahora);
   const activa = cuenta.suscripcionEstado === "activa";
   const habilitada = cuotaConfigurada();
@@ -73,6 +74,14 @@ export async function PantallaPago({ tenantId, slug, consulta }: PropsRutaPanel)
         <p className="mt-1 text-md text-tertiary">La cuota mensual de Deoco. Se la pagás a Deoco por {pasarela}; las ventas de tu banda siguen yendo a tu cuenta.</p>
       </header>
       {aviso && <Aviso tono="info">{aviso}</Aviso>}
+      {excedentes.length > 0 && (
+        <Aviso tono="info" titulo="Lo que ya vendiste no se corta" data-testid="excedente">
+          Tu plan no incluye {excedentes.map((x) => x.moduloId).join(", ")}, pero sigue prendido porque tiene operaciones abiertas (
+          {excedentes.map((x) => x.excedenteMotivo).filter(Boolean).join("; ")}).
+          {excedente ? ` Mientras tanto se cobra como el plan ${excedente.nombre}${excedente.precio !== null ? ` (${formatearPesos(excedente.precio)} por mes)` : ""}.` : ""}{" "}
+          Cuando se cierre, se apaga solo.
+        </Aviso>
+      )}
       {!habilitada && (
         <Aviso tono="info" titulo="El cobro de la cuota todavía no está habilitado">
           Por ahora no se puede cargar una forma de pago. Tu cuenta sigue funcionando.

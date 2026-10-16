@@ -83,6 +83,10 @@ model ComercialCuenta {
   pagoHasta         DateTime?
   /// Desde cuándo está en mora (null: al día).
   moraDesde         DateTime?
+  /// Excedente: el plan no incluye un módulo que sigue prendido porque tiene algo abierto (un show
+  /// vendido, pedidos sin despachar). Mientras dure se cobra el plan que lo incluye (`excedentePlanId`).
+  excedenteDesde    DateTime?
+  excedentePlanId   String?
   creadoEn          DateTime  @default(now())
   actualizadoEn     DateTime  @default(now()) @updatedAt
 

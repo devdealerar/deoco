@@ -9,6 +9,7 @@
 // (accionesDelPanel) y este archivo importa el registro, que importa los módulos.
 import { ErrorCuenta, ErrorLimite } from "./errores";
 import type { EstadoTenant, Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/nucleo/db/cliente";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
@@ -53,16 +54,37 @@ export async function fijarEstado(
   });
 }
 
+/** Lo que un módulo tiene abierto en la banda (`enCurso`). Si la consulta falla, se asume que hay algo: nunca se apaga a ciegas. */
+export async function abiertoEn(moduloId: string, tenantId: string, reg: Registro = registroGlobal()): Promise<string[]> {
+  const m = reg.modulo(moduloId);
+  if (!m?.enCurso) return [];
+  try {
+    return await m.enCurso(tenantId);
+  } catch (e) {
+    console.error(`[cuenta] enCurso(${moduloId}):`, e);
+    return ["no se pudo revisar lo que tiene abierto"];
+  }
+}
+
+export type ModuloRetenido = { moduloId: string; abierto: string[] };
+
 /**
  * Deja prendidos exactamente `deseados` (más el gestor, que nunca se apaga a sí mismo). Lo que
  * se apaga conserva sus datos. Falla si la lista no cierra con las dependencias.
+ *
+ * Un cambio de plan NUNCA corta una operación en curso (3.2, núcleo d5): un módulo que habría
+ * que apagar pero tiene algo abierto (`enCurso`) queda prendido como excedente (`retenidos`,
+ * `moduloTenant.excedenteDesde`), con lo que necesita. El gestor vuelve a llamar cuando quiera
+ * (el barrido): se apaga recién cuando no queda nada abierto. Un módulo que vuelve a estar en
+ * `deseados` deja de ser excedente.
  */
 export async function fijarModulos(
   modulo: Modulo,
   tenantId: string,
   deseados: readonly string[],
   reg: Registro = registroGlobal(),
-): Promise<{ prendidos: string[]; apagados: string[] }> {
+  ahora = new Date(),
+): Promise<{ prendidos: string[]; apagados: string[]; retenidos: ModuloRetenido[] }> {
   exigirGestor(modulo, reg);
   const desconocidos = deseados.filter((id) => !reg.modulo(id));
   if (desconocidos.length) throw new ErrorCuenta(`No existen los módulos ${desconocidos.join(", ")}.`);
@@ -71,17 +93,67 @@ export async function fijarModulos(
     const faltan = (reg.modulo(id)!.dependencias ?? []).filter((d) => !objetivo.has(d));
     if (faltan.length) throw new ErrorCuenta(`"${id}" necesita ${faltan.join(", ")}, que no está en la lista.`);
   }
+  const filas = await conTenant(tenantId, (tx) => tx.moduloTenant.findMany({ select: { moduloId: true, excedenteDesde: true } }));
+  // Solo se apagan módulos que existen: una fila de un módulo que no está en el build no se toca.
+  const aApagar = filas.filter((f) => !objetivo.has(f.moduloId) && reg.modulo(f.moduloId)).map((f) => f.moduloId);
+  // Lo que tiene algo abierto se queda (y lo que depende de un retenido, también: no se rompe la cadena).
+  const retenidos: ModuloRetenido[] = [];
+  for (const id of aApagar) {
+    const abierto = await abiertoEn(id, tenantId, reg);
+    if (abierto.length) retenidos.push({ moduloId: id, abierto });
+  }
+  const quedan = new Set([...objetivo, ...retenidos.map((r) => r.moduloId)]);
+  for (const r of [...retenidos]) {
+    for (const d of reg.modulo(r.moduloId)!.dependencias ?? []) {
+      if (!quedan.has(d) && aApagar.includes(d)) {
+        retenidos.push({ moduloId: d, abierto: [`lo necesita ${r.moduloId}, que tiene operaciones abiertas`] });
+        quedan.add(d);
+      }
+    }
+  }
+
   return conTenant(tenantId, async (tx) => {
-    const actuales = new Set((await tx.moduloTenant.findMany({ select: { moduloId: true } })).map((f) => f.moduloId));
+    const actuales = new Map((await tx.moduloTenant.findMany({ select: { moduloId: true, excedenteDesde: true } })).map((f) => [f.moduloId, f.excedenteDesde]));
     const prendidos = [...objetivo].filter((id) => !actuales.has(id)).sort();
-    // Solo se apagan módulos que existen: una fila de un módulo que no está en el build no se toca.
-    const apagados = [...actuales].filter((id) => !objetivo.has(id) && reg.modulo(id)).sort();
-    if (!prendidos.length && !apagados.length) return { prendidos, apagados };
+    const apagados = [...actuales.keys()].filter((id) => !quedan.has(id) && reg.modulo(id)).sort();
+    const retenidoIds = new Set(retenidos.map((r) => r.moduloId));
+    const nuevosRetenidos = retenidos.filter((r) => actuales.has(r.moduloId) && !actuales.get(r.moduloId));
+    const dejanDeSerExcedente = [...actuales.entries()].filter(([id, desde]) => desde && objetivo.has(id)).map(([id]) => id);
     if (apagados.length) await tx.moduloTenant.deleteMany({ where: { moduloId: { in: apagados } } });
     if (prendidos.length) await tx.moduloTenant.createMany({ data: prendidos.map((moduloId) => ({ tenantId, moduloId })), skipDuplicates: true });
-    await auditar(tx, tenantId, modulo.id, "banda.modulos_cambiados", { prendidos, apagados });
-    return { prendidos, apagados };
+    for (const r of retenidos) {
+      if (!actuales.has(r.moduloId)) continue;
+      await tx.moduloTenant.updateMany({
+        where: { moduloId: r.moduloId },
+        data: { excedenteMotivo: r.abierto.join("; "), ...(actuales.get(r.moduloId) ? {} : { excedenteDesde: ahora }) },
+      });
+    }
+    if (dejanDeSerExcedente.length) {
+      await tx.moduloTenant.updateMany({ where: { moduloId: { in: dejanDeSerExcedente } }, data: { excedenteDesde: null, excedenteMotivo: null } });
+    }
+    if (prendidos.length || apagados.length || nuevosRetenidos.length || dejanDeSerExcedente.length) {
+      await auditar(tx, tenantId, modulo.id, "banda.modulos_cambiados", {
+        prendidos,
+        apagados,
+        excedente: nuevosRetenidos.map((r) => ({ modulo: r.moduloId, abierto: r.abierto })),
+        ...(dejanDeSerExcedente.length ? { yaNoExcedente: dejanDeSerExcedente } : {}),
+      });
+    }
+    return { prendidos, apagados, retenidos: retenidos.filter((r) => retenidoIds.has(r.moduloId) && actuales.has(r.moduloId)) };
   });
+}
+
+/** Módulos de la banda que siguen prendidos como excedente: desde cuándo y por qué. */
+export async function excedentesDe(tenantId: string) {
+  return conTenant(tenantId, (tx) =>
+    tx.moduloTenant.findMany({ where: { excedenteDesde: { not: null } }, select: { moduloId: true, excedenteDesde: true, excedenteMotivo: true }, orderBy: { moduloId: "asc" } }),
+  ) as Promise<{ moduloId: string; excedenteDesde: Date; excedenteMotivo: string | null }[]>;
+}
+
+/** Ids de las bandas con algún módulo en excedente (para que el gestor las revise). */
+export async function bandasConExcedente(): Promise<string[]> {
+  const filas = await prisma.$queryRaw<{ id: string }[]>`SELECT bandas_con_excedente() AS id`;
+  return filas.map((f) => f.id);
 }
 
 export type Limites = {

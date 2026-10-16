@@ -8,6 +8,8 @@ import {
   exigirLimite,
   fijarEstado,
   fijarLimites,
+  bandasConExcedente,
+  excedentesDe,
   fijarModulos,
   limiteDe,
   usoDeLimites,
@@ -16,6 +18,7 @@ import { conTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { crearRegistro } from "@/nucleo/modulos/registro";
+import { apagarModulo } from "@/nucleo/modulos/encendido";
 import { dosBandas, dueno } from "./apoyo";
 
 // El núcleo del gestor de cuenta, con módulos de mentira: un gestor, dos módulos con
@@ -41,6 +44,9 @@ const gestor: Modulo = {
 };
 const base: Modulo = { id: "base", nombre: "Base", permisos: [] };
 const extra: Modulo = { id: "extra", nombre: "Extra", permisos: [], dependencias: ["base"] };
+// Un módulo con algo abierto (p. ej. entradas vendidas de un show que no terminó).
+const abiertos = new Map<string, string[]>();
+const ventas: Modulo = { id: "ventas", nombre: "Ventas", permisos: [], dependencias: ["base"], enCurso: async (t) => abiertos.get(t) ?? [] };
 const contador: Modulo = {
   id: "contador",
   nombre: "Contador",
@@ -59,7 +65,7 @@ const contador: Modulo = {
     },
   ],
 };
-const reg = crearRegistro([gestor, base, extra, contador]);
+const reg = crearRegistro([gestor, base, extra, contador, ventas]);
 
 let e: Awaited<ReturnType<typeof dosBandas>>;
 beforeAll(async () => {
@@ -116,8 +122,8 @@ describe("estado", () => {
 
 describe("módulos", () => {
   it("deja prendidos exactamente los pedidos (más el gestor) y respeta dependencias", async () => {
-    expect(await fijarModulos(gestor, e.a.id, ["base", "extra"], reg)).toEqual({ prendidos: ["base", "extra", "gestor"], apagados: [] });
-    expect(await fijarModulos(gestor, e.a.id, ["base"], reg)).toEqual({ prendidos: [], apagados: ["extra"] });
+    expect(await fijarModulos(gestor, e.a.id, ["base", "extra"], reg)).toEqual({ prendidos: ["base", "extra", "gestor"], apagados: [], retenidos: [] });
+    expect(await fijarModulos(gestor, e.a.id, ["base"], reg)).toEqual({ prendidos: [], apagados: ["extra"], retenidos: [] });
     await expect(fijarModulos(gestor, e.a.id, ["extra"], reg)).rejects.toThrow(/necesita base/);
     await expect(fijarModulos(gestor, e.a.id, ["no-existe"], reg)).rejects.toThrow(/No existen/);
     // Un módulo que no está en el build no se apaga (su fila queda).
@@ -125,6 +131,50 @@ describe("módulos", () => {
     await fijarModulos(gestor, e.a.id, [], reg);
     expect((await dueno.moduloTenant.findMany({ where: { tenantId: e.a.id } })).map((m) => m.moduloId).sort()).toEqual(["gestor", "viejo"]);
     expect(await dueno.moduloTenant.count({ where: { tenantId: e.b.id } })).toBe(0);
+  });
+});
+
+describe("un cambio de plan nunca corta lo que está abierto (excedente)", () => {
+  it("el módulo con algo abierto queda prendido como excedente (y lo que necesita); se apaga cuando cierra", async () => {
+    await fijarModulos(gestor, e.a.id, ["base", "ventas"], reg);
+    abiertos.set(e.a.id, ["1 show con entradas vendidas que no terminó"]);
+    const r = await fijarModulos(gestor, e.a.id, [], reg);
+    expect(r.apagados).toEqual([]);
+    expect(r.retenidos).toEqual([
+      { moduloId: "ventas", abierto: ["1 show con entradas vendidas que no terminó"] },
+      { moduloId: "base", abierto: ["lo necesita ventas, que tiene operaciones abiertas"] },
+    ]);
+    const filas = await dueno.moduloTenant.findMany({ where: { tenantId: e.a.id }, orderBy: { moduloId: "asc" } });
+    expect(filas.map((f) => [f.moduloId, !!f.excedenteDesde])).toEqual([["base", true], ["gestor", false], ["ventas", true]]);
+    expect((await bandasConExcedente())).toEqual([e.a.id]);
+    const fila = await dueno.auditoria.findFirstOrThrow({ where: { tenantId: e.a.id, accion: "banda.modulos_cambiados" }, orderBy: { fecha: "desc" } });
+    expect(fila.detalle).toMatchObject({ apagados: [], excedente: [{ modulo: "ventas" }, { modulo: "base" }] });
+
+    // Cerró: el próximo intento lo apaga.
+    abiertos.delete(e.a.id);
+    expect(await fijarModulos(gestor, e.a.id, [], reg)).toMatchObject({ apagados: ["base", "ventas"], retenidos: [] });
+    expect(await bandasConExcedente()).toEqual([]);
+  });
+
+  it("si vuelve a estar en el plan deja de ser excedente; si no se puede revisar, no se apaga", async () => {
+    await fijarModulos(gestor, e.a.id, ["base", "ventas"], reg);
+    abiertos.set(e.a.id, ["algo"]);
+    await fijarModulos(gestor, e.a.id, ["base"], reg);
+    await fijarModulos(gestor, e.a.id, ["base", "ventas"], reg);
+    expect((await excedentesDe(e.a.id))).toEqual([]);
+    abiertos.delete(e.a.id);
+    const roto: Modulo = { ...ventas, enCurso: async () => { throw new Error("se cayó la base"); } };
+    const reg2 = crearRegistro([gestor, base, roto]);
+    expect((await fijarModulos(gestor, e.a.id, ["base"], reg2)).retenidos).toEqual([{ moduloId: "ventas", abierto: ["no se pudo revisar lo que tiene abierto"] }]);
+  });
+
+  it("el staff tampoco lo apaga con algo abierto", async () => {
+    await fijarModulos(gestor, e.a.id, ["base", "ventas"], reg);
+    abiertos.set(e.a.id, ["3 pedidos pagados sin despachar"]);
+    const staff = await dueno.usuario.create({ data: { email: `staff-${Date.now()}@x.com`, nombre: "Staff", hashContrasena: "x", esStaff: true } });
+    await expect(apagarModulo(staff.id, e.a.id, "ventas", reg)).rejects.toThrow(/operaciones abiertas \(3 pedidos pagados sin despachar\)/);
+    abiertos.delete(e.a.id);
+    await apagarModulo(staff.id, e.a.id, "ventas", reg);
   });
 });
 

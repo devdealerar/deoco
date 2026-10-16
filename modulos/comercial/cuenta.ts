@@ -8,7 +8,7 @@
 // (@/nucleo/pagos/cuota, credenciales del entorno). Nada de acá toca las ventas de la banda.
 import { Prisma } from "@/generated/prisma/client";
 import type { ContextoStaff } from "@/nucleo/acceso/staff";
-import { catalogoDeCuenta, fijarEstado, fijarLimites, fijarModulos } from "@/nucleo/cuenta";
+import { bandasConExcedente, catalogoDeCuenta, fijarEstado, fijarLimites, fijarModulos, type ModuloRetenido } from "@/nucleo/cuenta";
 import { formatearBytes, LIMITE_ALMACENAMIENTO } from "@/nucleo/archivos";
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { prisma } from "@/nucleo/db/cliente";
@@ -107,19 +107,82 @@ export function planEfectivo(cuenta: Pick<Cuenta, "planId" | "pro">, todos: Plan
  * Lleva la banda a lo que dice su plan: los módulos (prende y apaga; lo apagado conserva sus
  * datos) y los límites (si un tope baja, el módulo despublica lo último publicado, sin borrar).
  */
-export async function aplicarPlan(tenantId: string): Promise<{ prendidos: string[]; apagados: string[]; despublicados: Record<string, number> }> {
+export type PlanAplicado = {
+  prendidos: string[];
+  apagados: string[];
+  despublicados: Record<string, number>;
+  /** Módulos que el plan ya no incluye pero siguen prendidos porque tienen algo abierto. */
+  retenidos: ModuloRetenido[];
+  /** Mientras haya retenidos, el plan que se cobra (el más barato que los incluye). */
+  excedente: Plan | null;
+};
+
+/**
+ * Lleva la banda a lo que dice su plan: los límites (si un tope baja, el módulo despublica lo
+ * último publicado, sin borrar), los módulos (prende y apaga; lo apagado conserva sus datos) y
+ * el monto de la suscripción.
+ *
+ * Nunca corta una operación en curso (3.2, núcleo d5): un módulo con algo abierto queda
+ * prendido como EXCEDENTE y, mientras tanto, se cobra el plan más barato que lo incluye (o el
+ * que tenía). El barrido vuelve a aplicar el plan; cuando se cierra lo abierto, se apaga y
+ * vuelve el precio del plan elegido. Con la suscripción activa, el monto nuevo rige desde el
+ * próximo cobro (lo ya pagado del período no cambia).
+ */
+export async function aplicarPlan(tenantId: string, ahora = new Date()): Promise<PlanAplicado> {
   const modulo = await comercial();
   const cuenta = await cuentaDe(tenantId);
   if (!cuenta) throw new ErrorComercial("Tu banda todavía no tiene un plan asignado. Escribinos y lo resolvemos.");
-  const plan = planEfectivo(cuenta, await planes());
+  const todos = await planes();
+  const plan = planEfectivo(cuenta, todos);
   const reg = catalogoDeCuenta();
   // Un plan puede nombrar un módulo que no está en este build: no se prende (no rompe).
   const modulos = plan.modulos.filter((id) => reg.modulos.some((m) => m.id === id));
   // Primero los límites (con los módulos todavía prendidos, cada uno ajusta lo suyo).
   const topes = Object.fromEntries(reg.limites.map((l) => [l.id, plan.topes[l.id] ?? null]));
   const despublicados = await fijarLimites(modulo, tenantId, { almacenamiento: plan.almacenamiento, topes });
-  const { prendidos, apagados } = await fijarModulos(modulo, tenantId, modulos);
-  return { prendidos, apagados, despublicados };
+  const { prendidos, apagados, retenidos } = await fijarModulos(modulo, tenantId, modulos, undefined, ahora);
+  const excedente = retenidos.length ? planQueCubre(cuenta, plan, [...modulos, ...retenidos.map((r) => r.moduloId)], todos) : null;
+  await conTenant(tenantId, (tx) =>
+    tx.comercialCuenta.update({
+      where: { tenantId },
+      data: excedente
+        ? { excedentePlanId: excedente.id, ...(cuenta.excedenteDesde ? {} : { excedenteDesde: ahora }) }
+        : { excedentePlanId: null, excedenteDesde: null },
+    }),
+  );
+  await ajustarMonto(tenantId, (excedente ?? plan).precio);
+  return { prendidos, apagados, despublicados, retenidos, excedente };
+}
+
+/**
+ * El plan que se cobra mientras haya excedente: el más barato (con precio) que incluye todo lo
+ * que queda prendido. Si ninguno lo incluye, el que la banda tenía antes (el precio que ya
+ * venía pagando), y si tampoco, el elegido. Un Pro a medida no tiene excedente: lo maneja el staff.
+ */
+function planQueCubre(cuenta: Cuenta, elegido: Plan, prendidos: string[], todos: Plan[]): Plan | null {
+  if (cuenta.pro) return null;
+  const cubren = todos
+    .filter((p) => p.precio !== null && prendidos.every((m) => p.modulos.includes(m)))
+    .sort((a, b) => a.precio! - b.precio!);
+  const cubre = cubren[0];
+  if (cubre && (elegido.precio === null || cubre.precio! >= elegido.precio)) return cubre;
+  const anterior = cuenta.excedentePlanId ? todos.find((p) => p.id === cuenta.excedentePlanId) : undefined;
+  return anterior ?? elegido;
+}
+
+/** Con la suscripción activa, deja el monto en `precio` (rige desde el próximo cobro). */
+async function ajustarMonto(tenantId: string, precio: number | null) {
+  const cuenta = await cuentaDe(tenantId);
+  if (!cuenta?.suscripcionId || cuenta.suscripcionEstado !== "activa" || precio === null || precio === cuenta.montoSuscripcion) return;
+  await cambiarMontoSuscripcion(await comercial(), cuenta.suscripcionId, precio);
+  await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { montoSuscripcion: precio } }));
+}
+
+/** El barrido: las bandas con excedente vuelven a aplicar su plan (se apaga lo que ya cerró). */
+export async function revisarExcedentes(ahora = new Date()) {
+  for (const id of await bandasConExcedente()) {
+    await aplicarPlan(id, ahora).catch((e) => console.error(`[comercial] excedente de ${id}:`, e));
+  }
 }
 
 export const OPCION_PRUEBA = "prueba";
@@ -197,6 +260,15 @@ function inicioDelCobro(cuenta: Cuenta, ahora: Date): Date | undefined {
   return hasta;
 }
 
+/** Lo que se le dice al titular al cambiar de plan (con el excedente, si quedó algo prendido). */
+function mensajeDePlan(plan: Plan, r: PlanAplicado): string {
+  const base = `Listo: ya tenés el plan ${plan.nombre}.`;
+  if (!r.excedente) return `${base} Desde el próximo cobro se cobran ${plan.precio !== null ? formatearPesos(plan.precio) : "lo del plan"} por mes.`;
+  const abierto = r.retenidos.map((m) => `${m.moduloId} (${m.abierto.join(", ")})`).join("; ");
+  const precio = r.excedente.precio !== null ? ` (${formatearPesos(r.excedente.precio)} por mes)` : "";
+  return `${base} Lo que ya está vendido no se corta: sigue prendido ${abierto}. Mientras siga abierto se cobra como el plan ${r.excedente.nombre}${precio}; cuando se cierre, se apaga solo y pasás a pagar el plan ${plan.nombre}.`;
+}
+
 export type ResultadoEleccion = { redireccion: string } | { mensaje: string };
 
 /**
@@ -215,10 +287,9 @@ export async function elegirPlan(tenantId: string, slug: string, planId: string,
 
   if (cuenta.suscripcionId && cuenta.suscripcionEstado === "activa") {
     if (cuenta.planId === planId && !cuenta.planElegido) return { mensaje: `Ya tenés el plan ${plan.nombre}.` };
-    if (cuenta.montoSuscripcion !== plan.precio) await cambiarMontoSuscripcion(modulo, cuenta.suscripcionId, plan.precio);
-    await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { planId, planElegido: null, montoSuscripcion: plan.precio } }));
-    await aplicarPlan(tenantId);
-    return { mensaje: `Listo: ya tenés el plan ${plan.nombre}. Desde el próximo cobro se cobran ${formatearPesos(plan.precio)} por mes.` };
+    await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { planId, planElegido: null } }));
+    const r = await aplicarPlan(tenantId, ahora);
+    return { mensaje: mensajeDePlan(plan, r) };
   }
 
   const banda = await conTenant(tenantId, async (tx) => ({
@@ -428,8 +499,9 @@ function validarPlan(d: DatosPlan): DatosPlan {
 
 /**
  * El staff edita un plan. Las bandas con ese plan (sin Pro a medida) pasan a tenerlo al
- * instante: si un tope bajó, se despublica lo último publicado (nunca se borra). El precio
- * nuevo NO cambia suscripciones ya autorizadas (rige para las que se elijan desde ahora).
+ * instante: si un tope bajó, se despublica lo último publicado (nunca se borra); un módulo que
+ * sale del plan queda como excedente si tiene algo abierto. El precio nuevo rige desde el
+ * próximo cobro de cada suscripción: el período ya pagado no cambia (3.2, dinero d5).
  */
 export async function guardarPlan(comoStaff: ComoStaff, planId: string, datos: DatosPlan) {
   const d = validarPlan(datos);
@@ -475,13 +547,12 @@ export async function guardarPlazos(comoStaff: ComoStaff, datos: DatosPlazos) {
  * monto nuevo se cobra desde el próximo ciclo.
  */
 export async function asignarPlan(comoStaff: ComoStaff, tenantId: string, planId: string, pro: ProAMedida | null) {
-  const modulo = await comercial();
   const todos = await planes();
   if (!todos.some((p) => p.id === planId)) throw new ErrorComercial("Ese plan no existe.");
   if (pro) {
     validarPlan({ nombre: "pro", descripcion: "", precioUsd: "", precio: pro.precio, modulos: pro.modulos, almacenamiento: pro.almacenamiento ? BigInt(pro.almacenamiento) : null, topes: pro.topes, aLaVenta: false });
   }
-  const cuenta = await comoStaff("comercial.plan_asignado", async (_tx, ctx) => {
+  await comoStaff("comercial.plan_asignado", async (_tx, ctx) => {
     const c = await conTenant(tenantId, async (tx) => {
       const previa = await tx.comercialCuenta.findUnique({ where: { tenantId } });
       const data = { planId, planElegido: null, pro: pro ? (pro as unknown as Prisma.InputJsonValue) : Prisma.DbNull };
@@ -493,9 +564,4 @@ export async function asignarPlan(comoStaff: ComoStaff, tenantId: string, planId
     return c;
   });
   await aplicarPlan(tenantId);
-  const precio = planEfectivo(cuenta, todos).precio;
-  if (cuenta.suscripcionId && cuenta.suscripcionEstado === "activa" && precio !== null && precio !== cuenta.montoSuscripcion) {
-    await cambiarMontoSuscripcion(modulo, cuenta.suscripcionId, precio);
-    await conTenant(tenantId, (tx) => tx.comercialCuenta.update({ where: { tenantId }, data: { montoSuscripcion: precio } }));
-  }
 }

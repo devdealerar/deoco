@@ -79,15 +79,19 @@ describe("el núcleo resuelve la banda y entrega el aviso al módulo", () => {
     expect(a.json()).toEqual({ id: "pago-1", monto: 1500 });
   });
 
-  it("404 sin pistas: id inválido, banda inexistente o archivada, módulo apagado o ruta no declarada", async () => {
+  it("404 sin pistas: id inválido, banda inexistente o ruta no declarada", async () => {
     expect((await atender("no-es-uuid", "/pagos/mp")).status).toBe(404);
     expect((await atender("00000000-0000-4000-8000-000000000000", "/pagos/mp")).status).toBe(404);
-    expect((await atender(e.b.id, "/pagos/mp", { cuerpo: '{"id":"x"}' })).status).toBe(404); // apagado en B
     expect((await atender(e.a.id, "/otra")).status).toBe(404);
     expect((await atenderAviso(pedido("/x"), { tenantId: e.a.id, moduloId: "nadie", path: "/pagos/mp" }, reg)).status).toBe(404);
-    await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ARCHIVADO" } });
-    expect((await atender(e.a.id, "/pagos/mp", { cuerpo: '{"id":"x"}' })).status).toBe(404);
     expect(recibidos).toHaveLength(0);
+  });
+
+  it("con el módulo apagado o la banda archivada se atiende igual: es plata que ya se movió", async () => {
+    expect((await atender(e.b.id, "/pagos/mp", { cuerpo: '{"id":"x"}' })).status).toBe(200); // apagado en B
+    await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ARCHIVADO" } });
+    expect((await atender(e.a.id, "/pagos/mp", { cuerpo: '{"id":"y"}' })).status).toBe(200);
+    expect(recibidos.map((a) => a.tenantId)).toEqual([e.b.id, e.a.id]);
   });
 
   it("suspendida o morosa sigue recibiendo (los pagos de sus ventas tienen que entrar)", async () => {

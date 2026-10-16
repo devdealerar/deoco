@@ -23,6 +23,8 @@ export class ErrorCompra extends Error {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const MAX_LINEAS = 30;
 export const MAX_CANTIDAD = 10;
+/** Un pedido sin pagar vence a los 7 días (o antes, si algún producto deja de estar a la venta). */
+export const DIAS_PEDIDO_PENDIENTE = 7;
 
 /** Lo que guarda el navegador del fan: qué y cuánto. Nunca el precio que vale. */
 export type LineaCarrito = { productoId: string; variante: Record<string, string>; cantidad: number };

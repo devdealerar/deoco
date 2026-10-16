@@ -5,7 +5,6 @@
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { AvisoEntrante, Modulo, RespuestaAviso } from "@/nucleo/modulos/contrato";
-import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import type { Registro } from "@/nucleo/modulos/registro";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
 
@@ -51,9 +50,13 @@ async function leerCuerpo(request: Request): Promise<Uint8Array | null> {
 }
 
 /**
- * Atiende un aviso. 404 si la banda no existe, está archivada, tiene el módulo apagado o
- * el módulo no declara esa ruta; 405 si el método no está declarado; 413 si el cuerpo
- * pasa de 1 MB; 500 si el manejador falla (la pasarela reintenta).
+ * Atiende un aviso. 404 si la banda no existe o el módulo no declara esa ruta; 405 si el método
+ * no está declarado; 413 si el cuerpo pasa de 1 MB; 500 si el manejador falla (la pasarela
+ * reintenta).
+ *
+ * Se atiende AUNQUE la banda esté archivada o tenga el módulo apagado: un aviso es plata que ya
+ * se movió (un pago, una devolución, un contracargo) y tiene que quedar registrada. Que el
+ * módulo decida qué hacer con eso (p. ej. marcar para devolución lo que llegó tarde).
  */
 export async function atenderAviso(
   request: Request,
@@ -65,9 +68,8 @@ export async function atenderAviso(
   const encontrado = reg.modulo(moduloId) ? reg.aviso(moduloId, path) : undefined;
   if (!encontrado) return texto(404, "No encontrado");
 
-  const tenant = await conTenant(tenantId, (tx) => tx.tenant.findUnique({ where: { id: tenantId }, select: { estado: true } }));
-  if (!tenant || tenant.estado === "ARCHIVADO") return texto(404, "No encontrado");
-  if (!(await modulosPrendidos(tenantId, reg)).has(moduloId)) return texto(404, "No encontrado");
+  const tenant = await conTenant(tenantId, (tx) => tx.tenant.findUnique({ where: { id: tenantId }, select: { id: true } }));
+  if (!tenant) return texto(404, "No encontrado");
 
   return ejecutar(request, encontrado, (aviso) => encontrado.definicion.manejador({ ...aviso, tenantId }), `${moduloId}${path} de la banda ${tenantId}`);
 }

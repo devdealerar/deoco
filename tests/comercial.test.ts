@@ -21,6 +21,7 @@ import {
   guardarPlazos,
   plazos,
   planes,
+  revisarExcedentes,
   revisarVencimientos,
   sumarMes,
 } from "../modulos/comercial/cuenta";
@@ -96,7 +97,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   mp.limpiar();
   vaciarBandeja();
-  for (const t of ["tiendaProducto", "tiendaDiseno", "ticketeraEvento", "comercialCobro", "comercialCuenta", "moduloTenant", "limiteBanda", "correo", "secreto"] as const) {
+  for (const t of ["tiendaProducto", "tiendaDiseno", "ticketeraEntrada", "ticketeraCompra", "ticketeraEvento", "comercialCobro", "comercialCuenta", "moduloTenant", "limiteBanda", "correo", "secreto"] as const) {
     await (dueno[t] as { deleteMany: () => Promise<unknown> }).deleteMany();
   }
   await dueno.tenant.updateMany({ data: { estado: "ACTIVO", limiteAlmacenamiento: null } });
@@ -210,6 +211,53 @@ describe("cuota", () => {
     expect(r).toMatchObject({ mensaje: expect.stringContaining("Listo: ya tenés el plan Esencial") });
     expect(await modulosPrendidos(e.a.id)).not.toContain("tienda");
     expect(mp.suscripciones.get(id)!.monto).toBe(8000);
+  });
+
+  it("bajar de plan nunca corta lo vendido: la ticketera sigue como excedente (y se cobra Premium) hasta que el show termina", async () => {
+    await alCrearBanda(e.a.id);
+    const id = await suscribir(e.a.id, "banda-a", "premium");
+    const showId = await crearEvento(e.a.id, { nombre: "Show", fecha: new Date(Date.now() + 2 * DIA), lugar: "Club", ciudad: "Rosario", direccion: "", descripcion: "" });
+    await crearTipo(e.a.id, showId, { nombre: "General", precio: 1000000, cupo: 100, ventaDesde: null, ventaHasta: null });
+    const tipoId = (await dueno.ticketeraTipo.findFirstOrThrow({ where: { eventoId: showId } })).id;
+    await publicarEvento(e.a.id, showId, true);
+    const compra = await dueno.ticketeraCompra.create({
+      data: { tenantId: e.a.id, eventoId: showId, tipoId, estado: "PAGADA", cantidad: 1, precioUnitario: 1000000, total: 1000000, nombre: "Fan", email: "fan@x.com", asistentes: [{ nombre: "Fan", documento: "30111222" }], venceEn: new Date(), token: "t".repeat(32) },
+    });
+    await dueno.ticketeraEntrada.create({ data: { tenantId: e.a.id, compraId: compra.id, eventoId: showId, tipoId, nombre: "Fan", documento: "30111222", codigo: "ABCDEFGHIJ" } });
+
+    const r = await elegirPlan(e.a.id, "banda-a", "medium");
+    expect(r).toMatchObject({ mensaje: expect.stringContaining("Lo que ya está vendido no se corta: sigue prendido ticketera (1 show con entradas vendidas que no terminó)") });
+    expect(await modulosPrendidos(e.a.id)).toContain("ticketera"); // la puerta y las entradas siguen
+    expect(mp.suscripciones.get(id)!.monto).toBe(45000); // se cobra el plan que la incluye
+    expect(await cuentaDe(e.a.id)).toMatchObject({ planId: "medium", excedentePlanId: "premium" });
+    // El aviso de un pago de entradas sigue entrando (no 404).
+    // El barrido revisa: con el show por delante, nada cambia.
+    await revisarExcedentes();
+    expect(await modulosPrendidos(e.a.id)).toContain("ticketera");
+
+    // Terminó el show: el barrido la apaga y vuelve el precio de Medium.
+    await dueno.ticketeraEvento.update({ where: { id: showId }, data: { fecha: new Date(Date.now() - 7 * 3600_000) } });
+    await revisarExcedentes();
+    expect(await modulosPrendidos(e.a.id)).not.toContain("ticketera");
+    expect(mp.suscripciones.get(id)!.monto).toBe(20000);
+    expect(await cuentaDe(e.a.id)).toMatchObject({ planId: "medium", excedentePlanId: null, excedenteDesde: null });
+  });
+
+  it("lo mismo cuando el staff le saca un módulo a un plan: nada vendido se corta", async () => {
+    await alCrearBanda(e.a.id);
+    await suscribir(e.a.id, "banda-a", "medium");
+    const [p] = await productos(e.a.id, 1);
+    await publicarProducto(e.a.id, p, true);
+    const pedido = await dueno.tiendaPedido.create({
+      data: { tenantId: e.a.id, nombre: "Fan", email: "fan@x.com", telefono: "1", calle: "C", numero: "1", ciudad: "R", provincia: "Santa Fe", codigoPostal: "2000", subtotal: 1, envio: 0, total: 1, token: "t".repeat(64) },
+    });
+    const medium = (await planes()).find((x) => x.id === "medium")!;
+    await guardarPlan(comoStaff, "medium", { ...medium, modulos: ["sitio"] });
+    expect(await modulosPrendidos(e.a.id)).toContain("tienda"); // un pedido esperando el pago
+    await dueno.tiendaPedido.delete({ where: { id: pedido.id } });
+    await revisarExcedentes();
+    expect(await modulosPrendidos(e.a.id)).not.toContain("tienda");
+    await guardarPlan(comoStaff, "medium", medium);
   });
 
   it("el pago regulariza al instante: SUSPENDIDO → ACTIVO con el aviso del cobro aprobado", async () => {

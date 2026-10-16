@@ -9,7 +9,7 @@ import type { Modulo } from "@/nucleo/modulos/contrato";
 import { AdminCobros, AdminCuenta, AdminCuentas, AdminPlanes } from "./admin/pantallas";
 import { AdminDominios } from "./admin/dominios";
 import { avisoDeCuota, avisoDeDominio } from "./aviso";
-import { alCrearBanda, comoAmpliar, opcionesDeAlta, revisarVencimientos } from "./cuenta";
+import { alCrearBanda, comoAmpliar, opcionesDeAlta, revisarExcedentes, revisarVencimientos } from "./cuenta";
 import { alertasDeDominios, cobrarDominio, cobrosDeBanda, pedirDevolucion, precioDominio, privacidadDominio, revisarDominios, terminacionesDominio } from "./dominios";
 import { inicioComercial } from "./inicio";
 import { PantallaPago } from "./panel/pago";
@@ -36,6 +36,8 @@ const comercial: Modulo = {
   // Vencimientos, mora y fin de la prueba (el barrido la corre cada 5 minutos).
   tareasPeriodicas: [
     { nombre: "revisar-vencimientos", cadaSegundos: 300, correr: async (ahora) => void (await revisarVencimientos(ahora)) },
+    // Módulos que siguen prendidos como excedente: se apagan cuando cierra lo que tenían abierto.
+    { nombre: "revisar-excedentes", cadaSegundos: 600, correr: revisarExcedentes },
     // Pagos de dominios (por si un aviso se perdió), compras por arrancar y devoluciones.
     { nombre: "revisar-dominios", cadaSegundos: 60, correr: revisarDominios },
   ],

@@ -1,6 +1,7 @@
 // Módulo ticketera: shows de la banda con entradas nominadas, cobradas con la pasarela de la
 // banda (núcleo: @/nucleo/pagos; el dinero nunca pasa por Deoco), y validación en la puerta.
 import { inicioTicketera } from "./inicio";
+import { ticketeraEnCurso } from "./en-curso";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { avisoDePago } from "./aviso";
@@ -29,6 +30,8 @@ const ticketera: Modulo = {
     // La puerta: el rol PUERTA (y el titular). Solo valida: no ve compras ni datos de compradores.
     { clave: VALIDAR, rolesPorDefecto: ["TITULAR", "PUERTA"] },
   ],
+  // Un cambio de plan no la apaga con shows vendidos por delante, reservas o pagos en revisión.
+  enCurso: ticketeraEnCurso,
   // Uso de la banda (se ve en /admin).
   mediciones: [
     { clave: "ticketera.shows", etiqueta: "Shows", medir: (t) => conTenant(t, (tx) => tx.ticketeraEvento.count()) },

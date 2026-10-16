@@ -115,6 +115,11 @@ Guía para escribir uno: `docs/guia-modulos.md`.
   la banda. Admiten segmentos `[param]`. Módulo apagado → 404.
 - Encendido: fila en `moduloTenant`. `prenderModulo()` / `apagarModulo()` son del staff;
   validan dependencias (no se prende sin ellas, no se apaga una que otro prendido usa).
+- Nada vendido se corta: `enCurso(tenantId)` en el contrato (shows con entradas por delante,
+  pedidos sin pagar vigentes, en revisión o sin despachar). Con algo abierto el staff no lo apaga y
+  `fijarModulos` lo deja prendido como EXCEDENTE (`moduloTenant.excedenteDesde`, `retenidos`); el
+  gestor cobra mientras tanto el plan que lo incluye (`comercial_cuenta.excedentePlanId`) y el
+  barrido (`revisarExcedentes`) lo apaga cuando cierra. Si `enCurso` falla, no se apaga.
 - `SOLO_DESARROLLO.md` en la carpeta de un módulo lo excluye del build de producción
   (`next build`, lo invoque quien lo invoque).
 - Navegación: menú del panel = entradas de módulos prendidos filtradas por permiso; pestañas
@@ -288,8 +293,9 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - `alertasAdmin` (contrato): lo que el staff tiene que mirar ya, arriba de todas las páginas de `/admin`.
 - Contrato: `avisos: [{ ruta, metodos?, manejador }]`. URL de plataforma:
   `app.<raiz>/avisos/<tenantId>/<moduloId><ruta>` (`src/app/avisos/...` → `atenderAviso` en
-  `src/nucleo/avisos`). En hosts de banda, 404. El núcleo resuelve banda/módulo prendido; la
-  firma la verifica el módulo con el cuerpo crudo. Rápidos e idempotentes.
+  `src/nucleo/avisos`). En hosts de banda, 404. Se atiende aunque la banda esté archivada o el
+  módulo apagado (es plata que ya se movió); la firma la verifica el módulo con el cuerpo crudo.
+  Rápidos e idempotentes.
 - `emitir(..., { unica })`: idempotencia por (banda, nombre, clave) — `evento.claveUnica`.
 
 ## Correo, staff en módulos y links firmados

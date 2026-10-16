@@ -2,6 +2,7 @@
 // catálogo base; el fan le paga a la banda en SU pasarela; un proveedor produce y envía.
 // El dinero nunca pasa por Deoco.
 import { inicioTienda } from "./inicio";
+import { tiendaEnCurso } from "./en-curso";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { AdminCatalogo } from "./admin/catalogo";
@@ -113,6 +114,8 @@ const tienda: Modulo = {
   ],
   // Bloque "Tienda" del inicio del panel.
   consultas: [{ nombre: "inicio", responder: inicioTienda }],
+  // Un cambio de plan no la apaga con pedidos por pagar, en revisión o sin despachar.
+  enCurso: tiendaEnCurso,
   tablasGlobales: ["tienda_proveedor", "tienda_producto_base", "tienda_oferta"],
 };
 

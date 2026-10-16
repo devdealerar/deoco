@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatearBytes } from "@/nucleo/archivos";
 import { medicionDeBanda } from "@/nucleo/cuenta/medicion";
+import { excedentesDe } from "@/nucleo/cuenta";
 import { dominiosDeBanda } from "@/nucleo/dominios";
 import { registro } from "@/nucleo/modulos";
 import { Campo, Casilla, Formulario, Insignia, Selector, Tabla, Tarjeta } from "@/ui";
@@ -40,6 +41,7 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
   const banda = await detalleBanda(slug);
   if (!banda) notFound();
   const id = banda.id;
+  const excedentes = new Map((await excedentesDe(id)).map((x) => [x.moduloId, `Desde ${x.excedenteDesde.toLocaleDateString("es-AR")}: ${x.excedenteMotivo ?? ""}`]));
   const prendidos = new Set(banda.modulos.map((m) => m.moduloId));
   // Roles: los del núcleo y los de los módulos del build. Uno cuyo módulo está apagado para la
   // banda se puede asignar, pero no da permisos hasta que se prenda.
@@ -102,7 +104,12 @@ export default async function Banda({ params }: { params: Promise<{ slug: string
             <span key="d" className="text-sm text-tertiary">
               {m.dependencias?.length ? m.dependencias.join(", ") : "—"}
             </span>,
-            prendidos.has(m.id) ? (
+            excedentes.has(m.id) ? (
+              <span key="e" className="flex flex-col gap-1">
+                <Insignia color="advertencia">Excedente</Insignia>
+                <span className="text-xs text-tertiary">{excedentes.get(m.id)}</span>
+              </span>
+            ) : prendidos.has(m.id) ? (
               <Insignia key="e" color="exito">
                 Prendido
               </Insignia>

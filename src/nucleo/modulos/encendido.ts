@@ -89,6 +89,19 @@ export async function apagarModulo(
   opciones: OpcionesCambio = {},
 ) {
   await exigirStaff(staffId);
+  // Nunca se corta una operación en curso (entradas vendidas, pedidos sin despachar…).
+  const def = reg.modulo(moduloId);
+  if (def?.enCurso) {
+    let abierto: string[];
+    try {
+      abierto = await def.enCurso(tenantId);
+    } catch {
+      abierto = ["no se pudo revisar lo que tiene abierto"];
+    }
+    if (abierto.length) {
+      throw new ErrorModulo(`No se puede apagar "${moduloId}": tiene operaciones abiertas (${abierto.join("; ")}). Se puede apagar cuando se cierren.`);
+    }
+  }
   await conTenant(tenantId, async (tx) => {
     const prendidos = (await tx.moduloTenant.findMany({ select: { moduloId: true } })).map((f) => f.moduloId);
     const loUsan = prendidos.filter((id) => reg.modulo(id)?.dependencias?.includes(moduloId));

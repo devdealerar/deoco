@@ -439,6 +439,13 @@ export type Modulo = {
   avisosPlataforma?: DefinicionAvisoPlataforma[];
   /** Tareas que corre el barrido cada tanto. */
   tareasPeriodicas?: DefinicionTareaPeriodica[];
+  /**
+   * Lo que el módulo tiene abierto en la banda y no se puede cortar (entradas vendidas de un show
+   * que no terminó, pedidos pagados sin despachar, cobros en curso): una frase por cosa ("2 shows
+   * con entradas vendidas"), vacío si nada. Con algo abierto el módulo NO se apaga: un cambio de
+   * plan lo deja prendido como excedente (`fijarModulos`) y el staff no lo puede apagar. Rápido.
+   */
+  enCurso?: (tenantId: string) => Promise<string[]>;
   /** Lo que el staff tiene que mirar ya (p. ej. una devolución que no salió). Rápido: corre en cada página del back office. */
   alertasAdmin?: () => Promise<AlertaAdmin[]>;
 };
