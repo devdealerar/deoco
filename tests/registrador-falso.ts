@@ -16,6 +16,8 @@ export class RegistradorFalso {
   /** Precio de costo (millonésimas de USD por año) por TLD. */
   precios: Record<string, number> = { com: 11_990_000, ar: 0 };
   sinSaldo = false;
+  /** Lo que tarda en contestar cada pedido (para las pruebas de carga). */
+  demoraMs = 0;
   /** Próximas respuestas forzadas (p. ej. 503), en orden. */
   fallas: number[] = [];
   clientes = new Map<string, { shopperId: string; email: string }>();
@@ -31,7 +33,7 @@ export class RegistradorFalso {
     this.servidor = createServer((req, res) => {
       let cuerpo = "";
       req.on("data", (c) => (cuerpo += c));
-      req.on("end", () => {
+      req.on("end", () => setTimeout(() => {
         const url = new URL(req.url ?? "/", "http://x");
         const datos = cuerpo ? JSON.parse(cuerpo) : undefined;
         const json = (estado: number, d?: unknown) => {
@@ -125,7 +127,7 @@ export class RegistradorFalso {
           if (req.method === "GET") return json(200, { domain: reg.domain, locked: reg.locked, authCode: reg.authCode });
         }
         return error(404, "NOT_FOUND", `No route ${req.method} ${p}`);
-      });
+      }, this.demoraMs));
     });
     await new Promise<void>((ok) => this.servidor!.listen(puerto, "127.0.0.1", ok));
     this.base = `http://127.0.0.1:${(this.servidor.address() as { port: number }).port}`;
@@ -169,6 +171,7 @@ export class RegistradorFalso {
   }
 
   limpiar() {
+    this.demoraMs = 0;
     this.tomados.clear();
     this.sinSaldo = false;
     this.fallas = [];

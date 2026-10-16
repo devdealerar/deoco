@@ -12,7 +12,7 @@ import { CORREO_COLGADO_MS, retomarCorreos } from "@/nucleo/correo";
 import { limpiarCorreos } from "@/nucleo/correo/limpieza";
 import { revisarDominios } from "@/nucleo/dominios";
 import { revisarCorreosPendientes } from "@/nucleo/dominios/correo";
-import { revisarCompras } from "@/nucleo/dominios/compra";
+import { revisarComprasAparte } from "@/nucleo/dominios/compra";
 import { revisarSalidas } from "@/nucleo/dominios/salida";
 import { revisarTransferencias } from "@/nucleo/dominios/transferencia";
 import { revisarVencimientos } from "@/nucleo/dominios/vencimiento";
@@ -27,9 +27,9 @@ export type ResultadoBarrido = {
   correos: number;
   /** Zonas delegadas de las que una banda terminó de irse en esta vuelta. */
   salidas: number;
-  /** Compras y renovaciones de dominios que terminaron (listas o fallidas) en esta vuelta. */
+  /** Compras y renovaciones de dominios que terminaron en la revisión anterior (corren aparte). */
   compras: number;
-  /** Vencimientos de dominios (una vez por hora): avisos del calendario, vencidos, perdidos y transferidos afuera. */
+  /** Vencimientos de dominios (una vez por hora, aparte; los de la revisión anterior): avisos, vencidos, perdidos y transferidos. */
   vencimientos: { avisos: number; vencidos: number; perdidos: number; transferidos: number } | null;
   tareas: string[];
 };
@@ -81,23 +81,24 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
     console.error("[barrido] salidas de dominios:", e);
     return { terminadas: 0 };
   });
-  const compras = await revisarCompras(ahora).catch((e) => {
-    console.error("[barrido] compras de dominios:", e);
-    return 0;
-  });
+  // Aparte: lo que habla con el registrador (cola de 59 por minuto) nunca frena el barrido.
+  const compras = revisarComprasAparte(ahora);
   // Una vez por hora (en este proceso): el calendario de vencimientos y las transferencias afuera.
-  let vencimientos: ResultadoBarrido["vencimientos"] = null;
-  if (ahora.getTime() - ultimosVencimientos >= 3_600_000) {
+  // También aparte (consulta al registrador): el resultado es el de la revisión anterior.
+  const vencimientos = ultimosVencimientosHechos;
+  if (!vencimientosCorriendo && ahora.getTime() - ultimosVencimientos >= 3_600_000) {
     ultimosVencimientos = ahora.getTime();
-    const v = await revisarVencimientos(ahora).catch((e) => {
-      console.error("[barrido] vencimientos de dominios:", e);
-      return { avisos: 0, vencidos: 0, perdidos: 0 };
-    });
-    const transferidos = await revisarTransferencias().catch((e) => {
-      console.error("[barrido] transferencias de dominios:", e);
-      return 0;
-    });
-    vencimientos = { ...v, transferidos };
+    vencimientosCorriendo = (async () => {
+      const v = await revisarVencimientos(ahora).catch((e) => {
+        console.error("[barrido] vencimientos de dominios:", e);
+        return { avisos: 0, vencidos: 0, perdidos: 0 };
+      });
+      const transferidos = await revisarTransferencias().catch((e) => {
+        console.error("[barrido] transferencias de dominios:", e);
+        return 0;
+      });
+      ultimosVencimientosHechos = { ...v, transferidos };
+    })().finally(() => (vencimientosCorriendo = null));
   }
   const tareas = await correrTareas(ahora);
   // Una vez por día (en este proceso): la limpieza de correos enviados.
@@ -116,6 +117,11 @@ export async function barrer(opciones: { ahora?: Date } = {}): Promise<Resultado
 
 let ultimaLimpieza = 0;
 let ultimosVencimientos = 0;
+let vencimientosCorriendo: Promise<void> | null = null;
+let ultimosVencimientosHechos: ResultadoBarrido["vencimientos"] = null;
+
+/** Para pruebas: espera la revisión de vencimientos que haya quedado corriendo aparte. */
+export const esperarVencimientos = async () => void (await vencimientosCorriendo);
 
 let corriendo = false;
 let reloj: NodeJS.Timeout | undefined;

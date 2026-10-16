@@ -215,7 +215,7 @@ Dos líneas de los logs que **no** son errores (se vieron en el ensayo, todo fun
 | `DEOCO_CLOUDFLARE_KV` | con `DEOCO_RESEND_TOKEN` y Cloudflare | Id del namespace de KV del reenvío (el mismo del Email Worker) |
 | `DEOCO_CLOUDFLARE_CUENTA` / `DEOCO_IP_PUBLICA` | con las dos anteriores | Id de la cuenta de Cloudflare (ahí se crean las zonas de los dominios delegados) e IP del VPS (a la que apuntan, con proxy) |
 | `DEOCO_CUOTA_MP_TOKEN` | para cobrar la cuota | Access token de producción de la cuenta de Mercado Pago **de Deoco** (no de una banda). Sin él, la app arranca (aviso en el log) pero nadie puede cargar su forma de pago |
-| `DEOCO_CUOTA_MP_SECRETO_AVISOS` | recomendada | Clave secreta de webhooks de esa aplicación: con ella se verifica la firma de cada aviso de la cuota |
+| `DEOCO_CUOTA_MP_SECRETO_AVISOS` | recomendada; **obligatoria para vender dominios** | Clave secreta de webhooks de esa aplicación: con ella se verifica la firma de cada aviso (cuota y pagos de dominios). Con `DEOCO_REGISTRADOR`, el arranque la exige |
 | `DEOCO_CORREO_DIAS_ADJUNTOS` / `_CUERPO` / `_BORRAR` | no | Limpieza de correos enviados: días hasta vaciar adjuntos (7), cuerpo (90) y borrar la fila (365). Lo pendiente o fallido no se toca |
 | `DEOCO_CUOTA_RESPONDER_A` | recomendada | Casilla de Deoco a la que responden las bandas los mails de Deoco (alta sola, mora, suspensión). Sin ella, esos mails no ofrecen "respondé este mail" |
 
@@ -577,10 +577,48 @@ igual (aviso una semana antes). Quitar un delegado deja su DNS andando esos mism
 
 Sin `DEOCO_CLOUDFLARE_TOKEN` y `DEOCO_CLOUDFLARE_ZONA`, el panel dice que los dominios propios
 todavía no están habilitados. El dominio sin www (`labanda.com`) por CNAME no lo soporta
-Cloudflare for SaaS: la banda usa `www.`; delegar los nameservers (para el dominio sin www)
-llega en una parte siguiente (D3).
+Cloudflare for SaaS: la banda usa `www.`, o delega los nameservers (arriba) para tener los dos.
+
+**Comprar un dominio** (con `DEOCO_REGISTRADOR`): Panel → Dominios → "Comprar un dominio". Se
+cobra en la cuenta de Mercado Pago de Deoco (solo medios inmediatos) y recién con el pago
+aprobado se registra en GoDaddy, a nombre del titular, en una subcuenta de la banda; Deoco crea la
+zona, pone los nameservers y lo deja como principal. Renovar, llevárselo (código de
+transferencia), llevarse solo el DNS y cambiar el titular: todo desde la tarjeta del dominio, sin
+staff. Precios por terminación y pagos (con sus devoluciones): `/admin/m/comercial/dominios`; las
+compras y su paso: `/admin/dominios`. Lo que solo se prueba contra los servicios reales:
+`docs/verificacion-despliegue.md`, puntos 14 a 19.
 
 ## Qué se verificó antes de este despliegue
+
+**Tercer ensayo con la imagen de producción** (dominios y correo, D13): imagen nueva del
+`Dockerfile`, Postgres 16 **vacío** con `preparar-base.sql` (las 58 migraciones desde cero),
+Traefik con HTTPS atrapando cualquier host (como el comodín más los dominios que llegan por
+Cloudflare), y falsos de Mercado Pago, Cloudflare, GoDaddy, Resend y SMTP (los de las pruebas):
+
+- Arranque sano con Cloudflare, Resend y registrador configurados (la verificación de arranque
+  los exige juntos).
+- Alta sola → Premium → cuota cobrada; sitio publicado; tienda vendiendo (como el segundo ensayo).
+- Precio de `.com` desde `/admin/m/comercial/dominios`.
+- **Compra del dominio** `losdelensayo.com` desde el panel: buscar → titular (precargado) →
+  resumen **con el costo de irse antes de pagar** → Mercado Pago con la cuenta de **Deoco**,
+  `binary_mode` y sin `ticket`/`atm`/`bank_transfer`, aviso en `/avisos/plataforma/comercial/dominio/mercadopago`.
+  Nada en GoDaddy antes del pago; aviso sin firma 401, firmado 200; un cobro y un pago de dominio,
+  ninguna fila nueva de la cuota. GoDaddy registra (subcuenta, a nombre de la titular), zona,
+  nameservers de Cloudflare, zona activa → verificado, principal, "ya es tuyo". El progreso se
+  vio desde "Tus compras" en cada paso.
+- `https://losdelensayo.com` sirve el sitio; `https://los-del-ensayo.deoco.test/fechas` → **307**
+  a `https://losdelensayo.com/fechas`.
+- **Correo**: `merch@losdelensayo.com`, Resend lo verifica (registros cargados por Deoco), mail
+  de prueba; las entradas vendidas después salen **desde `merch@losdelensayo.com`** (con
+  "responder a" la titular); los avisos de Deoco, desde Deoco.
+- **Salida**: el código de transferencia bloqueado los primeros 60 días (lo dice la tarjeta);
+  "Llevarme solo el DNS" con los nameservers de otro proveedor → Deoco los pone en GoDaddy → al
+  propagarse la zona se da de baja, `www` sigue en Deoco por CNAME (200) y el dominio queda
+  "solo registro" (se renueva y se transfiere desde el panel); pasados 60 días, el código desde el
+  panel; con la banda archivada, el titular sigue entrando a Dominios. **Ninguna acción del staff.**
+- Capturas: `docs/capturas/28-…` a `37-…`.
+- Lo que encontró: el paso "activación" de la compra esperaba la revisión de delegaciones (cada
+  10 min) aunque la zona ya estuviera activa → ahora la consulta él mismo.
 
 **Segundo ensayo con la imagen de producción** (planes, cuotas y autogestión): imagen nueva del
 `Dockerfile`, Postgres 16 **vacío** preparado con `preparar-base.sql`, Traefik con HTTPS

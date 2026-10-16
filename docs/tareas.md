@@ -32,6 +32,15 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   sola (`dominio.delegacion_vencida`); aviso en el panel desde 2 días antes
   (`delegacionesPorVencer`). Migración `dominios_transiciones` (`creadoEn`, `migrandoA`,
   `hostnameViejo`). El mail del aviso, con D11.
+- D13: tercer ensayo con la imagen de producción (dominios y correo; `docs/despliegue.md`, "Qué se
+  verificó"), capturas 28–37, lista de verificación con lo que solo se prueba contra Cloudflare,
+  Resend, GoDaddy y Mercado Pago reales (`docs/verificacion-despliegue.md`, 9 y 14–19). Arreglos que
+  salieron: la compra verifica sola la zona activa; el `www` por CNAME de un comprado no ofrece
+  "pasarse a delegar"; lo que habla con GoDaddy corre aparte del barrido (`revisarComprasAparte`,
+  vencimientos aparte); "Recibimos tu pago" se encola en la transacción de la compra; solo el
+  gestor puede llamar a `dominioPagado`/`renovacionPagada`; para vender dominios se exige la clave
+  de los avisos; una revisión de dominio que falla por Cloudflare se reintenta a los 15 min.
+  Carga: `tests/carga/dominios.test.ts` (200 compras a la vez). Repaso: `docs/repaso-dominios.md`.
 - D12: repaso de las cinco salidas, sin staff (`tests/salidas.test.ts`: delegado, comprado con el
   código, .com.ar, comprado solo el DNS, CNAME, y con la banda archivada). Lo que faltaba: el comprado
   que se lleva solo el DNS (`ponerMisNameservers`: Deoco pone los nameservers de su proveedor nuevo,
@@ -138,7 +147,7 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
 | D10 | Pantallas de compra (con el costo de salida antes de pagar) | 4 | ✅ hecha |
 | D11 | Renovación y avisos; llevarse el dominio | 3–4 | ✅ hecha |
 | D12 | Transferir a Deoco (delegado → comprado) | 3 | ✅ hecha (repaso de las salidas; transferir a Deoco, pendiente) |
-| D13 | Punta a punta y ensayo con dominio comprado real | 3 | pendiente |
+| D13 | Punta a punta y ensayo con dominio comprado real | 3 | ✅ hecha (ensayo con la imagen y falsos; con servicios reales: verificacion-despliegue 14–19) |
 
 ## Trabajo largo · Planes, cuotas y autogestión
 

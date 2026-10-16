@@ -229,27 +229,27 @@ es repetible.
 **Si falla.** Si la fila sigue `FALLIDO` con `reintentarEn` vencido y no hay línea `[barrido]`:
 el barrido no corre (punto 1). Si hay línea y sigue fallando: la URL de SMTP sigue mal.
 
-## 9. Dominio propio
+## 9. Dominio propio por CNAME (Cloudflare for SaaS)
 
-**Qué hago.** Con un dominio tuyo (`banda-prueba.com.ar` o un subdominio de otro dominio
-propio), seguir **"Dominio propio de una banda"** de `despliegue.md`: agregar, crear `A` y `TXT`,
-**Verificar**, sumarlo en Easypanel (resolver **HTTP**, no el de Cloudflare), esperar el
-candado, **Usar como principal**.
+Antes: `docs/despliegue.md`, "Todo detrás de Cloudflare" y la preparación única de dominios
+(fallback origin `customers.deocoartist.com`, token, Email Routing, Worker y KV).
+
+**Qué hago.** Con un dominio tuyo, en el panel de la banda de prueba → Dominios → "Conectar por
+CNAME": `www.<tu-dominio>`. Crear en tu DNS el CNAME a `customers.deocoartist.com` y el TXT
+`_deoco.www.<tu-dominio>` que muestra la tarjeta. **Verificar**. Esperar el candado. **Usar como
+principal**.
 
 **Qué tiene que pasar.**
-- Verificar: "verificado" en menos de un minuto después de que el DNS propagó.
-- `https://<dominio>`: candado válido (certificado **del dominio**, no el comodín).
-- "Usar como principal" lo acepta solo con el candado; después,
-  `https://prueba-deploy.deocoartist.com/cualquier/ruta` → **307** a `https://<dominio>/cualquier/ruta`.
-- Los links de los mails nuevos usan el dominio propio.
+- En Cloudflare (zona `deocoartist.com` → Custom Hostnames) aparece `www.<tu-dominio>`; pasa a
+  *Active* con certificado *Active*.
+- Verificar: "verificado" apenas el custom hostname está activo y el TXT propagó.
+- `https://www.<tu-dominio>`: candado válido emitido por Cloudflare. Nadie toca Easypanel.
+- "Usar como principal" solo con el certificado activo; después,
+  `https://prueba-deploy.deocoartist.com/cualquier/ruta` → **307** a `https://www.<tu-dominio>/cualquier/ruta`.
+- Quitarlo (después de volver al subdominio como principal) borra el custom hostname.
 
-**Si falla.**
-- "No apunta / no encuentro el TXT": esperar la propagación (`dig A <dominio>`,
-  `dig TXT _deoco.<dominio>`); el TXT va en `_deoco.<dominio>`, no en el dominio.
-- Sin candado: el dominio no se sumó en Easypanel, o se sumó con el resolver de Cloudflare
-  (ese solo sirve para `deocoartist.com`).
-- "Usar como principal" no lo deja: lo comprueba abriendo `https://<dominio>`; hasta que el
-  candado sea válido, no.
+**Si falla.** Custom hostname en *pending*: falta el CNAME o tiene la nube naranja en tu
+Cloudflare (tiene que ir en gris). TXT no encontrado: `dig TXT _deoco.www.<tu-dominio>`.
 
 ## 10. Carga en el VPS
 
@@ -339,3 +339,114 @@ link abre `/registro/verificar` y confirma; la banda nueva aparece en `/admin` c
 una cuenta en Deoco".
 
 **Si falla.** No llega: `DEOCO_CORREO=smtp` y el dominio verificado en Resend (punto 4).
+
+## 14. Origen detrás de Cloudflare (D2, con un dominio real)
+
+**Qué hago.** Con el YAML de `docs/despliegue.md` cargado y la nube naranja en `deocoartist.com`:
+`curl -sI https://app.deocoartist.com` y `https://prueba-deploy.deocoartist.com`; después, contra
+la IP del VPS sin pasar por Cloudflare: `curl -skI --resolve app.deocoartist.com:443:<IP> https://app.deocoartist.com`.
+
+**Qué tiene que pasar.** Por Cloudflare: 200. Directo a la IP: `app.` rechaza el TLS (pide el
+certificado de cliente de Cloudflare) y los demás hosts de Deoco dan 403 (lista de IPs). Los
+otros servicios del VPS siguen andando igual. La IP que ven los frenos es la del visitante
+(`CF-Connecting-IP`): en el log de un login fallido aparece tu IP, no una de Cloudflare.
+
+**Si falla.** La vuelta atrás está en `despliegue.md` ("Vuelta atrás"). Si `app.` responde sin
+certificado de cliente, la ruta duplicada de Easypanel está pisando la nuestra (el aviso en negrita).
+
+## 15. Delegar un dominio y un `.com.ar` (zona en Cloudflare)
+
+**Qué hago.** Panel → Dominios → "Delegar un dominio" con un dominio tuyo que tenga correo (MX).
+Cambiar los nameservers en tu registrador por los dos que muestra la tarjeta. Repetir con un
+`.com.ar` en nic.ar ("Delegar").
+
+**Qué tiene que pasar.**
+- Se crea la zona en la cuenta de Deoco con los registros que ya tenía (Cloudflare los trae: el MX
+  aparece en "Trajimos N registros") más el sitio con proxy.
+- Antes de 10 minutos de que Cloudflare active la zona, el dominio y su www quedan verificados
+  solos; SSL "Full" y "Siempre HTTPS" en la zona. Tu correo sigue llegando todo el tiempo.
+- `https://<dominio>` y `https://www.<dominio>` con candado. "Usar como principal".
+- Un `.com.ar` todavía sin registrar: la tarjeta dice "todavía no figura registrado" y espera.
+
+**Si falla.** La zona no se activa: los nameservers no cambiaron (`dig NS <dominio>`). Falta un
+registro de los que tenía: Cloudflare no lo encontró al crear la zona; cargalo en la zona (y
+anotalo: hay que revisar el `jump_start`).
+
+## 16. Correo desde el dominio (Resend + Email Worker)
+
+**Qué hago.** Con el dominio delegado del punto 15 (sin MX propio, o uno de prueba), Panel →
+Correo: `merch@<dominio>`, reenvío a tu Gmail. "Mandarme un mail de prueba". Después, desde
+Outlook, escribirle a `merch@<dominio>` y responder desde Gmail. Una compra en la tienda de
+prueba.
+
+**Qué tiene que pasar.**
+- En Resend aparece el dominio de envío y se verifica solo (Deoco cargó los registros en la zona).
+- El mail de prueba llega a Gmail desde `merch@<dominio>`, con SPF y DKIM *pass* (Gmail → "Mostrar
+  original").
+- Lo que llega a `merch@` se reenvía a Gmail; al responder, le llega a quien escribió (no a Deoco).
+- El mail de la compra al fan sale desde `merch@<dominio>`; los avisos de Deoco (cuota, dominios)
+  siguen saliendo desde Deoco.
+- **A confirmar en este ensayo** (diseño §12): con el Worker caído (despublicarlo un momento),
+  Cloudflare **no** da el mail por entregado (el remitente reintenta); un adjunto de más de 20 MB
+  rebota con un aviso claro, no se pierde en silencio.
+
+**Si falla.** No verifica en Resend: mirar en la zona los registros `send.` y `resend._domainkey`.
+No reenvía: el KV (`DEOCO_CLOUDFLARE_KV`) no tiene la dirección, o la regla de Email Routing no
+apunta al Worker `deoco-reenvio`.
+
+## 17. Comprar un dominio (GoDaddy y Mercado Pago de verdad)
+
+Primero en el entorno de pruebas de GoDaddy (OTE: `DEOCO_GODADDY_API=https://api.ote-godaddy.com`,
+claves de OTE). Los endpoints marcados **SIN CONFIRMAR** en `src/nucleo/dominios/godaddy.ts` se
+prueban acá: disponibilidad y condiciones, alta de la subcuenta, registrar, nombres de las
+acciones, nameservers, renovar, desbloqueo y código, contactos.
+
+**Qué hago.** Precio de `.com` en `/admin/m/comercial/dominios`. Panel → Dominios → "Comprar un
+dominio" → buscar → elegir → titular → resumen → "Pagar con Mercado Pago" (cuenta de Deoco).
+
+**Qué tiene que pasar.**
+- En Mercado Pago **no aparecen** efectivo (Rapipago, Pago Fácil), cajero ni transferencia; un
+  pago queda aprobado o rechazado, nunca pendiente. El link vence a las 2 h.
+- Nada se registra antes del pago aprobado (en GoDaddy no aparece hasta entonces).
+- Pagado: mail "Recibimos tu pago"; "Tus compras de dominios" avanza solo (cerrá la página y
+  volvé). En GoDaddy: la subcuenta de la banda con el dominio **a nombre del titular** que cargaste,
+  renovación automática **apagada**, nameservers de Cloudflare.
+- La zona se activa y el dominio queda listo y principal; mail "<dominio> ya es tuyo".
+- `/admin/m/comercial/dominios`: el pago, "compra en marcha"; nada en "Cuotas fallidas".
+- **Devolución real**: comprar un dominio que alguien registre en el medio (o forzarlo con uno
+  no disponible en OTE) → la compra falla y Mercado Pago muestra la devolución total (y el mail
+  "Te devolvimos…"). Con la cuenta sin saldo para devolver: la devolución queda en rojo arriba de
+  todo el back office (anotá qué contesta Mercado Pago).
+- El aviso de `notification_url` llega firmado con la clave de la aplicación (si no, se rechaza
+  con 401 y el pago entra igual por la búsqueda del barrido, en un par de minutos: anotalo).
+
+**Si falla.** "La compra de dominios todavía no está habilitada": faltan `DEOCO_REGISTRADOR`,
+GoDaddy o Cloudflare (el arranque lo dice). Se queda en "Registrando": `/admin/dominios`, último
+error; "sin saldo" es la cuenta de revendedor sin fondos.
+
+## 18. Renovar, llevárselo y cambiar el titular (GoDaddy de verdad)
+
+**Qué hago.** Con el dominio del punto 17: "Renovar un año" (paga); "Cambiar el titular"; en
+"Cómo me lo llevo", "Pedir el código de transferencia" (en OTE no hay que esperar 60 días si se
+fuerza la fecha en la base); y "Llevarme solo el DNS" con los nameservers de otro proveedor.
+
+**Qué tiene que pasar.**
+- Renovar: en GoDaddy el vencimiento pasa un año; mail "Renovamos…".
+- Cambio de titular: los contactos cambian en GoDaddy (y anotá si el registrador manda un mail de
+  confirmación al titular nuevo y cuánto tarda).
+- Código: el panel lo muestra, el dominio queda desbloqueado; el mail **no** trae el código.
+  Transferirlo de verdad a otro registrador: cuando sale de la subcuenta, el barrido lo pasa a
+  delegado y el sitio no se corta.
+- Solo el DNS: Deoco pone los nameservers en GoDaddy; cuando propagan, la zona se da de baja y
+  el sitio sigue en `www` por CNAME si lo elegiste.
+- **A confirmar** (`src/nucleo/dominios/plazos.ts`): gracia y recuperación reales de GoDaddy
+  después de vencer, y el bloqueo de 60 días.
+
+## 19. Las salidas, sin staff (con dominios reales)
+
+Repetir con dominios reales lo que recorre `tests/salidas.test.ts`, mirando que **nadie del staff**
+toque nada (en `auditoria`, ninguna fila `dominio.*` de un usuario staff): delegado que cambia los
+nameservers; comprado con el código; `.com.ar` desde nic.ar; comprado que se lleva solo el DNS;
+CNAME que borra sus registros. Archivar la banda de prueba y verificar que el titular sigue
+entrando a Dominios y puede pedir el código.
+

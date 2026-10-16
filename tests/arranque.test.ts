@@ -102,6 +102,7 @@ describe("vender dominios", () => {
     expect(problemasDeVenta({}, { DEOCO_REGISTRADOR: "godaddy" })[0]).toMatch(/ningún gestor de cuenta cobra dominios/);
     expect(problemasDeVenta(sinCobro, { DEOCO_REGISTRADOR: "godaddy" })[0]).toMatch(/ningún gestor de cuenta cobra dominios/);
     expect(problemasDeVenta(conCobro, { DEOCO_REGISTRADOR: "godaddy" })[0]).toMatch(/DEOCO_CUOTA_MP_TOKEN/);
-    expect(problemasDeVenta(conCobro, { DEOCO_REGISTRADOR: "godaddy", DEOCO_CUOTA_MP_TOKEN: "APP_USR-x" })).toEqual([]);
+    expect(problemasDeVenta(conCobro, { DEOCO_REGISTRADOR: "godaddy", DEOCO_CUOTA_MP_TOKEN: "APP_USR-x" })[0]).toMatch(/DEOCO_CUOTA_MP_SECRETO_AVISOS/);
+    expect(problemasDeVenta(conCobro, { DEOCO_REGISTRADOR: "godaddy", DEOCO_CUOTA_MP_TOKEN: "APP_USR-x", DEOCO_CUOTA_MP_SECRETO_AVISOS: "s" })).toEqual([]);
   });
 });

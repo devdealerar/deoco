@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { barrer } from "@/nucleo/barrido";
 import { bandejaDeSalida, esperarCorreos, vaciarBandeja } from "@/nucleo/correo";
 import { prisma } from "@/nucleo/db/cliente";
-import { agregarDominio, dominiosDeBanda, marcarPrincipal, quitarDominio } from "@/nucleo/dominios";
+import { agregarDominio, dominiosDeBanda, marcarPrincipal, pasarADelegado, quitarDominio } from "@/nucleo/dominios";
 import { avanzarCompras, dominioPagado, esperarCompras } from "@/nucleo/dominios/compra";
 import type { Contacto } from "@/nucleo/dominios/registrador";
 import { llevarseElDns, ponerMisNameservers, quedarseEnDeoco, revisarSalidas } from "@/nucleo/dominios/salida";
@@ -10,6 +10,7 @@ import { pedirCodigoDeTransferencia, revisarTransferencias } from "@/nucleo/domi
 import { dosBandas, dueno } from "./apoyo";
 import { CloudflareFalso } from "./cloudflare-falso";
 import { RegistradorFalso } from "./registrador-falso";
+import comercial from "../modulos/comercial";
 
 // D12: las cinco salidas, de punta a punta y sin el staff en ninguna. Todo lo hace el titular
 // desde el panel (estas funciones son las de sus botones) y el barrido; nadie de Deoco toca nada.
@@ -66,7 +67,7 @@ async function delegado(dominio: string) {
 
 /** Comprado en Deoco, listo y principal. */
 async function comprado(dominio = "lossatelites.com") {
-  await dominioPagado(a.id, {
+  await dominioPagado(comercial, a.id, {
     dominio,
     anios: 1,
     contacto: { ...titular },
@@ -206,6 +207,9 @@ describe("4. compró en Deoco y quiere solo el DNS: se lo lleva sin transferir",
     expect(t).toMatchObject({ estado: "afuera", registros: null, delegacion: null });
     expect(t.renglones).toMatchObject({ registro: "En Deoco (GoDaddy), a nombre de Ana Pérez", dns: "Vos, en tu proveedor" });
     expect(t.venceEn).toBeInstanceOf(Date);
+    // El www por CNAME no ofrece "pasarse a delegar" (los nameservers son de la subcuenta de Deoco).
+    const www = await dueno.dominio.findFirstOrThrow({ where: { tenantId: a.id, dominio: "www.lossatelites.com" } });
+    await expect(pasarADelegado(ua.id, a.id, www.id)).rejects.toThrow(/registrado en Deoco/);
     // Sigue registrado en Deoco: se lo puede llevar con el código.
     expect((await pedirCodigoDeTransferencia(ua.id, a.id, d.id)).codigo).toBe("AUTH-lossatelites.com");
     await sinStaff();

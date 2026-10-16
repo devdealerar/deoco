@@ -132,7 +132,7 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - Registrador (D7, sin pantallas todavía): `Registrador` (`registrador.ts`, `registrador()` por
   `DEOCO_REGISTRADOR`), GoDaddy en `godaddy.ts` (subcuenta por banda, cola de 59/min). Pruebas:
   `tests/registrador-falso.ts`.
-- Compra (D8, `compra.ts`): `dominioPagado` / `renovacionPagada` (los llama el gestor; idempotentes
+- Compra (D8, `compra.ts`): `dominioPagado(modulo, …)` / `renovacionPagada` (SOLO el gestor: lo verifica; idempotentes
   por cobro) → máquina de estados en `dominio_compra` (tomada en la base, reintentos, `datos`,
   `fallido` con `devolucion: "pendiente"`; ya registrado nunca se devuelve), en el barrido
   (`revisarCompras`). `dominio.comprado`: no se quita ni se "lleva el DNS". Staff: `/admin/dominios`.
@@ -289,6 +289,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 
 - Al arrancar (producción) y cada `DEOCO_BARRIDO_SEGUNDOS`: retoma eventos y correos pendientes
   de todas las bandas (`bandas_con_pendientes()`, solo ids) y revisa dominios propios cada 6 h.
+- Lo que habla con GoDaddy (cola de 59/min) corre APARTE del barrido, con su propio candado:
+  `revisarComprasAparte` y los vencimientos (una vez por hora). En pruebas, `esperarCompras()`.
 - Evento y correo se "toman" en la base (`tomadoEn`) antes de procesarse: nunca dos veces.
 
 ## Bus de eventos

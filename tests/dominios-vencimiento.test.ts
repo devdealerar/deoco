@@ -17,6 +17,7 @@ import { dosBandas, dueno } from "./apoyo";
 import { CloudflareFalso } from "./cloudflare-falso";
 import { MercadoPagoFalso } from "./mercadopago-falso";
 import { RegistradorFalso } from "./registrador-falso";
+import comercial from "../modulos/comercial";
 
 // D11: renovación y salida de los dominios comprados. Calendario de avisos, renovar pagando,
 // vencer (vuelta al subdominio, gracia, pérdida), llevárselo con el código y cambiar el titular.
@@ -68,7 +69,7 @@ function aviso(pagoId: string) {
 
 /** Un dominio comprado y listo (registrado, zona activa), como principal. */
 async function comprado() {
-  await dominioPagado(a.id, {
+  await dominioPagado(comercial, a.id, {
     dominio: "lossatelites.com",
     anios: 1,
     contacto: { ...titular },

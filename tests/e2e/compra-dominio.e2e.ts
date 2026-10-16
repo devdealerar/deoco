@@ -8,6 +8,7 @@ import { MercadoPagoFalso } from "../mercadopago-falso";
 import { RegistradorFalso } from "../registrador-falso";
 import { APP, abrirNavegador, captura, cerrarContextos, cerrarNavegador, dominiosDeDesarrollo, logueado } from "./navegador";
 import { PUERTO, PUERTO_CF, PUERTO_GD, PUERTO_MP } from "./servidor";
+import comercial from "../../modulos/comercial";
 
 // D10: comprar un dominio desde el panel, de punta a punta (con Mercado Pago, GoDaddy y
 // Cloudflare falsos). Buscar → elegir → titular → resumen (con el costo de irse) → pagar →
@@ -136,7 +137,7 @@ describe("comprar un dominio", () => {
   });
 
   it("un dato que el registrador rechazó se corrige desde el progreso y la compra sigue", async () => {
-    await dominioPagado(e.a.id, {
+    await dominioPagado(comercial, e.a.id, {
       dominio: "nuevosatelites.com",
       anios: 1,
       contacto: { nombre: "Ana", apellido: "Pérez", email: "multi@x.com", telefono: "1145678900", direccion: "Av. Corrientes 1234", ciudad: "CABA", provincia: "Buenos Aires", codigoPostal: "C1043", pais: "AR" },
@@ -165,7 +166,7 @@ describe("comprar un dominio", () => {
 
 describe("un dominio comprado: renovar, llevárselo, cambiar el titular, vencer", () => {
   it("todo desde la tarjeta del dominio, sin staff", async () => {
-    await dominioPagado(e.a.id, {
+    await dominioPagado(comercial, e.a.id, {
       dominio: "comprado.com",
       anios: 1,
       contacto: { nombre: "Ana", apellido: "Pérez", email: "multi@x.com", telefono: "+54.1145678900", direccion: "Av. Corrientes 1234", ciudad: "CABA", provincia: "Buenos Aires", codigoPostal: "C1043", pais: "AR" },
@@ -230,7 +231,7 @@ describe("un dominio comprado: renovar, llevárselo, cambiar el titular, vencer"
 
 describe("comprado: llevarse solo el DNS", () => {
   it("la lista y los nameservers de su proveedor nuevo, que pone Deoco", async () => {
-    await dominioPagado(e.a.id, {
+    await dominioPagado(comercial, e.a.id, {
       dominio: "solodns.com",
       anios: 1,
       contacto: { nombre: "Ana", apellido: "Pérez", email: "multi@x.com", telefono: "+54.1145678900", direccion: "Av. Corrientes 1234", ciudad: "CABA", provincia: "Buenos Aires", codigoPostal: "C1043", pais: "AR" },

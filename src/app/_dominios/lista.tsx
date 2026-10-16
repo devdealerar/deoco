@@ -139,7 +139,7 @@ export function ListaDominios({
 
           {d.delegacion && <Delegacion dominio={d.dominio} delegacion={d.delegacion} verificar={verificar(d.id)} />}
 
-          {d.via === "cname" && !d.delegacion && !soloSalida && (
+          {d.via === "cname" && !d.delegacion && !soloSalida && !d.comprado && (
             <div className="flex flex-col gap-2 rounded-lg p-4 ring-1 ring-secondary" data-pasar-a-delegado>
               <p className="text-sm text-secondary">
                 <strong>Pasarme a delegar:</strong> Deoco maneja el DNS y el sitio anda también sin www. Preparamos todo antes

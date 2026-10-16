@@ -39,6 +39,25 @@ túnel. Pide un ensayo con Cloudflare real.
 5. **Los mails del gestor salen siempre desde Deoco**, aunque la banda tenga su dirección
    verificada (antes, la cuota habría salido desde merch@labanda.com: era un bug).
 
+## D13 · Cierre (ensayo, carga y repaso)
+
+Detalle en `docs/repaso-dominios.md`. Para decidir vos:
+
+1. **Privacidad del WHOIS**: hoy se registra con `privacy: false`. Los datos del titular pueden
+   quedar públicos según la terminación. ¿Se ofrece privacidad (y quién la paga)?
+2. **Re-bloquear un dominio** si pidieron el código y no lo transfirieron en 30 días (necesita el
+   endpoint de bloqueo de GoDaddy, sin confirmar).
+3. **Datos del titular de cobros que nunca se pagaron**: hoy quedan para siempre. Propuesta: borrar
+   a los 30 días en la limpieza diaria.
+4. **Devolución "a mano"**: que pida el número de operación de Mercado Pago y se verifique.
+5. **Más de un proceso de la app**: cada uno con su cola de GoDaddy; repartir
+   `DEOCO_GODADDY_POR_MINUTO`. Y una cola para la API de Cloudflare (hoy no tiene).
+
+Decidido sin preguntar: las compras y los vencimientos corren aparte del barrido; "Recibimos tu
+pago" va en la transacción de la compra; solo el gestor puede declarar un dominio pago; vender
+dominios exige la clave de avisos; una revisión que Cloudflare no contesta se reintenta a los 15
+minutos; el `www` por CNAME de un comprado no ofrece "pasarse a delegar".
+
 ## D12 · Las cinco salidas, sin staff
 
 1. **Comprado que se lleva solo el DNS**: no existía. Como el dominio está en la subcuenta de Deoco, la

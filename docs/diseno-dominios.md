@@ -665,7 +665,7 @@ quiera.
 | D10 | Pantallas de compra: buscar, titular, resumen (con el costo de salida), progreso, listo — ✅ hecha | M | 4 |
 | D11 | Renovación y avisos; llevarse el dominio (código, detección de la salida → pasa a delegado) — ✅ hecha | M | 3 a 4 |
 | D12 | Transferir a Deoco (delegado → comprado) — pendiente (D12 se usó para el repaso de las salidas) | M | 3 |
-| D13 | Punta a punta y ensayo con un dominio real comprado | M | 3 |
+| D13 | Punta a punta y ensayo con un dominio real comprado — ✅ hecha con falsos; con servicios reales, pendiente | M | 3 |
 | | **Total** | | **42 a 51** |
 
 D12 puede quedar para después del lanzamiento de la compra sin romper el principio: la banda

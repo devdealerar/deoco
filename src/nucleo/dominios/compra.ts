@@ -20,9 +20,10 @@ import { after } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { avisarAlTitular } from "@/nucleo/correo/deoco";
 import { prisma } from "@/nucleo/db/cliente";
-import { conTenant } from "@/nucleo/db/con-tenant";
+import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { ZONA } from "@/nucleo/fechas";
 import { registro as registroGlobal } from "@/nucleo/modulos";
+import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
 import { ErrorDominio, ErrorProveedor, marcarPrincipal, normalizarDominio, proveedorDns, verificarZonaDeComprado, zonaParaComprado } from "./index";
 import { type Aceptacion, type Contacto, ErrorRegistrador, type Operacion, type Registrador, registrador } from "./registrador";
@@ -82,10 +83,21 @@ function piezas(): { r: Registrador } {
 }
 
 /**
- * El gestor de cuenta cobró: arranca la compra. Repetido con el mismo cobro (un aviso de pago que
- * llega dos veces), no crea otra.
+ * Solo el gestor de cuenta (el que cobra, en la cuenta de Deoco) puede decir "está pago". Sin
+ * esto, cualquier módulo podría registrar un dominio sin cobro.
  */
-export async function dominioPagado(tenantId: string, p: PedidoCompra): Promise<{ compraId: string; repetida: boolean }> {
+function exigirGestor(modulo: Modulo, reg: Registro) {
+  if (reg.modulo(modulo.id) !== modulo || reg.gestor?.moduloId !== modulo.id || !reg.gestor.gestion.dominios) {
+    throw new ErrorDominio(`"${modulo.id}" no es el gestor de cuenta que cobra los dominios: no puede arrancar una compra.`);
+  }
+}
+
+/**
+ * El gestor de cuenta cobró: arranca la compra. Repetido con el mismo cobro (un aviso de pago que
+ * llega dos veces), no crea otra. Solo el gestor (`modulo`).
+ */
+export async function dominioPagado(modulo: Modulo, tenantId: string, p: PedidoCompra, reg: Registro = registroGlobal()): Promise<{ compraId: string; repetida: boolean }> {
+  exigirGestor(modulo, reg);
   const { r } = piezas();
   const dominio = normalizarDominio(p.dominio);
   return crear(tenantId, p.cobro, {
@@ -103,9 +115,12 @@ export async function dominioPagado(tenantId: string, p: PedidoCompra): Promise<
 
 /** El gestor de cuenta cobró una renovación. */
 export async function renovacionPagada(
+  modulo: Modulo,
   tenantId: string,
   p: { dominio: string; anios: number; cobro: { id: string; monto: number }; usuarioId: string | null },
+  reg: Registro = registroGlobal(),
 ): Promise<{ compraId: string; repetida: boolean }> {
+  exigirGestor(modulo, reg);
   const { r } = piezas();
   return crear(tenantId, p.cobro, { usuarioId: p.usuarioId, tipo: "renovacion", dominio: normalizarDominio(p.dominio), registrador: r.nombre, anios: p.anios, paso: "renovar" });
 }
@@ -121,13 +136,21 @@ async function crear(
     const c = await tx.dominioCompra.create({ data: { tenantId, cobroId: cobro.id, monto: cobro.monto, ...datos }, select: { id: true } });
     const accion = datos.tipo === "titular" ? "dominio.titular_pedido" : datos.tipo === "dns" ? "dominio.nameservers_pedidos" : `dominio.${datos.tipo === "alta" ? "compra" : "renovacion"}_pagada`;
     await tx.auditoria.create({ data: { usuarioId: datos.usuarioId ?? null, tenantId, accion, detalle: { dominio: datos.dominio, cobroId: cobro.id } } });
+    // Pagado: que pueda cerrar la página (en el mail va adónde ver en qué está). En la misma
+    // transacción: si la compra se guarda, el mail sale; si no, el aviso de pago se reintenta entero.
+    if (datos.tipo === "alta" || datos.tipo === "renovacion") await avisarDelPago(tenantId, datos, cobro.id, tx);
     return { compraId: c.id, repetida: false };
   });
-  if (!r.repetida && (datos.tipo === "titular" || datos.tipo === "dns")) programar(tenantId);
-  else if (!r.repetida) {
-    // Que pueda cerrar la página: en el mail va adónde ver en qué está.
-    await avisarAlTitular(tenantId, {
-      clave: `dominio-pago-recibido:${cobro.id}`,
+  if (!r.repetida) programar(tenantId);
+  return r;
+}
+
+/** "Recibimos tu pago", encolado en la transacción de la compra. */
+async function avisarDelPago(tenantId: string, datos: { tipo: string; dominio: string }, cobroId: string, tx: TxTenant) {
+  await avisarAlTitular(
+    tenantId,
+    {
+      clave: `dominio-pago-recibido:${cobroId}`,
       asunto: () => (datos.tipo === "alta" ? `Recibimos tu pago: estamos registrando ${datos.dominio}` : `Recibimos tu pago: estamos renovando ${datos.dominio}`),
       parrafos: () => [
         datos.tipo === "alta"
@@ -136,10 +159,9 @@ async function crear(
         "No tenés que hacer nada: te avisamos cuando esté. Mientras tanto, podés ver en qué va desde el panel.",
       ],
       boton: { texto: "Ver en qué va", ruta: "/dominios/compras" },
-    }).catch((e) => console.error(`[compra] aviso de pago de ${datos.dominio}:`, e));
-    programar(tenantId);
-  }
-  return r;
+    },
+    { tx },
+  );
 }
 
 const enMarcha = new Set<Promise<unknown>>();
@@ -156,6 +178,30 @@ function programar(tenantId: string) {
   } catch {
     void correr(); // fuera de un pedido de Next
   }
+}
+
+let revisando: Promise<number> | null = null;
+let terminadasAntes = 0;
+
+/**
+ * Para el barrido: revisa las compras APARTE, sin esperarlas. Cada pedido a GoDaddy pasa por la
+ * cola de 59 por minuto: con muchas compras a la vez una vuelta puede tardar minutos, y el barrido
+ * (correos, eventos, cuota, devoluciones) no puede quedarse esperando. Si la revisión anterior
+ * sigue, no se lanza otra. Devuelve cuántas terminaron en la revisión anterior.
+ */
+export function revisarComprasAparte(ahora = new Date()): number {
+  if (!revisando) {
+    const p: Promise<number> = revisarCompras(ahora)
+      .then((n) => (terminadasAntes = n))
+      .catch((e) => (console.error("[compra] revisión:", e), 0))
+      .finally(() => {
+        revisando = null;
+        enMarcha.delete(p);
+      });
+    revisando = p;
+    enMarcha.add(p);
+  }
+  return terminadasAntes;
 }
 
 /** Espera lo que quedó corriendo en segundo plano. Para pruebas y cierres ordenados. */

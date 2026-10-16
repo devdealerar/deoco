@@ -569,6 +569,9 @@ export async function pasarADelegado(usuarioId: string, tenantId: string, domini
   if (!d) throw new ErrorDominio("Ese dominio no es de esta banda.");
   if (esDePlataforma(d.dominio)) throw new ErrorDominio("El subdominio de Deoco no se delega.");
   if (d.via === "zona") throw new ErrorDominio(`${d.dominio} ya está delegado.`);
+  // Comprado que se llevó el DNS: sus nameservers los pone Deoco en el registrador. Volver a tener
+  // el DNS en Deoco todavía no tiene botón (docs/decisiones-pendientes.md, D12).
+  if (d.comprado) throw new ErrorDominio(`${apexDe(d.dominio)} está registrado en Deoco: para volver a tener el DNS acá, escribinos.`);
   if (d.migrandoA) return;
   await exigirNoArchivada(tenantId);
   const p = proveedor();
@@ -918,6 +921,9 @@ async function revisarDelegaciones(ahora: Date): Promise<number> {
   return verificadas;
 }
 
+/** Un dominio que no se pudo revisar (Cloudflare no respondió) se reintenta a los 15 minutos. */
+const REINTENTO_REVISION_MS = 15 * 60_000;
+
 async function revisarVerificados(ahora: Date): Promise<{ revisados: number; conProblema: number }> {
   const antes = new Date(ahora.getTime() - REVISAR_DOMINIOS_CADA_MS);
   const bandas = await prisma.$queryRaw<{ id: string }[]>`
@@ -942,6 +948,10 @@ async function revisarVerificados(ahora: Date): Promise<{ revisados: number; con
         e = await consultar(tenantId, d, p);
       } catch (err) {
         console.warn(`[dominios] no se pudo revisar ${d.dominio}:`, err instanceof Error ? err.message : err);
+        // No cuenta como falla (no es culpa de la banda), pero se reintenta a los 15 minutos, no en la
+        // próxima vuelta: si Cloudflare limita los pedidos (429), insistir cada minuto lo empeora.
+        const reintento = new Date(ahora.getTime() - REVISAR_DOMINIOS_CADA_MS + REINTENTO_REVISION_MS);
+        await conTenant(tenantId, (tx) => tx.dominio.update({ where: { id: d.id }, data: { revisadoEn: reintento } }));
         continue;
       }
       const bien = e.llega && e.certificado;

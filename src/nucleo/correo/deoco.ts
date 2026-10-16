@@ -1,6 +1,6 @@
 // Avisos de Deoco al titular de una banda (dominios hoy; renovaciones y lo que venga después).
 // Remitente "Deoco"; se responde a la casilla de Deoco (DEOCO_CUOTA_RESPONDER_A) si está.
-import { conTenant } from "@/nucleo/db/con-tenant";
+import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { titularDeBanda } from "@/nucleo/personas";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
 import { enviarCorreoDelNucleo, escaparHtml as h } from "./index";
@@ -16,12 +16,16 @@ export type AvisoAlTitular = {
   boton: { texto: string; ruta: string };
 };
 
-/** Manda el aviso al titular de la banda. Sin titular, no hace nada. */
-export async function avisarAlTitular(tenantId: string, aviso: AvisoAlTitular): Promise<void> {
-  const datos = await conTenant(tenantId, async (tx) => ({
+/**
+ * Manda el aviso al titular de la banda. Sin titular, no hace nada. Con `tx` (de `conTenant` de
+ * esa banda), el mail se encola en esa transacción: sale si y solo si lo demás se confirma.
+ */
+export async function avisarAlTitular(tenantId: string, aviso: AvisoAlTitular, opciones: { tx?: TxTenant } = {}): Promise<void> {
+  const leer = async (tx: TxTenant) => ({
     titular: await titularDeBanda(tx),
     banda: await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { nombre: true, slug: true } }),
-  }));
+  });
+  const datos = opciones.tx ? await leer(opciones.tx) : await conTenant(tenantId, leer);
   if (!datos.titular) return;
   const { titular, banda } = datos;
   const url = `${origenPlataforma()}/b/${banda.slug}${aviso.boton.ruta}`;
@@ -44,6 +48,6 @@ ${dudas.map((l) => `<p>${h(l)}</p>`).join("")}
 </div>`,
       texto: [`Hola, ${titular.nombre}:`, "", ...lineas.flatMap((l) => [l, ""]), `${aviso.boton.texto}: ${url}`, ...dudas.flatMap((l) => ["", l])].join("\n"),
     },
-    { unica: aviso.clave },
+    { unica: aviso.clave, ...(opciones.tx ? { tx: opciones.tx } : {}) },
   );
 }

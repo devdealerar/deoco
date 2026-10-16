@@ -225,17 +225,17 @@ async function entregar(tenantId: string, id: string, ahora = new Date()): Promi
   const d = c.datos as { contacto?: unknown; aceptacion?: { fecha: string; ip: string; claves: string[] }; hacerPrincipal?: boolean };
   try {
     if (c.tipo === "alta") {
-      await dominioPagado(tenantId, {
+      await dominioPagado(await comercial(), tenantId, {
         dominio: c.dominio,
         anios: c.anios,
-        contacto: d.contacto as Parameters<typeof dominioPagado>[1]["contacto"],
+        contacto: d.contacto as Parameters<typeof dominioPagado>[2]["contacto"],
         aceptacion: { ...d.aceptacion!, fecha: new Date(d.aceptacion!.fecha) },
         hacerPrincipal: Boolean(d.hacerPrincipal),
         cobro: { id: pago.pagoId, monto: pago.monto },
         usuarioId: c.usuarioId,
       });
     } else {
-      await renovacionPagada(tenantId, { dominio: c.dominio, anios: c.anios, cobro: { id: pago.pagoId, monto: pago.monto }, usuarioId: c.usuarioId });
+      await renovacionPagada(await comercial(), tenantId, { dominio: c.dominio, anios: c.anios, cobro: { id: pago.pagoId, monto: pago.monto }, usuarioId: c.usuarioId });
     }
     await conTenant(tenantId, (tx) => tx.comercialDominioPago.update({ where: { id }, data: { entrega: "hecha", entregaError: null } }));
   } catch (e) {

@@ -9,6 +9,8 @@ import { llevarseElDns } from "@/nucleo/dominios/salida";
 import { dosBandas, dueno } from "./apoyo";
 import { CloudflareFalso, NAMESERVERS } from "./cloudflare-falso";
 import { RegistradorFalso } from "./registrador-falso";
+import comercial from "../modulos/comercial";
+import tienda from "../modulos/tienda";
 
 // La compra de un dominio ya pagada (D8): la máquina de estados, contra Cloudflare y GoDaddy falsos.
 
@@ -79,7 +81,7 @@ const despues = async (ms: number) => avanzarCompras(a.id, new Date(Date.now() +
 
 describe("alta", () => {
   it("pagado → subcuenta → registrado a nombre del titular → zona → nameservers de Cloudflare → activo → principal → listo", async () => {
-    expect(await dominioPagado(a.id, pedido())).toMatchObject({ repetida: false });
+    expect(await dominioPagado(comercial, a.id, pedido())).toMatchObject({ repetida: false });
     await esperarCompras();
     // Subcuenta creada y registro pedido (202): esperando a GoDaddy.
     expect(await dueno.registradorCliente.findFirstOrThrow({ where: { tenantId: a.id } })).toMatchObject({ registrador: "GoDaddy" });
@@ -104,6 +106,7 @@ describe("alta", () => {
     // Cloudflare ve los nameservers (lo verifica la revisión de delegaciones) y el certificado.
     cf.activarZona("lossatelites.com");
     await barrer({ ahora: new Date(Date.now() + 20 * MIN) });
+    await esperarCompras(); // las compras corren aparte del barrido
     const c = await compra();
     expect(c).toMatchObject({ estado: "listo", paso: "listo" });
     expect(c.venceEn).toBeInstanceOf(Date);
@@ -118,8 +121,8 @@ describe("alta", () => {
   });
 
   it("un cobro, una compra: el mismo aviso de pago dos veces no compra dos veces", async () => {
-    const r1 = await dominioPagado(a.id, pedido());
-    const r2 = await dominioPagado(a.id, pedido());
+    const r1 = await dominioPagado(comercial, a.id, pedido());
+    const r2 = await dominioPagado(comercial, a.id, pedido());
     expect(r2).toEqual({ compraId: r1.compraId, repetida: true });
     await esperarCompras();
     expect(await dueno.dominioCompra.count()).toBe(1);
@@ -128,7 +131,7 @@ describe("alta", () => {
 
   it("alguien lo registró en el medio: falla, el pago se devuelve y se avisa", async () => {
     gd.tomados.add("lossatelites.com");
-    await dominioPagado(a.id, pedido());
+    await dominioPagado(comercial, a.id, pedido());
     await esperarCompras();
     expect(await compra()).toMatchObject({ estado: "fallido", motivo: "no-disponible", devolucion: "pendiente" });
     expect(await mails()).toEqual([RECIBIDO, "No pudimos registrar lossatelites.com"]);
@@ -137,7 +140,7 @@ describe("alta", () => {
 
   it("sin saldo en la cuenta de Deoco: reintenta (el staff lo ve); al recargar, sigue; 24 h sin poder, devolución", async () => {
     gd.sinSaldo = true;
-    await dominioPagado(a.id, pedido());
+    await dominioPagado(comercial, a.id, pedido());
     await esperarCompras();
     expect(await compra()).toMatchObject({ estado: "en-curso", paso: "registrar", motivo: "sin-saldo", intentos: 1 });
     gd.sinSaldo = false;
@@ -149,7 +152,7 @@ describe("alta", () => {
     await dueno.registradorCliente.deleteMany();
     gd.limpiar();
     gd.sinSaldo = true;
-    await dominioPagado(a.id, pedido({ cobro: { id: "cobro-2", monto: 1 } }));
+    await dominioPagado(comercial, a.id, pedido({ cobro: { id: "cobro-2", monto: 1 } }));
     await esperarCompras();
     await dueno.dominioCompra.updateMany({ data: { primerFalloEn: new Date(Date.now() - 25 * HORA) } });
     await despues(16 * MIN);
@@ -157,7 +160,7 @@ describe("alta", () => {
   });
 
   it("un dato del titular que el registrador no acepta: espera a la banda (y le avisa); corregido, sigue", async () => {
-    await dominioPagado(a.id, pedido({ contacto: { ...titular, telefono: "1145678900" } }));
+    await dominioPagado(comercial, a.id, pedido({ contacto: { ...titular, telefono: "1145678900" } }));
     await esperarCompras();
     const c = await compra();
     expect(c).toMatchObject({ estado: "datos", campo: "telefono" });
@@ -168,7 +171,7 @@ describe("alta", () => {
   });
 
   it("ya registrado, si Cloudflare falla nunca se devuelve: se sigue intentando", async () => {
-    await dominioPagado(a.id, pedido());
+    await dominioPagado(comercial, a.id, pedido());
     await esperarCompras();
     gd.terminar("REGISTER");
     cf.fallas.push(503, 503, 503, 503);
@@ -181,7 +184,7 @@ describe("alta", () => {
   });
 
   it("con la zona activa, la compra la verifica sola (sin esperar la revisión de delegaciones, que es cada 10 min)", async () => {
-    await dominioPagado(a.id, pedido({ hacerPrincipal: false }));
+    await dominioPagado(comercial, a.id, pedido({ hacerPrincipal: false }));
     await esperarCompras();
     gd.terminar("REGISTER");
     await despues(2 * MIN);
@@ -194,8 +197,14 @@ describe("alta", () => {
     expect(await dueno.dominio.count({ where: { tenantId: a.id, comprado: true, verificado: true } })).toBe(2);
   });
 
+  it("solo el gestor de cuenta (el que cobra) puede decir que está pago: otro módulo no registra nada", async () => {
+    await expect(dominioPagado(tienda, a.id, pedido())).rejects.toThrow(/no es el gestor de cuenta/);
+    await expect(renovacionPagada(tienda, a.id, { dominio: "lossatelites.com", anios: 1, cobro: { id: "x", monto: 1 }, usuarioId: null })).rejects.toThrow(/no es el gestor/);
+    expect(await dueno.dominioCompra.count()).toBe(0);
+  });
+
   it("un paso tomado por otro proceso no corre dos veces", async () => {
-    await dominioPagado(a.id, pedido());
+    await dominioPagado(comercial, a.id, pedido());
     await esperarCompras();
     gd.terminar("REGISTER");
     await dueno.dominioCompra.updateMany({ data: { tomadoEn: new Date() } });
@@ -206,7 +215,7 @@ describe("alta", () => {
 
 describe("después", () => {
   async function comprado() {
-    await dominioPagado(a.id, pedido({ hacerPrincipal: false }));
+    await dominioPagado(comercial, a.id, pedido({ hacerPrincipal: false }));
     await esperarCompras();
     gd.terminar("REGISTER");
     await despues(2 * MIN);
@@ -214,13 +223,14 @@ describe("después", () => {
     await despues(4 * MIN);
     cf.activarZona("lossatelites.com");
     await barrer({ ahora: new Date(Date.now() + 20 * MIN) });
+    await esperarCompras(); // las compras corren aparte del barrido
     expect(await compra()).toMatchObject({ estado: "listo" });
   }
 
   it("renovación pagada: el vencimiento pasa un año", async () => {
     await comprado();
     const antes = (await compra()).venceEn!;
-    await renovacionPagada(a.id, { dominio: "lossatelites.com", anios: 1, cobro: { id: "cobro-ren", monto: 1 }, usuarioId: ua.id });
+    await renovacionPagada(comercial, a.id, { dominio: "lossatelites.com", anios: 1, cobro: { id: "cobro-ren", monto: 1 }, usuarioId: ua.id });
     await esperarCompras();
     gd.terminar("RENEW");
     await despues(2 * MIN);
@@ -239,12 +249,13 @@ describe("después", () => {
   });
 
   it("esperando los nameservers más de 14 días no se libera (los pone la compra)", async () => {
-    await dominioPagado(a.id, pedido());
+    await dominioPagado(comercial, a.id, pedido());
     await esperarCompras();
     gd.terminar("REGISTER");
     await despues(2 * MIN);
     await dueno.dominio.updateMany({ where: { comprado: true }, data: { creadoEn: new Date(Date.now() - 20 * 24 * HORA) } });
     await barrer();
+    await esperarCompras();
     expect(await dueno.dominio.count({ where: { comprado: true } })).toBe(2);
     expect(cf.zonaDe("lossatelites.com")).toBeDefined();
   });

@@ -209,13 +209,22 @@ describe("revisión periódica de dominios propios (según Cloudflare)", () => {
     ]);
   });
 
-  it("Cloudflare no responde: no cuenta como revisado ni como problema", async () => {
+  it("Cloudflare no responde (o limita con 429): no es un problema de la banda; se reintenta a los 15 minutos, no en cada vuelta", async () => {
     await propio(a.id, "losbuenos.com");
     cf.fallas.push(503, 503, 503);
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    expect((await barrer()).dominios).toEqual({ revisados: 0, conProblema: 0, delegados: 0 });
+    const t0 = new Date();
+    expect((await barrer({ ahora: t0 })).dominios).toEqual({ revisados: 0, conProblema: 0, delegados: 0 });
     vi.restoreAllMocks();
-    expect((await dueno.dominio.findFirstOrThrow({ where: { dominio: "losbuenos.com" } })).revisadoEn).toBeNull();
+    cf.fallas = []; // Cloudflare vuelve
+    const fila = await dueno.dominio.findFirstOrThrow({ where: { dominio: "losbuenos.com" } });
+    expect(fila).toMatchObject({ fallasSeguidas: 0, problemaDesde: null });
+    // La vuelta siguiente (un minuto después) no insiste.
+    const pedidos = cf.pedidos.length;
+    expect((await barrer({ ahora: new Date(t0.getTime() + 60_000) })).dominios.revisados).toBe(0);
+    expect(cf.pedidos.length).toBe(pedidos);
+    // A los 15 minutos, sí.
+    expect((await barrer({ ahora: new Date(t0.getTime() + 16 * 60_000) })).dominios.revisados).toBe(1);
   });
 
   it("no revisa los dominios de una banda ARCHIVADA", async () => {

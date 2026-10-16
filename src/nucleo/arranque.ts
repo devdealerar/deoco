@@ -73,6 +73,9 @@ export function problemasDeVenta(reg: Pick<Registro, "gestor">, env: Entorno): s
   if (!env.DEOCO_REGISTRADOR?.trim()) return [];
   if (!reg.gestor?.gestion.dominios) return ["DEOCO_REGISTRADOR está configurado pero ningún gestor de cuenta cobra dominios (gestionaCuenta.dominios)."];
   if (!cuotaConfigurada(env)) return ["DEOCO_REGISTRADOR necesita la cuenta de Mercado Pago de Deoco (DEOCO_CUOTA_MP_TOKEN): los dominios se cobran ahí."];
+  // Sin la clave, el aviso de pago se acepta sin firma: no alcanza para falsificar un pago (se
+  // consulta a la API), pero cualquiera podría gastar las consultas de la cuenta de Deoco.
+  if (!env.DEOCO_CUOTA_MP_SECRETO_AVISOS?.trim()) return ["DEOCO_REGISTRADOR necesita DEOCO_CUOTA_MP_SECRETO_AVISOS (la clave secreta de los avisos de la aplicación de Mercado Pago de Deoco): los avisos de pago de dominios se verifican con ella."];
   return [];
 }
 
