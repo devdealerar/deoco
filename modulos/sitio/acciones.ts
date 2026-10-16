@@ -16,13 +16,14 @@ const MB = 1024 * 1024;
 
 async function subir(
   tenantId: string,
+  recurso: "logo" | "fondo" | "slide" | "rider" | "descargable",
   f: File,
   tipos: TipoArchivo[],
   variantes: Variante[] = [],
   maxBytes = 25 * MB,
 ) {
   const datos = Buffer.from(await f.arrayBuffer());
-  return (await guardarArchivo(tenantId, { nombre: f.name, datos }, { moduloId: MODULO, tipos, variantes, maxBytes })).id;
+  return (await guardarArchivo(tenantId, { nombre: f.name, datos }, { moduloId: MODULO, recurso, tipos, variantes, maxBytes })).id;
 }
 
 const perfilDe = (tx: TxTenant, tenantId: string) =>
@@ -55,8 +56,8 @@ export async function guardarIdentidad(slug: string, _: EstadoFormulario, fd: Fo
     // El logo que se muestra es PNG o WebP (el SVG va solo como descargable del press kit).
     const logo = archivoDe(fd, "logo");
     const fondo = archivoDe(fd, "fondo");
-    const logoId = logo ? await subir(tenantId, logo, ["png", "webp"], [{ nombre: "web", ancho: 600, alto: 600 }], 10 * MB) : null;
-    const fondoId = fondo ? await subir(tenantId, fondo, IMAGEN, [{ nombre: "web", ancho: 2000, alto: 2000 }]) : null;
+    const logoId = logo ? await subir(tenantId, "logo", logo, ["png", "webp"], [{ nombre: "web", ancho: 600, alto: 600 }], 10 * MB) : null;
+    const fondoId = fondo ? await subir(tenantId, "fondo", fondo, IMAGEN, [{ nombre: "web", ancho: 2000, alto: 2000 }]) : null;
 
     await conTenant(tenantId, async (tx) => {
       const perfil = await perfilDe(tx, tenantId);
@@ -95,7 +96,7 @@ export async function agregarSlide(slug: string, _: EstadoFormulario, fd: FormDa
     const imagen = archivoDe(fd, "imagen");
     if (!imagen) throw new ErrorFormulario("Elegí una imagen.");
     const textoAlt = texto(fd, "textoAlt", 200);
-    const archivoId = await subir(tenantId, imagen, IMAGEN, [{ nombre: "web", ancho: 1600, alto: 1600 }]);
+    const archivoId = await subir(tenantId, "slide", imagen, IMAGEN, [{ nombre: "web", ancho: 1600, alto: 1600 }]);
     await conTenant(tenantId, async (tx) => {
       const orden = siguienteOrden(await tx.sitioSlide.findMany({ orderBy: { orden: "asc" } }));
       await tx.sitioSlide.create({ data: { tenantId, archivoId, textoAlt, orden } });
@@ -189,7 +190,7 @@ export async function guardarPrensa(slug: string, _: EstadoFormulario, fd: FormD
     const prensaEmail = email(fd, "prensaEmail");
     const prensaTelefono = texto(fd, "prensaTelefono", 60);
     const rider = archivoDe(fd, "rider");
-    const riderId = rider ? await subir(tenantId, rider, ["pdf"], [], 20 * MB) : null;
+    const riderId = rider ? await subir(tenantId, "rider", rider, ["pdf"], [], 20 * MB) : null;
     await conTenant(tenantId, async (tx) => {
       const perfil = await perfilDe(tx, tenantId);
       const quitarRider = fd.get("quitarRider") === "on";
@@ -216,7 +217,7 @@ export async function agregarDescargable(slug: string, tipo: "FOTO" | "LOGO", _:
     // Fotos en alta: el original queda intacto para descargar; la versión web es la miniatura.
     // Logos: también SVG y PDF, que solo se ofrecen como descarga (nunca se muestran).
     const tipos: TipoArchivo[] = tipo === "FOTO" ? IMAGEN : ["png", "webp", "jpeg", "svg", "pdf"];
-    const archivoId = await subir(tenantId, archivo, tipos, [{ nombre: "web", ancho: 800, alto: 800 }]);
+    const archivoId = await subir(tenantId, "descargable", archivo, tipos, [{ nombre: "web", ancho: 800, alto: 800 }]);
     await conTenant(tenantId, async (tx) => {
       const orden = siguienteOrden(await tx.sitioDescargable.findMany({ where: { tipo }, orderBy: { orden: "asc" } }));
       await tx.sitioDescargable.create({ data: { tenantId, tipo, archivoId, descripcion, orden } });

@@ -41,6 +41,11 @@ const tienda: Modulo = {
     // Probar la conexión con la cuenta de cobro: solo el titular (ni otro rol ni el staff).
     { clave: "tienda.pasarela.conectar", rolesPorDefecto: ["TITULAR"], exclusivoTitular: true },
   ],
+  // Archivos: el de impresión y la foto de cada producto; en el panel los ve quien ve la tienda.
+  archivos: [
+    { recurso: "diseno", permiso: VER },
+    { recurso: "foto-producto", permiso: VER },
+  ],
   // Tope de la cuenta (lo fija el plan): al pasarlo no se publica más; si baja, se despublica
   // lo último publicado.
   limites: [{ clave: LIMITE_PUBLICADOS, etiqueta: "productos publicados", usados: contarPublicados, ajustar: ajustarPublicados }],

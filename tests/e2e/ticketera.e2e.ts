@@ -1,5 +1,6 @@
 import { request } from "node:http";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { guardarArchivo } from "@/nucleo/archivos";
 import { prenderModulo } from "@/nucleo/modulos/encendido";
 import { guardarSecreto } from "@/nucleo/secretos/carga";
 import { crearEvento, crearTipo, publicarEvento } from "../../modulos/ticketera/eventos";
@@ -189,6 +190,21 @@ describe("ticketera", () => {
       expect((await banda.goto(`${APP}/b/banda-a/sitio`))!.status()).toBe(404);
     } finally {
       await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ACTIVO" } });
+    }
+  });
+
+  it("PUERTA, con el id exacto de un archivo de la tienda, recibe 403; el titular lo recibe", async () => {
+    await prenderModulo(e.staff.id, e.a.id, "tienda");
+    const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c636000010000050001a5f645400000000049454e44ae426082", "hex");
+    const { id } = await guardarArchivo(e.a.id, { nombre: "diseno.png", datos: PNG }, { moduloId: "tienda", recurso: "diseno", tipos: ["png"] });
+    try {
+      const p = (await logueado("ajeno@x.com")).page;
+      expect((await p.goto(`${APP}/b/banda-a/archivos/${id}/diseno.png`))!.status()).toBe(403);
+      const banda = (await logueado("multi@x.com")).page;
+      expect((await banda.goto(`${APP}/b/banda-a/archivos/${id}/diseno.png`))!.status()).toBe(200);
+    } finally {
+      await dueno.archivo.deleteMany({ where: { id } });
+      await dueno.moduloTenant.deleteMany({ where: { tenantId: e.a.id, moduloId: "tienda" } });
     }
   });
 

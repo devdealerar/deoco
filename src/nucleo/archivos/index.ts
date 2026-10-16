@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
+import type { Registro } from "@/nucleo/modulos/registro";
 import { alConfirmar, conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { almacen } from "./almacen";
 import { detectarTipo, MIME, RASTER, type TipoArchivo } from "./tipos";
@@ -91,8 +92,15 @@ export async function prepararArchivo(
 export async function guardarArchivo(
   tenantId: string,
   archivo: { nombre: string; datos: Buffer },
-  opciones: { moduloId: string; tipos: TipoArchivo[]; maxBytes?: number; variantes?: Variante[] },
+  opciones: { moduloId: string; recurso: string; tipos: TipoArchivo[]; maxBytes?: number; variantes?: Variante[] },
+  reg?: Registro,
 ): Promise<ArchivoGuardado> {
+  // El recurso lo declara el módulo (`archivos` en su contrato): con él se decide quién lo ve.
+  // (Import tardío: el registro importa los módulos, que importan este archivo.)
+  const { registro } = await import("@/nucleo/modulos");
+  if (!(reg ?? registro()).modulo(opciones.moduloId)?.archivos?.some((a) => a.recurso === opciones.recurso)) {
+    throw new Error(`El módulo "${opciones.moduloId}" no declara el recurso "${opciones.recurso}" en archivos.`);
+  }
   const { nombre, tipo, datos, variantes } = await prepararArchivo(archivo, opciones);
   const total = BigInt(datos.length + variantes.reduce((s, v) => s + v.datos.length, 0));
 
@@ -111,7 +119,6 @@ export async function guardarArchivo(
       if (usado + total > limite) {
         // El gestor de cuenta (si hay) dice cómo tener más espacio (p. ej. qué plan lo da).
         // (Import tardío: el registro importa los módulos, que importan este archivo.)
-        const { registro } = await import("@/nucleo/modulos");
         const como = await registro()
           .gestor?.gestion.comoAmpliar(tenantId, LIMITE_ALMACENAMIENTO, Number(usado + total))
           .catch(() => null);
@@ -121,7 +128,7 @@ export async function guardarArchivo(
         );
       }
       await tx.archivo.create({
-        data: { id, tenantId, moduloId: opciones.moduloId, nombre, tipo, bytes: total, variantes: variantes.map((v) => v.nombre) },
+        data: { id, tenantId, moduloId: opciones.moduloId, recurso: opciones.recurso, nombre, tipo, bytes: total, variantes: variantes.map((v) => v.nombre) },
       });
     });
   } catch (e) {

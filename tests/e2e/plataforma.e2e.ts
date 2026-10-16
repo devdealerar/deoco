@@ -65,7 +65,7 @@ describe("urlFirmada(): descarga sin sesión con link que vence", () => {
   };
 
   it("vigente: baja el archivo como descarga; vencido: 410; alterado o en el host de la banda: 404", async () => {
-    const { id } = await guardarArchivo(e.a.id, { nombre: "remera.pdf", datos: PDF }, { moduloId: "prueba", tipos: ["pdf"] });
+    const { id } = await guardarArchivo(e.a.id, { nombre: "remera.pdf", datos: PDF }, { moduloId: "prueba", recurso: "documento", tipos: ["pdf"] });
     const vigente = pathDe(await urlFirmada(prueba, e.a.id, id));
     const ok = await bajar("app.lvh.me", vigente);
     expect(ok.estado).toBe(200);

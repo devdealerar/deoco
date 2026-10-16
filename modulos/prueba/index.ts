@@ -15,6 +15,7 @@ async function alVerificarse() {
 const prueba: Modulo = {
   id: "prueba",
   nombre: "Módulo de prueba",
+  archivos: [{ recurso: "documento", permiso: "prueba.contenido.ver" }],
   permisos: [
     { clave: "prueba.contenido.ver", rolesPorDefecto: ["TITULAR", "EDITOR"] },
     // Exclusivo del titular, como la pasarela de cobro: ni otros roles ni el staff.

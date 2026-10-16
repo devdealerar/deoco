@@ -86,6 +86,9 @@ export type RutaModulo<P> = {
  * `titulo` de una página: "Press kit" → "Press kit · <banda>". `imagen`: URL absoluta o
  * ruta del mismo sitio (`urlArchivo(...)` de un archivo público).
  */
+/** Un recurso con archivos del módulo ("diseno", "logo") y el permiso que hace falta para verlos en el panel. */
+export type DefinicionArchivo = { recurso: string; permiso: string };
+
 /** Una variable de entorno que el módulo necesita. `ayuda`: qué es y cómo se genera. */
 export type DefinicionEntorno = { variable: string; ayuda: string; valida?: (valor: string) => boolean };
 
@@ -392,6 +395,11 @@ export type Modulo = {
    * `valida` dice que no sirve: mejor eso que fallar en el primer pedido de una banda.
    */
   entorno?: DefinicionEntorno[];
+  /**
+   * Los archivos que guarda, por recurso (`guardarArchivo(…, { recurso })`): en el panel, un
+   * archivo se entrega solo a quien tiene el permiso de su recurso. Tener el id no alcanza.
+   */
+  archivos?: DefinicionArchivo[];
   /**
    * Cuentas externas: usuarios que no son de una banda sino de algo del módulo (p. ej. un
    * proveedor). `etiqueta`: nombre del portal ("Panel de proveedor"). Exige rutasExternas.

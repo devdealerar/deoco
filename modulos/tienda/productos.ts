@@ -40,6 +40,7 @@ export async function subirDiseno(tenantId: string, nombre: string, archivo: Arc
   }
   const guardado = await guardarArchivo(tenantId, archivo, {
     moduloId: MODULO,
+    recurso: "diseno",
     tipos: ["png", "pdf"],
     variantes: medida.formato === "png" ? [{ nombre: "web", ancho: 800, alto: 800 }] : [],
   });
@@ -119,6 +120,7 @@ async function validarProducto(tenantId: string, base: Especificacion & { opcion
 async function subirFoto(tenantId: string, foto: ArchivoSubido) {
   return guardarArchivo(tenantId, foto, {
     moduloId: MODULO,
+    recurso: "foto-producto",
     tipos: ["jpeg", "png", "webp"],
     maxBytes: 10 * 1024 * 1024,
     variantes: [{ nombre: "web", ancho: 1200, alto: 1200 }],

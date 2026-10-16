@@ -29,6 +29,7 @@ const SEGMENTO = /^(\[[a-zA-Z][a-zA-Z0-9]*\]|[a-z0-9][a-z0-9-]*)$/;
 const RESERVADAS_PANEL = RUTAS_NUCLEO_PANEL; // home del panel, pago de la cuota, archivos, dominios, correo, secretos
 /** Ids que usa el núcleo como "módulo" (p. ej. las credenciales de cobro en `secreto`). */
 const ID_RESERVADOS = ["pagos", "nucleo"];
+const RECURSO_ARCHIVO = /^[a-z][a-z0-9-]{0,40}$/;
 const NOMBRE_CONSULTA = /^[a-z][a-z0-9-]{0,62}$/;
 const CLAVE_SECRETO = /^[a-z][a-z0-9_]{0,62}$/;
 const RESERVADAS_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal", "/registro"]; // plataforma, archivos y avisos
@@ -320,6 +321,14 @@ export function crearRegistro(modulos: Modulo[]): Registro {
     }
 
     const clavesSecretos = new Set<string>();
+    const recursos = new Set<string>();
+    for (const a of m.archivos ?? []) {
+      if (!RECURSO_ARCHIVO.test(a.recurso)) throw new ErrorRegistro(m.id, `archivos: el recurso "${a.recurso}" no tiene la forma (minúsculas y guiones)`);
+      if (recursos.has(a.recurso)) throw new ErrorRegistro(m.id, `archivos: recurso "${a.recurso}" repetido`);
+      recursos.add(a.recurso);
+      if (!a.permiso) throw new ErrorRegistro(m.id, `archivos: el recurso "${a.recurso}" necesita un permiso`);
+      permisoPropio(a.permiso, `archivos "${a.recurso}"`);
+    }
     for (const sec of m.secretos ?? []) {
       if (!CLAVE_SECRETO.test(sec.clave)) {
         throw new ErrorRegistro(m.id, `secreto "${sec.clave}": clave inválida (minúsculas, números y _)`);

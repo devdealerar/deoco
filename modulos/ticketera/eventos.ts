@@ -87,7 +87,7 @@ export async function ajustarShowsPublicados(tenantId: string, maximo: number): 
 export async function cambiarFoto(tenantId: string, id: string, archivo: { nombre: string; datos: Buffer }) {
   const evento = await conTenant(tenantId, (tx) => tx.ticketeraEvento.findUnique({ where: { id } }));
   if (!evento) throw new ErrorTicketera("Ese show no existe.");
-  const foto = await guardarArchivo(tenantId, archivo, { moduloId: "ticketera", tipos: ["jpeg", "png", "webp"], variantes: [{ nombre: "web", ancho: 1600 }] }).catch((e) => {
+  const foto = await guardarArchivo(tenantId, archivo, { moduloId: "ticketera", recurso: "foto-show", tipos: ["jpeg", "png", "webp"], variantes: [{ nombre: "web", ancho: 1600 }] }).catch((e) => {
     if (e instanceof ErrorArchivo) throw new ErrorTicketera(e.message);
     throw e;
   });

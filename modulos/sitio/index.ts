@@ -18,6 +18,8 @@ const sitio: Modulo = {
     { clave: "sitio.contenido.editar", rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL"] },
     { clave: VER, rolesPorDefecto: ["TITULAR", "EDITOR", "COMERCIAL", "LECTURA"] },
   ],
+  // Archivos del sitio; en el panel (borrador, vista previa) los ve quien ve el sitio.
+  archivos: ["logo", "fondo", "slide", "rider", "descargable"].map((recurso) => ({ recurso, permiso: VER })),
   // Formularios del panel del sitio (accionesDelPanel): todo lo que se guarda va al borrador.
   edicion: { permiso: "sitio.contenido.editar", ruta: "/sitio", sinPermiso: "Tu rol no puede editar el sitio.", guardado: "Guardado en el borrador." },
   rutasPanel: [

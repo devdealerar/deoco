@@ -24,7 +24,7 @@ const foto = (ancho: number, alto: number) =>
 const png = () => sharp({ create: { width: 64, height: 64, channels: 4, background: "#0000" } }).png().toBuffer();
 const SVG = Buffer.from('<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
 const PDF = Buffer.from("%PDF-1.4\n%fake rider\n");
-const opciones = { moduloId: "sitio", tipos: ["jpeg", "png", "webp", "svg", "pdf"] as const };
+const opciones = { moduloId: "sitio", recurso: "slide", tipos: ["jpeg", "png", "webp", "svg", "pdf"] as const };
 
 beforeAll(async () => {
   ({ a, b } = await dosBandas());
@@ -53,7 +53,7 @@ describe("detección por contenido", () => {
 
   it("rechaza un formato que el módulo no acepta, aunque la extensión mienta", async () => {
     await expect(
-      guardarArchivo(a.id, { nombre: "logo.png", datos: PDF }, { moduloId: "sitio", tipos: ["png", "webp"] }),
+      guardarArchivo(a.id, { nombre: "logo.png", datos: PDF }, { moduloId: "sitio", recurso: "logo", tipos: ["png", "webp"] }),
     ).rejects.toThrow('"logo.png" no es un formato aceptado acá (PNG, WEBP).');
   });
 

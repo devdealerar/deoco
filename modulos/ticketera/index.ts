@@ -28,6 +28,8 @@ const ticketera: Modulo = {
     // La puerta: el rol PUERTA (y el titular). Solo valida: no ve compras ni datos de compradores.
     { clave: VALIDAR, rolesPorDefecto: ["TITULAR", "PUERTA"] },
   ],
+  // La foto de cada show; en el panel la ve quien ve los shows (no la puerta).
+  archivos: [{ recurso: "foto-show", permiso: VER }],
   // Formularios de shows y tipos de entrada (accionesDelPanel).
   edicion: { permiso: "ticketera.eventos.editar", ruta: "/entradas", sinPermiso: "Tu rol no puede editar los shows." },
   rutasPanel: [

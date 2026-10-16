@@ -202,6 +202,9 @@ model Archivo {
   tenantId  String   @db.Uuid
   /// Módulo dueño del archivo.
   moduloId  String
+  /// Recurso del módulo ("diseno", "logo"…: `archivos` en su contrato). En el panel se entrega con
+  /// el permiso de ese recurso. null (archivos viejos que no se pudieron deducir): solo el titular.
+  recurso   String?
   /// Nombre original, para la descarga.
   nombre    String
   /// jpeg | png | webp | pdf | svg (detectado por contenido, no por extensión)

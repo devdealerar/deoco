@@ -117,13 +117,17 @@ describe("contrato: rutasAdmin, navegación del back office y tablasGlobales", (
 });
 
 describe("urlFirmada(): link con vencimiento a un archivo privado", () => {
-  const imprimible: Modulo = { id: "tienda-falsa", nombre: "Tienda", permisos: [] };
-  const otro: Modulo = { id: "otro-falso", nombre: "Otro", permisos: [] };
+  const archivosDe = (id: string): Pick<Modulo, "permisos" | "archivos"> => ({
+    permisos: [{ clave: `${id}.cosa.ver`, rolesPorDefecto: ["TITULAR"] }],
+    archivos: [{ recurso: "diseno", permiso: `${id}.cosa.ver` }],
+  });
+  const imprimible: Modulo = { id: "tienda-falsa", nombre: "Tienda", ...archivosDe("tienda-falsa") };
+  const otro: Modulo = { id: "otro-falso", nombre: "Otro", ...archivosDe("otro-falso") };
   const reg = crearRegistro([imprimible, otro]);
   const PDF = Buffer.from("%PDF-1.4\n%diseño para imprimir\n");
 
   async function archivoDe(moduloId: string) {
-    const { id } = await guardarArchivo(e.a.id, { nombre: "diseño final.pdf", datos: PDF }, { moduloId, tipos: ["pdf"] });
+    const { id } = await guardarArchivo(e.a.id, { nombre: "diseño final.pdf", datos: PDF }, { moduloId, recurso: "diseno", tipos: ["pdf"] }, reg);
     return id;
   }
   const partes = (url: string) => {

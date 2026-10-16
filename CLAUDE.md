@@ -262,6 +262,10 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   (`tablasGlobales`, `/// @global`, `deoco_tabla_global`).
 - `rutasAdmin` → `/admin/m/<id><ruta>` (solo staff, 404 si no); `navegacion` con `admin: true`.
 - `urlFirmada(contrato, tenantId, archivoId)` → `app.<raiz>/descargas/...` (vence: 410; alterado: 404).
+- Archivos de la banda en el panel (`/b/<slug>/archivos/<id>`): cada archivo guarda `moduloId` +
+  `recurso`; el módulo declara `archivos: [{ recurso, permiso }]` y `guardarArchivo(…, { recurso })`
+  exige uno declarado. La entrega pide ese permiso (`accesoAlArchivo`, `src/nucleo/archivos/permiso.ts`);
+  sin recurso conocido, solo el titular. Tener el id no es un permiso.
 - Archivos de plataforma (`src/nucleo/archivos/plataforma.ts`, tabla global `archivo_plataforma`):
   `guardarArchivoPlataforma(tx de conStaff, ...)`, públicos en `/archivos/plataforma/<id>/<nombre>`.
 

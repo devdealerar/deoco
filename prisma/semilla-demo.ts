@@ -128,23 +128,23 @@ async function main() {
     // registro, con páginas y CSS, que un script de Node no necesita).
     await dueno.moduloTenant.create({ data: { tenantId: t, moduloId: "sitio" } });
 
-    const subir = (nombre: string, datos: Buffer, tipos: ("jpeg" | "png" | "webp" | "svg" | "pdf")[], ancho?: number) =>
-      guardarArchivo(t, { nombre, datos }, { moduloId: "sitio", tipos, variantes: ancho ? [{ nombre: "web", ancho, alto: ancho }] : [] });
+    const subir = (recurso: string, nombre: string, datos: Buffer, tipos: ("jpeg" | "png" | "webp" | "svg" | "pdf")[], ancho?: number) =>
+      guardarArchivo(t, { nombre, datos }, { moduloId: "sitio", recurso, tipos, variantes: ancho ? [{ nombre: "web", ancho, alto: ancho }] : [] });
 
     const l = await logo(b.nombre.toUpperCase(), b.fondo === "#f4f1ea" ? "#1b1b1b" : "#ffffff");
-    const logoId = (await subir("logo.png", l.png, ["png"], 600)).id;
-    const fondoId = (await subir("fondo.jpg", await foto(4000, 2600, b.colores[0][0], b.colores[0][1]), ["jpeg"], 2000)).id;
-    const riderId = (await subir(`Rider ${b.nombre}.pdf`, PDF, ["pdf"])).id;
+    const logoId = (await subir("logo", "logo.png", l.png, ["png"], 600)).id;
+    const fondoId = (await subir("fondo", "fondo.jpg", await foto(4000, 2600, b.colores[0][0], b.colores[0][1]), ["jpeg"], 2000)).id;
+    const riderId = (await subir("rider", `Rider ${b.nombre}.pdf`, PDF, ["pdf"])).id;
     const slides: string[] = [];
     for (const [i, [c1, c2]] of b.colores.entries()) {
-      slides.push((await subir(`show-${i + 1}.jpg`, await foto(4000, 2667, c1, c2, `${b.nombre} en vivo`), ["jpeg"], 1600)).id);
+      slides.push((await subir("slide", `show-${i + 1}.jpg`, await foto(4000, 2667, c1, c2, `${b.nombre} en vivo`), ["jpeg"], 1600)).id);
     }
     const fotos: string[] = [];
     for (const [i, [c1, c2]] of b.colores.slice(0, 3).entries()) {
-      fotos.push((await subir(`${b.slug}-prensa-${i + 1}.jpg`, await foto(4500, 3000, c2, c1, b.nombre), ["jpeg"], 800)).id);
+      fotos.push((await subir("descargable", `${b.slug}-prensa-${i + 1}.jpg`, await foto(4500, 3000, c2, c1, b.nombre), ["jpeg"], 800)).id);
     }
-    const logoPng = (await subir(`${b.slug}-logo.png`, l.png, ["png"], 800)).id;
-    const logoSvg = (await subir(`${b.slug}-logo.svg`, l.svg, ["svg"])).id;
+    const logoPng = (await subir("descargable", `${b.slug}-logo.png`, l.png, ["png"], 800)).id;
+    const logoSvg = (await subir("descargable", `${b.slug}-logo.svg`, l.svg, ["svg"])).id;
 
     await conTenant(t, async (tx) => {
       await tx.sitioPerfil.create({
