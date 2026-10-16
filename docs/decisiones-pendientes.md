@@ -3,6 +3,168 @@
 Tomadas sin consultar durante el trabajo largo sin supervisión. Cada una dice qué se eligió
 y por qué. Si alguna no va, se cambia.
 
+## B4 · Cómo le paga la banda al proveedor (propuesta, sin construir)
+
+Fuente: `docs/decisiones-3.2-respondidas.md`, «Dinero, precios y liquidación», d1, d2 y d5. Las
+dos cosas que no se negocian (td3): el dinero no pasa por Deoco y todo queda en el registro de actividad.
+
+**Hoy.** El fan le paga a la banda, a su propia cuenta de Mercado Pago. Al pagarse el pedido se
+crea una `tienda_deuda` por pedido y proveedor (producción más envío), la orden va al proveedor
+en el momento y el proveedor marca las deudas como saldadas desde su portal. Es fiado: la orden
+sale antes de que la banda pague. El 3.2 pide lo contrario: **crédito prepago**, y la orden queda
+retenida si no hay saldo (d5).
+
+**Propuesta: crédito con el proveedor**, una cuenta corriente por banda y proveedor. Deoco la
+muestra y la descuenta, pero no tiene la plata.
+
+- **Qué guarda Deoco**, en tablas de la tienda con RLS por banda y lectura del proveedor por
+  `app_referencia_externa('tienda')`:
+  - `tienda_credito_movimiento` (tenantId, proveedorId, tipo, monto, referencia, estado, quién y
+    cuándo). Tipos:
+    - `carga`: la banda dice que transfirió; queda `pendiente` hasta que el proveedor la valida, y
+      recién ahí cuenta;
+    - `consumo`: una orden que se financió;
+    - `ajuste`: el proveedor corrige, con nota;
+    - `devolucion`: el proveedor le devuelve saldo a la banda.
+  - El saldo es la suma de los movimientos validados, calculada en la base y nunca guardada. En
+    pantalla siempre aparece como «Crédito con <proveedor>» (d2).
+  - En `tienda_orden`, un estado nuevo: `RETENIDA` (sin saldo) → `EN_PRODUCCION` (financiada).
+- **Qué guarda el proveedor**, fuera de Deoco:
+  - su cuenta bancaria o su alias, que se le muestra a la banda como dato de contacto;
+  - el comprobante real de cada transferencia.
+  - Deoco guarda solo la referencia que escribe la banda (número de operación, fecha) y, si
+    quiere, el comprobante como archivo de la banda, con el recurso `comprobante`.
+- **Cómo se entera Deoco de que la plata entró: no se entera solo; se lo dice el proveedor.**
+  La banda carga «transferí $X, operación N». El proveedor la ve en su portal y la valida o la
+  rechaza. Con la validación sube el saldo y se financian solas las órdenes retenidas, por orden
+  de llegada. Así no se lee ninguna cuenta bancaria ni pasarela del proveedor, y el dinero sigue
+  sin tocar Deoco. Una carga pendiente pasado el plazo (por ejemplo, 5 días hábiles) se escala
+  al staff (`alertasAdmin`, d5 «hay plazo máximo y escalamiento a Deoco»).
+- **Retención y plazo (d5)**:
+  - una orden sin saldo queda RETENIDA: no se le manda al proveedor ni se cancela;
+  - aviso a la banda: «faltan $X de crédito con <proveedor>»;
+  - si vence el plazo sin financiarse, se cancela sola y se le devuelve todo al fan desde la
+    pasarela de la banda (`@/nucleo/pagos`: hoy no hay devolución por la pasarela de la banda;
+    hay que agregarla).
+- **La banda se va con saldo**: el saldo es del proveedor y la devolución se arregla entre ellos.
+  Deoco solo muestra el saldo y el movimiento `devolucion` cuando el proveedor lo registra.
+- **Lo que hoy existe y se reemplaza**: `tienda_deuda` y «Marcar saldadas». Las deudas viejas
+  sin saldar se migran a movimientos de consumo con saldo negativo, como único caso de deuda
+  histórica, para que nadie pierda la cuenta.
+
+**Abierto, para decidir antes de construir**:
+1. El plazo para financiar una orden retenida antes de cancelarla y devolverle el dinero al fan.
+2. El plazo para que el proveedor valide una carga.
+3. Si una banda con saldo negativo heredado puede tener órdenes nuevas mientras lo debe. Propuesta:
+   no; queda retenida como si no tuviera saldo.
+4. **Choque con multipaís (d6)**: una banda y un proveedor de países distintos implican crédito en
+   otra moneda. Propuesta: el crédito queda en la moneda del proveedor, y una banda no puede
+   elegir un proveedor de otra moneda hasta que exista `multipais`.
+
+## B6 · La unidad de cuenta es el músico (td2): estado del modelo (no se construye)
+
+**¿Hoy un usuario puede estar en más de una banda?** Sí.
+- `usuario` es global (`email` único) y `membresia` es (usuario, banda, rol), única por par.
+- El selector de `app.<raiz>` lista todas las bandas de la persona (`bandas_visibles`), y el rol
+  se resuelve en cada pedido según la banda del pedido.
+- La sesión guarda solo el usuario.
+- Para invitar a alguien que ya tiene cuenta se le suma una membresía, sin crear un usuario nuevo.
+- La única limitación es de la autogestión: una cuenta crea una sola banda por `/registro`
+  (`crear_banda_autogestion`, la impone la base). Las demás bandas se las da el staff.
+
+**¿Qué pasa cuando se va de una?**
+- Solo el staff puede sacar a alguien (`quitarMiembro`, en `/admin`). La banda no puede, y la
+  persona tampoco puede irse sola.
+- Se borra la membresía, con confirmación, nunca dejando la banda sin titular. Queda en la auditoría.
+- La cuenta de la persona sigue entera y conserva las otras bandas.
+- Lo que hizo en la banda queda a nombre de la banda. La auditoría y `validadaPor` guardan su
+  id, y no hay borrado en cascada.
+- Si la persona era la creadora autogestionada (`tenant.creadoPor`), sigue figurando así: no
+  puede crear otra banda por `/registro` aunque ya no esté en esa.
+- **Si la banda se disuelve** (ARCHIVADO), las cuentas de las personas no se tocan. El cobro, en
+  cambio, es de la banda:
+  - la cuota está en `comercial_cuenta` por tenant;
+  - no hay nada de la persona que trascienda el proyecto: historial, obras, plan propio;
+  - por eso la baja estructural que señala td2 existe del lado del cobro, no del lado del acceso.
+
+**¿Cuánto falta para que la cuenta sea de la persona?** Poco en el acceso, bastante en el cobro.
+1. Ya está:
+   - identidad, sesión y login por persona;
+   - varias bandas por persona;
+   - rol por membresía;
+   - RLS por persona en `usuario`.
+2. Falta, en el núcleo:
+   - que la persona se vaya sola de una banda («dejar esta banda», salvo si es el último titular);
+   - que el titular invite y saque gente desde el panel, sin el staff;
+   - quitar el tope de una banda por cuenta en la autogestión, o atarlo al plan de la persona;
+   - un perfil de la persona (nombre artístico, instrumentos) que no sea de ninguna banda.
+3. Falta, en el cobro (el cambio grande):
+   - mover el sujeto de la cuota de la banda a la persona, o tener las dos cosas: un plan de la
+     persona que cubra N proyectos;
+   - hoy `comercial_cuenta`, la escalera de mora y `fijarEstado` son por banda.
+   - Es una decisión de producto antes que de esquema: ¿paga el músico o paga la banda?
+4. Falta, en lo que la persona se lleva al irse:
+   - las obras y el registro de obra (módulo `obra`, que no está construido) deberían ser de la
+     persona, con una licencia a la banda; hoy toda tabla de módulo es por banda.
+   - Es el punto que condiciona el esquema: si `obra` se construye por banda, después cuesta caro
+     migrarla.
+
+Recomendación: antes de construir `obra` o cambiar planes, decidir el punto 3 (quién paga) y si
+las obras son de la persona. El resto (punto 2) es chico y no cambia el esquema.
+
+## Exportación completa de los datos de la banda (propuesta, sin construir)
+
+Regla td3: los datos son de la banda y la exportación está siempre disponible.
+
+**Dónde**:
+- Un botón «Exportar todo» en el panel, núcleo, `/b/<slug>/exportar`, solo para el titular.
+- Abierto en **todos** los estados, también con la banda suspendida o archivada, igual que
+  `/dominios`: es la salida.
+- Lo registra la auditoría (quién y cuándo).
+
+**Cómo**:
+- Se arma en segundo plano, porque con archivos puede ser grande.
+- Cuando está listo, llega un mail al titular con un link firmado (`urlFirmada`, vence a las 48
+  h). El link también aparece en la pantalla, y la pantalla sirve aunque se cierre la página.
+- Una exportación por banda a la vez. El zip se borra a los 7 días.
+
+**Formato**: un `.zip` con formatos abiertos.
+- `LEEME.txt`: qué es cada archivo, fecha y versión del formato.
+- `datos.json`: todo junto, por módulo, con las relaciones por id.
+- Un `.csv` por entidad (UTF-8 con BOM, para que Excel lo abra bien):
+  - `contactos.csv`;
+  - `compradores.csv`, de pedidos y entradas, deduplicados por email;
+  - `asistentes.csv`, entradas nominadas, con nombre, documento, show y si entró;
+  - `productos.csv`;
+  - `pedidos.csv` y `pedidos-renglones.csv`;
+  - `shows.csv` y `tipos-de-entrada.csv`;
+  - `sitio.csv`: perfil, fechas manuales, links, publicaciones.
+- `archivos/`: los originales con su nombre (`<recurso>/<id>-<nombre>`), más
+  `archivos.csv` (id, recurso, tipo, tamaño, fecha).
+
+**Diseño genérico**:
+- Contrato nuevo de módulo, `exportacion: { nombre, exportar(tx) → { archivo, filas }[] }`.
+- El núcleo no nombra módulos: suma lo de cada módulo prendido y lo que hubo en módulos apagados
+  (los datos siguen siendo de la banda).
+- Archivos y dominios los exporta el núcleo.
+- Todo pasa por `conTenant`.
+- Una prueba exige que toda tabla con `tenantId` de un módulo aparezca en su exportación, o que
+  esté marcada como interna con una razón (por ejemplo, `tienda_deuda` va; `correo` no).
+
+**Fuera del alcance**:
+- secretos, que nunca salen;
+- hashes de clave;
+- tokens;
+- la auditoría del staff;
+- datos de otras bandas (las órdenes del proveedor solo con lo de esta banda).
+- «Obras» no existe todavía (no hay módulo `obra`): entra cuando se construya.
+
+**Preguntas**:
+1. Los datos personales de fans (compradores, asistentes) se exportan completos, porque son
+   datos de la banda. ¿Se agrega un aviso de responsabilidad sobre datos personales al
+   descargarlos?
+2. ¿Se exporta también el historial de cobros de la cuota (lo que la banda le pagó a Deoco)?
+
 ## D2 · Lo que la lista de IPs de Cloudflare no cubre (anotado, sin hacer)
 
 **Situación.** Deoco va detrás de Cloudflare con la opción A acotada (`docs/despliegue.md`, "Todo
