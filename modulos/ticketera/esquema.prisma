@@ -19,6 +19,12 @@ model TicketeraEvento {
   publicado     Boolean  @default(false)
   /// Cuándo se publicó (null en borrador). Si la banda baja de plan, se despublica lo último publicado.
   publicadoEn   DateTime?
+  /// Frenos contra el acaparamiento de este show (null = los de la plataforma, `frenosDe`).
+  reservaMinutos   Int?
+  maxPorCompra     Int?
+  maxPorPersona    Int?
+  reservasPorEmail Int?
+  reservasPorIp    Int?
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @default(now()) @updatedAt
 

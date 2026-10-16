@@ -6,14 +6,14 @@ import { crearRegistro, ErrorRegistro } from "@/nucleo/modulos/registro";
 import { puede, rolVigente } from "@/nucleo/permisos/puede";
 import { dosBandas, dueno } from "./apoyo";
 
-// Roles: el núcleo tiene TITULAR, EDITOR y LECTURA; PUERTA y COMERCIAL los declaran los módulos.
+// Roles: el núcleo tiene TITULAR (uno por banda), GESTOR, EDITOR y LECTURA; PUERTA y COMERCIAL los declaran los módulos.
 
 const base = (extra: Partial<Modulo>): Modulo => ({ id: "uno", nombre: "Uno", permisos: [], ...extra });
 
 describe("registro de roles", () => {
   it("los del núcleo y los de los módulos; el mismo nombre en dos módulos es el mismo rol", () => {
     const reg = registro();
-    expect(reg.roles.map((r) => r.clave)).toEqual(["TITULAR", "EDITOR", "LECTURA", "PUERTA", "COMERCIAL"]);
+    expect(reg.roles.map((r) => r.clave)).toEqual(["TITULAR", "GESTOR", "EDITOR", "LECTURA", "PUERTA", "COMERCIAL"]);
     expect(reg.rol("COMERCIAL")!.moduloIds.sort()).toEqual(["ticketera", "tienda"]);
     expect(reg.rol("PUERTA")!.moduloIds).toEqual(["ticketera"]);
     expect(reg.rol("TITULAR")!.moduloIds).toEqual([]);

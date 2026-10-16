@@ -88,8 +88,10 @@ model Membresia {
   id        String  @id @default(uuid()) @db.Uuid
   usuarioId String  @db.Uuid
   tenantId  String  @db.Uuid
-  /// TITULAR, EDITOR, LECTURA (núcleo) o uno que declare un módulo (PUERTA, COMERCIAL…).
+  /// TITULAR (uno solo por banda), GESTOR, EDITOR, LECTURA (núcleo) o uno que declare un módulo (PUERTA, COMERCIAL…).
   rol       String
+  /// Desde cuándo es parte de la banda (las de antes del bloque D, la fecha de esa migración).
+  creadoEn  DateTime @default(now())
   usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   tenant    Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 

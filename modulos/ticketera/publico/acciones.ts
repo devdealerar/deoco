@@ -6,7 +6,7 @@ import { ipDelVisitante } from "@/nucleo/publico/visitante";
 import { recordarAcceso } from "@/nucleo/publico/acceso";
 import { origenDelPedido } from "@/nucleo/publico/origen";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
-import { compraConToken, intentarComprar, MAXIMO_POR_COMPRA } from "../compras";
+import { compraConToken, intentarComprar, MAXIMO_ABSOLUTO_POR_COMPRA } from "../compras";
 
 export type EstadoCompra = { error?: string };
 
@@ -35,7 +35,7 @@ export async function comprarAccion(
       asistentes: Array.from(
         {
           length:
-            Number.isInteger(cantidad) && cantidad > 0 && cantidad <= MAXIMO_POR_COMPRA
+            Number.isInteger(cantidad) && cantidad > 0 && cantidad <= MAXIMO_ABSOLUTO_POR_COMPRA
               ? cantidad
               : 0,
         },

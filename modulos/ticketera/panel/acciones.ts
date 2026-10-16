@@ -18,8 +18,10 @@ import {
   crearEvento,
   crearTipo,
   type DatosEvento,
+  type DatosFrenos,
   type DatosTipo,
   ErrorTicketera,
+  guardarFrenos,
   publicarEvento,
 } from "../eventos";
 import { abiertoEnPuerta, type ResultadoValidacion, type ResumenPuerta, resumenPuerta, validarEntrada } from "../puerta";
@@ -79,6 +81,21 @@ export async function actualizarEventoAccion(slug: string, id: string, _: Estado
     const f = archivo(fd, "foto");
     if (f) await cambiarFoto(tenantId, id, { nombre: f.name, datos: Buffer.from(await f.arrayBuffer()) });
     return "Show guardado.";
+  });
+}
+
+/** Frenos de compra del show: un campo vacío vuelve al número de la plataforma. */
+export async function guardarFrenosAccion(slug: string, id: string, _: EstadoFormulario, fd: FormData) {
+  return conEdicion(slug, async ({ tenantId }) => {
+    const n = (k: keyof DatosFrenos) => {
+      const v = String(fd.get(k) ?? "").trim();
+      if (!v) return null;
+      const x = Number(v);
+      if (!Number.isInteger(x)) throw new ErrorTicketera("Los frenos son números enteros (o vacío).");
+      return x;
+    };
+    await guardarFrenos(tenantId, id, { reservaMinutos: n("reservaMinutos"), maxPorCompra: n("maxPorCompra"), maxPorPersona: n("maxPorPersona"), reservasPorEmail: n("reservasPorEmail"), reservasPorIp: n("reservasPorIp") });
+    return "Frenos guardados: valen para las compras que empiecen desde ahora.";
   });
 }
 

@@ -261,7 +261,15 @@ async function bloquearBanda(tx: TxAdmin, tenantId: string) {
 
 async function quedaTitular(tx: TxAdmin, tenantId: string, sinMembresia: string) {
   const otros = await tx.membresia.count({ where: { tenantId, rol: "TITULAR", NOT: { id: sinMembresia } } });
-  if (otros === 0) throw new ErrorFormulario("La banda no puede quedar sin titular: sumá o asigná otro titular antes.");
+  if (otros === 0) throw new ErrorFormulario("La banda no puede quedar sin titular: pasale la titularidad a otra persona antes (asignale el rol Titular).");
+}
+
+/** Hay un solo titular: dárselo a alguien es pasarle la titularidad (el anterior queda GESTOR). */
+async function bajarTitularActual(tx: TxAdmin, staffId: string, tenantId: string, salvo: string | null) {
+  const actual = await tx.membresia.findFirst({ where: { tenantId, rol: "TITULAR", ...(salvo ? { NOT: { usuarioId: salvo } } : {}) }, include: { usuario: { select: { email: true } } } });
+  if (!actual) return;
+  await tx.membresia.update({ where: { id: actual.id }, data: { rol: "GESTOR" } });
+  await auditar(tx, { usuarioId: staffId, tenantId, accion: "membresia.rol_cambiado", detalle: { email: actual.usuario.email, de: "TITULAR", a: "GESTOR", motivo: "titularidad pasada" } });
 }
 
 /**
@@ -286,6 +294,10 @@ export async function invitar(staffId: string, tenantId: string, datos: { email:
     if (await tx.membresia.findUnique({ where: { usuarioId_tenantId: { usuarioId: usuario.id, tenantId } } })) {
       throw new ErrorFormulario(`${email} ya es miembro de esta banda.`);
     }
+    if (rol === "TITULAR") {
+      await bloquearBanda(tx, tenantId);
+      await bajarTitularActual(tx, staffId, tenantId, null);
+    }
     await tx.membresia.create({ data: { tenantId, usuarioId: usuario.id, rol } });
     await auditar(tx, { usuarioId: staffId, tenantId, accion: "membresia.invitada", detalle: { email, rol, usuarioNuevo: clave !== null } });
     return { email, claveTemporal: clave };
@@ -300,6 +312,7 @@ export async function cambiarRol(staffId: string, tenantId: string, membresiaId:
     if (!m) throw new ErrorFormulario("Esa persona ya no es miembro de esta banda.");
     if (m.rol === rol) return;
     if (m.rol === "TITULAR") await quedaTitular(tx, tenantId, m.id);
+    if (rol === "TITULAR") await bajarTitularActual(tx, staffId, tenantId, m.usuarioId);
     await tx.membresia.update({ where: { id: m.id }, data: { rol } });
     await auditar(tx, { usuarioId: staffId, tenantId, accion: "membresia.rol_cambiado", detalle: { email: m.usuario.email, de: m.rol, a: rol } });
   });

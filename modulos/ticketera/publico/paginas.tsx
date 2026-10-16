@@ -6,7 +6,7 @@ import type { MetadatosPagina, PropsRutaPublica } from "@/nucleo/modulos/contrat
 import { pasarelaLista } from "@/nucleo/pagos";
 import { accesoRecordado } from "@/nucleo/publico/acceso";
 import { CanjearLink } from "@/nucleo/publico/canjear-link";
-import { compraConToken, estadoDeCompra, MAXIMO_POR_COMPRA } from "../compras";
+import { compraConToken, estadoDeCompra, frenosDe } from "../compras";
 import { qrSvg } from "../correos";
 import { formatearPesos } from "@/nucleo/dinero";
 import { FECHA_LARGA } from "@/nucleo/fechas";
@@ -108,7 +108,7 @@ export async function EventoPublico({ tenantId, params }: PropsRutaPublica) {
         ) : (
           <Comprar
             tipos={aLaVenta.map((t) => ({ id: t.id, nombre: t.nombre, precio: formatearPesos(t.precio), disponibles: t.disponibles }))}
-            maximo={MAXIMO_POR_COMPRA}
+            maximo={frenosDe(e.frenos).maxPorCompra}
           />
         )}
       </div>

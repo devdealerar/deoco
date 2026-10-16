@@ -20,7 +20,7 @@ import {
   RESERVA_MINUTOS,
 } from "../modulos/ticketera/compras";
 import { pagosParaDevolver } from "@/nucleo/pagos/registro";
-import { crearEvento, crearTipo, actualizarTipo, evento, publicarEvento, proximasFechas, cambiarFoto } from "../modulos/ticketera/eventos";
+import { guardarFrenos, crearEvento, crearTipo, actualizarTipo, evento, publicarEvento, proximasFechas, cambiarFoto } from "../modulos/ticketera/eventos";
 import { resumenPuerta, validarEntrada } from "../modulos/ticketera/puerta";
 import { dueno, escenarioAcceso } from "./apoyo";
 import { MercadoPagoFalso } from "./mercadopago-falso";
@@ -349,6 +349,23 @@ describe("C1: lo que pierde plata", () => {
     }
     expect(MAXIMO_POR_COMPRA * 2).toBe(MAXIMO_POR_EMAIL_Y_SHOW);
     await expect(compraDe(tipoId, 1, undefined, "mucho@x.com")).rejects.toThrow(/hasta 12 entradas por persona y ya llegaste/);
+  });
+
+  it("los frenos se configuran por show (una banda grande quiere otros números), acotados", async () => {
+    const { id, tipoId } = await showDeA(100);
+    await guardarFrenos(e.a.id, id, { reservaMinutos: 15, maxPorCompra: 10, maxPorPersona: 20, reservasPorEmail: 3, reservasPorIp: null });
+    const c = await compraDe(tipoId, 10, undefined, "grande@x.com");
+    const fila = await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: c.compraId } });
+    expect(Math.round((fila.venceEn.getTime() - fila.creadoEn.getTime()) / 60_000)).toBe(15);
+    await expect(compraDe(tipoId, 11, undefined, "grande2@x.com")).rejects.toThrow(/de 1 a 10/);
+    await compraDe(tipoId, 1, undefined, "grande@x.com");
+    await compraDe(tipoId, 1, undefined, "grande@x.com"); // tercera reserva abierta del mismo email: este show deja 3
+    // Fuera de rango, ni la app ni la base lo aceptan.
+    await expect(guardarFrenos(e.a.id, id, { reservaMinutos: 120, maxPorCompra: null, maxPorPersona: null, reservasPorEmail: null, reservasPorIp: null })).rejects.toThrow(/de 5 a 30 minutos/);
+    await expect(dueno.ticketeraEvento.update({ where: { id }, data: { maxPorCompra: 500 } })).rejects.toThrow(/ticketera_evento_frenos/);
+    // Vacío vuelve a los de la plataforma.
+    await guardarFrenos(e.a.id, id, { reservaMinutos: null, maxPorCompra: null, maxPorPersona: null, reservasPorEmail: null, reservasPorIp: null });
+    await expect(compraDe(tipoId, MAXIMO_POR_COMPRA + 1, undefined, "otro@x.com")).rejects.toThrow(new RegExp(`de 1 a ${MAXIMO_POR_COMPRA}`));
   });
 
   it("pago tardío: después del cierre de la venta (o empezado el show) no se acepta y queda para devolver", async () => {

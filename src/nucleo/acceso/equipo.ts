@@ -1,10 +1,9 @@
-// El equipo de la banda, desde su panel (3.2 núcleo d6). El titular saca gente, cambia roles y
-// pasa la titularidad; cualquiera puede dejar la banda. Lo que no se hace desde acá:
-// - tocar a otra persona TITULAR (sacarla, bajarle el rol): Deoco no arbitra disputas entre
-//   integrantes; esa persona conserva el control hasta que lo deje ella;
-// - sumar gente: lo hace el staff (`/admin`), hasta que haya invitaciones por mail.
-// Que la banda nunca quede sin titular lo impone la base (`deoco_banda_con_titular`). Lo que cambia
-// vale en el siguiente pedido: el rol se resuelve en cada uno (`resolver.ts`).
+// El equipo de la banda, desde su panel (3.2 núcleo d6). Hay UN titular registrado por banda: él
+// saca gente, cambia roles y pasa la titularidad (queda como GESTOR); cualquiera puede dejar la
+// banda, menos el titular (primero la pasa). Deoco no arbitra disputas: el titular registrado
+// conserva el control. Sumar gente: lo hace el staff (`/admin`), hasta que haya invitaciones.
+// La base impone uno y solo un titular (`membresia_un_titular` + `deoco_banda_con_titular`). Lo
+// que cambia vale en el siguiente pedido: el rol se resuelve en cada uno (`resolver.ts`).
 import { conTenant, type TxTenant } from "@/nucleo/db/con-tenant";
 import { registro } from "@/nucleo/modulos";
 
@@ -21,6 +20,7 @@ export const miembrosDeBanda = (tenantId: string) =>
   conTenant(tenantId, (tx) => tx.$queryRaw<Miembro[]>`SELECT id, "usuarioId", nombre, email, rol FROM miembros_de_banda()`);
 
 const SIN_TITULAR = "La banda no puede quedar sin titular: pasale la titularidad a otra persona antes.";
+const DOS_TITULARES = "Hay un solo titular por banda: para que lo sea otra persona, pasale la titularidad.";
 
 /** Corre el cambio y lo deja en la auditoría; la base rechaza si la banda queda sin titular. */
 async function enEquipo<T>(tenantId: string, fn: (tx: TxTenant) => Promise<T>): Promise<T> {
@@ -28,6 +28,7 @@ async function enEquipo<T>(tenantId: string, fn: (tx: TxTenant) => Promise<T>): 
     return await conTenant(tenantId, fn);
   } catch (e) {
     if (e instanceof Error && e.message.includes("deoco:banda-sin-titular")) throw new ErrorEquipo(SIN_TITULAR);
+    if (e instanceof Error && e.message.includes("membresia_un_titular")) throw new ErrorEquipo(DOS_TITULARES);
     throw e;
   }
 }
@@ -41,15 +42,14 @@ async function miembro(tx: TxTenant, membresiaId: string) {
 const auditar = (tx: TxTenant, tenantId: string, usuarioId: string, accion: string, detalle: object) =>
   tx.auditoria.createMany({ data: [{ usuarioId, tenantId, accion, detalle }] });
 
-/** El titular le cambia el rol a alguien (no a otra persona TITULAR). Dar TITULAR comparte el control. */
+/** El titular le cambia el rol a alguien. TITULAR no se da así: se pasa (`pasarTitularidad`). */
 export async function cambiarRolEnEquipo(titularId: string, tenantId: string, membresiaId: string, rol: string) {
   if (!registro().rol(rol)) throw new ErrorEquipo("Elegí un rol.");
+  if (rol === "TITULAR") throw new ErrorEquipo("Hay un solo titular por banda: para que lo sea otra persona, pasale la titularidad.");
   await enEquipo(tenantId, async (tx) => {
     const m = await miembro(tx, membresiaId);
     if (m.rol === rol) return;
-    if (m.rol === "TITULAR" && m.usuarioId !== titularId) {
-      throw new ErrorEquipo("A otra persona titular no se le cambia el rol desde acá: tiene el mismo control que vos. Si quiere, lo deja ella.");
-    }
+    if (m.rol === "TITULAR") throw new ErrorEquipo("Para dejar de ser titular, pasale la titularidad a otra persona.");
     await tx.membresia.update({ where: { id: m.id }, data: { rol } });
     await auditar(tx, tenantId, titularId, "membresia.rol_cambiado", { usuarioId: m.usuarioId, de: m.rol, a: rol, desde: "panel" });
   });
@@ -60,26 +60,26 @@ export async function quitarDelEquipo(titularId: string, tenantId: string, membr
   await enEquipo(tenantId, async (tx) => {
     const m = await miembro(tx, membresiaId);
     if (m.usuarioId === titularId) throw new ErrorEquipo("Para irte vos, usá «Dejar esta banda».");
-    if (m.rol === "TITULAR") throw new ErrorEquipo("A otra persona titular no se la saca desde acá: tiene el mismo control que vos. Si quiere, deja la banda ella.");
     await tx.membresia.delete({ where: { id: m.id } });
     await auditar(tx, tenantId, titularId, "membresia.quitada", { usuarioId: m.usuarioId, rol: m.rol, desde: "panel" });
   });
 }
 
-/** El titular pasa la titularidad a otra persona de la banda y queda como EDITOR. */
+/** El titular pasa la titularidad a otra persona de la banda y queda como GESTOR. */
 export async function pasarTitularidad(titularId: string, tenantId: string, membresiaId: string) {
   await enEquipo(tenantId, async (tx) => {
     const m = await miembro(tx, membresiaId);
     if (m.usuarioId === titularId) throw new ErrorEquipo("Elegí a otra persona.");
     const propia = await tx.membresia.findUnique({ where: { usuarioId_tenantId: { usuarioId: titularId, tenantId } } });
     if (propia?.rol !== "TITULAR") throw new ErrorEquipo("Solo una persona titular puede pasar la titularidad.");
+    // En este orden: la base no deja dos titulares ni un momento (índice único).
+    await tx.membresia.update({ where: { id: propia.id }, data: { rol: "GESTOR" } });
     await tx.membresia.update({ where: { id: m.id }, data: { rol: "TITULAR" } });
-    await tx.membresia.update({ where: { id: propia.id }, data: { rol: "EDITOR" } });
     await auditar(tx, tenantId, titularId, "membresia.titularidad_pasada", { a: m.usuarioId, de: m.rol, desde: "panel" });
   });
 }
 
-/** Cualquiera deja la banda. La última persona titular, no: antes pasa la titularidad. */
+/** Cualquiera deja la banda. El titular, no: antes pasa la titularidad. */
 export async function dejarLaBanda(usuarioId: string, tenantId: string) {
   await enEquipo(tenantId, async (tx) => {
     const m = await tx.membresia.findUnique({ where: { usuarioId_tenantId: { usuarioId, tenantId } } });

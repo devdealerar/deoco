@@ -89,7 +89,8 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
 - Rol por pedido: sesión + tenant del proxy → `membresia` (`src/nucleo/acceso/resolver.ts`).
 - En páginas y rutas del panel: `accesoPanel()`, `exigirPermiso()`, `exigirTitular()`,
   `puedeEnPedido()` (`src/nucleo/acceso/panel.ts`). Fuera del pedido: `puede(usuarioId, tenantId, permiso)`.
-- Roles: TITULAR, EDITOR, LECTURA del núcleo (`src/nucleo/acceso/roles.ts`); los demás los declara
+- Roles: TITULAR (UNO por banda: `membresia_un_titular`), GESTOR (todo lo del titular en los módulos menos
+  `exclusivoTitular`; las pantallas de plata y control del núcleo, no), EDITOR, LECTURA del núcleo (`src/nucleo/acceso/roles.ts`); los demás los declara
   un módulo (`roles`; PUERTA ticketera, COMERCIAL tienda+ticketera). `membresia.rol` es texto; un
   rol cuyos módulos están apagados no da permisos (`rolVigente`).
 - Permisos: los declara cada módulo en su contrato. `exclusivoTitular` = ni otro rol
@@ -97,8 +98,8 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
   Un permiso de un módulo apagado para la banda es siempre false.
 - Staff sin membresía: `registrarAccesoStaff()` lo deja en `auditoria` (una fila cada 10 min).
 - Equipo (`/b/<slug>/equipo`, `src/nucleo/acceso/equipo.ts`): el titular saca gente, cambia roles y
-  pasa la titularidad; cualquiera deja la banda. A otra persona TITULAR no se la toca desde el panel.
-  Nunca sin titular: lo impone la base (`banda_con_titular`, diferido). Sumar gente: el staff.
+  pasa la titularidad (él queda GESTOR; primero baja, después sube el otro); los demás dejan la banda.
+  Uno y solo un titular: lo impone la base (índice único + `banda_con_titular`, diferido). Sumar gente: el staff.
 - Formularios del panel de un módulo: `edicion: { permiso, ruta, sinPermiso, guardado? }` en el
   contrato (el registro lo valida al arrancar) + `accionesDelPanel(() => modulo, [errores])`
   (`src/nucleo/acceso/acciones.ts`). Todo permiso escrito en un módulo debe estar declarado (prueba).
@@ -228,6 +229,7 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   con QR (mail con `adjuntos` cid:), puerta (`/b/<slug>/puerta`, rol PUERTA; solo abre los shows que lista: `abiertoEnPuerta`). Pestaña "Fechas".
 - Acaparamiento (`compras.ts`): reserva de 10 min (el cobro vence con ella), 6 por compra, 12 por
   email y show (pagadas + reservadas), 2 reservas abiertas por email y 4 por IP (`ipHash`, nunca la IP).
+  Configurables por show (`frenosDe`, `guardarFrenos`, CHECK `ticketera_evento_frenos`); vacío = estos.
 - QR firmado (`firma.ts`): 10 al azar + 10 de HMAC por banda con `DEOCO_CLAVE_QR` (`entorno` en
   el contrato: el arranque la exige). La puerta verifica la firma antes de tocar la base; los
   códigos viejos de 10 caracteres se siguen buscando (transición).

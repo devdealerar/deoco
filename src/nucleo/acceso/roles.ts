@@ -6,7 +6,8 @@ export type Rol = string;
 export type DefinicionRol = { clave: Rol; etiqueta: string; descripcion?: string };
 
 export const ROLES_NUCLEO: readonly DefinicionRol[] = [
-  { clave: "TITULAR", etiqueta: "Titular", descripcion: "Todo, incluido el cobro y el plan." },
+  { clave: "TITULAR", etiqueta: "Titular", descripcion: "Uno solo por banda: todo, incluido el cobro, el plan y el equipo." },
+  { clave: "GESTOR", etiqueta: "Gestor", descripcion: "Gestiona todo lo de la banda menos la plata (cobro, plan) y el equipo." },
   { clave: "EDITOR", etiqueta: "Editor", descripcion: "Edita el contenido de la banda." },
   { clave: "LECTURA", etiqueta: "Lectura", descripcion: "Mira, no cambia nada." },
 ];

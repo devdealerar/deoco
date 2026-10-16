@@ -13,7 +13,7 @@ const membresia = (usuarioId: string, tenantId = e.a.id) => dueno.membresia.find
 
 beforeEach(async () => {
   e = await escenarioAcceso();
-  // La banda A queda con una sola persona titular (multi) y una editora.
+  // La banda A queda con su titular (multi) y una editora.
   await dueno.membresia.deleteMany({ where: { tenantId: e.a.id, usuario: { email: "a@x.com" } } });
 });
 afterAll(async () => {
@@ -21,7 +21,7 @@ afterAll(async () => {
   await dueno.$disconnect();
 });
 
-describe("nunca queda una banda sin titular (lo impone la base)", () => {
+describe("un solo titular, registrado, y nunca ninguno (lo impone la base)", () => {
   it("la base rechaza borrar o bajar al último titular, por cualquier camino", async () => {
     const m = await membresia(e.multi.id);
     await expect(conTenant(e.a.id, (tx) => tx.membresia.delete({ where: { id: m.id } }))).rejects.toThrow(/banda-sin-titular/);
@@ -33,7 +33,7 @@ describe("nunca queda una banda sin titular (lo impone la base)", () => {
     await expect(dejarLaBanda(e.multi.id, e.a.id)).rejects.toThrow("La banda no puede quedar sin titular");
     await pasarTitularidad(e.multi.id, e.a.id, (await membresia(e.editorA.id)).id);
     expect((await membresia(e.editorA.id)).rol).toBe("TITULAR");
-    expect((await membresia(e.multi.id)).rol).toBe("EDITOR");
+    expect((await membresia(e.multi.id)).rol).toBe("GESTOR");
     await dejarLaBanda(e.multi.id, e.a.id);
     expect(await dueno.membresia.count({ where: { tenantId: e.a.id, usuarioId: e.multi.id } })).toBe(0);
     // Todo queda en la actividad de la banda.
@@ -41,11 +41,17 @@ describe("nunca queda una banda sin titular (lo impone la base)", () => {
     expect(acciones).toEqual(expect.arrayContaining(["membresia.titularidad_pasada", "membresia.dejada"]));
   });
 
-  it("dos titulares que se van a la vez: uno de los dos queda", async () => {
-    await dueno.membresia.update({ where: { id: (await membresia(e.editorA.id)).id }, data: { rol: "TITULAR" } });
-    const r = await Promise.allSettled([dejarLaBanda(e.multi.id, e.a.id), dejarLaBanda(e.editorA.id, e.a.id)]);
-    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
-    expect(await dueno.membresia.count({ where: { tenantId: e.a.id, rol: "TITULAR" } })).toBe(1);
+  it("la base no deja dos titulares en una banda, ni un momento", async () => {
+    await expect(dueno.membresia.update({ where: { id: (await membresia(e.editorA.id)).id }, data: { rol: "TITULAR" } })).rejects.toThrow(/membresia_un_titular/);
+    await expect(cambiarRolEnEquipo(e.multi.id, e.a.id, (await membresia(e.editorA.id)).id, "TITULAR")).rejects.toThrow("Hay un solo titular por banda");
+  });
+
+  it("pasar la titularidad: la otra persona queda titular y quien la pasó, gestor", async () => {
+    await pasarTitularidad(e.multi.id, e.a.id, (await membresia(e.editorA.id)).id);
+    expect((await membresia(e.editorA.id)).rol).toBe("TITULAR");
+    expect((await membresia(e.multi.id)).rol).toBe("GESTOR");
+    // El gestor ya no pasa la titularidad ni maneja el equipo.
+    await expect(pasarTitularidad(e.multi.id, e.a.id, (await membresia(e.editorA.id)).id)).rejects.toThrow("Solo una persona titular");
   });
 });
 
@@ -62,14 +68,9 @@ describe("la banda revoca el acceso desde su panel", () => {
     await expect(cambiarRolEnEquipo(e.multi.id, e.a.id, (await membresia(e.editorA.id)).id, "NO_EXISTE")).rejects.toThrow("Elegí un rol.");
   });
 
-  it("Deoco no arbitra: una persona titular no saca ni baja a otra", async () => {
-    await dueno.membresia.update({ where: { id: (await membresia(e.editorA.id)).id }, data: { rol: "TITULAR" } });
-    const otra = (await membresia(e.editorA.id)).id;
-    await expect(quitarDelEquipo(e.multi.id, e.a.id, otra)).rejects.toThrow(/otra persona titular/);
-    await expect(cambiarRolEnEquipo(e.multi.id, e.a.id, otra, "EDITOR")).rejects.toThrow(/otra persona titular/);
-    // Pero sí puede bajar su propio rol, porque queda otra.
-    await cambiarRolEnEquipo(e.multi.id, e.a.id, (await membresia(e.multi.id)).id, "EDITOR");
-    expect((await membresia(e.multi.id)).rol).toBe("EDITOR");
+  it("el titular registrado conserva el control: no se baja a sí mismo sin pasar la titularidad", async () => {
+    await expect(cambiarRolEnEquipo(e.multi.id, e.a.id, (await membresia(e.multi.id)).id, "EDITOR")).rejects.toThrow("pasale la titularidad");
+    expect((await membresia(e.multi.id)).rol).toBe("TITULAR");
   });
 
   it("la lista del equipo es de la banda del pedido, con nombre y email", async () => {
@@ -78,5 +79,15 @@ describe("la banda revoca el acceso desde su panel", () => {
     expect((await miembrosDeBanda(e.b.id)).some((m) => m.email === "editor-a@x.com")).toBe(false);
     // Una membresía de otra banda no se toca desde esta.
     await expect(quitarDelEquipo(e.multi.id, e.a.id, (await membresia(e.ajeno.id, e.b.id)).id)).rejects.toThrow("ya no es parte");
+  });
+});
+
+describe("GESTOR", () => {
+  it("puede lo que el titular en los módulos, menos lo exclusivo del titular (la pasarela de cobro)", async () => {
+    const { puede } = await import("@/nucleo/permisos/puede");
+    await dueno.membresia.update({ where: { id: (await membresia(e.editorA.id)).id }, data: { rol: "GESTOR" } });
+    await dueno.moduloTenant.createMany({ data: [{ tenantId: e.a.id, moduloId: "tienda" }], skipDuplicates: true });
+    expect(await puede(e.editorA.id, e.a.id, "tienda.producto.editar")).toBe(true);
+    expect(await puede(e.editorA.id, e.a.id, "tienda.pasarela.conectar")).toBe(false);
   });
 });

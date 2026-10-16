@@ -66,10 +66,19 @@ describe("prueba 6: staff de Deoco", () => {
   });
 
   it("un staff que es titular de una banda sí tiene su pasarela (por el rol, no por staff)", async () => {
-    await dueno.membresia.create({ data: { usuarioId: e.staff.id, tenantId: e.b.id, rol: "TITULAR" } });
+    const titularB = await dueno.membresia.findFirstOrThrow({ where: { tenantId: e.b.id, rol: "TITULAR" } });
+    await dueno.$transaction([
+      dueno.membresia.update({ where: { id: titularB.id }, data: { rol: "GESTOR" } }),
+      dueno.membresia.create({ data: { usuarioId: e.staff.id, tenantId: e.b.id, rol: "TITULAR" } }),
+    ]);
     expect(await puede(e.staff.id, e.b.id, "prueba.pasarela.conectar")).toBe(true);
     expect(await puede(e.staff.id, e.a.id, "prueba.pasarela.conectar")).toBe(false);
-    await dueno.membresia.deleteMany({ where: { usuarioId: e.staff.id } });
+    // Y el gestor (el titular de antes) no la tiene: es exclusiva del titular.
+    expect(await puede(titularB.usuarioId, e.b.id, "prueba.pasarela.conectar")).toBe(false);
+    await dueno.$transaction([
+      dueno.membresia.deleteMany({ where: { usuarioId: e.staff.id } }),
+      dueno.membresia.update({ where: { id: titularB.id }, data: { rol: "TITULAR" } }),
+    ]);
   });
 });
 

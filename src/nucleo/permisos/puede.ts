@@ -20,6 +20,10 @@ export function rolVigente(rol: string, prendidos: Set<string>, reg: Registro = 
 export function accesoTienePermiso(acceso: Acceso | null, def: DefinicionPermiso | undefined, prendidos?: Set<string>, reg?: Registro): boolean {
   if (!acceso || !def) return false; // permiso no declarado o sin acceso: no
   if (acceso.rol && def.rolesPorDefecto.includes(acceso.rol) && (!prendidos || rolVigente(acceso.rol, prendidos, reg))) return true;
+  // GESTOR (núcleo): todo lo que puede el titular en los módulos, menos lo exclusivo del titular
+  // (la pasarela de cobro). Las pantallas del núcleo de plata y control (pago, devoluciones,
+  // credenciales, dominios, equipo) siguen siendo solo del titular (`exigirTitular`).
+  if (acceso.rol === "GESTOR" && def.rolesPorDefecto.includes("TITULAR")) return !def.exclusivoTitular;
 
   // EXCEPCIÓN EXPLÍCITA · Staff de Deoco
   // El staff pasa todos los permisos de cualquier banda, MENOS los exclusivos del

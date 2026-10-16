@@ -69,13 +69,18 @@ export async function escenarioAcceso() {
   const ajeno = await crear("ajeno@x.com");
   const editorA = await crear("editor-a@x.com");
   const staff = await crear("staff@deocoartist.com", true);
-  await dueno.membresia.createMany({
-    data: [
-      { usuarioId: multi.id, tenantId: a.id, rol: "TITULAR" },
-      { usuarioId: multi.id, tenantId: b.id, rol: "EDITOR" },
-      { usuarioId: ajeno.id, tenantId: b.id, rol: "LECTURA" },
-      { usuarioId: editorA.id, tenantId: a.id, rol: "EDITOR" },
-    ],
-  });
+  // Un solo titular por banda: en A lo es multi; a@x.com (el de dosBandas) queda como GESTOR.
+  // (En una transacción: la base exige uno y solo un titular al confirmar.)
+  await dueno.$transaction([
+    dueno.membresia.updateMany({ where: { tenantId: a.id, rol: "TITULAR" }, data: { rol: "GESTOR" } }),
+    dueno.membresia.createMany({
+      data: [
+        { usuarioId: multi.id, tenantId: a.id, rol: "TITULAR" },
+        { usuarioId: multi.id, tenantId: b.id, rol: "EDITOR" },
+        { usuarioId: ajeno.id, tenantId: b.id, rol: "LECTURA" },
+        { usuarioId: editorA.id, tenantId: a.id, rol: "EDITOR" },
+      ],
+    }),
+  ]);
   return { a, b, multi, ajeno, editorA, staff };
 }

@@ -19,8 +19,10 @@ import {
   borrarTipoAccion,
   crearEventoAccion,
   crearTipoAccion,
+  guardarFrenosAccion,
   publicarAccion,
 } from "./acciones";
+import { MAXIMO_POR_COMPRA, MAXIMO_POR_EMAIL_Y_SHOW, RESERVA_MINUTOS, RESERVAS_ABIERTAS_POR_EMAIL, RESERVAS_ABIERTAS_POR_IP } from "../compras";
 
 const puedeEditar = (slug: string) => puedeEnPedido("ticketera.eventos.editar", `/b/${slug}/entradas`);
 
@@ -199,6 +201,21 @@ export async function EventoPanel({ tenantId, slug, params }: PropsRutaPanel) {
         <Formulario accion={actualizarEventoAccion.bind(null, slug, e.id)} puedeEditar={editar}>
           <CamposEvento e={e} />
           <CampoArchivo name="foto" etiqueta={e.foto ? "Cambiar foto" : "Foto"} accept="image/jpeg,image/png,image/webp" ayuda="JPG, PNG o WebP." />
+        </Formulario>
+      </Tarjeta>
+      <Tarjeta titulo="Frenos de compra">
+        <p className="mb-4 text-sm text-tertiary">
+          Contra quien reserva un show entero para revenderlo. Vacío: el número de la plataforma ({RESERVA_MINUTOS} minutos de reserva, {MAXIMO_POR_COMPRA} por
+          compra, {MAXIMO_POR_EMAIL_Y_SHOW} por persona, {RESERVAS_ABIERTAS_POR_EMAIL} reservas abiertas por email, {RESERVAS_ABIERTAS_POR_IP} por conexión).
+        </p>
+        <Formulario accion={guardarFrenosAccion.bind(null, slug, e.id)} puedeEditar={editar} etiqueta="Guardar frenos">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Campo name="reservaMinutos" type="number" etiqueta="Reserva (minutos)" ayuda="De 5 a 30." defaultValue={e.frenos.reservaMinutos?.toString()} placeholder={String(RESERVA_MINUTOS)} />
+            <Campo name="maxPorCompra" type="number" etiqueta="Entradas por compra" ayuda="De 1 a 20." defaultValue={e.frenos.maxPorCompra?.toString()} placeholder={String(MAXIMO_POR_COMPRA)} />
+            <Campo name="maxPorPersona" type="number" etiqueta="Entradas por persona" ayuda="De 1 a 100, por email." defaultValue={e.frenos.maxPorPersona?.toString()} placeholder={String(MAXIMO_POR_EMAIL_Y_SHOW)} />
+            <Campo name="reservasPorEmail" type="number" etiqueta="Reservas abiertas por email" ayuda="De 1 a 5." defaultValue={e.frenos.reservasPorEmail?.toString()} placeholder={String(RESERVAS_ABIERTAS_POR_EMAIL)} />
+            <Campo name="reservasPorIp" type="number" etiqueta="Reservas abiertas por conexión" ayuda="De 1 a 50." defaultValue={e.frenos.reservasPorIp?.toString()} placeholder={String(RESERVAS_ABIERTAS_POR_IP)} />
+          </div>
         </Formulario>
       </Tarjeta>
       <Tabla

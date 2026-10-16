@@ -753,3 +753,23 @@ bloquear):
 5. Medirlo antes de decidir los plazos: `SELECT pg_size_pretty(pg_total_relation_size('correo'))`
    una vez por mes los primeros meses (está en la lista de verificación).
 
+
+## Decidido por el agente en el bloque D
+
+Criterio, en este orden: el 3.2 manda; ante empate, lo que protege al fan; ante duda de plata, lo
+que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos datos.
+
+- **GESTOR** (rol del núcleo): todo lo que el titular puede en los módulos, menos lo
+  `exclusivoTitular` (la pasarela de cobro). Las pantallas del núcleo de plata y control (Plan y
+  pago, Pagos para devolver, Credenciales, Dominios, Correo, Actividad y el manejo del Equipo)
+  siguen siendo solo del titular. Motivo: "gestionan todo menos la plata y el control de la
+  cuenta" es lo que separa a un titular registrado de los demás sin que nadie pierda trabajo.
+- **El "más antiguo" al migrar a un solo titular**: las membresías no tenían fecha. Queda quien
+  creó la banda (`tenant.creadoPor`); si no, la cuenta más antigua (`usuario.creadoEn`); si no, el
+  id. Desde ahora `membresia.creadoEn`. Los mails salen por la cola de correo (los encola la
+  migración).
+- **Pasar la titularidad**: el titular anterior queda GESTOR (no EDITOR): no pierde lo que hacía.
+  En el back office, dar el rol Titular a alguien es pasarle la titularidad.
+- **Frenos por show**: rangos acotados en la base (reserva 5–30 min, 1–20 por compra, 1–100 por
+  persona, 1–5 reservas por email, 1–50 por conexión). Una banda grande sube los números, pero
+  ningún show queda sin freno.

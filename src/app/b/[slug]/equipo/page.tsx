@@ -6,9 +6,8 @@ import { Aviso, Casilla, Formulario, Insignia, Selector, Tabla } from "@/ui";
 import { MarcoPanel } from "../marco";
 import { cambiarRolAccion, dejarAccion, pasarTitularidadAccion, quitarAccion } from "./acciones";
 
-// Equipo de la banda (núcleo, 3.2 núcleo d6). Todos ven quién es parte; el titular saca gente,
-// cambia roles y pasa la titularidad. A otra persona titular no se la toca desde acá (Deoco no
-// arbitra). Sumar gente lo hace el staff por ahora.
+// Equipo de la banda (núcleo, 3.2 núcleo d6). Todos ven quién es parte; el titular (uno solo,
+// registrado) saca gente, cambia roles y pasa la titularidad. Sumar gente lo hace el staff por ahora.
 export default async function Equipo({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const acceso = await accesoPanel(`/b/${slug}/equipo`);
@@ -16,7 +15,7 @@ export default async function Equipo({ params }: { params: Promise<{ slug: strin
   const esTitular = acceso.rol === "TITULAR";
   const prendidos = await modulosPrendidos(acceso.tenantId);
   const roles = registro()
-    .roles.filter((r) => !r.moduloIds.length || r.moduloIds.some((m) => prendidos.has(m)))
+    .roles.filter((r) => r.clave !== "TITULAR" && (!r.moduloIds.length || r.moduloIds.some((m) => prendidos.has(m))))
     .map((r) => ({ valor: r.clave, texto: r.etiqueta }));
   const etiqueta = (rol: string) => registro().rol(rol)?.etiqueta ?? rol;
   return (
@@ -26,12 +25,9 @@ export default async function Equipo({ params }: { params: Promise<{ slug: strin
           <h1 className="text-display-xs font-semibold text-primary">Equipo</h1>
           <p className="mt-1 text-md text-tertiary">
             Quién es parte de la banda y con qué rol. Un cambio vale desde el próximo movimiento de esa persona, aunque tenga el panel abierto. La banda
-            siempre tiene al menos una persona titular. Para sumar a alguien, escribinos.
+            tiene una sola persona titular: la que conserva el control de la cuenta, el cobro y el plan. Para sumar a alguien, escribinos.
           </p>
         </header>
-        {esTitular && miembros.filter((m) => m.rol === "TITULAR").length > 1 && (
-          <Aviso tono="info">Hay más de una persona titular: tienen el mismo control. Ninguna puede sacar a la otra desde acá; cada una deja la titularidad si quiere.</Aviso>
-        )}
         <Tabla
           titulo="Personas"
           columnas={[
@@ -41,7 +37,6 @@ export default async function Equipo({ params }: { params: Promise<{ slug: strin
           ]}
           filas={miembros.map((m) => {
             const yo = m.usuarioId === acceso.usuarioId;
-            const otroTitular = m.rol === "TITULAR" && !yo;
             return {
               id: m.id,
               celdas: [
@@ -51,7 +46,7 @@ export default async function Equipo({ params }: { params: Promise<{ slug: strin
                   </div>
                   <div className="text-sm text-tertiary">{m.email}</div>
                 </div>,
-                esTitular && !otroTitular && !yo ? (
+                esTitular && !yo ? (
                   <Formulario key="r" accion={cambiarRolAccion.bind(null, slug, m.id)} puedeEditar enLinea variante="secundario" etiqueta="Cambiar">
                     <Selector name="rol" etiqueta="Rol" defaultValue={m.rol} opciones={roles} />
                   </Formulario>
@@ -60,16 +55,16 @@ export default async function Equipo({ params }: { params: Promise<{ slug: strin
                     {etiqueta(m.rol)}
                   </Insignia>
                 ),
-                esTitular && !yo && !otroTitular ? (
+                esTitular && !yo ? (
                   <div key="a" className="flex flex-col gap-3">
                     <Formulario accion={pasarTitularidadAccion.bind(null, slug, m.id)} puedeEditar enLinea variante="secundario" etiqueta="Pasarle la titularidad">
-                      <Casilla name="confirmar" etiqueta="Confirmo: yo quedo como editor" />
+                      <Casilla name="confirmar" etiqueta="Confirmo: yo quedo como gestor" />
                     </Formulario>
                     <Formulario accion={quitarAccion.bind(null, slug, m.id)} puedeEditar enLinea variante="secundario" etiqueta="Sacar de la banda">
                       <Casilla name="confirmar" etiqueta="Confirmo: pierde el acceso" />
                     </Formulario>
                   </div>
-                ) : yo && !acceso.viaStaff ? (
+                ) : yo && !acceso.viaStaff && !esTitular ? (
                   <Formulario key="a" accion={dejarAccion.bind(null, slug)} puedeEditar enLinea variante="secundario" etiqueta="Dejar esta banda">
                     <Casilla name="confirmar" etiqueta="Confirmo: pierdo el acceso" />
                   </Formulario>

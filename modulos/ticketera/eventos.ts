@@ -33,6 +33,32 @@ function validarTipo(d: DatosTipo): DatosTipo {
   return { ...d, nombre };
 }
 
+export type DatosFrenos = { reservaMinutos: number | null; maxPorCompra: number | null; maxPorPersona: number | null; reservasPorEmail: number | null; reservasPorIp: number | null };
+
+const RANGO_FRENOS: Record<keyof DatosFrenos, [number, number, string]> = {
+  reservaMinutos: [5, 30, "La reserva dura de 5 a 30 minutos."],
+  maxPorCompra: [1, 20, "Por compra, de 1 a 20 entradas."],
+  maxPorPersona: [1, 100, "Por persona, de 1 a 100 entradas."],
+  reservasPorEmail: [1, 5, "Reservas abiertas por email: de 1 a 5."],
+  reservasPorIp: [1, 50, "Reservas abiertas por conexión: de 1 a 50."],
+};
+
+/**
+ * Los frenos contra el acaparamiento de un show (vacío = los de la plataforma). Acotados acá y
+ * en la base (CHECK): una banda grande sube los números, pero ningún show queda sin freno.
+ */
+export async function guardarFrenos(tenantId: string, id: string, d: DatosFrenos) {
+  for (const [k, [min, max, mensaje]] of Object.entries(RANGO_FRENOS) as [keyof DatosFrenos, [number, number, string]][]) {
+    const v = d[k];
+    if (v !== null && (!Number.isInteger(v) || v < min || v > max)) throw new ErrorTicketera(mensaje);
+  }
+  if (d.maxPorCompra && d.maxPorPersona && d.maxPorPersona < d.maxPorCompra) throw new ErrorTicketera("Por persona no puede ser menos que por compra.");
+  await conTenant(tenantId, async (tx) => {
+    if (!(await tx.ticketeraEvento.findUnique({ where: { id }, select: { id: true } }))) throw new ErrorTicketera("Ese show no existe.");
+    await tx.ticketeraEvento.update({ where: { id }, data: d });
+  });
+}
+
 export async function crearEvento(tenantId: string, datos: DatosEvento): Promise<string> {
   const d = validarEvento(datos);
   const { id } = await conTenant(tenantId, (tx) => tx.ticketeraEvento.create({ data: { tenantId, ...d }, select: { id: true } }));
@@ -186,6 +212,8 @@ export type EventoVista = {
   descripcion: string;
   foto: { id: string; nombre: string } | null;
   publicado: boolean;
+  /** Frenos propios del show (null = los de la plataforma). */
+  frenos: { reservaMinutos: number | null; maxPorCompra: number | null; maxPorPersona: number | null; reservasPorEmail: number | null; reservasPorIp: number | null };
   tipos: TipoConVenta[];
 };
 
@@ -216,6 +244,7 @@ export async function eventos(
       descripcion: f.descripcion,
       foto: f.fotoArchivoId && f.fotoNombre ? { id: f.fotoArchivoId, nombre: f.fotoNombre } : null,
       publicado: f.publicado,
+      frenos: { reservaMinutos: f.reservaMinutos, maxPorCompra: f.maxPorCompra, maxPorPersona: f.maxPorPersona, reservasPorEmail: f.reservasPorEmail, reservasPorIp: f.reservasPorIp },
       tipos: tipos.filter((t) => t.eventoId === f.id),
     }));
   });

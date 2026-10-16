@@ -19,7 +19,7 @@ import ticketera from "./index";
 import { esEmail } from "@/nucleo/correo/direccion";
 
 // Frenos contra el acaparamiento (un script que reserva un show entero y lo mantiene "agotado").
-// Propuestos; los revisa el titular del producto.
+// Estos son los de la plataforma; cada show puede tener los suyos (`frenosDe`), acotados por la base.
 /** La reserva vence rápido: el lugar vuelve si no se paga. El cobro vence con ella. */
 export const RESERVA_MINUTOS = 10;
 /** Entradas por compra. */
@@ -30,6 +30,22 @@ export const MAXIMO_POR_EMAIL_Y_SHOW = 12;
 export const RESERVAS_ABIERTAS_POR_EMAIL = 2;
 /** Compras esperando el pago a la vez, por IP (en toda la banda). */
 export const RESERVAS_ABIERTAS_POR_IP = 4;
+
+/** Tope duro del formulario (el del show nunca pasa de acá: CHECK en la base). */
+export const MAXIMO_ABSOLUTO_POR_COMPRA = 20;
+
+export type Frenos = { reservaMinutos: number; maxPorCompra: number; maxPorPersona: number; reservasPorEmail: number; reservasPorIp: number };
+
+/** Los frenos que valen para un show: los suyos y, donde no tiene, los de la plataforma. */
+export function frenosDe(e: Partial<Record<keyof Frenos, number | null>>): Frenos {
+  return {
+    reservaMinutos: e.reservaMinutos ?? RESERVA_MINUTOS,
+    maxPorCompra: e.maxPorCompra ?? MAXIMO_POR_COMPRA,
+    maxPorPersona: e.maxPorPersona ?? MAXIMO_POR_EMAIL_Y_SHOW,
+    reservasPorEmail: e.reservasPorEmail ?? RESERVAS_ABIERTAS_POR_EMAIL,
+    reservasPorIp: e.reservasPorIp ?? RESERVAS_ABIERTAS_POR_IP,
+  };
+}
 
 /** Hash de la IP para el freno: se guarda esto, nunca la IP. */
 export const hashIp = (tenantId: string, ip: string) => createHash("sha256").update(`${tenantId}:${ip}`).digest("hex");
@@ -50,7 +66,7 @@ function validar(d: DatosCompra): DatosCompra {
   const email = d.email.trim().toLowerCase();
   const problemas: string[] = [];
   if (!esUuid(d.tipoId)) problemas.push("Elegí el tipo de entrada.");
-  if (!Number.isInteger(d.cantidad) || d.cantidad < 1 || d.cantidad > MAXIMO_POR_COMPRA) problemas.push(`Podés comprar de 1 a ${MAXIMO_POR_COMPRA} entradas.`);
+  if (!Number.isInteger(d.cantidad) || d.cantidad < 1 || d.cantidad > MAXIMO_ABSOLUTO_POR_COMPRA) problemas.push("Elegí cuántas entradas querés.");
   if (nombre.length < 2 || nombre.length > 100) problemas.push("Completá tu nombre.");
   if (!esEmail(email)) problemas.push("Revisá tu email: ahí te llegan las entradas.");
   const asistentes = d.asistentes.map((a) => ({ nombre: a.nombre.trim().replace(/\s+/g, " "), documento: a.documento.trim().replace(/\s+/g, " ") }));
@@ -70,7 +86,8 @@ function validar(d: DatosCompra): DatosCompra {
  * Los frenos contra el acaparamiento, en la transacción de la compra. El mensaje es para el fan:
  * dice qué hacer, nunca cómo se detecta.
  */
-async function exigirFrenos(tx: TxTenant, q: { email: string; ipHash: string | null; eventoId: string; cantidad: number }, ahora: Date) {
+async function exigirFrenos(tx: TxTenant, f: Frenos, q: { email: string; ipHash: string | null; eventoId: string; cantidad: number }, ahora: Date) {
+  if (q.cantidad > f.maxPorCompra) throw new ErrorTicketera(`Podés comprar de 1 a ${f.maxPorCompra} entradas.`);
   const vigente = { OR: [{ estado: "PAGADA" as const }, { estado: "RESERVADA" as const, venceEn: { gt: ahora } }] };
   const abiertas = { estado: "RESERVADA" as const, venceEn: { gt: ahora } };
   const [delEmail, delShow, deLaIp] = await Promise.all([
@@ -78,13 +95,13 @@ async function exigirFrenos(tx: TxTenant, q: { email: string; ipHash: string | n
     tx.ticketeraCompra.aggregate({ where: { email: q.email, eventoId: q.eventoId, ...vigente }, _sum: { cantidad: true } }),
     q.ipHash ? tx.ticketeraCompra.count({ where: { ipHash: q.ipHash, ...abiertas } }) : Promise.resolve(0),
   ]);
-  if (delEmail >= RESERVAS_ABIERTAS_POR_EMAIL || deLaIp >= RESERVAS_ABIERTAS_POR_IP) {
-    throw new ErrorTicketera(`Ya tenés compras esperando el pago. Terminalas (o esperá ${RESERVA_MINUTOS} minutos a que venzan) y volvé a intentar.`);
+  if (delEmail >= f.reservasPorEmail || deLaIp >= f.reservasPorIp) {
+    throw new ErrorTicketera(`Ya tenés compras esperando el pago. Terminalas (o esperá ${f.reservaMinutos} minutos a que venzan) y volvé a intentar.`);
   }
   const yaTiene = delShow._sum.cantidad ?? 0;
-  if (yaTiene + q.cantidad > MAXIMO_POR_EMAIL_Y_SHOW) {
-    const quedan = Math.max(0, MAXIMO_POR_EMAIL_Y_SHOW - yaTiene);
-    throw new ErrorTicketera(`Para este show se pueden comprar hasta ${MAXIMO_POR_EMAIL_Y_SHOW} entradas por persona${quedan ? `: te quedan ${quedan}` : " y ya llegaste"}.`);
+  if (yaTiene + q.cantidad > f.maxPorPersona) {
+    const quedan = Math.max(0, f.maxPorPersona - yaTiene);
+    throw new ErrorTicketera(`Para este show se pueden comprar hasta ${f.maxPorPersona} entradas por persona${quedan ? `: te quedan ${quedan}` : " y ya llegaste"}.`);
   }
 }
 
@@ -127,7 +144,8 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
     if (tipo.ventaDesde && ahora < tipo.ventaDesde) throw new ErrorTicketera(`La venta de "${tipo.nombre}" todavía no empezó.`);
     if (tipo.ventaHasta && ahora > tipo.ventaHasta) throw new ErrorTicketera(`La venta de "${tipo.nombre}" ya terminó.`);
     await liberarVencidas(tx, tipo.id, ahora);
-    await exigirFrenos(tx, { email: d.email, ipHash, eventoId: tipo.eventoId, cantidad: d.cantidad }, ahora);
+    const frenos = frenosDe(tipo.evento);
+    await exigirFrenos(tx, frenos, { email: d.email, ipHash, eventoId: tipo.eventoId, cantidad: d.cantidad }, ahora);
     const ocupadas = (await bloquearTipo(tx, d.tipoId))!.ocupadas;
     const quedan = tipo.cupo - ocupadas;
     if (quedan < d.cantidad) {
@@ -149,7 +167,7 @@ export async function comprar(tenantId: string, datos: DatosCompra, origen: stri
         nombre: d.nombre,
         email: d.email,
         asistentes: d.asistentes,
-        venceEn: new Date(ahora.getTime() + RESERVA_MINUTOS * 60_000),
+        venceEn: new Date(ahora.getTime() + frenos.reservaMinutos * 60_000),
         id: compraId,
         tokenHash: acceso.hash,
         tokenCifrado: acceso.cifrado,

@@ -38,9 +38,9 @@ export async function quitarAccion(slug: string, membresiaId: string, _: EstadoF
 
 export async function pasarTitularidadAccion(slug: string, membresiaId: string, _: EstadoFormulario, fd: FormData) {
   return comoTitular(slug, async (c) => {
-    if (fd.get("confirmar") !== "on") throw new ErrorEquipo("Para pasarle la titularidad, confirmalo: vos quedás como editor.");
+    if (fd.get("confirmar") !== "on") throw new ErrorEquipo("Para pasarle la titularidad, confirmalo: vos quedás como gestor.");
     await pasarTitularidad(c.usuarioId, c.tenantId, membresiaId);
-    return "Titularidad pasada. Vos quedaste como editor.";
+    return "Titularidad pasada. Vos quedaste como gestor.";
   });
 }
 

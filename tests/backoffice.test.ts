@@ -129,14 +129,14 @@ describe("miembros", () => {
     expect(await acciones()).toEqual([]);
   });
 
-  it("con otro titular, sí: y cada cambio queda registrado", async () => {
-    // La banda A tiene dos titulares (a@x.com y multi@x.com).
+  it("dar Titular a otra persona es pasarle la titularidad (la anterior queda GESTOR); cada cambio queda registrado", async () => {
     const editorA = await dueno.membresia.findFirstOrThrow({ where: { tenantId: e.a.id, usuarioId: e.editorA.id } });
     await cambiarRol(e.staff.id, e.a.id, editorA.id, "TITULAR");
     const original = await dueno.membresia.findFirstOrThrow({ where: { tenantId: e.a.id, usuarioId: e.multi.id } });
+    expect(original.rol).toBe("GESTOR");
     await quitarMiembro(e.staff.id, e.a.id, original.id, true);
-    expect(await dueno.membresia.count({ where: { tenantId: e.a.id, rol: "TITULAR" } })).toBe(2); // a@x.com y editor-a
-    expect(await acciones(e.a.id)).toEqual(["membresia.rol_cambiado", "membresia.quitada"]);
+    expect((await dueno.membresia.findMany({ where: { tenantId: e.a.id, rol: "TITULAR" } })).map((m) => m.usuarioId)).toEqual([e.editorA.id]);
+    expect(await acciones(e.a.id)).toEqual(["membresia.rol_cambiado", "membresia.rol_cambiado", "membresia.quitada"]);
   });
 });
 
