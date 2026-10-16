@@ -9,6 +9,7 @@ import { cotizarDominio, ventaHabilitada } from "@/nucleo/dominios/venta";
 import { Aviso, Campo, Casilla, Formulario, Tarjeta } from "@/ui";
 import { MarcoPanel } from "../../../marco";
 import { titularAccion } from "../acciones";
+import { Privacidad } from "../privacidad";
 import { leerBorrador } from "../borrador";
 
 // Comprar un dominio, paso 2: a nombre de quién. Precargado con el titular de la banda (o con lo
@@ -29,12 +30,16 @@ export default async function Titular({ params }: { params: Promise<{ slug: stri
     </Link>
   );
   let precio: number | null = null;
+  let privacidad = false;
   let error: string | null = null;
   try {
     const c = await cotizarDominio(acceso.tenantId, dominio);
     if (!c.disponible) error = `${dominio} ya no está disponible. Probá con otro.`;
     else if (c.precio === null) error = `Los dominios como ${dominio} no se venden en Deoco.`;
-    else precio = c.precio;
+    else {
+      precio = c.precio;
+      privacidad = c.privacidad;
+    }
   } catch (e) {
     if (!(e instanceof ErrorDominio)) throw e;
     error = e.message;
@@ -55,6 +60,8 @@ export default async function Titular({ params }: { params: Promise<{ slug: stri
         {error ? (
           <Aviso tono="error">{error}</Aviso>
         ) : (
+          <>
+          <Privacidad dominio={dominio} incluida={privacidad} />
           <Tarjeta titulo="¿A nombre de quién?" descripcion="El dominio queda registrado a este nombre y es suyo: no de Deoco. Estos datos van al registro del dominio y no se usan para nada más.">
             <div data-titular-dominio>
               <Formulario puedeEditar accion={titularAccion.bind(null, slug, dominio)} etiqueta="Seguir">
@@ -73,6 +80,7 @@ export default async function Titular({ params }: { params: Promise<{ slug: stri
               </Formulario>
             </div>
           </Tarjeta>
+          </>
         )}
       </div>
     </MarcoPanel>

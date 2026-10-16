@@ -6,7 +6,7 @@ import { ZONA } from "@/nucleo/fechas";
 import type { PropsRutaAdmin } from "@/nucleo/modulos/contrato";
 import { cuotaConfigurada } from "@/nucleo/pagos/cuota";
 import { Aviso, Campo, Casilla, Filtros, Formulario, Insignia, Selector, Tabla, Tarjeta } from "@/ui";
-import { preciosDominio } from "../dominios";
+import { precioPorAnio, preciosDominio } from "../dominios";
 import { guardarPrecioDominioAccion, marcarDevueltaAccion, reintentarDevolucionAccion } from "./acciones";
 import { cobrosDominioEsperando, FILTROS_PAGOS_DOMINIO, type FiltroPagosDominio, pagina, pagosDeDominios, texto } from "./datos";
 
@@ -123,23 +123,37 @@ export async function AdminDominios({ consulta }: PropsRutaAdmin) {
           ],
         }))}
       />
-      <Tarjeta titulo="Precios por terminación" descripcion="Por año, en pesos: costo del registrador + comisión + colchón por el dólar. Sin precio (o no a la venta), esa terminación no se vende.">
+      <Tarjeta
+        titulo="Precios por terminación"
+        descripcion="Por año, en pesos. Registro: costo del registrador + comisión + colchón por el dólar. Privacidad del WHOIS: lo que cobra el registrador por ocultar los datos del titular; se suma al registro y la banda ve un solo precio (siempre activada). Si la terminación no la permite, desmarcala: no se cobra y a la banda se le avisa antes de comprar. Sin precio (o no a la venta), esa terminación no se vende."
+      >
         <div className="flex flex-col gap-6">
           {precios.map((p) => (
             <div key={p.tld} data-precio-tld={p.tld} className="flex flex-col gap-2 border-b border-secondary pb-4">
               <div className="flex items-center gap-2 font-medium text-primary">
-                .{p.tld} <span className="text-tertiary">{formatearPesos(p.precio)}/año</span>
+                .{p.tld} <span className="text-tertiary">{formatearPesos(precioPorAnio(p))}/año</span>
+                {p.privacidad ? (
+                  <span className="text-sm text-tertiary">
+                    (registro {formatearPesos(p.precio)} + privacidad {formatearPesos(p.costoPrivacidad)})
+                  </span>
+                ) : (
+                  <Insignia color="advertencia">Sin privacidad</Insignia>
+                )}
                 {!p.aLaVenta && <Insignia>No a la venta</Insignia>}
               </div>
               <Formulario puedeEditar accion={guardarPrecioDominioAccion.bind(null, p.tld)} etiqueta="Guardar">
-                <Campo name="precio" etiqueta="Precio por año (pesos)" defaultValue={pesosParaCampo(p.precio)} required />
+                <Campo name="precio" etiqueta="Registro por año (pesos)" defaultValue={pesosParaCampo(p.precio)} required />
+                <Campo name="costoPrivacidad" etiqueta="Privacidad por año (pesos)" defaultValue={pesosParaCampo(p.costoPrivacidad)} />
+                <Casilla name="privacidad" etiqueta="La terminación permite privacidad" marcada={p.privacidad} />
                 <Casilla name="aLaVenta" etiqueta="A la venta" marcada={p.aLaVenta} />
               </Formulario>
             </div>
           ))}
           <Formulario puedeEditar accion={guardarPrecioDominioAccion.bind(null, null)} etiqueta="Agregar">
             <Campo name="tld" etiqueta="Terminación" placeholder="com" required />
-            <Campo name="precio" etiqueta="Precio por año (pesos)" required />
+            <Campo name="precio" etiqueta="Registro por año (pesos)" required />
+            <Campo name="costoPrivacidad" etiqueta="Privacidad por año (pesos)" placeholder="0" />
+            <Casilla name="privacidad" etiqueta="La terminación permite privacidad" marcada />
             <Casilla name="aLaVenta" etiqueta="A la venta" marcada />
           </Formulario>
         </div>

@@ -39,7 +39,7 @@ afterAll(async () => {
   await Promise.all([cf.cerrar(), gd.cerrar()]);
   await prisma.$disconnect();
   await dueno.$disconnect();
-});
+}, 120_000); // termina las 200 compras que dejó pendientes la última prueba
 
 describe("muchas compras a la vez", () => {
   it(`${BANDAS} bandas pagan su dominio al mismo tiempo: todas llegan a la zona, ninguna se registra dos veces`, async () => {

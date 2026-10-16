@@ -60,18 +60,29 @@ type Pago = Awaited<ReturnType<typeof prisma.comercialDominioPago.findFirstOrThr
 
 // ── Precio ────────────────────────────────────────────────────────────────────────────────────
 
-/** Precio de venta por `anios` (centavos). null: esa terminación no se vende. */
+type FilaPrecio = { precio: number; privacidad: boolean; costoPrivacidad: number };
+
+/** Lo que paga la banda por año: el registro más la privacidad del WHOIS, si la terminación la permite. */
+export const precioPorAnio = (p: FilaPrecio) => p.precio + (p.privacidad ? p.costoPrivacidad : 0);
+
+/** Precio de venta por `anios` (centavos), con la privacidad incluida. null: esa terminación no se vende. */
 export async function precioDominio(tld: string, anios: number): Promise<number | null> {
   const p = await prisma.comercialDominioPrecio.findUnique({ where: { tld } });
-  return p?.aLaVenta ? p.precio * anios : null;
+  return p?.aLaVenta ? precioPorAnio(p) * anios : null;
+}
+
+/** ¿La terminación permite la privacidad del WHOIS? (Si no se vende, false.) */
+export async function privacidadDominio(tld: string): Promise<boolean> {
+  const p = await prisma.comercialDominioPrecio.findUnique({ where: { tld }, select: { aLaVenta: true, privacidad: true } });
+  return Boolean(p?.aLaVenta && p.privacidad);
 }
 
 export const preciosDominio = () => prisma.comercialDominioPrecio.findMany({ orderBy: { tld: "asc" } });
 
 /** Las terminaciones a la venta: "com" primero, el resto por orden alfabético. */
-export async function terminacionesDominio(): Promise<{ tld: string; precio: number }[]> {
-  const t = await prisma.comercialDominioPrecio.findMany({ where: { aLaVenta: true }, select: { tld: true, precio: true }, orderBy: { tld: "asc" } });
-  return t.sort((x, y) => Number(y.tld === "com") - Number(x.tld === "com"));
+export async function terminacionesDominio(): Promise<{ tld: string; precio: number; privacidad: boolean }[]> {
+  const t = await prisma.comercialDominioPrecio.findMany({ where: { aLaVenta: true }, orderBy: { tld: "asc" } });
+  return t.map((p) => ({ tld: p.tld, precio: precioPorAnio(p), privacidad: p.privacidad })).sort((x, y) => Number(y.tld === "com") - Number(x.tld === "com"));
 }
 
 /** Los cobros de dominios de la banda, para que vea en qué está cada uno (pago, devolución). */
@@ -101,14 +112,25 @@ export async function cobrosDeBanda(tenantId: string, dias: number): Promise<Cob
   });
 }
 
-/** Staff: fija el precio de una terminación ("com", "com.ar"). */
-export async function guardarPrecioDominio(comoStaff: ComoStaff, d: { tld: string; precio: number; aLaVenta: boolean }) {
+/**
+ * Staff: fija el precio de una terminación ("com", "com.ar"): el registro y, aparte, lo que cuesta
+ * la privacidad del WHOIS (se suma; la banda ve un solo precio). Sin privacidad en esa terminación,
+ * su costo no se cobra y a la banda se le avisa antes de comprar.
+ */
+export async function guardarPrecioDominio(
+  comoStaff: ComoStaff,
+  d: { tld: string; precio: number; aLaVenta: boolean; privacidad?: boolean; costoPrivacidad?: number },
+) {
   const tld = d.tld.trim().toLowerCase().replace(/^\./, "");
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)?$/.test(tld)) throw new ErrorDominio("Terminación inválida (p. ej. com o com.ar).");
   if (!Number.isSafeInteger(d.precio) || d.precio <= 0) throw new ErrorDominio("El precio tiene que ser mayor que cero.");
+  const privacidad = d.privacidad ?? true;
+  const costoPrivacidad = privacidad ? (d.costoPrivacidad ?? 0) : 0;
+  if (!Number.isSafeInteger(costoPrivacidad) || costoPrivacidad < 0) throw new ErrorDominio("El costo de la privacidad no puede ser negativo.");
+  const datos = { precio: d.precio, aLaVenta: d.aLaVenta, privacidad, costoPrivacidad };
   await comoStaff("comercial.precio_dominio", async (tx, ctx) => {
-    await tx.comercialDominioPrecio.upsert({ where: { tld }, create: { tld, precio: d.precio, aLaVenta: d.aLaVenta }, update: { precio: d.precio, aLaVenta: d.aLaVenta } });
-    ctx.detalle({ tld, precio: d.precio, aLaVenta: d.aLaVenta });
+    await tx.comercialDominioPrecio.upsert({ where: { tld }, create: { tld, ...datos }, update: datos });
+    ctx.detalle({ tld, ...datos });
   });
 }
 
@@ -222,7 +244,7 @@ async function entregar(tenantId: string, id: string, ahora = new Date()): Promi
   const pago = await conTenant(tenantId, (tx) => tx.comercialDominioPago.findUnique({ where: { id }, include: { cobro: true } }));
   if (!pago || pago.entrega !== "pendiente") return;
   const c = pago.cobro;
-  const d = c.datos as { contacto?: unknown; aceptacion?: { fecha: string; ip: string; claves: string[] }; hacerPrincipal?: boolean };
+  const d = c.datos as { contacto?: unknown; aceptacion?: { fecha: string; ip: string; claves: string[] }; hacerPrincipal?: boolean; privacidad?: boolean };
   try {
     if (c.tipo === "alta") {
       await dominioPagado(await comercial(), tenantId, {
@@ -231,6 +253,7 @@ async function entregar(tenantId: string, id: string, ahora = new Date()): Promi
         contacto: d.contacto as Parameters<typeof dominioPagado>[2]["contacto"],
         aceptacion: { ...d.aceptacion!, fecha: new Date(d.aceptacion!.fecha) },
         hacerPrincipal: Boolean(d.hacerPrincipal),
+        privacidad: Boolean(d.privacidad),
         cobro: { id: pago.pagoId, monto: pago.monto },
         usuarioId: c.usuarioId,
       });

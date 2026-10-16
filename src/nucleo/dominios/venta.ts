@@ -18,8 +18,11 @@ import { graciaHasta } from "./plazos";
 
 export type Cotizacion =
   | { dominio: string; disponible: false }
-  /** `precio` null: disponible, pero esa terminación no se vende en Deoco. Centavos. */
-  | { dominio: string; disponible: true; precio: number | null; anios: number };
+  /**
+   * `precio` null: disponible, pero esa terminación no se vende en Deoco. Centavos, con la privacidad
+   * del WHOIS incluida. `privacidad` false: esa terminación no la permite (se dice antes de comprar).
+   */
+  | { dominio: string; disponible: true; precio: number | null; anios: number; privacidad: boolean };
 
 /** Lo que eligió el titular en la pantalla de compra (D10). */
 export type PedidoDominio = {
@@ -59,8 +62,9 @@ async function cotizarCon(cobro: CobroDeDominios, crudo: string, anios: number):
   const d = await registrador()!.disponibilidad(dominio);
   if (!d.disponible) return { dominio, disponible: false };
   // Sin costo del registrador no se vende: no sabríamos si el precio lo cubre.
-  const precio = d.costo ? await cobro.precio(terminacion(dominio), anios) : null;
-  return { dominio, disponible: true, precio, anios };
+  const tld = terminacion(dominio);
+  const [precio, privacidad] = d.costo ? await Promise.all([cobro.precio(tld, anios), cobro.privacidad(tld)]) : [null, false];
+  return { dominio, disponible: true, precio, anios, privacidad };
 }
 
 /** Si está libre y cuánto sale. */
@@ -91,11 +95,11 @@ export async function buscarDominios(tenantId: string, texto: string, reg: Regis
   return Promise.all(todas.map((tld) => cotizarCon(cobro, `${etiqueta}.${tld}`, 1)));
 }
 
-/** Las condiciones del registrador para ese dominio (hay que aceptarlas todas para comprar). */
-export async function condicionesDe(dominio: string) {
-  const r = registrador();
-  if (!r) throw new ErrorDominio(NO_HABILITADO);
-  return r.condiciones(terminacion(normalizarDominio(dominio)));
+/** Las condiciones del registrador para ese dominio (hay que aceptarlas todas para comprar), con la privacidad si va. */
+export async function condicionesDe(dominio: string, reg: Registro = registroGlobal()) {
+  const { r, cobro } = piezas(reg);
+  const tld = terminacion(normalizarDominio(dominio));
+  return r.condiciones(tld, await cobro.privacidad(tld));
 }
 
 /**
@@ -128,7 +132,7 @@ export async function pagarDominio(tenantId: string, usuarioId: string, p: Pedid
   if (!/^\+\d{1,3}\.\d{4,14}$/.test(p.contacto.telefono)) throw new ErrorDominio("El teléfono va con el código de país, p. ej. +54.1145678900.");
   if (!/^[A-Z]{2}$/.test(p.contacto.pais)) throw new ErrorDominio("El país va con su código de dos letras, p. ej. AR.");
   // Todas las condiciones del registrador, aceptadas (las vigentes, no las que mandó el formulario).
-  const faltan = (await condicionesDe(p.dominio)).filter((x) => !p.aceptacion.claves.includes(x.clave));
+  const faltan = (await condicionesDe(p.dominio, reg)).filter((x) => !p.aceptacion.claves.includes(x.clave));
   if (faltan.length || !p.aceptacion.claves.length) throw new ErrorDominio("Falta aceptar las condiciones.");
   const c = await cotizarCon(cobro, p.dominio, p.anios);
   if (!c.disponible) throw new ErrorDominio(`${c.dominio} ya no está disponible.`);
@@ -142,6 +146,7 @@ export async function pagarDominio(tenantId: string, usuarioId: string, p: Pedid
       contacto: p.contacto,
       aceptacion: { fecha: p.aceptacion.fecha.toISOString(), ip: p.aceptacion.ip, claves: p.aceptacion.claves },
       hacerPrincipal: p.hacerPrincipal,
+      privacidad: c.privacidad,
     },
     usuarioId,
     email: (await usuarioPropio(usuarioId))?.email ?? titular.email,

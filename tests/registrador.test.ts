@@ -34,7 +34,7 @@ afterAll(() => gd.cerrar());
 
 async function clienteConDominio(dominio = "lossatelites.com") {
   const { clienteId } = await r.crearCliente({ email: titular.email, nombre: "Ana", apellido: "Pérez", referencia: "banda-1" });
-  await r.registrar(clienteId, { dominio, contacto: titular, anios: 1, nameservers: ["ana.ns.cloudflare.com", "bob.ns.cloudflare.com"], aceptacion });
+  await r.registrar(clienteId, { dominio, contacto: titular, anios: 1, nameservers: ["ana.ns.cloudflare.com", "bob.ns.cloudflare.com"], aceptacion, privacidad: true });
   gd.terminar("REGISTER");
   return clienteId;
 }
@@ -54,7 +54,10 @@ describe("buscar", () => {
     expect(await r.disponibilidad("lossatelites.com")).toEqual({ dominio: "lossatelites.com", disponible: true, costo: { centavos: 1199, moneda: "USD", anios: 1 } });
     gd.tomados.add("tomado.com");
     expect(await r.disponibilidad("tomado.com")).toEqual({ dominio: "tomado.com", disponible: false, costo: null });
-    expect(await r.condiciones("com")).toEqual([{ clave: "DNRA", titulo: "Domain Name Registration Agreement", url: "https://www.godaddy.com/agreements/dnra" }]);
+    expect(await r.condiciones("com", true)).toEqual([{ clave: "DNRA", titulo: "Domain Name Registration Agreement", url: "https://www.godaddy.com/agreements/dnra" }]);
+    expect(gd.pedidos.at(-1)!.consulta).toContain("privacy=true");
+    await r.condiciones("us", false);
+    expect(gd.pedidos.at(-1)!.consulta).toContain("privacy=false");
   });
 });
 
@@ -67,6 +70,7 @@ describe("registrar", () => {
       anios: 1,
       nameservers: ["ana.ns.cloudflare.com", "bob.ns.cloudflare.com"],
       aceptacion,
+      privacidad: true,
     });
     expect(o).toEqual({ id: "lossatelites.com|REGISTER", estado: "en-curso" });
     const pedido = gd.pedidos.find((p) => p.ruta.endsWith("/domains/register"))!;
@@ -75,7 +79,8 @@ describe("registrar", () => {
       domain: "lossatelites.com",
       period: 1,
       renewAuto: false,
-      privacy: false,
+      // Privacidad del WHOIS incluida en el precio, activada en el registro.
+      privacy: true,
       nameServers: ["ana.ns.cloudflare.com", "bob.ns.cloudflare.com"],
       consent: { agreedAt: "2026-10-15T12:00:00.000Z", agreedBy: "203.0.113.7", agreementKeys: ["DNRA"] },
       contacts: { registrant: { nameFirst: "Ana", nameLast: "Pérez", email: "ana@lossatelites.com", addressMailing: { country: "AR" } } },
@@ -89,7 +94,7 @@ describe("registrar", () => {
   it("nunca dos veces: si ya está en la subcuenta (una respuesta perdida), está registrado", async () => {
     const clienteId = await clienteConDominio();
     const antes = gd.pedidos.filter((p) => p.ruta.endsWith("/register")).length;
-    expect(await r.registrar(clienteId, { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion })).toEqual({
+    expect(await r.registrar(clienteId, { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion, privacidad: true })).toEqual({
       id: "lossatelites.com|REGISTER",
       estado: "lista",
     });
@@ -98,7 +103,7 @@ describe("registrar", () => {
 
   it("una operación que falla dice por qué", async () => {
     const { clienteId } = await r.crearCliente({ email: titular.email, nombre: "Ana", apellido: "Pérez", referencia: "banda-1" });
-    const o = await r.registrar(clienteId, { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion });
+    const o = await r.registrar(clienteId, { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion, privacidad: true });
     gd.terminar("REGISTER", "Registry rejected the request");
     expect(await r.operacion(clienteId, o)).toEqual({ id: o.id, estado: "fallida", motivo: "Registry rejected the request" });
   });
@@ -113,7 +118,7 @@ describe("registrar", () => {
     const { clienteId } = await r.crearCliente({ email: titular.email, nombre: "Ana", apellido: "Pérez", referencia: "banda-1" });
     preparar();
     try {
-      const e = await r.registrar(clienteId, { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion }).catch((x) => x);
+      const e = await r.registrar(clienteId, { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion, privacidad: true }).catch((x) => x);
       expect(e).toBeInstanceOf(ErrorRegistrador);
       expect(e).toMatchObject({ tipo, campo });
     } finally {
@@ -125,7 +130,7 @@ describe("registrar", () => {
 describe("una escritura que da 404", () => {
   it("es un error (una subcuenta que no existe), nunca un 'aceptado'", async () => {
     const e = await r
-      .registrar("cust-x|shop-x", { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion })
+      .registrar("cust-x|shop-x", { dominio: "lossatelites.com", contacto: titular, anios: 1, nameservers: [], aceptacion, privacidad: true })
       .catch((x) => x);
     expect(e).toBeInstanceOf(ErrorRegistrador);
     expect(e.tipo).toBe("desconocido");

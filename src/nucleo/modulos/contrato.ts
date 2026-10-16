@@ -253,10 +253,15 @@ export type GestionCuenta = {
  * `dominioPagado` / `renovacionPagada` (`@/nucleo/dominios/compra`) con el id del pago. Nunca antes.
  */
 export type CobroDeDominios = {
-  /** Precio en centavos por `anios` para la terminación ("com"). null: no se vende. */
+  /** Precio en centavos por `anios` para la terminación ("com"), con la privacidad incluida. null: no se vende. */
   precio: (tld: string, anios: number) => Promise<number | null>;
-  /** Las terminaciones a la venta, con su precio por año (centavos). Para buscar. */
-  terminaciones: () => Promise<{ tld: string; precio: number }[]>;
+  /**
+   * ¿Se registra con privacidad del WHOIS? (incluida en el precio, siempre activada). false: esa
+   * terminación no la permite y los datos del titular quedan públicos; se le dice antes de comprar.
+   */
+  privacidad: (tld: string) => Promise<boolean>;
+  /** Las terminaciones a la venta, con su precio por año (centavos) y si tienen privacidad. Para buscar. */
+  terminaciones: () => Promise<{ tld: string; precio: number; privacidad: boolean }[]>;
   /** Los cobros de dominios de la banda de los últimos `dias`, para la pantalla de progreso. */
   cobros: (tenantId: string, dias: number) => Promise<CobroDominioVisible[]>;
   /** Crea el cobro y devuelve adónde mandar al titular a pagar. */

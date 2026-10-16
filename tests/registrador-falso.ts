@@ -24,7 +24,7 @@ export class RegistradorFalso {
   dominios = new Map<string, DominioGd>();
   acciones = new Map<string, AccionGd>();
   pendientes: Pendiente[] = [];
-  pedidos: { metodo: string; ruta: string; cuerpo?: unknown; shopper?: string }[] = [];
+  pedidos: { metodo: string; ruta: string; consulta: string; cuerpo?: unknown; shopper?: string }[] = [];
   private servidor?: Server;
   base = "";
   private n = 0;
@@ -41,7 +41,7 @@ export class RegistradorFalso {
           res.end(d === undefined ? "" : JSON.stringify(d));
         };
         const error = (estado: number, code: string, message: string, fields?: unknown) => json(estado, { code, message, fields });
-        this.pedidos.push({ metodo: req.method ?? "", ruta: url.pathname, cuerpo: datos, shopper: req.headers["x-shopper-id"] as string | undefined });
+        this.pedidos.push({ metodo: req.method ?? "", ruta: url.pathname, consulta: url.search, cuerpo: datos, shopper: req.headers["x-shopper-id"] as string | undefined });
         if (req.headers.authorization !== `sso-key ${CLAVE_GD}:${SECRETO_GD}`) return error(401, "UNABLE_TO_AUTHENTICATE", "Unauthorized");
         const forzada = this.fallas.shift();
         if (forzada) return error(forzada, "INTERNAL_SERVER_ERROR", "Algo falló");

@@ -108,13 +108,18 @@ model ComercialCobro {
 
 /// @global
 /// Precio de venta de un dominio por terminación ("com"). Lo fija el staff: costo del
-/// registrador + comisión + colchón por el dólar. Sin fila (o no a la venta): no se vende.
+/// registrador + comisión + colchón por el dólar, más la privacidad del WHOIS (incluida en el
+/// precio, siempre activada donde la terminación la permite). Sin fila (o no a la venta): no se vende.
 model ComercialDominioPrecio {
-  tld           String   @id
-  /// Por año, en centavos de peso.
-  precio        Int
-  aLaVenta      Boolean  @default(true)
-  actualizadoEn DateTime @default(now()) @updatedAt
+  tld             String   @id
+  /// El registro, por año, en centavos de peso (sin la privacidad).
+  precio          Int
+  aLaVenta        Boolean  @default(true)
+  /// La terminación permite ocultar los datos del titular en el WHOIS. Si no, se le dice a la banda antes de comprar.
+  privacidad      Boolean  @default(true)
+  /// Lo que cuesta la privacidad, por año, en centavos de peso. Se suma al precio (solo si `privacidad`).
+  costoPrivacidad Int      @default(0)
+  actualizadoEn   DateTime @default(now()) @updatedAt
 
   @@map("comercial_dominio_precio")
 }

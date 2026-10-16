@@ -51,7 +51,7 @@ export default async function Comprar({ params, searchParams }: { params: Promis
             {resultados.length > 0 && (
               <Tabla
                 titulo="Resultados"
-                descripcion="Precio por año, en pesos. La renovación la pagás cuando vence: te avisamos antes."
+                descripcion="Precio por año, en pesos, con la privacidad de los datos del titular incluida donde la terminación lo permite. La renovación la pagás cuando vence: te avisamos antes."
                 columnas={[
                   { id: "dominio", etiqueta: "Dominio" },
                   { id: "precio", etiqueta: "Precio por año" },
@@ -60,9 +60,14 @@ export default async function Comprar({ params, searchParams }: { params: Promis
                 filas={resultados.map((r) => ({
                   id: r.dominio,
                   celdas: [
-                    <span key="d" className="font-medium text-primary" data-resultado={r.dominio}>
-                      {r.dominio}
-                    </span>,
+                    <div key="d" data-resultado={r.dominio}>
+                      <div className="font-medium text-primary">{r.dominio}</div>
+                      {r.disponible && r.precio !== null && (
+                        <div className="text-sm text-tertiary" data-privacidad={r.privacidad ? "incluida" : "no-disponible"}>
+                          {r.privacidad ? "Privacidad del titular incluida" : "Sin privacidad: los datos del titular quedan públicos"}
+                        </div>
+                      )}
+                    </div>,
                     <span key="p">{r.disponible && r.precio !== null ? formatearPesos(r.precio) : "—"}</span>,
                     !r.disponible ? (
                       <Insignia key="a">No disponible</Insignia>

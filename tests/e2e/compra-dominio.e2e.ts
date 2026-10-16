@@ -72,6 +72,8 @@ describe("comprar un dominio", () => {
     await Promise.all([page.waitForURL(`${APP}/b/banda-a/dominios/comprar?q=lossatelites`), buscar2.getByRole("button", { name: "Buscar" }).click()]);
     const fila = page.getByRole("row").filter({ has: page.locator('[data-resultado="lossatelites.com"]') });
     expect(await fila.textContent()).toContain("25.000");
+    // La privacidad del WHOIS, dicha antes de elegir: incluida en el precio.
+    expect(await fila.locator('[data-privacidad="incluida"]').textContent()).toContain("Privacidad del titular incluida");
     await captura(page, "dominio-buscar");
     await Promise.all([page.waitForURL(`${APP}/b/banda-a/dominios/comprar/lossatelites.com`), fila.getByRole("link", { name: "Elegir" }).click()]);
 
@@ -93,6 +95,7 @@ describe("comprar un dominio", () => {
 
     // Resumen y pago: precio, vencimiento, titular y, ANTES de pagar, lo que cuesta irse.
     expect(await page.locator("[data-resumen-compra]").textContent()).toContain("Ana Pérez · multi@x.com");
+    expect(await page.locator("[data-resumen-compra]").textContent()).toContain("Incluida: los datos del titular no aparecen en el WHOIS.");
     expect(await page.locator("[data-costo-salida]").textContent()).toContain("Deoco no cobra nada");
     expect(await page.locator("[data-costo-salida]").textContent()).toContain("El registrador nuevo te cobra la transferencia");
     await captura(page, "dominio-resumen");

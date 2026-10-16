@@ -28,11 +28,11 @@ verifique contra la API (`devuelto` en el pago).
 las de lectura entre bandas son solo para el staff (`app_es_staff()`). Las funciones del barrido
 que cruzan bandas devuelven solo ids. El núcleo no nombra módulos (`tests/modulos.test.ts`).
 
-**Datos personales del titular, sin privacidad en el WHOIS.** El registro va con `privacy: false`:
-nombre, dirección, teléfono y mail del titular pueden quedar públicos en el WHOIS/RDAP según la
-terminación y la política de GoDaddy (para `.com` muchas veces se redacta, pero no está
-garantizado). **Es una decisión de producto** (la privacidad suele costar): anotada en
-`decisiones-pendientes.md`.
+**Datos personales del titular en el WHOIS (decidido y hecho).** Se registra con privacidad,
+incluida en el precio y activada por defecto (`privacy: true`). En una terminación que no la
+permite (la marca el staff), a la banda se le dice antes de pagar que los datos quedan públicos.
+Sin confirmar con GoDaddy: que se active en el registro mismo y cuánto cuesta
+(`verificacion-despliegue.md`, 20).
 
 **El dominio queda desbloqueado para siempre si la transferencia nunca se hace.** Pedir el código
 lo desbloquea y no se vuelve a bloquear. Con el código, alguien que lo tenga podría llevárselo.

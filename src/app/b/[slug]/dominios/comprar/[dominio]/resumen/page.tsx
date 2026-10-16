@@ -8,6 +8,7 @@ import { ZONA } from "@/nucleo/fechas";
 import { Aviso, Casilla, Formulario, Tarjeta } from "@/ui";
 import { MarcoPanel } from "../../../../marco";
 import { pagarAccion } from "../../acciones";
+import { Privacidad } from "../../privacidad";
 import { leerBorrador } from "../../borrador";
 
 /** Lo que cuesta irse, dicho ANTES de comprar (docs/diseno-dominios.md §2). */
@@ -30,12 +31,16 @@ export default async function Resumen({ params }: { params: Promise<{ slug: stri
   const b = await leerBorrador(dominio);
   if (!b) redirect(titularUrl);
   let precio: number | null = null;
+  let privacidad = false;
   let error: string | null = null;
   try {
     const c = await cotizarDominio(acceso.tenantId, dominio);
     if (!c.disponible) error = `${dominio} ya no está disponible. Probá con otro.`;
     else if (c.precio === null) error = `Los dominios como ${dominio} no se venden en Deoco.`;
-    else precio = c.precio;
+    else {
+      precio = c.precio;
+      privacidad = c.privacidad;
+    }
   } catch (e) {
     if (!(e instanceof ErrorDominio)) throw e;
     error = e.message;
@@ -69,10 +74,13 @@ export default async function Resumen({ params }: { params: Promise<{ slug: stri
                 <dd className="text-primary">
                   {t.nombre} {t.apellido} · {t.email}
                 </dd>
+                <dt className="text-tertiary">Privacidad</dt>
+                <dd className="text-primary">{privacidad ? "Incluida: los datos del titular no aparecen en el WHOIS." : "No disponible en esta terminación: los datos del titular quedan públicos en el WHOIS."}</dd>
                 <dt className="text-tertiary">Principal</dt>
                 <dd className="text-primary">{b.hacerPrincipal ? "Sí: cuando esté listo, el sitio pasa a este dominio y el subdominio de Deoco redirige acá." : "No: lo elegís cuando quieras."}</dd>
               </dl>
             </Tarjeta>
+            {!privacidad && <Privacidad dominio={dominio} incluida={false} />}
             <div data-costo-salida>
               <Aviso tono="info" titulo="Llevártelo cuando quieras">
                 {COSTO_DE_SALIDA} También podés dejarlo registrado acá y llevarte solo el DNS, sin costo.

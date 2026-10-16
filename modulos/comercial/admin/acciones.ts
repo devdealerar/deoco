@@ -107,10 +107,13 @@ export async function asignarPlanAccion(tenantId: string, _: EstadoFormulario, f
 
 export async function guardarPrecioDominioAccion(tld: string | null, _: EstadoFormulario, fd: FormData) {
   return accion(async () => {
-    const precio = pesosOpcional(fd, "precio", "Precio por año");
-    if (precio === null) throw new ErrorFormulario("Precio por año: escribilo en pesos.");
+    const precio = pesosOpcional(fd, "precio", "Registro por año");
+    if (precio === null) throw new ErrorFormulario("Registro por año: escribilo en pesos.");
+    const privacidad = fd.get("privacidad") === "on";
+    // Vacío o 0: la privacidad no le cuesta nada a Deoco en esa terminación.
+    const costoPrivacidad = /^0*([.,]0*)?$/.test(texto(fd, "costoPrivacidad", 20)) ? 0 : pesosOpcional(fd, "costoPrivacidad", "Privacidad por año")!;
     const t = tld ?? obligatorio(fd, "tld", "la terminación", 30);
-    await guardarPrecioDominio(conStaff, { tld: t, precio, aLaVenta: fd.get("aLaVenta") === "on" });
+    await guardarPrecioDominio(conStaff, { tld: t, precio, aLaVenta: fd.get("aLaVenta") === "on", privacidad, costoPrivacidad });
     return "Precio guardado.";
   });
 }

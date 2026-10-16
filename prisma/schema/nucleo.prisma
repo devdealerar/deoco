@@ -461,6 +461,8 @@ model DominioCompra {
   /// { fecha, ip, claves }
   aceptacion     Json      @default("{}")
   hacerPrincipal Boolean   @default(false)
+  /// Con privacidad del WHOIS (la banda la pagó en el precio; sale de la terminación al cobrar).
+  privacidad     Boolean   @default(false)
   cobroId        String
   /// Centavos de peso.
   monto          Int

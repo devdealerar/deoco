@@ -5,7 +5,9 @@
 // nameservers, transferencia saliente y cambio de titular, 60 pedidos por minuto.
 // SIN CONFIRMAR (marcados abajo, a probar en el entorno de pruebas de GoDaddy): disponibilidad y
 // condiciones (v1), alta de la subcuenta (v1 shoppers), los nombres de las acciones, desbloqueo y
-// código (v1 con X-Shopper-Id), cambio de titular y transferencia entrante (v2).
+// código (v1 con X-Shopper-Id), cambio de titular y transferencia entrante (v2), y la privacidad del
+// WHOIS: que `privacy: true` en el registro la active en el momento (sin un pedido aparte), cuánto
+// cobra GoDaddy por ella al revendedor y qué terminaciones no la permiten (docs/verificacion-despliegue.md, punto 20).
 import { randomBytes } from "node:crypto";
 import { Cola } from "./cola";
 import {
@@ -111,11 +113,11 @@ export class GoDaddy implements Registrador {
     };
   }
 
-  async condiciones(tld: string): Promise<Condicion[]> {
-    // SIN CONFIRMAR: v1.
+  async condiciones(tld: string, privacidad: boolean): Promise<Condicion[]> {
+    // SIN CONFIRMAR: v1. Con `privacy=true` GoDaddy puede sumar las condiciones del servicio de privacidad.
     const r = await this.llamar<{ agreementKey: string; title: string; url: string }[]>(
       "GET",
-      `/v1/domains/agreements?tlds=${encodeURIComponent(tld)}&privacy=false`,
+      `/v1/domains/agreements?tlds=${encodeURIComponent(tld)}&privacy=${privacidad}`,
     );
     return (r?.datos ?? []).map((a) => ({ clave: a.agreementKey, titulo: a.title, url: a.url }));
   }
@@ -135,7 +137,7 @@ export class GoDaddy implements Registrador {
 
   async registrar(
     clienteId: string,
-    p: { dominio: string; contacto: Contacto; anios: number; nameservers: string[]; aceptacion: Aceptacion },
+    p: { dominio: string; contacto: Contacto; anios: number; nameservers: string[]; aceptacion: Aceptacion; privacidad: boolean },
   ): Promise<Operacion> {
     const { customerId } = cliente(clienteId);
     // Nunca dos veces: si ya está en la subcuenta (una respuesta perdida), está registrado.
@@ -146,7 +148,8 @@ export class GoDaddy implements Registrador {
       contacts: contactos(p.contacto),
       nameServers: p.nameservers,
       period: p.anios,
-      privacy: false,
+      // SIN CONFIRMAR: que se active acá, en el registro (y su costo). Incluida en el precio.
+      privacy: p.privacidad,
       // La renovación la decide la banda pagándola (docs/diseno-dominios.md §9): nunca automática.
       renewAuto: false,
     });

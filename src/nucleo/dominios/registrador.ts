@@ -73,17 +73,18 @@ export class ErrorRegistrador extends Error {
 export interface Registrador {
   readonly nombre: string;
   disponibilidad(dominio: string): Promise<Disponibilidad>;
-  condiciones(tld: string): Promise<Condicion[]>;
+  /** Las condiciones a aceptar para esa terminación, con o sin privacidad del WHOIS (pueden cambiar). */
+  condiciones(tld: string, privacidad: boolean): Promise<Condicion[]>;
   /** La subcuenta de la banda en el registrador (una por banda). `referencia`: el id de la banda. */
   crearCliente(datos: { email: string; nombre: string; apellido: string; referencia: string }): Promise<{ clienteId: string }>;
   /**
    * Registra a nombre del titular, en la subcuenta, con los nameservers dados. Si el dominio ya
    * está en la subcuenta (una respuesta que se perdió), devuelve la operación lista: nunca registra
-   * dos veces.
+   * dos veces. `privacidad`: los datos del titular ocultos en el WHOIS (la banda la pagó en el precio).
    */
   registrar(
     clienteId: string,
-    pedido: { dominio: string; contacto: Contacto; anios: number; nameservers: string[]; aceptacion: Aceptacion },
+    pedido: { dominio: string; contacto: Contacto; anios: number; nameservers: string[]; aceptacion: Aceptacion; privacidad: boolean },
   ): Promise<Operacion>;
   /** Vuelve a consultar una operación en curso. */
   operacion(clienteId: string, op: Operacion): Promise<Operacion>;

@@ -41,6 +41,14 @@ Investigación: `docs/investigacion-dominios-correo.md`. Bloqueadores 1 (certifi
   gestor puede llamar a `dominioPagado`/`renovacionPagada`; para vender dominios se exige la clave
   de los avisos; una revisión de dominio que falla por Cloudflare se reintenta a los 15 min.
   Carga: `tests/carga/dominios.test.ts` (200 compras a la vez). Repaso: `docs/repaso-dominios.md`.
+- Privacidad del WHOIS (decidido después de D13): incluida en el precio y activada por defecto. El
+  staff fija por terminación el registro y, aparte, el costo de la privacidad (se suman; la banda ve
+  un solo precio) y si la terminación la permite (`comercial_dominio_precio.privacidad`,
+  `costoPrivacidad`). La compra guarda lo que se cobró (`dominio_compra.privacidad`) y registra con
+  `privacy` según eso; las condiciones se piden con `privacy=true|false`. Sin privacidad en la
+  terminación: se dice en la búsqueda, en el titular y en el resumen, antes de pagar. Costo de
+  GoDaddy, si se activa en el registro y qué terminaciones no la tienen: SIN CONFIRMAR
+  (`docs/verificacion-despliegue.md`, 20).
 - D12: repaso de las cinco salidas, sin staff (`tests/salidas.test.ts`: delegado, comprado con el
   código, .com.ar, comprado solo el DNS, CNAME, y con la banda archivada). Lo que faltaba: el comprado
   que se lleva solo el DNS (`ponerMisNameservers`: Deoco pone los nameservers de su proveedor nuevo,

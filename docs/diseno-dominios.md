@@ -631,7 +631,8 @@ un registro DNS.
   entrante (v2), y los códigos de error que se traducen (no disponible, sin saldo).
 - [ ] **GoDaddy v2**: clave de idempotencia; campos de aceptación de condiciones; endpoint de
   transferencia entrante a una subcuenta; mail de verificación del titular (ICANN) y qué pasa si
-  no lo confirma; plazos de bloqueo, gracia y recuperación; privacidad de datos.
+  no lo confirma; plazos de bloqueo, gracia y recuperación; privacidad de datos (decidido: incluida
+  en el precio y activada; costo y activación, `verificacion-despliegue.md` 20).
 - [x] **Mercado Pago, medios diferidos**: Checkout Pro los excluye (`excluded_payment_types`
   `ticket`, `atm`, `bank_transfer`) y `binary_mode: true` no deja ningún pago pendiente
   (documentación de Mercado Pago, "Modo binario" y "Medios de pago" de Checkout Pro).

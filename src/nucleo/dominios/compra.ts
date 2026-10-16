@@ -35,6 +35,8 @@ export type PedidoCompra = {
   aceptacion: Aceptacion;
   /** Que pase a ser el principal apenas tenga certificado. */
   hacerPrincipal: boolean;
+  /** Con privacidad del WHOIS (la cobró el gestor en el precio; false si la terminación no la permite). */
+  privacidad?: boolean;
   cobro: { id: string; monto: number };
   usuarioId: string | null;
 };
@@ -109,6 +111,7 @@ export async function dominioPagado(modulo: Modulo, tenantId: string, p: PedidoC
     contacto: p.contacto as unknown as Prisma.InputJsonValue,
     aceptacion: { fecha: p.aceptacion.fecha.toISOString(), ip: p.aceptacion.ip, claves: p.aceptacion.claves },
     hacerPrincipal: p.hacerPrincipal,
+    privacidad: Boolean(p.privacidad),
     paso: "cliente",
   });
 }
@@ -372,7 +375,7 @@ async function paso(tenantId: string, c: Compra, r: Registrador, ahora: Date): P
       const a = c.aceptacion as { fecha: string; ip: string; claves: string[] };
       const o = await operacionDe(c, r, clienteId, () =>
         // Sin nameservers: los de la zona se ponen después (la zona no se puede crear antes de que el dominio exista).
-        r.registrar(clienteId, { dominio: c.dominio, contacto, anios: c.anios, nameservers: [], aceptacion: { fecha: new Date(a.fecha), ip: a.ip, claves: a.claves } }),
+        r.registrar(clienteId, { dominio: c.dominio, contacto, anios: c.anios, nameservers: [], aceptacion: { fecha: new Date(a.fecha), ip: a.ip, claves: a.claves }, privacidad: c.privacidad }),
       );
       if (o.estado === "en-curso") return { tipo: "esperar", ms: ESPERA_OPERACION, datos: { operacion: o } };
       if (o.estado === "fallida") {

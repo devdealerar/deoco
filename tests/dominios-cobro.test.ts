@@ -115,7 +115,7 @@ afterAll(async () => {
 
 describe("precio y cotización", () => {
   it("el precio sale de la terminación por año; sin precio o fuera de venta, no se vende", async () => {
-    expect(await cotizarDominio(a.id, "LosSatelites.com", 2)).toEqual({ dominio: "lossatelites.com", disponible: true, precio: 5_000_000, anios: 2 });
+    expect(await cotizarDominio(a.id, "LosSatelites.com", 2)).toEqual({ dominio: "lossatelites.com", disponible: true, precio: 5_000_000, anios: 2, privacidad: true });
     expect(await cotizarDominio(a.id, "lossatelites.net")).toMatchObject({ disponible: true, precio: null });
     await guardarPrecioDominio(comoStaff, { tld: "com", precio: 2_500_000, aLaVenta: false });
     expect(await cotizarDominio(a.id, "lossatelites.com")).toMatchObject({ disponible: true, precio: null });
@@ -131,6 +131,38 @@ describe("precio y cotización", () => {
     await expect(pagarDominio(a.id, ua.id, pedido())).rejects.toThrow(/ya no está disponible/);
     expect(mp.preferencias).toHaveLength(0);
     expect(await dueno.comercialDominioCobro.count()).toBe(0);
+  });
+});
+
+describe("privacidad del WHOIS: incluida en el precio, activada por defecto", () => {
+  const registro = () => gd.pedidos.find((p) => p.ruta.endsWith("/domains/register"))?.cuerpo as { privacy?: boolean } | undefined;
+
+  it("su costo se suma al precio del registro: la banda paga un solo precio y se registra con privacidad", async () => {
+    await guardarPrecioDominio(comoStaff, { tld: "com", precio: 2_500_000, aLaVenta: true, privacidad: true, costoPrivacidad: 300_000 });
+    expect(await cotizarDominio(a.id, "lossatelites.com", 2)).toEqual({ dominio: "lossatelites.com", disponible: true, precio: 5_600_000, anios: 2, privacidad: true });
+    const r = await pagarDominio(a.id, ua.id, pedido());
+    expect(r.monto).toBe(2_800_000);
+    // Las condiciones se piden con la privacidad (el registrador puede sumar las del servicio).
+    expect(gd.pedidos.filter((p) => p.ruta === "/v1/domains/agreements").every((p) => p.consulta.includes("privacy=true"))).toBe(true);
+    await pagarYAvisar();
+    expect(await compras()).toMatchObject([{ privacidad: true, monto: 2_800_000 }]);
+    await avanzarCompras(a.id);
+    expect(registro()).toMatchObject({ privacy: true });
+    await expect(guardarPrecioDominio(comoStaff, { tld: "com", precio: 100, aLaVenta: true, costoPrivacidad: -1 })).rejects.toThrow(/negativo/);
+  });
+
+  it("una terminación sin privacidad: se dice antes de comprar, su costo no se cobra y se registra sin", async () => {
+    await guardarPrecioDominio(comoStaff, { tld: "com", precio: 2_500_000, aLaVenta: true, privacidad: false, costoPrivacidad: 300_000 });
+    expect(await cotizarDominio(a.id, "lossatelites.com")).toEqual({ dominio: "lossatelites.com", disponible: true, precio: 2_500_000, anios: 1, privacidad: false });
+    expect((await buscarDominios(a.id, "lossatelites"))[0]).toMatchObject({ privacidad: false });
+    expect(await dueno.comercialDominioPrecio.findUniqueOrThrow({ where: { tld: "com" } })).toMatchObject({ privacidad: false, costoPrivacidad: 0 });
+    const r = await pagarDominio(a.id, ua.id, pedido());
+    expect(r.monto).toBe(2_500_000);
+    expect(gd.pedidos.filter((p) => p.ruta === "/v1/domains/agreements").every((p) => p.consulta.includes("privacy=false"))).toBe(true);
+    await pagarYAvisar();
+    expect(await compras()).toMatchObject([{ privacidad: false }]);
+    await avanzarCompras(a.id);
+    expect(registro()).toMatchObject({ privacy: false });
   });
 });
 
@@ -371,7 +403,7 @@ describe("D10: buscar, titular, progreso", () => {
     gd.tomados.add("lossatelites.ar");
     const r = await buscarDominios(a.id, "  LosSatelites ");
     expect(r).toEqual([
-      { dominio: "lossatelites.com", disponible: true, precio: 2_500_000, anios: 1 },
+      { dominio: "lossatelites.com", disponible: true, precio: 2_500_000, anios: 1, privacidad: true },
       { dominio: "lossatelites.ar", disponible: false },
     ]);
     expect((await buscarDominios(a.id, "https://www.lossatelites.org/")).map((x) => [x.dominio, x.disponible && x.precio])).toEqual([

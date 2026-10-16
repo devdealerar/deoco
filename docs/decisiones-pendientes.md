@@ -43,8 +43,13 @@ túnel. Pide un ensayo con Cloudflare real.
 
 Detalle en `docs/repaso-dominios.md`. Para decidir vos:
 
-1. **Privacidad del WHOIS**: hoy se registra con `privacy: false`. Los datos del titular pueden
-   quedar públicos según la terminación. ¿Se ofrece privacidad (y quién la paga)?
+1. ~~**Privacidad del WHOIS**~~ → decidido: se ofrece, incluida en el precio, activada por
+   defecto. Hecho: el costo se suma al precio por terminación (lo fija el staff); la terminación
+   que no la permite se marca y la banda lo ve antes de comprar. Decidido sin preguntar: el costo
+   de la privacidad lo carga el staff a mano (la API de GoDaddy no lo informa en la disponibilidad,
+   hasta donde se sabe: SIN CONFIRMAR); se cobra también en la renovación (se suma igual); la
+   transferencia entrante (sin pantalla todavía) sigue sin privacidad; las compras anteriores
+   quedan como estaban (sin).
 2. **Re-bloquear un dominio** si pidieron el código y no lo transfirieron en 30 días (necesita el
    endpoint de bloqueo de GoDaddy, sin confirmar).
 3. **Datos del titular de cobros que nunca se pagaron**: hoy quedan para siempre. Propuesta: borrar

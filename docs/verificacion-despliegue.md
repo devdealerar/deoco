@@ -450,3 +450,21 @@ nameservers; comprado con el código; `.com.ar` desde nic.ar; comprado que se ll
 CNAME que borra sus registros. Archivar la banda de prueba y verificar que el titular sigue
 entrando a Dominios y puede pedir el código.
 
+## 20. Privacidad del WHOIS (GoDaddy de verdad)
+
+No se pudo leer la documentación de GoDaddy desde el entorno de trabajo (red bloqueada): todo esto
+está SIN CONFIRMAR en `src/nucleo/dominios/godaddy.ts`.
+
+1. **Costo**: en la lista de precios de revendedor, cuánto cobra GoDaddy por la privacidad por año
+   y por terminación (y si cambia al renovar). Cargarlo en `/admin/m/comercial/dominios` →
+   "Privacidad por año" de cada terminación (se suma al registro). Si `GET /v1/domains/available`
+   lo informa, se puede leer de ahí en vez de a mano.
+2. **Cuándo se activa**: registrar en OTE con `privacy: true` y mirar el WHOIS/RDAP del dominio
+   apenas termina la acción `REGISTER`. Si GoDaddy la pide aparte (un pedido de compra de
+   privacidad después del registro), hay que sumarlo como paso de la compra antes de "Listo".
+3. **Condiciones**: `GET /v1/domains/agreements?tlds=com&privacy=true` — si suma un acuerdo del
+   servicio de privacidad, el resumen ya lo muestra y lo exige (se pide con `privacy=true`).
+4. **Terminaciones sin privacidad**: probar cada terminación a la venta (por ejemplo `.us` no la
+   permite por regla de su registro) y desmarcar "La terminación permite privacidad" donde no va.
+   Que la búsqueda y el resumen digan "los datos del titular quedan públicos".
+5. **Renovación**: que la privacidad siga activa después de renovar.
