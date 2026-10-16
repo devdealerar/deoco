@@ -3,7 +3,8 @@
 // banda. El núcleo no sabe de planes ni de precios: guarda estados, módulos y números, y valida
 // que quien los cambia sea el gestor.
 //
-// ARCHIVADO es del staff: el gestor nunca archiva ni desarchiva.
+// El gestor sube la banda por la escalera de la cuota (hasta ARCHIVADO) y la devuelve a ACTIVO con
+// el pago. Una banda ARCHIVADA ya no la toca: desarchivar es del staff.
 // Los errores van primero y en su propio archivo: los módulos los usan al cargarse
 // (accionesDelPanel) y este archivo importa el registro, que importa los módulos.
 import { ErrorCuenta, ErrorLimite } from "./errores";
@@ -17,7 +18,7 @@ import type { Registro } from "@/nucleo/modulos/registro";
 
 export { ErrorCuenta, ErrorLimite };
 
-export type EstadoAutomatico = Exclude<EstadoTenant, "ARCHIVADO">;
+export type EstadoAutomatico = EstadoTenant;
 
 function exigirGestor(modulo: Modulo, reg: Registro) {
   if (reg.modulo(modulo.id) !== modulo || reg.gestor?.moduloId !== modulo.id) {
@@ -31,7 +32,8 @@ async function auditar(tx: TxTenant, tenantId: string, por: string, accion: stri
 }
 
 /**
- * Cambia el estado de la banda (ACTIVO, MOROSO o SUSPENDIDO). Una banda ARCHIVADA no se toca.
+ * Cambia el estado de la banda (cualquiera de la escalera, ARCHIVADO incluido). Una banda ya
+ * ARCHIVADA no se toca (la desarchiva el staff).
  * Devuelve si cambió algo. Queda en la auditoría con el motivo.
  */
 export async function fijarEstado(
@@ -42,7 +44,6 @@ export async function fijarEstado(
   reg: Registro = registroGlobal(),
 ): Promise<boolean> {
   exigirGestor(modulo, reg);
-  if (!["ACTIVO", "MOROSO", "SUSPENDIDO"].includes(estado)) throw new ErrorCuenta(`El gestor no puede pasar una banda a ${estado}.`);
   return conTenant(tenantId, async (tx) => {
     const [actual] = await tx.$queryRaw<{ estado: EstadoTenant }[]>`SELECT estado FROM "tenant" WHERE id = ${tenantId}::uuid FOR UPDATE`;
     if (!actual || actual.estado === "ARCHIVADO" || actual.estado === estado) return false;

@@ -83,8 +83,11 @@ export async function guardarPlazosAccion(_: EstadoFormulario, fd: FormData) {
     await guardarPlazos(conStaff, {
       diasPrueba: entero(fd, "diasPrueba", "Días de prueba"),
       planPrueba: obligatorio(fd, "planPrueba", "el plan de la prueba", 40),
-      diasGracia: entero(fd, "diasGracia", "Días de gracia"),
-      diasMoraASuspender: entero(fd, "diasMoraASuspender", "Días de mora"),
+      diasGracia: entero(fd, "diasGracia", "Días hasta el aviso"),
+      diasAvisoFuerte: entero(fd, "diasAvisoFuerte", "Días hasta el aviso fuerte"),
+      diasSoloLectura: entero(fd, "diasSoloLectura", "Días hasta solo lectura"),
+      diasMoraASuspender: entero(fd, "diasMoraASuspender", "Días hasta suspender"),
+      diasArchivo: entero(fd, "diasArchivo", "Días hasta archivar"),
     });
     return "Plazos guardados.";
   });

@@ -8,7 +8,6 @@ import { prisma } from "@/nucleo/db/cliente";
 import { modulosPrendidos } from "@/nucleo/modulos/encendido";
 import { crearSuscripcion } from "@/nucleo/pagos/cuota";
 import { guardarSecreto } from "@/nucleo/secretos/carga";
-import { decidirPorEstado, rutaPanelBanda } from "@/nucleo/tenant/reglas";
 import comercial from "../modulos/comercial";
 import {
   type ComoStaff,
@@ -19,6 +18,8 @@ import {
   decidir,
   elegirPlan,
   guardarPlan,
+  guardarPlazos,
+  plazos,
   planes,
   revisarVencimientos,
   sumarMes,
@@ -205,58 +206,11 @@ describe("cuota", () => {
     expect(mp.suscripciones.get(id)!.monto).toBe(8000);
   });
 
-  it("un cobro rechazado pasa a MOROSO (con mail); a los 10 días de mora, SUSPENDIDO", async () => {
-    await alCrearBanda(e.a.id);
-    const id = await suscribir(e.a.id, "banda-a", "medium");
-    const cobro = mp.cobrar(id, false);
-    expect((await avisoCuota("subscription_authorized_payment", cobro)).status).toBe(200);
-    expect(await estado(e.a.id)).toBe("MOROSO");
-    await esperarCorreos();
-    const mail = bandejaDeSalida().find((m) => m.asunto.includes("no pudimos cobrar"));
-    expect(["a@x.com", "multi@x.com"]).toContain(mail?.para);
-    expect(mail?.de.nombre).toBe("Deoco");
-    expect(await dueno.comercialCobro.findMany({ where: { tenantId: e.a.id }, select: { estado: true } })).toEqual([{ estado: "rechazado" }]);
-    // El mismo aviso otra vez: nada nuevo.
-    await avisoCuota("subscription_authorized_payment", cobro);
-    expect(await dueno.comercialCobro.count()).toBe(1);
-
-    await revisarVencimientos(new Date(Date.now() + 9 * DIA));
-    expect(await estado(e.a.id)).toBe("MOROSO");
-    await revisarVencimientos(new Date(Date.now() + 10 * DIA + 60_000));
-    expect(await estado(e.a.id)).toBe("SUSPENDIDO");
-    await esperarCorreos();
-    expect(bandejaDeSalida().some((m) => m.asunto.includes("suspendimos el panel"))).toBe(true);
-  });
-
-  it("SUSPENDIDO: el sitio público sigue online y el panel queda bloqueado salvo el pago (solo titular)", () => {
-    expect(decidirPorEstado("SUSPENDIDO", "publico")).toEqual({ tipo: "seguir", soloTitular: false });
-    expect(decidirPorEstado("SUSPENDIDO", "panel")).toEqual({ tipo: "prohibido" });
-    expect(decidirPorEstado("SUSPENDIDO", "panel", "pago")).toEqual({ tipo: "seguir", soloTitular: true });
-    // Pago y Dominios abiertos (solo titular): la cuota impaga no le impide llevarse sus dominios.
-    expect(decidirPorEstado("SUSPENDIDO", "panel", "dominios")).toEqual({ tipo: "seguir", soloTitular: true });
-    // Archivada: todo 404 salvo Dominios (solo titular), ni siquiera Plan y pago ni el sitio.
-    expect(decidirPorEstado("ARCHIVADO", "panel", "dominios")).toEqual({ tipo: "seguir", soloTitular: true });
-    expect(decidirPorEstado("ARCHIVADO", "panel", "pago")).toEqual({ tipo: "no-encontrado" });
-    expect(decidirPorEstado("ARCHIVADO", "panel")).toEqual({ tipo: "no-encontrado" });
-    expect(decidirPorEstado("ARCHIVADO", "publico", "dominios")).toEqual({ tipo: "no-encontrado" });
-    // Una ruta de módulo con la banda cerrada pasa marcada: la decide la ruta (conBandaCerrada).
-    expect(decidirPorEstado("SUSPENDIDO", "panel", "modulo")).toEqual({ tipo: "seguir", soloTitular: false, bandaCerrada: true });
-    expect(decidirPorEstado("ARCHIVADO", "panel", "modulo")).toEqual({ tipo: "seguir", soloTitular: false, bandaCerrada: true });
-    expect(decidirPorEstado("ACTIVO", "panel", "modulo")).toEqual({ tipo: "seguir", soloTitular: false });
-    expect(rutaPanelBanda("/b/x/pago")).toEqual({ slug: "x", subruta: "pago", resto: "/pago" });
-    expect(rutaPanelBanda("/b/x/dominios")).toEqual({ slug: "x", subruta: "dominios", resto: "/dominios" });
-    expect(rutaPanelBanda("/b/x/tienda")).toEqual({ slug: "x", subruta: "modulo", resto: "/tienda" });
-    expect(rutaPanelBanda("/b/x")).toEqual({ slug: "x", subruta: null, resto: "/" });
-    expect(rutaPanelBanda("/b/x/credenciales")).toEqual({ slug: "x", subruta: null, resto: "/credenciales" });
-    expect(rutaPanelBanda("/b/x/archivos/1/a.png")).toEqual({ slug: "x", subruta: null, resto: "/archivos/1/a.png" });
-    expect(decidirPorEstado("MOROSO", "panel")).toEqual({ tipo: "seguir", soloTitular: false });
-  });
-
   it("el pago regulariza al instante: SUSPENDIDO → ACTIVO con el aviso del cobro aprobado", async () => {
     await alCrearBanda(e.a.id);
     const id = await suscribir(e.a.id, "banda-a", "medium");
     await avisoCuota("subscription_authorized_payment", mp.cobrar(id, false));
-    await revisarVencimientos(new Date(Date.now() + 11 * DIA));
+    await revisarVencimientos(new Date(Date.now() + 61 * DIA));
     expect(await estado(e.a.id)).toBe("SUSPENDIDO");
     await avisoCuota("subscription_authorized_payment", mp.cobrar(id, true));
     expect(await estado(e.a.id)).toBe("ACTIVO");
@@ -264,21 +218,6 @@ describe("cuota", () => {
     expect(c.moraDesde).toBeNull();
     expect(c.pruebaHasta).toBeNull();
     expect(c.pagoHasta!.getTime()).toBeGreaterThan(Date.now() + 27 * DIA);
-  });
-
-  it("termina la prueba sin forma de pago → SUSPENDIDO, sin borrar nada", async () => {
-    await alCrearBanda(e.a.id);
-    const [p] = await productos(e.a.id, 1);
-    await publicarProducto(e.a.id, p, true);
-    await revisarVencimientos(new Date(Date.now() + 13 * DIA));
-    expect(await estado(e.a.id)).toBe("ACTIVO");
-    await revisarVencimientos(new Date(Date.now() + 15 * DIA));
-    expect(await estado(e.a.id)).toBe("SUSPENDIDO");
-    expect(await dueno.tiendaProducto.findUnique({ where: { id: p } })).toMatchObject({ publicado: true });
-    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "tienda"]);
-    // ARCHIVADO nunca es automático.
-    await revisarVencimientos(new Date(Date.now() + 400 * DIA));
-    expect(await estado(e.a.id)).toBe("SUSPENDIDO");
   });
 
   it("con la suscripción autorizada, el fin de la prueba no suspende: espera el cobro", async () => {
@@ -297,16 +236,6 @@ describe("cuota", () => {
     expect(await cancelar(e.a.id)).toContain("El panel sigue funcionando hasta el");
     expect(mp.suscripciones.get(id)!.status).toBe("cancelled");
     expect(await estado(e.a.id)).toBe("ACTIVO");
-  });
-
-  it("decidir: plazos de gracia y mora", () => {
-    const cfg = { diasGracia: 3, diasMoraASuspender: 10 };
-    const t = new Date("2026-12-01T00:00:00Z");
-    const base = { pruebaHasta: null, pagoHasta: t, moraDesde: null, suscripcionEstado: "activa" };
-    expect(decidir(base, cfg, new Date(t.getTime() + 2 * DIA))).toEqual({ accion: "nada" });
-    expect(decidir(base, cfg, new Date(t.getTime() + 4 * DIA))).toEqual({ accion: "mora", desde: t });
-    expect(decidir({ ...base, moraDesde: t }, cfg, new Date(t.getTime() + 10 * DIA))).toMatchObject({ accion: "suspender" });
-    expect(sumarMes(new Date("2026-01-31T12:00:00Z")).toISOString()).toBe("2026-02-28T12:00:00.000Z");
   });
 
   it("un aviso con firma inválida no entra (401); uno de otra pasarela, 404", async () => {
@@ -370,5 +299,111 @@ describe("la cuota y las ventas de la banda nunca se mezclan", () => {
     const vistas = await conTenant(e.b.id, async (tx) => ({ cuentas: await tx.comercialCuenta.findMany(), cobros: await tx.comercialCobro.findMany() }));
     expect(vistas.cuentas.map((c) => c.tenantId)).toEqual([e.b.id]);
     expect(vistas.cobros).toEqual([]);
+  });
+});
+
+describe("suspensión escalonada (documento maestro §14, 3.2 backline)", () => {
+  // Plazos de la base (comercial_config), contados desde el vencimiento de la cuota.
+  async function pagadaQueVence() {
+    await alCrearBanda(e.a.id);
+    const id = await suscribir(e.a.id, "banda-a", "medium");
+    await avisoCuota("subscription_authorized_payment", mp.cobrar(id, true));
+    const vence = (await cuentaDe(e.a.id))!.pagoHasta!;
+    return { id, en: (dias: number) => new Date(vence.getTime() + dias * DIA + 60_000) };
+  }
+  const asuntos = async () => (await esperarCorreos(), bandejaDeSalida().map((m) => m.asunto));
+
+  it("los seis escalones: 0 nada, 3 aviso (mail), 15 aviso fuerte, 30 solo lectura, 60 suspendida, 90 archivada", async () => {
+    const { en } = await pagadaQueVence();
+    vaciarBandeja();
+    await revisarVencimientos(en(0));
+    expect(await estado(e.a.id)).toBe("ACTIVO");
+    await revisarVencimientos(en(2));
+    expect(await estado(e.a.id)).toBe("ACTIVO");
+    await revisarVencimientos(en(3));
+    expect(await estado(e.a.id)).toBe("MOROSO");
+    expect(await asuntos()).toEqual([expect.stringContaining("no pudimos cobrar")]);
+    await revisarVencimientos(en(15));
+    expect(await estado(e.a.id)).toBe("MOROSO_GRAVE");
+    await revisarVencimientos(en(30));
+    expect(await estado(e.a.id)).toBe("SOLO_LECTURA");
+    expect((await asuntos()).some((a) => a.includes("solo lectura"))).toBe(true);
+    await revisarVencimientos(en(60));
+    expect(await estado(e.a.id)).toBe("SUSPENDIDO");
+    expect((await asuntos()).some((a) => a.includes("sitio dejó de estar publicado"))).toBe(true);
+    await revisarVencimientos(en(90));
+    expect(await estado(e.a.id)).toBe("ARCHIVADO");
+    expect((await asuntos()).some((a) => a.includes("archivamos"))).toBe(true);
+    // Nada se borró.
+    expect([...(await modulosPrendidos(e.a.id))].sort()).toEqual(["comercial", "sitio", "tienda"]);
+    expect(await dueno.comercialCuenta.count({ where: { tenantId: e.a.id } })).toBe(1);
+  });
+
+  it("con el barrido parado, salta directo al escalón que corresponde", async () => {
+    const { en } = await pagadaQueVence();
+    await revisarVencimientos(en(61));
+    expect(await estado(e.a.id)).toBe("SUSPENDIDO");
+  });
+
+  it("pagar en cualquier escalón antes del archivo devuelve todo al día", async () => {
+    for (const [dias, esperado] of [[3, "MOROSO"], [15, "MOROSO_GRAVE"], [30, "SOLO_LECTURA"], [60, "SUSPENDIDO"]] as const) {
+      await dueno.comercialCuenta.deleteMany();
+      await dueno.tenant.updateMany({ data: { estado: "ACTIVO" } });
+      const { id, en } = await pagadaQueVence();
+      await revisarVencimientos(en(dias));
+      expect(await estado(e.a.id)).toBe(esperado);
+      await avisoCuota("subscription_authorized_payment", mp.cobrar(id, true));
+      expect(await estado(e.a.id)).toBe("ACTIVO");
+      expect((await cuentaDe(e.a.id))!.moraDesde).toBeNull();
+    }
+  });
+
+  it("un cobro rechazado pasa a aviso (MOROSO, con mail) y sigue la misma escalera desde el rechazo", async () => {
+    await alCrearBanda(e.a.id);
+    const id = await suscribir(e.a.id, "banda-a", "medium");
+    await avisoCuota("subscription_authorized_payment", mp.cobrar(id, false));
+    expect(await estado(e.a.id)).toBe("MOROSO");
+    await revisarVencimientos(new Date(Date.now() + 29 * DIA));
+    expect(await estado(e.a.id)).toBe("MOROSO_GRAVE");
+    await revisarVencimientos(new Date(Date.now() + 30 * DIA + 60_000));
+    expect(await estado(e.a.id)).toBe("SOLO_LECTURA");
+  });
+
+  it("termina la prueba sin forma de pago: la misma escalera desde el fin de la prueba", async () => {
+    await alCrearBanda(e.a.id);
+    const fin = (await cuentaDe(e.a.id))!.pruebaHasta!;
+    await revisarVencimientos(new Date(fin.getTime() + 2 * DIA));
+    expect(await estado(e.a.id)).toBe("ACTIVO");
+    await revisarVencimientos(new Date(fin.getTime() + 3 * DIA + 60_000));
+    expect(await estado(e.a.id)).toBe("MOROSO");
+    await revisarVencimientos(new Date(fin.getTime() + 60 * DIA + 60_000));
+    expect(await estado(e.a.id)).toBe("SUSPENDIDO");
+  });
+
+  it("los plazos están en la base: el staff los cambia sin deploy, y tienen que ir en orden", async () => {
+    const actuales = await plazos();
+    expect(actuales).toMatchObject({ diasGracia: 3, diasAvisoFuerte: 15, diasSoloLectura: 30, diasMoraASuspender: 60, diasArchivo: 90 });
+    await guardarPlazos(comoStaff, { ...actuales, diasSoloLectura: 20 });
+    const { en } = await pagadaQueVence();
+    await revisarVencimientos(en(20));
+    expect(await estado(e.a.id)).toBe("SOLO_LECTURA");
+    await expect(guardarPlazos(comoStaff, { ...actuales, diasSoloLectura: 70 })).rejects.toThrow(/en orden/);
+    await guardarPlazos(comoStaff, actuales);
+  });
+
+  it("decidir: el escalón según los días desde el vencimiento", () => {
+    const cfg = { diasGracia: 3, diasAvisoFuerte: 15, diasSoloLectura: 30, diasMoraASuspender: 60, diasArchivo: 90 };
+    const t = new Date("2026-12-01T00:00:00Z");
+    const base: { pruebaHasta: Date | null; pagoHasta: Date | null; moraDesde: Date | null } = { pruebaHasta: null, pagoHasta: t, moraDesde: null };
+    const a = (dias: number, c = base) => decidir(c, cfg, new Date(t.getTime() + dias * DIA));
+    expect(a(2)).toEqual({ estado: "ACTIVO", desde: null });
+    expect(a(4)).toEqual({ estado: "MOROSO", desde: t });
+    expect(a(16)).toEqual({ estado: "MOROSO_GRAVE", desde: t });
+    expect(a(31)).toEqual({ estado: "SOLO_LECTURA", desde: t });
+    expect(a(61)).toEqual({ estado: "SUSPENDIDO", desde: t });
+    expect(a(91)).toEqual({ estado: "ARCHIVADO", desde: t });
+    // Con la mora ya marcada (un rechazo), cuenta desde ahí.
+    expect(a(16, { ...base, pagoHasta: new Date(t.getTime() + 40 * DIA), moraDesde: t })).toEqual({ estado: "MOROSO_GRAVE", desde: t });
+    expect(sumarMes(new Date("2026-01-31T12:00:00Z")).toISOString()).toBe("2026-02-28T12:00:00.000Z");
   });
 });

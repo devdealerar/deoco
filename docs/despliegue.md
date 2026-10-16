@@ -131,7 +131,8 @@ ventas de las bandas siguen yendo a la cuenta de cada banda.
     `DEOCO_CUOTA_MP_SECRETO_AVISOS`. (La URL exacta también está en `/admin/m/comercial/planes`.)
 15. Con tu usuario de staff (paso 16), en `https://app.deocoartist.com/admin/m/comercial/planes`: poné el **precio en pesos** de
     Esencial, Medium y Premium (sin precio no se pueden elegir) y revisá los plazos (prueba 14
-    días de Medium, gracia 3, suspensión a los 10 días de mora).
+    días de Medium; escalera de la cuota impaga: 3 aviso, 15 aviso fuerte, 30 solo lectura, 60
+    sitio despublicado y ventas cortadas, 90 archivada).
 
 Dominios (cuando se vendan, `DEOCO_REGISTRADOR`): se cobran en la misma cuenta de Deoco, pero
 aparte de la cuota. No hay que configurar otro webhook: cada cobro le dice a Mercado Pago adónde

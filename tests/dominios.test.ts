@@ -246,14 +246,18 @@ describe("principal", () => {
     expect(conPuerto.headers.get("location")).toBe("http://www.lossatelites.com.ar:3000/");
   });
 
-  it("el panel y los estados no cambian: app.<raiz>/b/<slug> no redirige; archivada, 404 sin redirigir", async () => {
+  it("el panel y los estados no cambian: app.<raiz>/b/<slug> no redirige; archivada, sin redirigir", async () => {
     const id = await conectado();
     await marcarPrincipal(ua.id, a.id, id);
     expect((await proxy(pedido("app.deocoartist.com", "/b/banda-a"))).status).toBe(200);
     await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ARCHIVADO" } });
     try {
-      expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(404);
-      expect((await proxy(pedido("www.lossatelites.com.ar"))).status).toBe(404);
+      // El sitio no responde (lo decide la página: solo abren las entradas o el pedido del fan) y no redirige.
+      for (const host of ["banda-a.deocoartist.com", "www.lossatelites.com.ar"]) {
+        const r = await proxy(pedido(host));
+        expect(r.status).toBe(200);
+        expect(r.headers.get("x-middleware-request-x-deoco-banda-cerrada")).toBe("1");
+      }
     } finally {
       await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ACTIVO" } });
     }

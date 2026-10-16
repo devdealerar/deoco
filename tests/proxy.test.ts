@@ -95,13 +95,36 @@ describe("prueba 5: reglas de estado en los dos caminos", () => {
     expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(200);
   });
 
-  it("SUSPENDIDO: rutas del núcleo del panel 403, sitio público 200", async () => {
-    await ponerEstado(a.id, "SUSPENDIDO");
-    for (const ruta of ["/b/banda-a", "/b/banda-a/", "/b/banda-a/credenciales", "/b/banda-a/correo", "/b/banda-a/archivos/x/y.png"]) {
-      expect((await proxy(pedido(APP, ruta))).status).toBe(403);
+  it("la escalera, en el proxy: hasta MOROSO_GRAVE todo igual; SOLO_LECTURA y SUSPENDIDO, panel en solo lectura", async () => {
+    for (const estado of ["ACTIVO", "MOROSO", "MOROSO_GRAVE"] as const) {
+      await ponerEstado(a.id, estado);
+      const res = await proxy(pedido(APP, "/b/banda-a/sitio"));
+      expect([res.status, cabeceraReenviada(res, CABECERA.soloLectura)]).toEqual([200, null]);
+      expect((await proxy(pedido("banda-a.deocoartist.com", "/tienda"))).status).toBe(200);
     }
-    expect((await proxy(pedido("banda-a.deocoartist.com", "/"))).status).toBe(200);
-    expect((await proxy(pedido("banda-a.deocoartist.com", "/pago"))).status).toBe(200);
+    for (const estado of ["SOLO_LECTURA", "SUSPENDIDO"] as const) {
+      await ponerEstado(a.id, estado);
+      for (const ruta of ["/b/banda-a", "/b/banda-a/sitio", "/b/banda-a/credenciales", "/b/banda-a/archivos/x/y.png"]) {
+        const res = await proxy(pedido(APP, ruta));
+        expect([ruta, res.status, cabeceraReenviada(res, CABECERA.soloLectura)]).toEqual([ruta, 200, "1"]);
+      }
+      // Plan y pago, y Dominios, sí guardan.
+      for (const ruta of ["/b/banda-a/pago", "/b/banda-a/dominios"]) {
+        expect(cabeceraReenviada(await proxy(pedido(APP, ruta)), CABECERA.soloLectura)).toBeNull();
+      }
+    }
+  });
+
+  it("SOLO_LECTURA: el sitio y las ventas siguen; SUSPENDIDO: el sitio deja de estar publicado (salvo lo que abra una ruta)", async () => {
+    await ponerEstado(a.id, "SOLO_LECTURA");
+    const lectura = await proxy(pedido("banda-a.deocoartist.com", "/tienda"));
+    expect([lectura.status, cabeceraReenviada(lectura, CABECERA.bandaCerrada)]).toEqual([200, null]);
+    await ponerEstado(a.id, "SUSPENDIDO");
+    for (const ruta of ["/", "/tienda", "/fechas/compra/123"]) {
+      const res = await proxy(pedido("banda-a.deocoartist.com", ruta));
+      expect([ruta, res.status, cabeceraReenviada(res, CABECERA.bandaCerrada)]).toEqual([ruta, 200, "1"]);
+    }
+    expect((await proxy(pedido("banda-a.deocoartist.com", "/archivos/x/y.png"))).status).toBe(404);
   });
 
   it("SUSPENDIDO: /b/<slug>/pago pasa, marcada solo para el titular", async () => {
@@ -113,8 +136,8 @@ describe("prueba 5: reglas de estado en los dos caminos", () => {
     }
   });
 
-  it("SUSPENDIDO o ARCHIVADO: una ruta de módulo pasa marcada como banda cerrada (decide la ruta, en accesoPanel)", async () => {
-    for (const estado of ["SUSPENDIDO", "ARCHIVADO"] as const) {
+  it("ARCHIVADO: una ruta de módulo del panel pasa marcada como banda cerrada (decide la ruta, en accesoPanel)", async () => {
+    for (const estado of ["ARCHIVADO"] as const) {
       await ponerEstado(a.id, estado);
       for (const [ruta, resto] of [["/b/banda-a/sitio", "/sitio"], ["/b/banda-a/puerta/123", "/puerta/123"], ["/b/banda-a/pagos-viejos", "/pagos-viejos"]]) {
         const res = await proxy(pedido(APP, ruta));
@@ -126,8 +149,8 @@ describe("prueba 5: reglas de estado en los dos caminos", () => {
     }
   });
 
-  it("ACTIVO o MOROSO: ninguna ruta queda marcada como banda cerrada", async () => {
-    for (const estado of ["ACTIVO", "MOROSO"] as const) {
+  it("hasta SUSPENDIDO, en el panel ninguna ruta queda marcada como banda cerrada", async () => {
+    for (const estado of ["ACTIVO", "MOROSO", "MOROSO_GRAVE", "SOLO_LECTURA", "SUSPENDIDO"] as const) {
       await ponerEstado(a.id, estado);
       const res = await proxy(pedido(APP, "/b/banda-a/puerta"));
       expect(cabeceraReenviada(res, CABECERA.bandaCerrada)).toBeNull();
@@ -145,12 +168,14 @@ describe("prueba 5: reglas de estado en los dos caminos", () => {
     expect(cabeceraReenviada(res, CABECERA.soloTitular)).toBeNull();
   });
 
-  it("ARCHIVADO: panel y sitio público 404, los datos se conservan", async () => {
+  it("ARCHIVADO: panel 404 (salvo lo que abra una ruta), los datos se conservan", async () => {
     await ponerEstado(a.id, "ARCHIVADO");
     expect((await proxy(pedido(APP, "/b/banda-a"))).status).toBe(404);
     expect((await proxy(pedido(APP, "/b/banda-a/pago"))).status).toBe(404);
     expect((await proxy(pedido(APP, "/b/banda-a/credenciales"))).status).toBe(404);
-    expect((await proxy(pedido("banda-a.deocoartist.com", "/"))).status).toBe(404);
+    // El sitio: lo decide la página (solo abren las entradas y el pedido del fan); lo del núcleo, 404.
+    expect(cabeceraReenviada(await proxy(pedido("banda-a.deocoartist.com", "/")), CABECERA.bandaCerrada)).toBe("1");
+    expect((await proxy(pedido("banda-a.deocoartist.com", "/archivos/x/y.png"))).status).toBe(404);
     expect(await dueno.dominio.count({ where: { tenantId: a.id } })).toBe(1);
   });
 

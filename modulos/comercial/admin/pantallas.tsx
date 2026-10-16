@@ -15,7 +15,7 @@ import { cobrosFallidos, cuentaParaStaff, type FilaCuenta, listarCuentas, ORDENE
 const BASE = "/admin/m/comercial";
 const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeZone: ZONA });
 const fecha = (d: Date | null) => (d ? FECHA.format(d) : "—");
-const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
+const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", MOROSO_GRAVE: "advertencia", SOLO_LECTURA: "error", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
 const SITUACION: Record<Situacion, string> = { prueba: "En prueba", "al-dia": "Al día", vencida: "Vencida", mora: "En mora", "sin-cuenta": "Sin cuenta" };
 const gb = (b: bigint | null) => (b === null ? "" : String(Number(b) / 1024 ** 3).replace(".", ","));
 
@@ -150,7 +150,7 @@ export async function AdminCuenta({ params }: PropsRutaAdmin) {
           <Link href={`/admin/bandas/${banda.slug}`} className="hover:text-brand-secondary">
             Ficha de la banda
           </Link>{" "}
-          · estado <strong>{banda.estado}</strong> (ARCHIVADO solo a mano, desde la ficha)
+          · estado <strong>{banda.estado}</strong> (desarchivar, solo a mano desde la ficha)
         </p>
       </header>
       <Tarjeta titulo={efectivo ? `Plan ${efectivo.nombre}` : "Sin cuenta"} data-testid="cuenta">
@@ -240,8 +240,12 @@ export async function AdminPlanes(_: PropsRutaAdmin) {
         <Formulario accion={guardarPlazosAccion} puedeEditar>
           <Campo name="diasPrueba" type="number" etiqueta="Días de prueba" defaultValue={String(cfg.diasPrueba)} required />
           <Selector name="planPrueba" etiqueta="Plan de la prueba" defaultValue={cfg.planPrueba} opciones={todos.map((p) => ({ valor: p.id, texto: p.nombre }))} />
-          <Campo name="diasGracia" type="number" etiqueta="Días de gracia" ayuda="Después del vencimiento, antes de pasar a MOROSO." defaultValue={String(cfg.diasGracia)} required />
-          <Campo name="diasMoraASuspender" type="number" etiqueta="Días de mora hasta SUSPENDIDO" defaultValue={String(cfg.diasMoraASuspender)} required />
+          <p className="text-sm text-tertiary">La escalera de la cuota impaga, en días desde el vencimiento. Pagar en cualquier escalón (antes de archivar) devuelve todo al día.</p>
+          <Campo name="diasGracia" type="number" etiqueta="Aviso (MOROSO)" ayuda="Aviso en el panel y mail al titular. Todo sigue funcionando." defaultValue={String(cfg.diasGracia)} required />
+          <Campo name="diasAvisoFuerte" type="number" etiqueta="Aviso fuerte (MOROSO_GRAVE)" ayuda="Aviso permanente en el panel. Todo sigue funcionando." defaultValue={String(cfg.diasAvisoFuerte)} required />
+          <Campo name="diasSoloLectura" type="number" etiqueta="Solo lectura (SOLO_LECTURA)" ayuda="El panel no guarda nada. El sitio y las ventas siguen." defaultValue={String(cfg.diasSoloLectura)} required />
+          <Campo name="diasMoraASuspender" type="number" etiqueta="Suspendida (SUSPENDIDO)" ayuda="Sitio despublicado, ventas cortadas. La puerta de los shows vendidos sigue." defaultValue={String(cfg.diasMoraASuspender)} required />
+          <Campo name="diasArchivo" type="number" etiqueta="Archivada (ARCHIVADO)" ayuda="El sitio y el panel se van; los dominios siguen siendo de la banda." defaultValue={String(cfg.diasArchivo)} required />
         </Formulario>
       </Tarjeta>
       {todos.map((p) => (
@@ -272,7 +276,7 @@ export async function AdminCobros({ consulta }: PropsRutaAdmin) {
   return (
     <Tabla
       titulo="Cobros fallidos"
-      descripcion="Cuotas rechazadas por la pasarela. La banda pasa a MOROSO y recibe un mail; si no regulariza, se suspende el panel."
+      descripcion="Cuotas rechazadas por la pasarela. La banda pasa a MOROSO y recibe un mail; si no regulariza, sigue la escalera (solo lectura, sitio despublicado, archivo)."
       paginacion={paginacion}
       columnas={[
         { id: "banda", etiqueta: "Banda" },

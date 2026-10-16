@@ -163,7 +163,7 @@ describe("ticketera", () => {
     expect([await tipo.locator("[data-vendidas]").textContent(), await tipo.locator("[data-disponibles]").textContent()]).toEqual(["2", "98"]);
   });
 
-  it("con la banda suspendida o archivada la puerta sigue para el show vendido; el resto del panel, cerrado", async () => {
+  it("con la banda suspendida o archivada la puerta sigue para el show vendido; el resto, cerrado o en solo lectura", async () => {
     const [pendiente] = await dueno.ticketeraEntrada.findMany({ where: { eventoId: showId, validadaEn: null } });
     try {
       await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "SUSPENDIDO" } });
@@ -177,11 +177,14 @@ describe("ticketera", () => {
       await p.locator("[data-puerta] button[type=submit]").click();
       expect(await p.locator("[data-resultado]").getAttribute("data-resultado")).toBe("valida");
 
-      // El titular no usa el resto del panel: va al inicio, que explica la suspensión (403).
+      // El panel se ve en solo lectura; el sitio no está publicado, pero las entradas del fan sí.
       const banda = (await logueado("multi@x.com")).page;
       for (const ruta of ["/sitio", "/entradas"]) {
-        expect((await banda.goto(`${APP}/b/banda-a${ruta}`))!.status()).toBe(403);
+        expect((await banda.goto(`${APP}/b/banda-a${ruta}`))!.status()).toBe(200);
       }
+      const fan = (await anonimo()).page;
+      expect((await fan.goto(`${SITIO}/fechas`))!.status()).toBe(404);
+      expect((await fan.goto(`${SITIO}/fechas/compra/${pendiente.compraId}`))!.status()).toBe(200);
 
       // Archivada: la puerta del show vendido sigue; lo demás, 404.
       await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ARCHIVADO" } });

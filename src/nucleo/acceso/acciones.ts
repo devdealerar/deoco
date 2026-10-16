@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { registro as registroGlobal } from "@/nucleo/modulos";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import type { Registro } from "@/nucleo/modulos/registro";
-import { accesoPanel, puedeEnPedido } from "./panel";
+import { accesoPanel, MENSAJE_SOLO_LECTURA, puedeEnPedido } from "./panel";
 
 export type ContextoAccion = { tenantId: string; usuarioId: string };
 export type EstadoAccion = { ok?: string; error?: string };
@@ -28,6 +28,7 @@ export function accionesDelPanel(contrato: () => Modulo, errores: ClaseError[], 
     if (!edicion) throw new Error(`"${modulo.id}" no declara edicion en su contrato.`);
     const volver = `/b/${slug}${edicion.ruta}`;
     const acceso = await accesoPanel(volver);
+    if (acceso.soloLectura) return { error: MENSAJE_SOLO_LECTURA };
     if (!(await puedeEnPedido(edicion.permiso, volver))) return { error: edicion.sinPermiso };
     try {
       const ok = await fn({ tenantId: acceso.tenantId, usuarioId: acceso.usuarioId });

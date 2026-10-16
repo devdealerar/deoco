@@ -33,7 +33,7 @@ export type FilaBanda = {
   origen: string;
 };
 
-export const ESTADOS_BANDA: EstadoTenant[] = ["ACTIVO", "MOROSO", "SUSPENDIDO", "ARCHIVADO"];
+export const ESTADOS_BANDA: EstadoTenant[] = ["ACTIVO", "MOROSO", "MOROSO_GRAVE", "SOLO_LECTURA", "SUSPENDIDO", "ARCHIVADO"];
 export const ORDENES_BANDA = ["alta", "nombre", "espacio"] as const;
 export type FiltroBandas = {
   /** Contiene, en el nombre o el slug. */

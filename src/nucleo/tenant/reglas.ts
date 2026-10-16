@@ -38,12 +38,35 @@ export function rutaPanelBanda(pathname: string): RutaPanel | null {
 export type Superficie = "panel" | "publico";
 
 export type Decision =
-  /** `bandaCerrada`: ruta de módulo con la banda SUSPENDIDA o ARCHIVADA (la decide la ruta). */
-  | { tipo: "seguir"; soloTitular: boolean; bandaCerrada?: true }
-  | { tipo: "prohibido" } // 403
+  /**
+   * `bandaCerrada`: ruta de módulo con la banda SUSPENDIDA (sitio público) o ARCHIVADA: la decide
+   * la ruta (`conBandaCerrada`). `soloLectura`: el panel se ve, pero no guarda nada.
+   */
+  | { tipo: "seguir"; soloTitular: boolean; bandaCerrada?: true; soloLectura?: true }
   | { tipo: "no-encontrado" }; // 404
 
-/** Reglas de estado del tenant; iguales venga resuelto por host o por slug. */
+/** Rutas del sitio público que son del núcleo (primer segmento). Las demás son de módulos. */
+export const RUTAS_NUCLEO_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal", "/registro"];
+
+/** En el sitio público de una banda: "modulo" si la ruta es de un módulo (la home también), null si es del núcleo. */
+export function rutaPublicaDeModulo(pathname: string): "modulo" | null {
+  return RUTAS_NUCLEO_PUBLICAS.some((r) => pathname === r || pathname.startsWith(r + "/")) ? null : "modulo";
+}
+
+const seguir = { tipo: "seguir", soloTitular: false } as const;
+
+/**
+ * Reglas de estado del tenant; iguales venga resuelto por host o por slug. La escalera de la
+ * cuota impaga (los días los pone el gestor de cuenta):
+ *   ACTIVO, MOROSO, MOROSO_GRAVE  todo funciona (los avisos los muestra el panel).
+ *   SOLO_LECTURA                  el panel se ve y no guarda (salvo Plan y pago, y Dominios); el
+ *                                 sitio y las ventas siguen.
+ *   SUSPENDIDO                    además, el sitio deja de estar publicado: solo quedan las rutas
+ *                                 de módulo que abren con la banda cerrada (las entradas y el
+ *                                 pedido del fan). Las ventas se cortan en crearCobro.
+ *   ARCHIVADO                     todo 404, salvo Dominios para el titular y lo que abra una ruta
+ *                                 con la banda cerrada (la puerta de un show ya vendido).
+ */
 export function decidirPorEstado(
   estado: EstadoTenant,
   superficie: Superficie,
@@ -51,16 +74,18 @@ export function decidirPorEstado(
 ): Decision {
   switch (estado) {
     case "ACTIVO":
-    case "MOROSO": // funciona igual; el aviso al titular lo muestra el panel
-      return { tipo: "seguir", soloTitular: false };
+    case "MOROSO":
+    case "MOROSO_GRAVE":
+      return seguir;
+    case "SOLO_LECTURA":
+      if (superficie === "publico" || subruta === "pago" || subruta === "dominios") return seguir;
+      return { ...seguir, soloLectura: true };
     case "SUSPENDIDO":
-      if (superficie === "publico") return { tipo: "seguir", soloTitular: false };
-      if (subruta === "modulo") return { tipo: "seguir", soloTitular: false, bandaCerrada: true };
-      return subruta ? { tipo: "seguir", soloTitular: true } : { tipo: "prohibido" };
+      if (superficie === "publico") return subruta === "modulo" ? { ...seguir, bandaCerrada: true } : { tipo: "no-encontrado" };
+      if (subruta === "pago" || subruta === "dominios") return { tipo: "seguir", soloTitular: true };
+      return { ...seguir, soloLectura: true };
     case "ARCHIVADO":
-      // Todo 404, salvo los dominios para el titular (el dominio es suyo) y lo que una ruta de
-      // módulo abra con la banda cerrada (la puerta de un show ya vendido).
-      if (superficie === "panel" && subruta === "modulo") return { tipo: "seguir", soloTitular: false, bandaCerrada: true };
+      if (subruta === "modulo") return { ...seguir, bandaCerrada: true };
       return superficie === "panel" && subruta === "dominios" ? { tipo: "seguir", soloTitular: true } : { tipo: "no-encontrado" };
     default: {
       const _exhaustivo: never = estado;

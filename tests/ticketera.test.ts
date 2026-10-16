@@ -169,6 +169,23 @@ describe("compra y cupo", () => {
   });
 });
 
+describe("cuota impaga (escalera): las ventas siguen hasta SUSPENDIDO; lo ya cobrado, siempre", () => {
+  it("en SOLO_LECTURA se vende; en SUSPENDIDO no se abre ninguna venta, pero un pago en curso se registra", async () => {
+    const { tipoId } = await showDeA(5);
+    try {
+      await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "SOLO_LECTURA" } });
+      await expect(compraDe(tipoId, 1)).resolves.toHaveProperty("redireccion");
+      const enCurso = await compraDe(tipoId, 1);
+      await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "SUSPENDIDO" } });
+      await expect(compraDe(tipoId, 1)).rejects.toThrow(/No pudimos abrir el pago/);
+      const fila = await dueno.ticketeraCompra.findUniqueOrThrow({ where: { id: enCurso.compraId } });
+      expect(await registrarPago(e.a.id, "mercadopago", { cobroId: "p-susp", estado: "aprobado", estadoPasarela: "approved", referencia: enCurso.compraId, monto: fila.total, moneda: "ARS" })).toBe("pagada");
+    } finally {
+      await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "ACTIVO" } });
+    }
+  });
+});
+
 describe("pago: entradas nominadas, QR por mail y página para verlas", () => {
   it("pagada: una entrada por persona con su código, mail con un QR por entrada, una sola vez", async () => {
     const { tipoId } = await showDeA();

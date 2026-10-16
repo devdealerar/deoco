@@ -11,6 +11,8 @@ export type ContextoTenant = {
   soloTitular: boolean;
   /** Banda SUSPENDIDA o ARCHIVADA, en una ruta de módulo: `rutaPanel` decide (accesoPanel). */
   bandaCerrada: boolean;
+  /** El panel se ve pero no guarda (cuota impaga: SOLO_LECTURA o SUSPENDIDO). */
+  soloLectura: boolean;
   /** Ruta del panel después de /b/<slug>, tal como la vio el proxy. null fuera del panel. */
   rutaPanel: string | null;
 };
@@ -26,6 +28,7 @@ export async function tenantDelPedido(): Promise<ContextoTenant | null> {
     superficie: h.get(CABECERA.superficie) as Superficie,
     soloTitular: h.get(CABECERA.soloTitular) === "1",
     bandaCerrada: h.get(CABECERA.bandaCerrada) === "1",
+    soloLectura: h.get(CABECERA.soloLectura) === "1",
     rutaPanel: h.get(CABECERA.rutaPanel),
   };
 }

@@ -42,7 +42,7 @@ export type FilaCuenta = {
   id: string;
   nombre: string;
   slug: string;
-  estado: "ACTIVO" | "MOROSO" | "SUSPENDIDO" | "ARCHIVADO";
+  estado: "ACTIVO" | "MOROSO" | "MOROSO_GRAVE" | "SOLO_LECTURA" | "SUSPENDIDO" | "ARCHIVADO";
   planId: string | null;
   pro: boolean;
   pruebaHasta: Date | null;

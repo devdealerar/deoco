@@ -95,10 +95,11 @@ describe("la puerta con la banda cerrada", () => {
 describe("contrato: conBandaCerrada", () => {
   const componente = () => null;
   const abre = async () => true;
-  it("solo en rutas de panel, y con permiso (no se abre a cualquier miembro)", () => {
+  it("en rutas de panel (con permiso: no se abre a cualquier miembro) y del sitio público", () => {
     const base = { id: "uno", nombre: "Uno", permisos: [{ clave: "uno.cosa.ver", rolesPorDefecto: ["TITULAR"] }] };
     expect(() => crearRegistro([{ ...base, rutasPanel: [{ ruta: "/cosa", componente, conBandaCerrada: abre }] }])).toThrow(ErrorRegistro);
-    expect(() => crearRegistro([{ ...base, rutasPublicas: [{ ruta: "/cosa", componente, conBandaCerrada: abre }] }])).toThrow(/solo del panel/);
+    expect(() => crearRegistro([{ ...base, rutasPublicas: [{ ruta: "/cosa", componente, conBandaCerrada: abre }] }])).not.toThrow(); // el pedido del fan
+    expect(() => crearRegistro([{ ...base, rutasAdmin: [{ ruta: "/cosa", componente, conBandaCerrada: abre }] }])).toThrow(/solo del panel y del sitio público/);
     expect(() => crearRegistro([{ ...base, rutasPanel: [{ ruta: "/cosa", permiso: "uno.cosa.ver", componente, conBandaCerrada: abre }] }])).not.toThrow();
   });
 });

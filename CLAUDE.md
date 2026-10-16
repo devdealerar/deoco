@@ -58,10 +58,18 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
   `/b/<slug>/dominios` también (la cuota impaga no le impide llevarse sus dominios), y es lo único
   abierto con la banda ARCHIVADA (solo titular; el selector se la muestra con el link; no suma
   dominios nuevos).
-- Con la banda SUSPENDIDA o ARCHIVADA, una ruta de módulo pasa el proxy marcada (`bandaCerrada`) y
-  la decide `accesoPanel`: abre solo si declara `conBandaCerrada` en el contrato (con permiso) y da
-  true, tanto la del pedido como la que nombra quien llama (`src/nucleo/acceso/banda-cerrada.ts`).
-  Lo usa la puerta: sigue para los shows con entradas vendidas que no terminaron. Lo demás → inicio.
+- Escalera de la cuota impaga (`reglas.ts`, días en `comercial_config`, los edita el staff): 3 MOROSO
+  (aviso + mail), 15 MOROSO_GRAVE (aviso permanente), 30 SOLO_LECTURA (el panel se ve y no guarda:
+  marca `soloLectura` → `accesoPanel`; el permiso de `edicion` de cada módulo da false y
+  `accionesDelPanel` corta; credenciales y correo también; pago, dominios y la puerta sí), 60
+  SUSPENDIDO (además el sitio deja de estar publicado y `crearCobro` no abre ventas; lo ya cobrado se
+  registra), 90 ARCHIVADO (lo pone el gestor; desarchivar es del staff). Pagar antes del archivo
+  devuelve todo (el sitio vuelve tal como estaba: nunca se despublica nada en la base).
+- Banda cerrada: con SUSPENDIDO (sitio público) o ARCHIVADO (panel y sitio), una ruta de módulo
+  pasa el proxy marcada (`bandaCerrada`) y abre solo si declara `conBandaCerrada` y da true. Panel
+  (con permiso): `accesoPanel` mira la ruta del pedido y la que nombra quien llama
+  (`src/nucleo/acceso/banda-cerrada.ts`); la puerta, para los shows vendidos que no terminaron.
+  Sitio: `SuperficiePublica`; las entradas y el pedido del fan. Lo demás → 404 (o el inicio).
 - Solo resuelven dominios **verificados**. En el sitio público, todo dominio de la banda que no
   sea el principal redirige (307) al principal, misma ruta.
 - El tenant viaja en cabeceras `x-deoco-*` del pedido; se lee con `tenantDelPedido()`.
@@ -212,8 +220,8 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 
-- `gestionaCuenta` (uno solo): decide estado automático (ACTIVO/MOROSO/SUSPENDIDO; ARCHIVADO
-  nunca), módulos y topes con `@/nucleo/cuenta` (`fijarEstado`, `fijarModulos`, `fijarLimites`,
+- `gestionaCuenta` (uno solo): decide el estado (la escalera de la cuota, hasta ARCHIVADO; una banda
+  archivada ya no la toca), módulos y topes con `@/nucleo/cuenta` (`fijarEstado`, `fijarModulos`, `fijarLimites`,
   `catalogoDeCuenta`); pinta `/b/<slug>/pago`. `bandaCreada()` en toda alta (prueba de Medium).
 - `limites` en el contrato + `exigirLimite(tx, …)` antes de publicar (`ErrorLimite`, dice qué plan
   amplía). Bajar el tope → `ajustar` despublica lo último publicado (`publicadoEn`), nunca borra.

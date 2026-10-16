@@ -6,6 +6,7 @@ import { registro } from "@/nucleo/modulos";
 import { nombreDeBanda, resolverMetadatos } from "@/nucleo/modulos/metadatos";
 import { elementosDelMarco } from "@/nucleo/publico/marco";
 import { origenDelPedido } from "@/nucleo/publico/origen";
+import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 
 /** <title>, descripción y Open Graph de una página pública: de la banda, nunca de Deoco. */
 export async function metadataPublica(tenantId: string, path: string, consulta: URLSearchParams): Promise<Metadata> {
@@ -39,6 +40,12 @@ export async function SuperficiePublica({
   const encontrada = reg.rutaPublica(path);
   const visible = encontrada && prendidos.has(encontrada.moduloId) ? encontrada : undefined;
   if (!visible && path !== "/") notFound();
+  // Banda cerrada (cuota impaga: el sitio dejó de estar publicado): solo lo que la ruta abre igual
+  // (las entradas o el pedido del fan).
+  if ((await tenantDelPedido())?.bandaCerrada) {
+    const abre = visible?.ruta.conBandaCerrada ? await visible.ruta.conBandaCerrada(tenantId, visible.params) : false;
+    if (!abre) notFound();
+  }
 
   const pestanas = items.map(({ etiqueta, href }) => ({ etiqueta, href }));
   const Componente = visible?.ruta.componente;

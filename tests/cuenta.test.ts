@@ -99,7 +99,7 @@ describe("solo el gestor", () => {
 });
 
 describe("estado", () => {
-  it("cambia y queda en la auditoría sin usuario; ARCHIVADO no se toca ni se pone", async () => {
+  it("cambia y queda en la auditoría sin usuario; una vez ARCHIVADO, el gestor ya no lo toca", async () => {
     expect(await fijarEstado(gestor, e.a.id, "MOROSO", "pago rechazado", reg)).toBe(true);
     expect(await fijarEstado(gestor, e.a.id, "MOROSO", "otra vez", reg)).toBe(false);
     expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("MOROSO");
@@ -107,10 +107,10 @@ describe("estado", () => {
     const fila = await dueno.auditoria.findFirstOrThrow({ where: { tenantId: e.a.id } });
     expect(fila).toMatchObject({ usuarioId: null, accion: "banda.estado_cambiado", detalle: { de: "ACTIVO", a: "MOROSO", motivo: "pago rechazado", por: "gestor" } });
 
-    await dueno.tenant.update({ where: { id: e.b.id }, data: { estado: "ARCHIVADO" } });
+    // El gestor archiva (último escalón de la cuota impaga); desarchivar es del staff.
+    expect(await fijarEstado(gestor, e.b.id, "ARCHIVADO", "90 días de mora", reg)).toBe(true);
     expect(await fijarEstado(gestor, e.b.id, "ACTIVO", "pagó", reg)).toBe(false);
     expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.b.id } })).estado).toBe("ARCHIVADO");
-    await expect(fijarEstado(gestor, e.a.id, "ARCHIVADO" as never, "x", reg)).rejects.toThrow(/no puede pasar/);
   });
 });
 

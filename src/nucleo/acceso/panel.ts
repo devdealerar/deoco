@@ -13,7 +13,11 @@ import { registrarAccesoStaff } from "./registro-staff";
 import { type Acceso, esAccesoStaff, resolverAcceso } from "./resolver";
 import { usuarioPropio } from "./usuario";
 
-export type AccesoPanel = Acceso & { estado: EstadoTenant; viaStaff: boolean };
+/** `soloLectura`: la banda debe la cuota (SOLO_LECTURA o SUSPENDIDO): el panel se ve y no guarda. */
+export type AccesoPanel = Acceso & { estado: EstadoTenant; viaStaff: boolean; soloLectura: boolean };
+
+/** Lo que dice cualquier intento de guardar con el panel en solo lectura. */
+export const MENSAJE_SOLO_LECTURA = "El panel está en solo lectura porque la cuota de Deoco está impaga: podés ver todo, pero no guardar cambios. Apenas se regulariza el pago en Plan y pago, vuelve a funcionar.";
 
 /** Id del usuario logueado, o null. La sesión no tiene nada más. */
 export const usuarioDeSesion = cache(async (): Promise<string | null> => {
@@ -73,7 +77,7 @@ export const accesoPanel = cache(async (volver: string): Promise<AccesoPanel> =>
   if (viaStaff) {
     await registrarAccesoStaff({ usuarioId, tenantId: ctx.tenantId, ruta: volver, fecha: new Date() });
   }
-  return { ...acceso, estado: ctx.estado, viaStaff };
+  return { ...acceso, estado: ctx.estado, viaStaff, soloLectura: ctx.soloLectura };
 });
 
 /** Módulos prendidos para la banda, una sola consulta por pedido. */
@@ -84,6 +88,8 @@ async function tienePermiso(acceso: AccesoPanel, permiso: string): Promise<boole
   const def = registro().permiso(permiso);
   const prendidos = await prendidosDelPedido(acceso.tenantId);
   if (!def || !prendidos.has(def.moduloId)) return false;
+  // En solo lectura no se edita: el permiso de edición de cada módulo (`edicion`) da false.
+  if (acceso.soloLectura && registro().modulo(def.moduloId)?.edicion?.permiso === permiso) return false;
   return accesoTienePermiso(acceso, def, prendidos);
 }
 

@@ -88,7 +88,7 @@ describe("plan y pago", () => {
     expect(await editor.page.locator('[data-bloque="comercial"]').count()).toBe(0);
   });
 
-  it("un cobro rechazado: aviso de mora en el panel; suspendida: solo Plan y pago, el sitio sigue online", async () => {
+  it("un cobro rechazado: aviso; a los 30 días solo lectura (el sitio sigue); a los 60, el sitio deja de estar publicado", async () => {
     const cuenta = await dueno.comercialCuenta.findUniqueOrThrow({ where: { tenantId: e.a.id } });
     expect(await avisoCuota("subscription_authorized_payment", mp.cobrar(cuenta.suscripcionId!, false))).toBe(200);
     expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("MOROSO");
@@ -97,24 +97,34 @@ describe("plan y pago", () => {
     await page.goto(`${APP}/b/banda-a`);
     expect(await page.locator('[data-testid="aviso-mora"]').textContent()).toContain("Pagar");
 
-    // 10 días después (lo hace el barrido): SUSPENDIDO.
-    await dueno.comercialCuenta.update({ where: { tenantId: e.a.id }, data: { moraDesde: new Date(Date.now() - 11 * 86_400_000) } });
+    // 30 días de mora (lo hace el barrido): solo lectura. Se ve todo, no se guarda; el sitio sigue.
     const { revisarVencimientos } = await import("../../modulos/comercial/cuenta");
+    await dueno.comercialCuenta.update({ where: { tenantId: e.a.id }, data: { moraDesde: new Date(Date.now() - 31 * 86_400_000) } });
+    await revisarVencimientos();
+    expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("SOLO_LECTURA");
+    expect((await page.goto(`${APP}/b/banda-a/sitio/identidad`))?.status()).toBe(200);
+    expect(await page.getByTestId("aviso-solo-lectura").textContent()).toContain("no guardar cambios");
+    expect(await page.locator("form fieldset[disabled]").count()).toBeGreaterThan(0);
+    expect(await page.locator("form fieldset:not([disabled])").count()).toBe(0);
+    const publico = await anonimo();
+    expect((await publico.page.goto(sitio("banda-a")))?.status()).toBe(200);
+
+    // 60 días: SUSPENDIDO. El panel sigue en solo lectura; el sitio deja de estar publicado.
+    await dueno.comercialCuenta.update({ where: { tenantId: e.a.id }, data: { moraDesde: new Date(Date.now() - 61 * 86_400_000) } });
     await revisarVencimientos();
     expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("SUSPENDIDO");
-
-    const r = await page.goto(`${APP}/b/banda-a/sitio`);
-    expect(r?.status()).toBe(403);
+    expect((await page.goto(`${APP}/b/banda-a/sitio`))?.status()).toBe(200);
     await page.goto(`${APP}/b/banda-a/pago`);
     expect(await page.locator('[data-testid="estado"]').getAttribute("data-estado")).toBe("SUSPENDIDO");
     await captura(page, "pago-suspendida");
-    const publico = await anonimo();
-    expect((await publico.page.goto(sitio("banda-a")))?.status()).toBe(200);
+    expect((await publico.page.goto(sitio("banda-a")))?.status()).toBe(404);
 
     // Paga: vuelve a ACTIVO al instante.
     expect(await avisoCuota("subscription_authorized_payment", mp.cobrar(cuenta.suscripcionId!, true))).toBe(200);
     expect((await dueno.tenant.findUniqueOrThrow({ where: { id: e.a.id } })).estado).toBe("ACTIVO");
     expect((await page.goto(`${APP}/b/banda-a/sitio`))?.status()).toBe(200);
+    // Y el sitio vuelve a publicarse tal como estaba.
+    expect((await publico.page.goto(sitio("banda-a")))?.status()).toBe(200);
   });
 
   it("otro rol no entra a Plan y pago", async () => {

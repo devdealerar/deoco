@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { exigirTitular } from "@/nucleo/acceso/panel";
+import { exigirTitular, MENSAJE_SOLO_LECTURA } from "@/nucleo/acceso/panel";
 import { ErrorDominio } from "@/nucleo/dominios";
 import { configurarCorreo, probarCorreo, quitarCorreo, revisarCorreo } from "@/nucleo/dominios/correo";
 import type { EstadoFormulario } from "@/ui";
@@ -13,6 +13,7 @@ type Contexto = { tenantId: string; usuarioId: string };
 async function comoTitular(slug: string, fn: (c: Contexto) => Promise<EstadoFormulario>): Promise<EstadoFormulario> {
   const volver = `/b/${slug}/correo`;
   const acceso = await exigirTitular(volver);
+  if (acceso.soloLectura) return { error: MENSAJE_SOLO_LECTURA };
   try {
     const r = await fn({ tenantId: acceso.tenantId, usuarioId: acceso.usuarioId });
     revalidatePath(volver);

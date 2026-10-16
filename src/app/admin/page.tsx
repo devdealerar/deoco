@@ -6,7 +6,7 @@ import { exigirStaff } from "./_servidor/acceso";
 import { ESTADOS_BANDA, ORDENES_BANDA, listarBandas } from "./_servidor/bandas";
 import { type ParametrosUrl, orden, pagina, texto } from "./_servidor/listado";
 
-const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
+const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", MOROSO_GRAVE: "advertencia", SOLO_LECTURA: "error", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
 const FECHA = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeZone: "America/Argentina/Buenos_Aires" });
 const LIMITE_POR_DEFECTO = BigInt(process.env.DEOCO_LIMITE_ALMACENAMIENTO ?? 1024 ** 3);
 

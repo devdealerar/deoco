@@ -26,15 +26,15 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
   const porVencer = esTitular ? await delegacionesPorVencer(acceso.tenantId) : [];
   // Dominios que vencen en 30 días o ya vencieron (comprados: renovar; delegados: en su registrador).
   const vencen = esTitular ? await dominiosPorVencerEnPanel(acceso.tenantId) : [];
-  // Suspendida: solo se puede pagar (el resto del panel da 403, salvo la puerta de un show ya
-  // vendido). El sitio público sigue.
-  // Archivada: el panel no existe más, salvo Dominios para el titular (el dominio es suyo).
+  // Cuota impaga (escalera del gestor de cuenta): MOROSO aviso al titular; MOROSO_GRAVE aviso
+  // permanente a todos; SOLO_LECTURA y SUSPENDIDO, el panel se ve y no guarda (suspendida, además,
+  // el sitio no está publicado). Archivada: el panel no existe más, salvo Dominios para el titular
+  // y la puerta de un show ya vendido.
   const archivada = acceso.estado === "ARCHIVADO";
-  const suspendida = acceso.estado === "SUSPENDIDO" || archivada;
   const conPago = esTitular && Boolean(reg.gestor) && !archivada;
-  // Con la banda cerrada, del menú quedan solo las rutas de módulo que siguen abiertas (la puerta
-  // de un show ya vendido).
-  const visibles = suspendida
+  // Archivada: del menú quedan solo las rutas de módulo que siguen abiertas (la puerta de un show
+  // ya vendido).
+  const visibles = archivada
     ? (await Promise.all(menu.map(async (m) => ((await rutaAbiertaConBandaCerrada(acceso, m.href.slice(`/b/${slug}`.length) || "/", reg)) ? m : null)))).filter((m) => m !== null)
     : menu;
   const item = "block rounded-md px-3 py-2 text-md font-semibold text-secondary hover:bg-primary_hover hover:text-secondary_hover";
@@ -47,7 +47,7 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
           </Link>
           <nav aria-label="Panel" className="flex-1">
             <ul className="flex gap-1 overflow-x-auto lg:flex-col">
-              {!suspendida && (
+              {!archivada && (
                 <li>
                   <Link href={`/b/${slug}`} className={item}>
                     Inicio
@@ -61,7 +61,7 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                   </Link>
                 </li>
               )}
-              {/* Dominios, también suspendida: la cuota impaga no le impide llevarse sus dominios. */}
+              {/* Dominios, también archivada: la cuota impaga no le impide llevarse sus dominios. */}
               {esTitular && (
                 <li>
                   <Link href={`/b/${slug}/dominios`} className={item}>
@@ -69,14 +69,14 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
                   </Link>
                 </li>
               )}
-              {esTitular && !suspendida && dominioDeEnvio() && (
+              {esTitular && !archivada && dominioDeEnvio() && (
                 <li>
                   <Link href={`/b/${slug}/correo`} className={item}>
                     Correo
                   </Link>
                 </li>
               )}
-              {conCredenciales && !suspendida && (
+              {conCredenciales && !archivada && (
                 <li>
                   <Link href={`/b/${slug}/credenciales`} className={item}>
                     Credenciales
@@ -122,10 +122,29 @@ export async function MarcoPanel({ slug, acceso, children }: { slug: string; acc
               </Aviso>
             </div>
           )}
-          {suspendida && !archivada && esTitular && (
+          {acceso.estado === "MOROSO_GRAVE" && (
             <div className="mb-6">
-              <Aviso tono="error" titulo="Tu cuenta está suspendida." data-testid="aviso-suspendida">
-                El sitio público sigue online. Para volver a usar el panel, regularizá el pago.
+              <Aviso tono="error" titulo="La cuota de Deoco sigue impaga." data-testid="aviso-mora-grave">
+                Todo sigue funcionando por ahora. Si no se regulariza, el panel pasa a solo lectura y después el sitio deja de estar publicado.{" "}
+                {esTitular && (
+                  <Link href={`/b/${slug}/pago`} className="font-semibold underline">
+                    Pagar
+                  </Link>
+                )}
+              </Aviso>
+            </div>
+          )}
+          {(acceso.estado === "SOLO_LECTURA" || acceso.estado === "SUSPENDIDO") && (
+            <div className="mb-6">
+              <Aviso tono="error" titulo="El panel está en solo lectura." data-testid="aviso-solo-lectura">
+                {acceso.estado === "SUSPENDIDO"
+                  ? "La cuota de Deoco está impaga: el sitio dejó de estar publicado y se cortaron las ventas. No se borró nada y la puerta de los shows vendidos sigue funcionando."
+                  : "La cuota de Deoco está impaga: podés ver todo, pero no guardar cambios. El sitio, la tienda y las entradas siguen funcionando."}{" "}
+                {esTitular && (
+                  <Link href={`/b/${slug}/pago`} className="font-semibold underline">
+                    Regularizar el pago
+                  </Link>
+                )}
               </Aviso>
             </div>
           )}

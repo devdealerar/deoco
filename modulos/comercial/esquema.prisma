@@ -45,10 +45,17 @@ model ComercialConfig {
   diasPrueba         Int      @default(14)
   /// Plan de la prueba.
   planPrueba         String   @default("medium")
-  /// Días después del vencimiento antes de pasar a MOROSO (lo que tarda en llegar un cobro).
+  /// La escalera de la cuota impaga, en días desde el vencimiento (en orden creciente):
+  /// MOROSO: aviso en el panel y por mail.
   diasGracia         Int      @default(3)
-  /// Días de mora antes de SUSPENDIDO.
-  diasMoraASuspender Int      @default(10)
+  /// MOROSO_GRAVE: aviso permanente en el panel.
+  diasAvisoFuerte    Int      @default(15)
+  /// SOLO_LECTURA: el panel no guarda nada; el sitio y las ventas siguen.
+  diasSoloLectura    Int      @default(30)
+  /// SUSPENDIDO: sitio despublicado y ventas cortadas (la puerta sigue para los shows vendidos).
+  diasMoraASuspender Int      @default(60)
+  /// ARCHIVADO.
+  diasArchivo        Int      @default(90)
   actualizadoEn      DateTime @default(now()) @updatedAt
 
   @@map("comercial_config")

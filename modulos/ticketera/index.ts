@@ -43,7 +43,8 @@ const ticketera: Modulo = {
   rutasPublicas: [
     { ruta: "/fechas", componente: FechasPublicas, metadatos: () => ({ titulo: "Fechas" }) },
     { ruta: "/fechas/[id]", componente: EventoPublico, metadatos: metadatosEvento },
-    { ruta: "/fechas/compra/[id]", componente: CompraPublica, metadatos: () => ({ titulo: "Tus entradas" }) },
+    // Las entradas del fan siguen a la vista con la banda cerrada: la puerta sigue validando.
+    { ruta: "/fechas/compra/[id]", componente: CompraPublica, metadatos: () => ({ titulo: "Tus entradas" }), conBandaCerrada: async () => true },
   ],
   navegacion: [
     { etiqueta: "Entradas", href: "/entradas", permiso: VER, orden: 25 },

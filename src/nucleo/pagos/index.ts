@@ -82,6 +82,10 @@ export async function crearCobro(
 ): Promise<{ pasarela: string; redireccion: string; preferenciaId: string }> {
   const { lista, pasarela } = await pasarelaLista(modulo, tenantId, reg);
   if (!lista) throw new ErrorPasarela("La banda no tiene la pasarela de cobro conectada.");
+  // Toda venta de la banda (tienda, entradas) empieza acá: con la banda SUSPENDIDA o ARCHIVADA
+  // por la cuota no se abre ninguna nueva. Lo ya cobrado sigue (los avisos se registran igual).
+  const { estado } = await conTenant(tenantId, (tx) => tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { estado: true } }));
+  if (estado === "SUSPENDIDO" || estado === "ARCHIVADO") throw new ErrorPasarela("La banda no está vendiendo en este momento.");
   const r = await pasarela.crearCobro(await credencialesDe(tenantId, pasarela), {
     ...cobro,
     urls: { ...cobro.urls, aviso: urlAviso(tenantId, modulo, `/pago/${pasarela.id}`) },

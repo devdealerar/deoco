@@ -75,9 +75,10 @@ export type RutaModulo<P> = {
    */
   metadatos?: (props: P) => MetadatosPagina | Promise<MetadatosPagina>;
   /**
-   * Solo panel: la ruta sigue abierta con la banda SUSPENDIDA o ARCHIVADA mientras esto dé true
-   * (la puerta de un show ya vendido: el escaneo no se corta por la cuota). Exige `permiso`: la
-   * abre solo para quien lo tenga. El resto del panel queda cerrado igual.
+   * Panel y sitio público: la ruta sigue abierta con la banda cerrada (panel: ARCHIVADA; sitio:
+   * SUSPENDIDA o ARCHIVADA) mientras esto dé true. Panel: la puerta de un show ya vendido (exige
+   * `permiso`: la abre solo para quien lo tenga). Sitio: las entradas o el pedido del fan. El resto
+   * queda cerrado igual.
    */
   conBandaCerrada?: (tenantId: string, params: Record<string, string>) => Promise<boolean>;
 };

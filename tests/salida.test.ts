@@ -231,7 +231,7 @@ describe("banda archivada", () => {
       expect((await proxy(panel("/b/banda-a/dominios"))).status).toBe(200);
       expect((await proxy(panel("/b/banda-a"))).status).toBe(404);
       expect((await proxy(panel("/b/banda-a/pago"))).status).toBe(404);
-      expect((await proxy(pedido("banda-a.deocoartist.com"))).status).toBe(404);
+      expect((await proxy(pedido("banda-a.deocoartist.com"))).headers.get("x-middleware-request-x-deoco-banda-cerrada")).toBe("1"); // la página decide
     } finally {
       await dueno.tenant.update({ where: { id: a.id }, data: { estado: "ACTIVO" } });
     }

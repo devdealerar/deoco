@@ -72,7 +72,8 @@ const tienda: Modulo = {
     { ruta: "/tienda", componente: CatalogoPublico, metadatos: () => ({ titulo: "Tienda" }) },
     { ruta: "/tienda/carrito", componente: CarritoPublico, metadatos: () => ({ titulo: "Carrito" }) },
     { ruta: "/tienda/checkout", componente: CheckoutPublico, metadatos: () => ({ titulo: "Checkout" }) },
-    { ruta: "/tienda/pedido/[id]", componente: PedidoPublico, metadatos: () => ({ titulo: "Pedido" }) },
+    // El fan sigue viendo su pedido con la banda cerrada (las órdenes en curso se completan).
+    { ruta: "/tienda/pedido/[id]", componente: PedidoPublico, metadatos: () => ({ titulo: "Pedido" }), conBandaCerrada: async () => true },
     { ruta: "/tienda/[producto]", componente: FichaProducto, metadatos: metadatosFicha },
   ],
   cabeceraPublica: { componente: ContadorCarrito, orden: 10 },

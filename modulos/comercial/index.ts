@@ -1,6 +1,6 @@
 // Módulo comercial: los planes de Deoco y la cuota mensual de cada banda. Es el gestor de cuenta
 // (gestionaCuenta): traduce el plan a módulos prendidos y límites, y el pago de la cuota a un
-// estado de la banda (ACTIVO, MOROSO, SUSPENDIDO; ARCHIVADO solo a mano).
+// estado de la banda (la escalera de la cuota impaga, hasta ARCHIVADO; desarchivar, solo a mano).
 //
 // LA CUOTA ES LA EXCEPCIÓN A LA REGLA DEL DINERO: la banda le paga A DEOCO, en la cuenta de
 // Mercado Pago de Deoco (@/nucleo/pagos/cuota, credenciales del ENTORNO, nunca de `secreto`).

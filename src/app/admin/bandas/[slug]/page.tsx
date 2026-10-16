@@ -25,10 +25,12 @@ import {
 const ESTADOS = [
   { valor: "ACTIVO", texto: "Activo" },
   { valor: "MOROSO", texto: "Moroso (aviso al titular)" },
-  { valor: "SUSPENDIDO", texto: "Suspendido (panel cerrado salvo pago; sitio sigue)" },
+  { valor: "MOROSO_GRAVE", texto: "Moroso grave (aviso permanente en el panel)" },
+  { valor: "SOLO_LECTURA", texto: "Solo lectura (el panel no guarda; sitio y ventas siguen)" },
+  { valor: "SUSPENDIDO", texto: "Suspendido (sitio despublicado y ventas cortadas; la puerta sigue)" },
   { valor: "ARCHIVADO", texto: "Archivado (panel y sitio dejan de responder)" },
 ];
-const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
+const COLOR_ESTADO = { ACTIVO: "exito", MOROSO: "advertencia", MOROSO_GRAVE: "advertencia", SOLO_LECTURA: "error", SUSPENDIDO: "error", ARCHIVADO: "gris" } as const;
 
 export default async function Banda({ params }: { params: Promise<{ slug: string }> }) {
   const { usuarioId: staffId } = await exigirStaff();

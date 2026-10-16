@@ -113,18 +113,20 @@ describe("prueba 6: staff", () => {
 });
 
 describe("prueba 7: banda SUSPENDIDO", () => {
-  it("el titular entra a /pago y a /dominios; editor y staff reciben 403; el resto del panel 403", async () => {
+  it("el titular entra a /pago y a /dominios (editor y staff, 403); el resto del panel, en solo lectura", async () => {
     await suspender(e.a.id);
     const titular = (await logueado("multi@x.com")).page;
     expect((await titular.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(200);
     expect(await titular.getByTestId("estado").textContent()).toBe("SUSPENDIDO");
-    expect((await titular.goto(`${APP}/b/banda-a`))!.status()).toBe(403);
+    expect((await titular.goto(`${APP}/b/banda-a`))!.status()).toBe(200);
+    expect(await titular.getByTestId("aviso-solo-lectura").textContent()).toContain("el sitio dejó de estar publicado");
     // Dominios también: la cuota impaga no le impide llevarse sus dominios.
     expect((await titular.goto(`${APP}/b/banda-a/dominios`))!.status()).toBe(200);
 
     const editor = (await logueado("editor-a@x.com")).page;
     expect((await editor.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
     expect((await editor.goto(`${APP}/b/banda-a/dominios`))!.status()).toBe(403);
+    expect((await editor.goto(`${APP}/b/banda-a`))!.status()).toBe(200);
 
     const staff = (await logueado("staff@deocoartist.com")).page;
     expect((await staff.goto(`${APP}/b/banda-a/pago`))!.status()).toBe(403);
@@ -162,6 +164,11 @@ describe("prueba 7: banda SUSPENDIDO", () => {
     await editor.goto(`${APP}/b/banda-a`);
     expect(await editor.getByTestId("rol").textContent()).toBe("EDITOR");
     expect(await editor.getByTestId("aviso-mora").count()).toBe(0);
+    // Día 15 (MOROSO_GRAVE): el aviso es permanente y lo ve todo el equipo; todo sigue funcionando.
+    await dueno.tenant.update({ where: { id: e.a.id }, data: { estado: "MOROSO_GRAVE" } });
+    await editor.goto(`${APP}/b/banda-a`);
+    expect(await editor.getByTestId("aviso-mora-grave").textContent()).toContain("Todo sigue funcionando");
+    expect(await editor.locator("form fieldset[disabled]").count()).toBe(0);
   });
 });
 

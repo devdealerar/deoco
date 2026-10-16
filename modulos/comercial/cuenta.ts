@@ -26,7 +26,7 @@ import {
 } from "@/nucleo/pagos/cuota";
 import { titularDeBanda } from "@/nucleo/personas";
 import { origenPlataforma } from "@/nucleo/tenant/hosts";
-import { avisarMora, avisarSuspension } from "./correos";
+import { avisarArchivo, avisarMora, avisarSoloLectura, avisarSuspension } from "./correos";
 
 export class ErrorComercial extends Error {}
 
@@ -75,7 +75,11 @@ export async function planes(): Promise<Plan[]> {
 }
 
 export async function plazos() {
-  return (await prisma.comercialConfig.findUnique({ where: { id: 1 } })) ?? { id: 1, diasPrueba: 14, planPrueba: "medium", diasGracia: 3, diasMoraASuspender: 10, actualizadoEn: new Date(0) };
+  return (
+    (await prisma.comercialConfig.findUnique({ where: { id: 1 } })) ?? {
+      id: 1, diasPrueba: 14, planPrueba: "medium", diasGracia: 3, diasAvisoFuerte: 15, diasSoloLectura: 30, diasMoraASuspender: 60, diasArchivo: 90, actualizadoEn: new Date(0),
+    }
+  );
 }
 
 export type Cuenta = NonNullable<Awaited<ReturnType<typeof cuentaDe>>>;
@@ -318,53 +322,77 @@ export async function registrarCobro(tenantId: string, cobro: CobroDeSuscripcion
     return "sin-cambios" as const;
   });
   if (resultado === "aprobado") await fijarEstado(modulo, tenantId, "ACTIVO", "pago de la cuota aprobado");
-  if (resultado === "rechazado" && (await fijarEstado(modulo, tenantId, "MOROSO", "pago de la cuota rechazado"))) {
+  // Rechazado: aviso ya (si estaba al día); los escalones siguientes cuentan desde el rechazo.
+  if (resultado === "rechazado" && (await estadoDe(tenantId)) === "ACTIVO" && (await fijarEstado(modulo, tenantId, "MOROSO", "pago de la cuota rechazado"))) {
     await avisarMora(tenantId, "rechazado").catch((e) => console.error(`[comercial] mail de mora a ${tenantId}:`, e));
   }
   return resultado;
 }
 
-/** Qué le toca a una cuenta hoy (sin efectos: se prueba sola). */
+/** La escalera de la cuota impaga: días desde el vencimiento (comercial_config, la edita el staff). */
+export type Escalera = { diasGracia: number; diasAvisoFuerte: number; diasSoloLectura: number; diasMoraASuspender: number; diasArchivo: number };
+
+/** Los escalones, del más leve al más grave. */
+const ESCALONES = ["ACTIVO", "MOROSO", "MOROSO_GRAVE", "SOLO_LECTURA", "SUSPENDIDO", "ARCHIVADO"] as const;
+export type Escalon = (typeof ESCALONES)[number];
+const gravedad = (e: string) => ESCALONES.indexOf(e as Escalon);
+
+/**
+ * Qué escalón le toca a una cuenta hoy (sin efectos: se prueba sola). Se cuenta desde la mora ya
+ * marcada (un cobro rechazado) o desde el vencimiento: del pago, o de la prueba si nunca pagó.
+ * `desde`: la fecha desde la que se cuenta (null si no hay mora).
+ */
 export function decidir(
-  c: Pick<Cuenta, "pruebaHasta" | "pagoHasta" | "moraDesde" | "suscripcionEstado">,
-  cfg: { diasGracia: number; diasMoraASuspender: number },
+  c: Pick<Cuenta, "pruebaHasta" | "pagoHasta" | "moraDesde">,
+  cfg: Escalera,
   ahora: Date,
-): { accion: "nada" } | { accion: "mora"; desde: Date } | { accion: "suspender"; motivo: string; causa: "prueba" | "mora" } {
-  if (c.pruebaHasta && !c.pagoHasta && c.pruebaHasta <= ahora && c.suscripcionEstado !== "activa") {
-    return { accion: "suspender", motivo: "terminó la prueba sin forma de pago", causa: "prueba" };
-  }
-  if (c.moraDesde) {
-    return ahora.getTime() >= c.moraDesde.getTime() + cfg.diasMoraASuspender * DIA
-      ? { accion: "suspender", motivo: `${cfg.diasMoraASuspender} días de mora`, causa: "mora" }
-      : { accion: "nada" };
-  }
-  const vence = c.pagoHasta ?? c.pruebaHasta;
-  if (vence && ahora.getTime() > vence.getTime() + cfg.diasGracia * DIA) return { accion: "mora", desde: vence };
-  return { accion: "nada" };
+): { estado: Escalon; desde: Date | null } {
+  const desdeVencida = c.moraDesde ?? c.pagoHasta ?? c.pruebaHasta;
+  if (!desdeVencida) return { estado: "ACTIVO", desde: null };
+  const dias = (ahora.getTime() - desdeVencida.getTime()) / DIA;
+  // Con la mora marcada (rechazo), el aviso es inmediato; sin ella, después de la gracia.
+  const desdeAviso = c.moraDesde ? 0 : cfg.diasGracia;
+  const estado: Escalon =
+    dias >= cfg.diasArchivo ? "ARCHIVADO"
+    : dias >= cfg.diasMoraASuspender ? "SUSPENDIDO"
+    : dias >= cfg.diasSoloLectura ? "SOLO_LECTURA"
+    : dias >= cfg.diasAvisoFuerte ? "MOROSO_GRAVE"
+    : dias >= desdeAviso ? "MOROSO"
+    : "ACTIVO";
+  return { estado, desde: estado === "ACTIVO" ? null : desdeVencida };
 }
 
-/** Una cuenta: pasa a mora o a suspendida si le toca (y avisa al titular). */
-export async function revisarCuenta(tenantId: string, ahora: Date, cfg: { diasGracia: number; diasMoraASuspender: number }): Promise<"nada" | "mora" | "suspender"> {
+/** Lo que dice el mail de cada escalón que lo lleva (el aviso fuerte es solo en el panel). */
+async function avisarEscalon(tenantId: string, estado: Escalon, causa: "prueba" | "mora") {
+  if (estado === "MOROSO") return avisarMora(tenantId, "vencida");
+  if (estado === "SOLO_LECTURA") return avisarSoloLectura(tenantId);
+  if (estado === "SUSPENDIDO") return avisarSuspension(tenantId, causa);
+  if (estado === "ARCHIVADO") return avisarArchivo(tenantId);
+}
+
+/**
+ * Una cuenta: la sube al escalón que le toca hoy (nunca la baja: eso lo hace el pago) y avisa al
+ * titular. Si el barrido estuvo parado, salta directo al que corresponde.
+ */
+export async function revisarCuenta(tenantId: string, ahora: Date, cfg: Escalera): Promise<Escalon | "nada"> {
   const modulo = await comercial();
   const cuenta = await cuentaDe(tenantId);
   if (!cuenta) return "nada";
   const d = decidir(cuenta, cfg, ahora);
-  if (d.accion === "mora") {
+  const actual = (await conTenant(tenantId, (tx) => tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { estado: true } }))).estado;
+  if (gravedad(d.estado) <= gravedad(actual)) return "nada";
+  if (d.desde && !cuenta.moraDesde) {
     await conTenant(tenantId, (tx: TxTenant) => tx.comercialCuenta.update({ where: { tenantId }, data: { moraDesde: d.desde } }));
-    if (await fijarEstado(modulo, tenantId, "MOROSO", "venció la cuota sin pago")) {
-      await avisarMora(tenantId, "vencida").catch((e) => console.error(`[comercial] mail de mora a ${tenantId}:`, e));
-    }
-    // Ya vencida hace rato (p. ej. el barrido estuvo parado): puede tocar suspender en la misma vuelta.
-    return decidir({ ...cuenta, moraDesde: d.desde }, cfg, ahora).accion === "suspender" ? revisarCuenta(tenantId, ahora, cfg) : "mora";
   }
-  if (d.accion === "suspender") {
-    if (await fijarEstado(modulo, tenantId, "SUSPENDIDO", d.motivo)) {
-      await avisarSuspension(tenantId, d.causa).catch((e) => console.error(`[comercial] mail de suspensión a ${tenantId}:`, e));
-    }
-    return "suspender";
+  const causa = cuenta.pagoHasta ? "mora" : "prueba";
+  const dias = Math.floor((ahora.getTime() - d.desde!.getTime()) / DIA);
+  if (await fijarEstado(modulo, tenantId, d.estado, causa === "prueba" ? `${dias} días desde el fin de la prueba sin pago` : `${dias} días de mora`)) {
+    await avisarEscalon(tenantId, d.estado, causa).catch((e) => console.error(`[comercial] mail de ${d.estado} a ${tenantId}:`, e));
   }
-  return "nada";
+  return d.estado;
 }
+
+const estadoDe = async (tenantId: string) => (await conTenant(tenantId, (tx) => tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { estado: true } }))).estado;
 
 /** Tarea periódica: las cuentas vencidas, en mora o con la prueba terminada, de todas las bandas. */
 export async function revisarVencimientos(ahora = new Date()) {
@@ -420,11 +448,19 @@ export async function guardarPlan(comoStaff: ComoStaff, planId: string, datos: D
   return bandas.length;
 }
 
-export type DatosPlazos = { diasPrueba: number; planPrueba: string; diasGracia: number; diasMoraASuspender: number };
+export type DatosPlazos = { diasPrueba: number; planPrueba: string } & Escalera;
 
-export async function guardarPlazos(comoStaff: ComoStaff, d: DatosPlazos) {
-  for (const [k, v, max] of [["diasPrueba", d.diasPrueba, 90], ["diasGracia", d.diasGracia, 30], ["diasMoraASuspender", d.diasMoraASuspender, 90]] as const) {
-    if (!Number.isSafeInteger(v) || v < 0 || v > max) throw new ErrorComercial(`${k}: entre 0 y ${max} días.`);
+export async function guardarPlazos(comoStaff: ComoStaff, datos: DatosPlazos) {
+  const d: DatosPlazos = {
+    diasPrueba: datos.diasPrueba, planPrueba: datos.planPrueba, diasGracia: datos.diasGracia, diasAvisoFuerte: datos.diasAvisoFuerte,
+    diasSoloLectura: datos.diasSoloLectura, diasMoraASuspender: datos.diasMoraASuspender, diasArchivo: datos.diasArchivo,
+  };
+  for (const [k, v] of Object.entries(d)) {
+    if (k !== "planPrueba" && (!Number.isSafeInteger(v) || (v as number) < 0 || (v as number) > 365)) throw new ErrorComercial(`${k}: entre 0 y 365 días.`);
+  }
+  const escalera = [d.diasGracia, d.diasAvisoFuerte, d.diasSoloLectura, d.diasMoraASuspender, d.diasArchivo];
+  if (escalera.some((v, i) => i > 0 && v <= escalera[i - 1])) {
+    throw new ErrorComercial("Los días de la escalera van en orden: aviso < aviso fuerte < solo lectura < suspendida < archivada.");
   }
   await comoStaff("comercial.plazos_editados", async (tx, ctx) => {
     if (!(await tx.comercialPlan.findUnique({ where: { id: d.planPrueba } }))) throw new ErrorComercial("El plan de la prueba no existe.");

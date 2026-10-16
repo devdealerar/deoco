@@ -17,9 +17,15 @@ datasource db {
 // SUSPENDIDO: panel 403 salvo rutas de pago (solo titular); sitio público normal.
 // ARCHIVADO: panel y sitio 404; los datos se conservan.
 // Las reglas viven en src/nucleo/tenant/reglas.ts.
+/// Escalera de la cuota impaga (los días los fija el gestor de cuenta, contados desde el vencimiento):
+/// ACTIVO → MOROSO (aviso) → MOROSO_GRAVE (aviso permanente) → SOLO_LECTURA (el panel no guarda
+/// nada; el sitio y las ventas siguen) → SUSPENDIDO (sitio despublicado, ventas cortadas; la puerta
+/// sigue para los shows vendidos) → ARCHIVADO.
 enum EstadoTenant {
   ACTIVO
   MOROSO
+  MOROSO_GRAVE
+  SOLO_LECTURA
   SUSPENDIDO
   ARCHIVADO
 }
