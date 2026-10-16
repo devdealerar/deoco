@@ -42,6 +42,9 @@ Documento maestro: `docs/documento-maestro.md`. Auditoría: `docs/auditoria-docu
 - B4 propuesta, sin construir (pago de la banda al proveedor).
 - B5 ✅ Arte inmutable después de un pedido pagado (`tienda_diseno.reemplazaAId`) + historial.
 - B6 no se construye: informe del modelo usuario/banda (td2), en `docs/decisiones-pendientes.md`.
+- Segunda vuelta de auditoría contra el 3.2: `docs/auditoria-3.2-segunda-vuelta.md` (175 requisitos;
+  hallazgos mal construidos en su §5, conflictos para decidir en su §6). Arreglado de paso: textos de
+  la cuota que seguían prometiendo "el sitio sigue online".
 
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 

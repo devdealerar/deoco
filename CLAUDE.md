@@ -24,7 +24,8 @@ encima de cualquier decisión de módulo, de la spec y de lo que se pida en el c
   lo demás**: es posterior al documento maestro.
 - `docs/documento-maestro.md`: el documento maestro (16 secciones). Donde diga otra cosa que el
   3.2, manda el 3.2.
-- Auditoría contra el maestro: `docs/auditoria-documento-maestro.md`.
+- Auditoría contra el maestro: `docs/auditoria-documento-maestro.md`; segunda vuelta contra el 3.2
+  (módulos nuevos y casos de borde): `docs/auditoria-3.2-segunda-vuelta.md`.
 - La clave del documento 3.2 (cifrado) no va al repo: ni en un archivo ni en un commit.
 
 ## Método de trabajo
