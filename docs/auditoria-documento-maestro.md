@@ -3,6 +3,38 @@
 Auditoría de lo construido en el repo contra `docs/documento-maestro.md` (16 secciones). Es solo
 lectura: no se tocó código. Fecha: 2026-10-16.
 
+## Tercera vuelta (2026-10-17, después de los bloques C y D)
+
+Se volvieron a mirar todas las filas que no estaban en OK. Las que cambiaron llevan **3.ª vuelta:**
+con el bloque que lo resolvió y la evidencia. Las cifras del resumen de abajo son las de la primera
+vuelta; las de ahora:
+
+| Estado | 1.ª vuelta | 3.ª vuelta |
+|---|---|---|
+| OK | 39 | 68 |
+| DISTINTO | 25 | 14 |
+| PARCIAL | 40 | 34 |
+| FALTA | 67 | 55 |
+| PENDIENTE | 5 | 5 |
+| **Total** | **176** | **176** |
+
+**Las 55 FALTA que quedan**, por tema:
+
+- Soporte y estado: 2.6, 12.1–12.3 (tickets, severidades, modo evento), 14.6 y 15.4 (página de estado).
+- Proceso: 2.8 (revisión de arquitectura antes de desarrollar).
+- Alta guiada: 3.2–3.4 (brief y propuesta de skin).
+- Editor del sitio: 4.3 (arrastrar pestañas), 4.9 («Powered by Deoco»), 4.14–4.17 (idiomas).
+- Press kit: 5.2 (PDF), 5.4 (enlace privado).
+- Central pública de eventos: 6.3–6.6.
+- Proveedores (marketplace, etapa 3): 7.6, 7.7, 7.17, 7.18, 7.21–7.30, 7.34, 7.35.
+- Pago a proveedores: 8.7 (tarjeta, débito o prepago; depende de B4).
+- Ticketing: 9.5 (tandas encadenadas), 9.6 y 9.7 (descuentos y promotores), 9.8 y 9.9 (invitados),
+  9.13 (PWA), 9.20 (checklist), 9.22 y 9.23 (lista descargable o impresa: se decidió no hacerla),
+  9.27 (cancelación con reembolso masivo), 9.30 (cola de espera).
+- Fiscal: 11.2 y 11.3 (integración y credenciales fiscales).
+- Comunidad: 13.12 y 13.13 (moderación, denuncia).
+- Sitio de Deoco: 15.1 (página pública con planes).
+
 ## Antes de leer
 
 **Hay dos documentos maestros.** Esta auditoría se hizo contra el `.md` de 16 secciones, que fue
@@ -190,7 +222,7 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 | 2.1 | Bandas, sitios y dominios en el núcleo | DISTINTO | `prisma/schema/nucleo.prisma:45,93`; `modulos/sitio` | Los sitios son un módulo (`docs/spec/00-especificacion-nucleo.md:17`). |
 | 2.2 | Usuarios, roles y permisos | OK | `nucleo.prisma:28,74`; `src/nucleo/acceso/roles.ts:8`; `src/nucleo/permisos/puede.ts` | |
 | 2.3 | Suscripciones, planes y facturación de la plataforma | PARCIAL | `modulos/comercial/cuenta.ts:121-160`, `esquema.prisma`; `src/nucleo/cuenta` | Planes y cuota existen, pero en un módulo, no en el núcleo. **No se factura la cuota:** no hay comprobante ni historial de cobros para la banda. |
-| 2.4 | Auditoría de acciones | PARCIAL | `nucleo.prisma:225-238`; `src/app/admin/_servidor/auditoria.ts:10` | La escriben el back office, el staff, secretos, dominios y cuenta. Sitio y ticketera no auditan nada. Nadie la puede leer: no hay pantalla. |
+| 2.4 | Auditoría de acciones | OK | `nucleo.prisma:225-238`; `src/app/admin/_servidor/auditoria.ts:10` | La escriben el back office, el staff, secretos, dominios y cuenta. Sitio y ticketera no auditan nada. Nadie la puede leer: no hay pantalla. **3.ª vuelta:** C1.7: `auditoria` inmutable (REVOKE + disparador), `/admin/auditoria` y `/b/<slug>/actividad`; `accionesDelPanel` registra cada guardado de los módulos. |
 | 2.5 | Notificaciones | PARCIAL | `src/nucleo/correo/index.ts:154,173`; `deoco.ts:23`; avisos en `src/app/b/[slug]/marco.tsx` | Solo correo y avisos sueltos. No hay centro de notificaciones. |
 | 2.6 | Soporte | FALTA | grep `soporte`, `ticket`, `mesa de ayuda` | |
 | 2.7 | Módulos activables por etapas | OK | `nucleo.prisma:150` (`ModuloTenant`); `encendido.ts:56-100` | Las dependencias existen pero ningún módulo las usa. |
@@ -244,7 +276,7 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| 6.1 | Cada fecha se carga una vez y alimenta el sitio | PARCIAL | `modulos/sitio/fechas.ts:1-31`; `modulos/ticketera/eventos.ts:250-266` | Hay dos fuentes que no se unen: las fechas manuales del sitio y los shows de la ticketera. Al prender la ticketera, las manuales desaparecen del sitio (`fechas.ts:28-31`) y hay que volver a cargarlas. |
+| 6.1 | Cada fecha se carga una vez y alimenta el sitio | OK | `modulos/sitio/fechas.ts:1-31`; `modulos/ticketera/eventos.ts:250-266` | Hay dos fuentes que no se unen: las fechas manuales del sitio y los shows de la ticketera. Al prender la ticketera, las manuales desaparecen del sitio (`fechas.ts:28-31`) y hay que volver a cargarlas. **3.ª vuelta:** A1: las fechas manuales y los shows de la ticketera conviven (misma fecha y sala, una vez). |
 | 6.2 | Fecha, ciudad, sala, enlace de entradas | OK | `modulos/sitio/esquema.prisma:47-57`; `modulos/ticketera/esquema.prisma:6-14` | Un show de la ticketera no admite un link externo. |
 | 6.3 | Central pública de eventos | FALTA | rutas de `src/app` | |
 | 6.4 | Refleja automáticamente los eventos de las bandas | FALTA | — | |
@@ -256,7 +288,7 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
 | 7.1 | 100% on demand, sin stock | OK | `modulos/tienda/esquema.prisma` (no hay campo de stock) | |
-| 7.2 | La banda elige proveedores | DISTINTO | `modulos/tienda/catalogo.ts:148-154`; `docs/tareas.md:378` | Lo asigna el staff por producto base. |
+| 7.2 | La banda elige proveedores | OK | `modulos/tienda/catalogo.ts:148-154`; `docs/tareas.md:378` | Lo asigna el staff por producto base. **3.ª vuelta:** B3: la banda elige la oferta (producto base × proveedor) al crear el producto (`ofertasDe`). |
 | 7.3 | Personaliza la base y publica el producto terminado | OK | `modulos/tienda/productos.ts:129-140,167-181` | |
 | 7.4 | El fan no personaliza | OK | `modulos/tienda/publico/agregar.tsx:30-66` | Elige variante y cantidad. |
 | 7.5 | Panel del proveedor: catálogo base | DISTINTO | `modulos/tienda/index.ts:57-63,76-80` | El catálogo está en `/admin`, no en el portal. |
@@ -264,8 +296,8 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 | 7.7 | Panel del proveedor: técnicas y requisitos | FALTA | `esquema.prisma:16-17,50-54` | No existe el concepto de técnica. Los requisitos los fija el staff. |
 | 7.8 | Panel del proveedor: órdenes, estados, seguimiento, incidencias | PARCIAL | `modulos/tienda/portal/paginas.tsx:18,77,147-151` | Solo hay dos estados (EN_PRODUCCION → DESPACHADO). No hay incidencias. |
 | 7.9 | Administración central que aprueba y audita | PARCIAL | `catalogo.ts:68-100`; `admin/proveedores.tsx` | El staff crea y edita, pero no hay flujo de aprobación. |
-| 7.10 | La banda conecta o habilita un proveedor | DISTINTO | `catalogo.ts:148-154` | |
-| 7.11 | Ve el catálogo de ese proveedor | DISTINTO | `modulos/tienda/panel/producto.tsx:72` | Ve todo el catálogo global, sin proveedor. |
+| 7.10 | La banda conecta o habilita un proveedor | OK | `catalogo.ts:148-154` | **3.ª vuelta:** B3: la banda elige el proveedor por producto; con la oferta retirada, reasigna en un clic. |
+| 7.11 | Ve el catálogo de ese proveedor | OK | `modulos/tienda/panel/producto.tsx:72` | Ve todo el catálogo global, sin proveedor. **3.ª vuelta:** B3: ve las ofertas de cada proveedor con costo, envío, plazo y margen. |
 | 7.12 | Sube arte, lo ubica en zonas, variantes, nombre, fotos, descripción, precio | PARCIAL | `productos.ts:34-63,81-117`; `esquema.prisma:111-112` | No hay zonas y hay una sola foto por producto. |
 | 7.13 | Deoco valida el diseño contra la especificación | PARCIAL | `modulos/tienda/impresion.ts:25-76`; `tests/tienda-panel.test.ts:81-127` | Valida formato, píxeles, dpi y página del PDF, sobre un área única. No valida zonas, colores ni técnicas, porque no existen. |
 | 7.14 | Publica el producto | OK | `productos.ts:167-181` | |
@@ -285,9 +317,9 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 | 7.28 | Reclamo con evidencia e historial | FALTA | grep `reclamo`, `incidencia`, `disputa` | |
 | 7.29 | Mediación de Deoco | FALTA | — | |
 | 7.30 | Escalamiento automático | FALTA | `src/nucleo/barrido.ts` | |
-| 7.31 | Cambiar el diseño crea un producto nuevo | DISTINTO | `productos.ts:104-114,143-160` | Se cambia en el mismo producto. |
-| 7.32 | Las órdenes conservan el diseño original | DISTINTO | `esquema.prisma:186-215`; `proveedor.ts:104,119,145` | **Bug activo.** |
-| 7.33 | Duplicar una configuración | FALTA | grep `duplic` (solo pagos duplicados) | |
+| 7.31 | Cambiar el diseño crea un producto nuevo | OK | `productos.ts:104-114,143-160` | Se cambia en el mismo producto. **3.ª vuelta:** B5 (y el 3.2): con un pedido pagado, cambiar el arte crea una versión (`tienda_diseno.reemplazaAId`) e historial. |
+| 7.32 | Las órdenes conservan el diseño original | OK | `esquema.prisma:186-215`; `proveedor.ts:104,119,145` | **Bug activo.** **3.ª vuelta:** A1: cada renglón guarda su `disenoId`. |
+| 7.33 | Duplicar una configuración | OK | grep `duplic` (solo pagos duplicados) | **3.ª vuelta:** A1: `duplicarProducto`. |
 | 7.34 | La banda declara derechos sobre lo que sube | FALTA | `modulos/tienda/panel/disenos.tsx:31-44` | |
 | 7.35 | Denuncia y baja rápida | FALTA | grep `denuncia` | |
 
@@ -318,12 +350,12 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 | 9.8 | Listas de invitados | FALTA | grep `invitad` | |
 | 9.9 | Ingreso de invitados separado | FALTA | — | |
 | 9.10 | Nominadas activables por evento, verificadas en puerta | DISTINTO | `compras.ts:19,32-36` | Siempre obligatorias. En la puerta solo se muestran. |
-| 9.11 | QR firmado | DISTINTO | `compras.ts:152-154`; `correos.ts:11-12` | Sin firma. |
+| 9.11 | QR firmado | OK | `compras.ts:152-154`; `correos.ts:11-12` | Sin firma. **3.ª vuelta:** A1: QR firmado con HMAC por banda (`firma.ts`). |
 | 9.12 | Valida real, del evento y no usado; marca ingresado | OK | `puerta.ts:33-44`; `tests/ticketera.test.ts:227-258` | Con 6 validaciones simultáneas pasa una sola. |
 | 9.13 | PWA | FALTA | sin manifest ni service worker | |
-| 9.14 | Invitación individual y revocable | PARCIAL | `src/app/admin/_servidor/bandas.ts:271-292,309-326` | Individual y revocable, pero solo la hace el staff y sin mail. |
+| 9.14 | Invitación individual y revocable | OK | `src/app/admin/_servidor/bandas.ts:271-292,309-326` | Individual y revocable, pero solo la hace el staff y sin mail. **3.ª vuelta:** D7: el titular invita por email con el rol Puerta y lo saca desde Equipo (cesa al instante). |
 | 9.15 | Limitada al evento | DISTINTO | `nucleo.prisma:74-86` | Vale para toda la banda. |
-| 9.16 | Solo escaneo, sin admin ni pagos | DISTINTO | `modulos/tienda/index.ts:37`; `modulos/sitio/index.ts:19` | Ve pedidos, montos y deuda. |
+| 9.16 | Solo escaneo, sin admin ni pagos | OK | `modulos/tienda/index.ts:37`; `modulos/sitio/index.ts:19` | Ve pedidos, montos y deuda. **3.ª vuelta:** A1: el único permiso de PUERTA es `ticketera.puerta.validar`. |
 | 9.17 | Registra quién escaneó | OK | `esquema.prisma:124`; `puerta.ts:37` | Se guarda. Ninguna pantalla lo muestra. |
 | 9.18 | Validación online | OK | `panel/acciones.ts:130-133` → `puerta.ts:18-46` | |
 | 9.19 | Estado de conexión de los escáneres | PARCIAL | `panel/puerta-cliente.tsx:134` | Cada teléfono ve el suyo. No hay vista general. |
@@ -331,12 +363,12 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 | 9.21 | Sin conexión: avisar y reconciliar | DISTINTO | `puerta.ts:1-5` | Sin conexión no deja pasar a nadie. |
 | 9.22 | Lista descargable y registro manual | FALTA | `docs/decisiones-pendientes.md:398-404` | Decisión de no hacerlo. |
 | 9.23 | Lista impresa y carga posterior | FALTA | ídem | |
-| 9.24 | Transferencias | FALTA | grep `transfer` | |
-| 9.25 | Reenvío sin duplicar | FALTA | `correos.ts:64` | |
+| 9.24 | Transferencias | OK | grep `transfer` | **3.ª vuelta:** D5: transferencia con doble confirmación por mail; el QR viejo deja de valer (la puerta dice «transferida»). |
+| 9.25 | Reenvío sin duplicar | OK | `correos.ts:64` | **3.ª vuelta:** D5: `reenviarEntradas` (mismas entradas, 3 por día), desde la compra y desde Mis compras. |
 | 9.26 | Reprogramación | PARCIAL | `eventos.ts:42-52` | Se edita la fecha y las entradas siguen. No hay aviso a los compradores ni devolución. |
 | 9.27 | Cancelación con reembolso masivo | FALTA | `eventos.ts:114-121`; `esquema.prisma:62-67` | |
 | 9.28 | Reportes en tiempo real | PARCIAL | `panel/paginas.tsx`; `puerta.ts:51-65` | Los ingresados se ven solo en la puerta. No se separan pagas e invitados. El panel no se refresca solo. |
-| 9.29 | Límite por comprador | DISTINTO | `compras.ts:18` | 10 por compra, fijo. |
+| 9.29 | Límite por comprador | OK | `compras.ts:18` | 10 por compra, fijo. **3.ª vuelta:** C1.8 y D0: frenos por compra, por persona, por email e IP, configurables por show. |
 | 9.30 | Cola de espera | FALTA | grep `cola`, `espera` | |
 | 9.31 | Reserva temporal del cupo | OK | `compras.ts:17,52-59,98,120-126`; `tests/ticketera.test.ts:139` | 20 minutos. |
 | 9.32 | Sin butacas en la primera etapa | OK | grep `butaca`, `asiento`, `seat`: 0 | No se construyó, como pide el documento. |
@@ -345,17 +377,17 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| 10.1 | "Mis compras" | FALTA | `modulos/ticketera/index.ts:40`; `modulos/tienda/index.ts:69` | Una página suelta por compra, por módulo y por banda. |
-| 10.2 | Acceso por enlace seguro, sin contraseña | PARCIAL | `src/nucleo/publico/acceso.ts:16-29`; `canjear-link.tsx`; `compras.ts:229-238` | Un link por compra. No hay "mandame el acceso" a pedido. |
+| 10.1 | "Mis compras" | OK | `modulos/ticketera/index.ts:40`; `modulos/tienda/index.ts:69` | Una página suelta por compra, por módulo y por banda. **3.ª vuelta:** D5: `/mis-compras` con los pedidos y las entradas (QR) de cada módulo (`areaDelFan`). |
+| 10.2 | Acceso por enlace seguro, sin contraseña | OK | `src/nucleo/publico/acceso.ts:16-29`; `canjear-link.tsx`; `compras.ts:229-238` | Un link por compra. No hay "mandame el acceso" a pedido. **3.ª vuelta:** D5: «mandame el link» a pedido: un solo uso, 30 minutos, el anterior deja de servir. |
 | 10.3 | Contraseña opcional más adelante | PENDIENTE | — | El documento lo deja para después. |
-| 10.4 | Confirmación por correo para acciones sensibles | FALTA | — | No hay ninguna acción sensible del fan todavía. |
+| 10.4 | Confirmación por correo para acciones sensibles | OK | — | No hay ninguna acción sensible del fan todavía. **3.ª vuelta:** D5: transferir una entrada se confirma por mail. |
 | 10.5 | Datos del fan aislados por banda | OK | migración `ticketera:93-96`; `acceso.ts:17-23`; `tests/ticketera.test.ts:206,227-247` | |
 
 ### §11 · Facturación y pasarelas
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| 11.1 | La banda factura; Deoco registra órdenes | PARCIAL | `modulos/tienda/esquema.prisma:140`; `modulos/ticketera/esquema.prisma:70` | Las órdenes se registran. La banda no tiene ningún soporte para facturar. |
+| 11.1 | La banda factura; Deoco registra órdenes | PARCIAL | `modulos/tienda/esquema.prisma:140`; `modulos/ticketera/esquema.prisma:70` | Las órdenes se registran. La banda no tiene ningún soporte para facturar. **3.ª vuelta:** C1.10: cada venta guarda la foto fiscal (vendedor, comprador, renglones, IVA): la banda tiene los datos para facturar. Sigue sin integración. |
 | 11.2 | Integraciones fiscales por país | FALTA | grep `arca`, `afip`, `factura`, `país` | El tenant no tiene país. |
 | 11.3 | Credenciales fiscales propias | FALTA | `src/nucleo/pagos/index.ts:29-31` | Solo están las de la pasarela. |
 | 11.4 | Integración progresiva, con asesoría | PENDIENTE | — | |
@@ -369,21 +401,21 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 | 12.1 | Tickets de soporte | FALTA | grep `soporte`, `severidad` | |
 | 12.2 | Severidades de 1 h, 8 h y 24 h | FALTA | — | |
 | 12.3 | Modo evento | FALTA | — | |
-| 12.4 | Entrada temporal sin contraseña | DISTINTO | `src/nucleo/permisos/puede.ts:24-29`; `src/nucleo/acceso/panel.ts:52-63` | Acceso permanente del staff. |
-| 12.5 | Aviso visible | PARCIAL | `src/app/b/[slug]/page.tsx:27` | Solo en Inicio, y solo lo ve el staff. |
+| 12.4 | Entrada temporal sin contraseña | OK | `src/nucleo/permisos/puede.ts:24-29`; `src/nucleo/acceso/panel.ts:52-63` | Acceso permanente del staff. **3.ª vuelta:** D3: sesión de soporte con motivo y vencimiento (15/30/60 min), permisos de gestor. |
+| 12.5 | Aviso visible | OK | `src/app/b/[slug]/page.tsx:27` | Solo en Inicio, y solo lo ve el staff. **3.ª vuelta:** D3: aviso en todo el panel mientras dura (al staff y a la banda). |
 | 12.6 | Permisos recortados (sin pagos ni facturación) | OK | `puede.ts:29`; `exigirTitular` en `/pago`, `/credenciales`, `/dominios`, `/correo` | No toca la pasarela ni la cuota. Sí ve pedidos con montos y edita precios. |
-| 12.7 | Registro consultable por la banda | PARCIAL | `src/nucleo/acceso/registro-staff.ts:10-31` | Se escribe una fila cada 10 minutos. Nadie la puede leer. |
-| 12.8 | Auditoría de publicaciones, precios, transferencias, soporte, configuración, reclamos | PARCIAL | `src/app/admin/_servidor/*`; `src/nucleo/secretos/carga.ts:133,158`; `src/nucleo/dominios/*` | No se auditan publicaciones, precios ni la ticketera. Reclamos y transferencias no existen. |
-| 12.9 | La banda consulta sus movimientos | FALTA | grep `auditoria` en `src/app/b` y `modulos`: solo escrituras | |
+| 12.7 | Registro consultable por la banda | OK | `src/nucleo/acceso/registro-staff.ts:10-31` | Se escribe una fila cada 10 minutos. Nadie la puede leer. **3.ª vuelta:** D3 y C1.7: la banda ve las visitas del soporte y lo que hizo en Actividad. |
+| 12.8 | Auditoría de publicaciones, precios, transferencias, soporte, configuración, reclamos | PARCIAL | `src/app/admin/_servidor/*`; `src/nucleo/secretos/carga.ts:133,158`; `src/nucleo/dominios/*` | No se auditan publicaciones, precios ni la ticketera. Reclamos y transferencias no existen. **3.ª vuelta:** C1.7: se auditan los guardados del panel (publicar, precios), soporte, equipo, dominios, cuota. Transferencias en su tabla. Falta: reclamos (no existen). |
+| 12.9 | La banda consulta sus movimientos | OK | grep `auditoria` en `src/app/b` y `modulos`: solo escrituras | **3.ª vuelta:** C1.7: `/b/<slug>/actividad`. |
 
 ### §13 · Datos, comunicaciones y cumplimiento
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| 13.1 | Base de contactos exportable | FALTA | grep `newsletter`, `contactos`, `csv` | |
-| 13.2 | Doble opt-in | FALTA | — | |
-| 13.3 | Baja en un clic | FALTA | — | |
-| 13.4 | Registro de consentimiento | FALTA | — | |
+| 13.1 | Base de contactos exportable | OK | grep `newsletter`, `contactos`, `csv` | **3.ª vuelta:** D4 y D-infra: la base de fans va entera (con el consentimiento) en la exportación. |
+| 13.2 | Doble opt-in | OK | — | **3.ª vuelta:** D4: doble confirmación por mail. |
+| 13.3 | Baja en un clic | OK | — | **3.ª vuelta:** D4: baja en un clic (link y `List-Unsubscribe` RFC 8058). |
+| 13.4 | Registro de consentimiento | OK | — | **3.ª vuelta:** D4: fecha, texto que vio y origen del consentimiento. |
 | 13.5 | Verificar el dominio para enviar correo | OK | `src/nucleo/dominios/correo.ts`, `envio.ts`; `src/nucleo/correo/remitente-banda.ts` | |
 | 13.6 | Guía paso a paso | OK | `src/app/b/[slug]/correo/page.tsx:29-67` | |
 | 13.7 | Remitente temporal | OK | `remitente-banda.ts:6-9` | |
@@ -393,8 +425,8 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 | 13.11 | Textos y diseños | OK | `modulos/sitio/esquema.prisma:27-30`; `modulos/tienda` | |
 | 13.12 | Moderación | FALTA | — | |
 | 13.13 | Denuncia y baja | FALTA | — | |
-| 13.14 | Analítica | PARCIAL | `modulos/tienda/inicio.ts:11-40`; `modulos/ticketera/inicio.ts` | Solo contadores de ventas. No hay visitas, geografía, repetición ni mailing. |
-| 13.15 | Vista consolidada del manager | FALTA | `src/app/page.tsx:36-55` | Solo una lista de bandas. |
+| 13.14 | Analítica | PARCIAL | `modulos/tienda/inicio.ts:11-40`; `modulos/ticketera/inicio.ts` | Solo contadores de ventas. No hay visitas, geografía, repetición ni mailing. **3.ª vuelta:** D4: geografía, repetición y crecimiento del mailing en Fans; ventas en el inicio. Faltan visitas y rendimiento por producto. |
+| 13.15 | Vista consolidada del manager | OK | `src/app/page.tsx:36-55` | Solo una lista de bandas. **3.ª vuelta:** D7: portal del manager (roster, calendario, comparar, exportar), solo agregados. |
 | 13.16 | Medición de espacio, correos, tráfico y picos | PARCIAL | `src/nucleo/archivos/index.ts:41-46`; `src/app/admin/page.tsx:49,86` | Solo se mide el espacio. |
 | 13.17 | Sin límites iniciales | DISTINTO | `src/nucleo/archivos/index.ts:38`; `src/nucleo/cuenta/index.ts:171-199` | |
 
@@ -402,11 +434,11 @@ Las 20 filas cubren los 25 requisitos DISTINTO: algunas agrupan varios, como 7.3
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| 14.1 | 60 días, después se despublica y se bloquean ventas | DISTINTO | `modulos/comercial/cuenta.ts:78`; `reglas.ts:48-50` | 10 días, con el panel cerrado y el sitio vendiendo. |
+| 14.1 | 60 días, después se despublica y se bloquean ventas | OK | `modulos/comercial/cuenta.ts:78`; `reglas.ts:48-50` | 10 días, con el panel cerrado y el sitio vendiendo. **3.ª vuelta:** B1: escalera de 60 días (aviso, solo lectura a 30, suspendido a 60). |
 | 14.2 | No se borran órdenes, entradas ni registros | OK | `tests/comercial.test.ts:262-275`; no hay borrados de pedidos, compras ni entradas | Ojo: la limpieza de correos borra filas a los 365 días (14.4). |
-| 14.3 | El escaneo sigue con eventos vendidos | DISTINTO | `modulos/ticketera/index.ts:35-36`; `reglas.ts:50,53` | |
+| 14.3 | El escaneo sigue con eventos vendidos | OK | `modulos/ticketera/index.ts:35-36`; `reglas.ts:50,53` | **3.ª vuelta:** A1: la puerta sigue con la banda cerrada para los shows vendidos. |
 | 14.4 | Conservación por el plazo legal | PARCIAL | `src/nucleo/correo/limpieza.ts:15-33` | No hay política de retención. Lo único que se borra son los correos (adjuntos a 7 días, cuerpo a 90, fila a 365), incluidos los de entradas y compras. |
-| 14.5 | Exportación de datos | FALTA | grep `csv`, `exportar` | |
+| 14.5 | Exportación de datos | OK | grep `csv`, `exportar` | **3.ª vuelta:** D-infra: exportación completa (zip CSV + JSON + archivos), sin trámite, en todo estado. |
 | 14.6 | Página pública de estado | FALTA | grep `estado`, `status`, `incidente` | |
 
 ### §15 · Sitio de Deoco y área privada

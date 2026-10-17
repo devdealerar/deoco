@@ -18,6 +18,41 @@ Cubre dos cosas:
 
    Lo que la primera auditoría ya marcó acá no se repite, se cita.
 
+## Tercera vuelta (2026-10-17, después de los bloques C y D)
+
+Se volvió a mirar cada requisito que no estaba en OK. Los que cambiaron llevan **3.ª vuelta:** con
+el bloque y la evidencia; el organizador de lanzamiento (L.1–L.9) tiene ahora su tabla con estados.
+Las cifras del resumen de abajo son las de la segunda vuelta; las de ahora:
+
+| Estado | 2.ª vuelta | 3.ª vuelta |
+|---|---|---|
+| OK | 35 | 80 |
+| DISTINTO | 16 | 7 |
+| PARCIAL | 27 | 19 |
+| FALTA | 88 | 60 |
+| PENDIENTE | 4 | 4 |
+| NO APLICA | 5 | 5 |
+| **Total** | **175** | **175** |
+
+**Las 60 FALTA que quedan**, por tema:
+
+- Registro de obra (etapa 4): O.1–O.14 (y O.P, PENDIENTE: ¿la obra es de la banda o de la persona?).
+- Dinero y liquidación, el modelo de crédito B4 (etapa 3): D.5, D.9, D.10, D.13, D.14, D.15, D.19, D.20.
+- Fiscal (etapa 6): Fi.2–Fi.6. (Fi.1, el dato desde la primera venta, está.)
+- Tienda y proveedores: Ti.3, Ti.6, Ti.8, Ti.10, Ti.12, Ti.13 (reclamos, stock, cobertura, denuncias),
+  Pr.1, Pr.5, Pr.9, Pr.10, Pr.11, Pr.13, Pr.14 (directorios, reseñas, escalamiento).
+- Soporte y guardia: K.1, K.13, K.14, K.15; K.12 (eliminación total de la banda con retención).
+- Ticketing: E.1 (cancelar un show con reembolso masivo), E.8 (promotores).
+- Sitio y panel: N.4 (plantillas curadas), S.4–S.6 (idiomas, embebidos, formulario de contacto), P.1
+  (bloqueo de edición concurrente).
+- Infraestructura: I.5 (dos nodos), I.6 e I.7 (particionar auditoría y envíos), I.8 (alerta de ancho de banda).
+- Multipaís (etapa 5): X.2, X.3, X.8.
+- Salida comercial: C.3 (guion para creativos; no es código).
+
+**Lo que más pesa de lo que queda:** E.1 (no hay cómo cancelar un show y devolver todo junto: hoy se
+devuelve compra por compra) y K.12 (la baja total de una banda). El resto es de etapas posteriores o
+de producto por definir.
+
 ## Antes de leer
 
 - **Método.** Cada sección del 3.2 se partió en requisitos atómicos: cada respuesta ratificada y cada caso de borde de «¿Se ratifican los casos de excepción?». Cada requisito se buscó en el código. Las evidencias se dan como `ruta:línea`, verificadas leyendo el archivo. Los hallazgos de la sección 5 se volvieron a abrir uno por uno.
@@ -161,34 +196,34 @@ Cubre dos cosas:
 | T.1 | td1: el dinero de las ventas no pasa por Deoco | OK | `src/nucleo/pagos/mercadopago.ts:269-283`; `src/nucleo/pagos/cuota.ts` | Solo entran la cuota y los dominios, que son servicio. |
 | T.2 | td2: la cuenta es del músico | PARCIAL | `prisma/migrations/20261104100000_autogestion/migration.sql:88-90` | Usuario global y varias bandas. Pero el alta sola permite una banda por cuenta para siempre, y la persona no puede irse. Ver B6 en `docs/decisiones-pendientes.md`. |
 | T.3 | td3: aislamiento en el motor | OK | `tests/aislamiento.test.ts` | |
-| T.4 | td3: exportación siempre | FALTA | `src/nucleo/tenant/reglas.ts:87-89` | Archivada, la banda no ve sus datos. |
-| T.5 | td3: registro de actividad obligatorio | PARCIAL | `src/nucleo/acceso/acciones.ts:33-36` | Lo escriben el back office, el staff, la cuenta, los dominios y el proveedor. Las acciones del panel de sitio, tienda y ticketera no. Además, la app puede borrar la auditoría (5.6). |
+| T.4 | td3: exportación siempre | OK | `src/nucleo/tenant/reglas.ts:87-89` | Archivada, la banda no ve sus datos. **3.ª vuelta:** D-infra: exportación completa, abierta en todo estado (también archivada). |
+| T.5 | td3: registro de actividad obligatorio | OK | `src/nucleo/acceso/acciones.ts:33-36` | Lo escriben el back office, el staff, la cuenta, los dominios y el proveedor. Las acciones del panel de sitio, tienda y ticketera no. Además, la app puede borrar la auditoría (5.6). **3.ª vuelta:** C1.7: `accionesDelPanel` audita cada guardado; auditoría inmutable. |
 
 ### Núcleo: decisiones y casos
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| N.1 | d1: niveles 1/3/7, lanzar con 2 | DISTINTO | `prisma/migrations/20261103130000_comercial/migration.sql:101-106` | 4 planes. |
-| N.2 | d2: el espacio es red de seguridad; separan los topes de productos, imágenes y eventos | PARCIAL | `modulos/tienda/index.ts:57`; `modulos/ticketera/index.ts:82` | **No hay tope de imágenes.** El cálculo de «unos siete años» no está en el repo: 1/5/20/100 GB es un punto de partida. Además se vende «más espacio» (`modulos/comercial/cuenta.ts:173-184`, `panel/pago.tsx:31`), contra I.1. |
+| N.1 | d1: niveles 1/3/7, lanzar con 2 | OK | `prisma/migrations/20261103130000_comercial/migration.sql:101-106` | 4 planes. **3.ª vuelta:** Decisión C: Demo y Escenario a la venta (lanzar con dos); Gira y Sello cerrados. |
+| N.2 | d2: el espacio es red de seguridad; separan los topes de productos, imágenes y eventos | OK | `modulos/tienda/index.ts:57`; `modulos/ticketera/index.ts:82` | **No hay tope de imágenes.** El cálculo de «unos siete años» no está en el repo: 1/5/20/100 GB es un punto de partida. Además se vende «más espacio» (`modulos/comercial/cuenta.ts:173-184`, `panel/pago.tsx:31`), contra I.1. **3.ª vuelta:** D1: topes de productos, imágenes y shows por mes; el espacio, red de seguridad. |
 | N.3 | d3: ninguna consulta cruza bandas | OK | `tests/aislamiento.test.ts` | |
 | N.4 | d4: plantillas curadas | FALTA | `modulos/sitio/esquema.prisma:18-37` | |
-| N.5 | d5: una cuota nunca corta una operación | DISTINTO | `src/nucleo/cuenta/index.ts:78-80` | Ver DISTINTO 1 y 5.1. |
+| N.5 | d5: una cuota nunca corta una operación | OK | `src/nucleo/cuenta/index.ts:78-80` | Ver DISTINTO 1 y 5.1. **3.ª vuelta:** C1.1: un módulo con algo en curso queda como excedente; nada vendido se corta. |
 | N.6 | Tope con venta abierta → nunca se corta | OK | `modulos/ticketera/eventos.ts:66-73`; `tests/comercial.test.ts:152-184` | |
 | N.7 | Tope de espacio → se bloquean cargas; no se borra nada | OK | `src/nucleo/archivos/index.ts:113-126`; `tests/archivos.test.ts:108-120` | |
 | N.8 | Baja de plan con productos de más → salen los más nuevos, sin borrar | OK | `modulos/tienda/productos.ts:295-309` | |
-| N.9 | Baja de plan con dominio propio → vuelve el subdominio | DISTINTO | `src/nucleo/dominios/index.ts` | El dominio no depende del plan. |
-| N.10 | Subir a mitad de período → diferencia proporcional | DISTINTO | `modulos/comercial/cuenta.ts:203-221` | |
-| N.11 | Evento puntual que excede el plan → complemento | FALTA | grep `complement`, `prorrat` | |
-| N.12 | El titular se va → la titularidad pasa a otro | PARCIAL | `src/app/admin/_servidor/bandas.ts:257-265,295-323` | Solo lo hace el staff. La regla está en la app, no en la base. |
-| N.13 | Conflicto interno → el titular registrado conserva el control | PARCIAL | `src/nucleo/personas/index.ts:7-11` | Puede haber varios TITULAR; `titularDeBanda` toma el primero. |
-| N.14 | Usuario revocado con sesión abierta → cae en el siguiente movimiento | PARCIAL | `src/nucleo/acceso/resolver.ts:15-25`; `src/nucleo/auth/index.ts:15-45` | La membresía sí. A la persona no se la puede dar de baja, y cambiar la clave no cierra otras sesiones. |
-| N.15 | La banda revoca al manager desde su panel | FALTA | sin pantalla de miembros en `src/app/b/[slug]` | |
+| N.9 | Baja de plan con dominio propio → vuelve el subdominio | OK | `src/nucleo/dominios/index.ts` | El dominio no depende del plan. **3.ª vuelta:** C: `comercial_plan.dominioPropio` → sin él, el dominio propio redirige al subdominio. |
+| N.10 | Subir a mitad de período → diferencia proporcional | OK | `modulos/comercial/cuenta.ts:203-221` | **3.ª vuelta:** C: prorrateo con el próximo cobro (`cargoPendiente`). |
+| N.11 | Evento puntual que excede el plan → complemento | OK | grep `complement`, `prorrat` | **3.ª vuelta:** D1: complementos sueltos (staff los define, la banda los compra en /pago). |
+| N.12 | El titular se va → la titularidad pasa a otro | OK | `src/app/admin/_servidor/bandas.ts:257-265,295-323` | Solo lo hace el staff. La regla está en la app, no en la base. **3.ª vuelta:** C4/D0: Equipo en el panel; la base impone un solo titular. |
+| N.13 | Conflicto interno → el titular registrado conserva el control | OK | `src/nucleo/personas/index.ts:7-11` | Puede haber varios TITULAR; `titularDeBanda` toma el primero. **3.ª vuelta:** D0: un solo titular registrado (`membresia_un_titular`). |
+| N.14 | Usuario revocado con sesión abierta → cae en el siguiente movimiento | OK | `src/nucleo/acceso/resolver.ts:15-25`; `src/nucleo/auth/index.ts:15-45` | La membresía sí. A la persona no se la puede dar de baja, y cambiar la clave no cierra otras sesiones. **3.ª vuelta:** C3: `versionSesion` (cambiar la clave o «Cerrar sesiones»). |
+| N.15 | La banda revoca al manager desde su panel | OK | sin pantalla de miembros en `src/app/b/[slug]` | **3.ª vuelta:** C4: Equipo en el panel; D7: invitaciones. |
 
 ### Sitio: casos
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| S.1 | Dominio mal configurado → sigue el subdominio | DISTINTO | ver DISTINTO 2 | |
+| S.1 | Dominio mal configurado → sigue el subdominio | OK | ver DISTINTO 2 | **3.ª vuelta:** C1.9: solo se redirige al principal si está sano. |
 | S.2 | El certificado no se emite → reintento; se sirve por el subdominio | OK | `marcarPrincipal`; `tests/dominios.test.ts:266` | Si después el principal pierde el certificado, pasa lo de S.1. |
 | S.3 | Imagen fuera de medida → recorte por punto focal | PARCIAL | `src/nucleo/archivos/index.ts:73-80`; `modulos/sitio/vista/home.tsx:28,59` | El recorte es centrado, sin punto focal. Hay una carrera que puede dejar una imagen rota (5.10). |
 | S.4 | Idioma sin traducir → el principal | FALTA | | No hay idiomas. |
@@ -201,49 +236,49 @@ Cubre dos cosas:
 |---|---|---|---|---|
 | P.1 | Dos personas en el mismo bloque → se bloquea | FALTA | `modulos/sitio/acciones.ts:50-80` | Gana el último. |
 | P.2 | Espacio superado → no se borra; se bloquean cargas | OK | | |
-| P.3 | Cupo de newsletter | FALTA | | No hay newsletter. |
+| P.3 | Cupo de newsletter | OK | | No hay newsletter. **3.ª vuelta:** D4: cupo diario por reputación; lo que no entra sale al día siguiente. |
 
 ### Manager y plan Sello
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| M.1 | Entorno del representante con varios artistas | FALTA | `src/app/page.tsx:39-55` | Solo existe el selector «Tus bandas». |
-| M.2 | Plan Sello aparte | FALTA | migración comercial:101-106 | Cuadra con «se abre cuando haya clientes». |
-| M.3 | Vista consolidada, solo agregados | FALTA | `src/nucleo/cuenta/medicion.ts:10` | |
+| M.1 | Entorno del representante con varios artistas | OK | `src/app/page.tsx:39-55` | Solo existe el selector «Tus bandas». **3.ª vuelta:** D7: portal del manager. |
+| M.2 | Plan Sello aparte | PARCIAL | migración comercial:101-106 | Cuadra con «se abre cuando haya clientes». **3.ª vuelta:** D7: el producto existe (sellos y accesos del staff) y el plan Sello es cerrado; falta el precio por banda decreciente (no definido). |
+| M.3 | Vista consolidada, solo agregados | OK | `src/nucleo/cuenta/medicion.ts:10` | **3.ª vuelta:** D7: solo números agregados por consultas de cada banda. |
 | M.4 | Nunca se unifican bases de fans | OK | RLS + `resolver.ts:15-25` | |
 | M.5 | Una banda del roster deja de pagar → solo esa | OK | `modulos/comercial/esquema.prisma:65-66` | Cuenta por banda. |
-| M.6 | Exportar el roster: agregados; los fans, con autorización | FALTA | | |
-| M.7 | La banda revoca al manager: cesa ya y no se borra nada | PARCIAL | `resolver.ts:15-25`; `nucleo.prisma:80-92`; `bandas.ts:309-324` | Cesa ya y no se borra nada, pero solo lo hace el staff. |
+| M.6 | Exportar el roster: agregados; los fans, con autorización | OK | | **3.ª vuelta:** D7: CSV de agregados; los fans, cada banda desde su panel. |
+| M.7 | La banda revoca al manager: cesa ya y no se borra nada | OK | `resolver.ts:15-25`; `nucleo.prisma:80-92`; `bandas.ts:309-324` | Cesa ya y no se borra nada, pero solo lo hace el staff. **3.ª vuelta:** D7/C4: la banda saca al manager desde Equipo; cesa ya y no se borra nada (`tests/manager.test.ts`). |
 
 ### Público y fan: casos
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
 | F.1 | Sin registro ni contraseña | OK | `src/nucleo/publico/acceso.ts` | |
-| F.2 | Enlace de un solo uso | DISTINTO | ver DISTINTO 6 | |
+| F.2 | Enlace de un solo uso | PARCIAL | ver DISTINTO 6 | **3.ª vuelta:** D5: Mis compras entra con link de un solo uso. El link de cada compra (el del mail de entradas o del pedido) sigue sirviendo hasta que la banda corrige el email; C3 lo guarda solo como hash. |
 | F.3 | Datos aislados por banda | OK | | |
 | F.4 | Misma persona en dos bandas → sin correlación | OK | no hay tabla global de fans | |
-| F.5 | Link vencido → uno nuevo; el anterior deja de andar | FALTA | | |
-| F.6 | Email mal escrito → lo corrige la banda, con comprobante | FALTA | | |
-| F.7 | No recibió el correo → reenvío | FALTA | | |
-| F.8 | Transferencia no aceptada → vuelve al emisor | FALTA | | No hay transferencias. |
-| F.9 | Baja de datos → se anonimiza y se conserva la orden | FALTA | grep `anonimiz` | Riesgo legal. |
+| F.5 | Link vencido → uno nuevo; el anterior deja de andar | OK | | **3.ª vuelta:** D5: pedir otro link invalida el anterior. |
+| F.6 | Email mal escrito → lo corrige la banda, con comprobante | PARCIAL | | **3.ª vuelta:** D5: en las entradas, la banda lo corrige con el comprobante (rota el link). En la tienda todavía no. |
+| F.7 | No recibió el correo → reenvío | OK | | **3.ª vuelta:** D5: reenvío desde la compra y desde Mis compras. |
+| F.8 | Transferencia no aceptada → vuelve al emisor | OK | | No hay transferencias. **3.ª vuelta:** D5: vence a las 72 h o al empezar el show; la entrada no se toca. |
+| F.9 | Baja de datos → se anonimiza y se conserva la orden | OK | grep `anonimiz` | Riesgo legal. **3.ª vuelta:** D2: supresión anonimiza y conserva la foto fiscal y lo en curso. |
 
 ### Organizador de lanzamiento
 
-Los nueve requisitos están en FALTA. El módulo no existe: grep de `lanzamiento`, `campaña`, `hito` y `cronograma` sin resultados.
+**3.ª vuelta (D6):** el módulo `lanzamiento` existe. Los nueve requisitos, OK.
 
-| ID | Requisito |
-|---|---|
-| L.1 | Herramienta interna del panel, sin nada en el sitio |
-| L.2 | Campaña por lanzamiento con un cronograma armado solo (~20 tareas con dependencias) |
-| L.3 | Entregables: piezas gráficas por formato |
-| L.4 | Se mueve la fecha → todo se recalcula y se mantienen las distancias |
-| L.5 | Faltan menos de 30 días → lo vencido se muestra como atrasado |
-| L.6 | Hito vencido → aparece en el inicio. Ojo: el inicio corta en 8 pendientes por bloque (`src/nucleo/inicio/index.ts:31`) |
-| L.7 | Pieza fuera de medida → «no conforme», no bloquea |
-| L.8 | Medidas de plataforma editables por el back office. El mecanismo existe (`tablasGlobales` + `rutasAdmin`); las medidas siguen PENDIENTES en c2 |
-| L.9 | Campaña cancelada → se archiva; los archivos quedan en la biblioteca. No hay biblioteca del núcleo |
+| ID | Requisito | Estado | Evidencia |
+|---|---|---|---|
+| L.1 | Herramienta interna del panel, sin nada en el sitio | OK | `modulos/lanzamiento/index.ts` (sin `rutasPublicas`) |
+| L.2 | Campaña por lanzamiento con un cronograma armado solo (~20 tareas con dependencias) | OK | `campanias.ts` `crearCampania`; plantilla de 21 tareas con `dependeDe` |
+| L.3 | Entregables: piezas gráficas por formato | OK | `lanzamiento_pieza`, una por formato |
+| L.4 | Se mueve la fecha → todo se recalcula y se mantienen las distancias | OK | `moverFecha` (`tests/lanzamiento.test.ts`) |
+| L.5 | Faltan menos de 30 días → lo vencido se muestra como atrasado | OK | `estadoDeHito`; aviso en la campaña |
+| L.6 | Hito vencido → aparece en el inicio. Ojo: el inicio corta en 8 pendientes por bloque (`src/nucleo/inicio/index.ts:31`) | OK | `inicio.ts`: un pendiente por campaña con cuántos (no se corta en silencio) |
+| L.7 | Pieza fuera de medida → «no conforme», no bloquea | OK | `cumpleMedida` + `conforme` |
+| L.8 | Medidas de plataforma editables por el back office. El mecanismo existe (`tablasGlobales` + `rutasAdmin`); las medidas siguen PENDIENTES en c2 | OK | `/admin/m/lanzamiento` (`lanzamiento_formato`, `lanzamiento_tarea_base`, globales); medidas de arranque a confirmar |
+| L.9 | Campaña cancelada → se archiva; los archivos quedan en la biblioteca. No hay biblioteca del núcleo | OK | `cancelarCampania`: archivada, sin borrar; los archivos siguen desde la campaña |
 
 ### Salida comercial
 
@@ -260,7 +295,7 @@ Los nueve requisitos están en FALTA. El módulo no existe: grep de `lanzamiento
 | Ti.1 | d1: el archivo malo se frena antes del proveedor | OK | `modulos/tienda/impresion.ts:50-76`; `tests/tienda-panel.test.ts:83-127` | |
 | Ti.2 | d2: mediación como política, escrita en el contrato | PENDIENTE | | Es texto legal. |
 | Ti.3 | d3: sin arrepentimiento; reclamo por defecto o despacho; reimprime el proveedor | FALTA | grep `reclamo`, `devoluci` | No se le informa la política al fan. |
-| Ti.4 | Arte bajo la resolución mínima → no se publica | PARCIAL | `productos.ts:116-119`; `publicarProducto` no revalida | Si el staff sube la especificación, lo publicado queda como está (5.13). |
+| Ti.4 | Arte bajo la resolución mínima → no se publica | OK | `productos.ts:116-119`; `publicarProducto` no revalida | Si el staff sube la especificación, lo publicado queda como está (5.13). **3.ª vuelta:** C3: `tienda_base_cambiada` despublica lo que deja de cumplir (`revisarDesde`). |
 | Ti.5 | Arte más grande → reencuadre o rechazo | DISTINTO | `impresion.ts:48` | |
 | Ti.6 | Variante sin stock → se oculta esa variante | FALTA | `pedidos.ts:109` | |
 | Ti.7 | Precio menor al costo → se permite y se avisa | OK | `productos.ts:366-375`; `tienda-panel.test.ts:202` | |
@@ -280,9 +315,9 @@ Los nueve requisitos están en FALTA. El módulo no existe: grep de `lanzamiento
 | Pr.3 | d3: hipótesis a validar | PENDIENTE | | |
 | Pr.4 | d4: no se cobra por contacto | OK | | |
 | Pr.5 | No toma la orden en plazo → escalamiento | FALTA | | No existe el paso de «tomarla». |
-| Pr.6 | Discontinúa un producto base → no se venden unidades nuevas | DISTINTO | `catalogo.ts:86`; `pedidos.ts:96-108` | Choca con B3: ver DISTINTO 5. |
+| Pr.6 | Discontinúa un producto base → no se venden unidades nuevas | OK | `catalogo.ts:86`; `pedidos.ts:96-108` | Choca con B3: ver DISTINTO 5. **3.ª vuelta:** B3→3.2: oferta retirada o base desactivada → se despublica y la banda reasigna; lo pagado se produce. |
 | Pr.7 | Cambia el costo → solo para lo que viene | OK | `catalogo.ts:334-347`; `tienda-ofertas.test.ts:112` | |
-| Pr.8 | El proveedor cierra → se despublican sus productos; lo en curso se completa o reembolsa | DISTINTO | `catalogo.ts:86` | Ídem. |
+| Pr.8 | El proveedor cierra → se despublican sus productos; lo en curso se completa o reembolsa | OK | `catalogo.ts:86` | Ídem. **3.ª vuelta:** Un proveedor no se desactiva con ofertas activas; retirarlas despublica (ídem Pr.6). |
 | Pr.9 | Reclamos de calidad → revisión y suspensión | FALTA | | |
 | Pr.10 | Perfil inactivo → se despublica | FALTA | | No hay perfiles. |
 | Pr.11 | Reseña con trabajo declarado por las dos partes | FALTA | | |
@@ -309,9 +344,9 @@ Los nueve requisitos están en FALTA. El módulo no existe: grep de `lanzamiento
 | D.13 | Créditos agotados → se bloquea solo esa función | FALTA | | Etapa 4. |
 | D.14 | Sin crédito → orden retenida | FALTA | `modulos/tienda/esquema.prisma:281-284` | |
 | D.15 | Plazo vencido sin financiar → cancelación y reembolso | FALTA | | El plazo está abierto (B4, punto 1). |
-| D.16 | Acreditado sin aviso → conciliación | FALTA | | Ver 5.2. |
-| D.17 | Pago duplicado → se detecta y se devuelve el excedente | PARCIAL | `src/nucleo/pagos/registro.ts:91-100` | La devolución es a mano. Hay una carrera en la tienda (5.7). |
-| D.18 | Contracargo → la banda lo ve reflejado | FALTA | `registro.ts:91-93` | |
+| D.16 | Acreditado sin aviso → conciliación | OK | | Ver 5.2. **3.ª vuelta:** C1.2: conciliación de tienda, ticketera y cuota. |
+| D.17 | Pago duplicado → se detecta y se devuelve el excedente | OK | `src/nucleo/pagos/registro.ts:91-100` | La devolución es a mano. Hay una carrera en la tienda (5.7). **3.ª vuelta:** C1.4: todo duplicado queda para devolver; la banda lo devuelve desde `/devoluciones`. |
+| D.18 | Contracargo → la banda lo ve reflejado | OK | `registro.ts:91-93` | **3.ª vuelta:** C1.5: `alDevolverse` (entradas anuladas, pedido devuelto). |
 | D.19 | Carga no validada → no acredita; plazo y escalamiento | FALTA | | B4, punto 2. |
 | D.20 | Saldo sin usar y la banda se va → es del proveedor | FALTA | | |
 
@@ -323,8 +358,8 @@ Los nueve requisitos están en FALTA. El módulo no existe: grep de `lanzamiento
 | E.2 | Reprogramado → siguen las entradas; ventana de devolución | PARCIAL | `eventos.ts:42-52` | No se avisa ni hay ventana. |
 | E.3 | Último cupo → se reserva al iniciar el pago | OK | `compras.ts:44-51,66-88`; `ticketera.test.ts:127` | |
 | E.4 | Pago caído → el cupo se libera al vencer | OK | `compras.ts:18,54-60`; `ticketera.test.ts:139` | |
-| E.5 | Cambia el precio entre tandas → rige el del inicio, dentro de la ventana | PARCIAL | `compras.ts:171-178` | Un pago tardío se acepta igual (5.8). |
-| E.6 | Límite por comprador | DISTINTO | `compras.ts:19` | |
+| E.5 | Cambia el precio entre tandas → rige el del inicio, dentro de la ventana | OK | `compras.ts:171-178` | Un pago tardío se acepta igual (5.8). **3.ª vuelta:** C1.3: un pago tardío no se acepta y queda para devolver. |
+| E.6 | Límite por comprador | OK | `compras.ts:19` | **3.ª vuelta:** C1.8/D0: frenos por compra, persona, email e IP, configurables por show. |
 | E.7 | Agregar cupo → lo vendido no cambia | OK | `eventos.ts:113-130`; `ticketera.test.ts:81` | |
 | E.8 | Promotor que se va → código desactivado | FALTA | | No hay promotores. |
 | E.9 | QR ya usado → rechazo y registro del intento con hora y dispositivo | PARCIAL | `puerta.ts:47-49` | Rechaza, pero no guarda el intento repetido. |
@@ -355,7 +390,7 @@ O.1–O.14 FALTA (grep de `obra`, `sadaic`, `inpi`, `dnda` y `transcrip` sin res
 
 | ID | Requisito | Estado | Detalle |
 |---|---|---|---|
-| Fi.1 | Desde el primer día, cada orden guarda la condición fiscal del vendedor, la identificación del comprador y el desglose | FALTA | Ver la lista de FALTA. |
+| Fi.1 | Desde el primer día, cada orden guarda la condición fiscal del vendedor, la identificación del comprador y el desglose | OK | Ver la lista de FALTA. **3.ª vuelta:** C1.10: `fotoFiscal` en cada venta pagada. |
 | Fi.2 | Banda no formalizada → comprobante no fiscal | FALTA | |
 | Fi.3 | Rechazo del organismo → reintento; la venta no se frena | FALTA | |
 | Fi.4 | Credenciales fiscales vencidas → cola | FALTA | |
@@ -373,35 +408,35 @@ O.1–O.14 FALTA (grep de `obra`, `sadaic`, `inpi`, `dnda` y `transcrip` sin res
 | K.5 | d4: dotación | NO APLICA | | |
 | K.6 | d5: automatizar primero alta y autogestión | OK | `src/nucleo/autogestion` | |
 | K.7 | d5: laboratorio y crecimiento | NO APLICA | | |
-| K.8 | Rechazo del medio de pago → reintentos antes de la mora | DISTINTO | `modulos/comercial/cuenta.ts:317-327` | |
+| K.8 | Rechazo del medio de pago → reintentos antes de la mora | OK | `modulos/comercial/cuenta.ts:317-327` | **3.ª vuelta:** D1: un rechazo no pone mora; reintenta y la escalera cuenta desde el vencimiento. |
 | K.9 | Mora con órdenes en producción → se completan; las nuevas se bloquean | OK | `src/nucleo/pagos/index.ts:85-88` | Las nuevas se bloquean en SUSPENDIDO (día 60). |
 | K.10 | Mora con evento vendido → el escaneo sigue | OK | | |
-| K.11 | Regulariza después del corte → vuelve todo, intacto | PARCIAL | `cuenta.ts:311-315`; `src/nucleo/cuenta/index.ts:49` | Desde ARCHIVADO hace falta el staff. Ver 5.5. |
+| K.11 | Regulariza después del corte → vuelve todo, intacto | OK | `cuenta.ts:311-315`; `src/nucleo/cuenta/index.ts:49` | Desde ARCHIVADO hace falta el staff. Ver 5.5. **3.ª vuelta:** C1.6: archivada, /pago sigue abierto; si paga, vuelve ACTIVA (`volver: true`). |
 | K.12 | Eliminación total con retención | FALTA | | |
 | K.13 | Incidente crítico → guardia y página de estado | FALTA | | |
 | K.14 | Severidad mal clasificada → reclasificación | FALTA | | |
 | K.15 | Modo evento con poca antelación | FALTA | | |
-| K.16 | Soporte entra al panel: motivo registrado y sesión auditada | PARCIAL | `src/nucleo/acceso/registro-staff.ts:12-33` | No se pide el motivo. |
+| K.16 | Soporte entra al panel: motivo registrado y sesión auditada | OK | `src/nucleo/acceso/registro-staff.ts:12-33` | No se pide el motivo. **3.ª vuelta:** D3: motivo obligatorio, sesión que vence, auditada y visible para la banda. |
 | K.17 | Mantenimiento fuera de eventos activos | NO APLICA | | No hay una vista de eventos activos de la plataforma. |
 
 ### Infraestructura
 
 | ID | Requisito | Estado | Evidencia | Detalle |
 |---|---|---|---|---|
-| I.1 | d1: el espacio es red de seguridad; no se vende «más espacio» | PARCIAL | `modulos/comercial/cuenta.ts:173-184`; `panel/pago.tsx:31` | Hoy dice «Para tener más espacio, pasate al plan X». |
+| I.1 | d1: el espacio es red de seguridad; no se vende «más espacio» | OK | `modulos/comercial/cuenta.ts:173-184`; `panel/pago.tsx:31` | Hoy dice «Para tener más espacio, pasate al plan X». **3.ª vuelta:** El texto del espacio ya no ofrece pasar de plan: «escribinos y lo vemos». |
 | I.2 | d2: sin administración de servidores propia | DISTINTO | `docs/despliegue.md:3-5,58-75,271-505` | |
 | I.3 | d3/c2: arrancar gestionada; tope de gasto | DISTINTO | `docs/spec/00-especificacion-nucleo.md:37` | |
-| I.4 | Copias fuera del nodo, con restauración probada | FALTA | `docs/despliegue.md:252-255` | |
+| I.4 | Copias fuera del nodo, con restauración probada | PARCIAL | `docs/despliegue.md:252-255` | **3.ª vuelta:** C2/D-infra: `infra/copias` (pg_dump cifrado + archivos), copia local diaria de 7 días; falta contratar el destino externo (pasos de Backblaze en 15 min). |
 | I.5 | Dos nodos modestos | FALTA | `src/nucleo/archivos/almacen.ts:18-33,55` | Un solo nodo con disco local. El barrido ya «toma» filas y aguantaría dos nodos. |
 | I.6 | Auditoría particionada por mes, con retención | FALTA | `prisma/schema/nucleo.prisma:234-247` | |
 | I.7 | Newsletter particionado | FALTA | | No hay newsletter. |
 | I.8 | Alerta al 70% del ancho de banda | FALTA | | |
-| I.9 | Disco lleno → se bloquean cargas; nada se borra | PARCIAL | `src/nucleo/archivos/index.ts:108-137` | Da un ENOSPC crudo y deja huérfanos (5.11). Postgres está en el mismo disco. |
+| I.9 | Disco lleno → se bloquean cargas; nada se borra | PARCIAL | `src/nucleo/archivos/index.ts:108-137` | Da un ENOSPC crudo y deja huérfanos (5.11). Postgres está en el mismo disco. **3.ª vuelta:** C3/D-infra: cuota → bytes → fila, mensaje claro, reserva libre; falta correr `infra/disco/volumenes.sh` en el VPS (Postgres sigue en el mismo disco). |
 | I.10 | Ancho de banda → alerta y estáticos en el borde | PARCIAL | `docs/despliegue.md:271,426` | El borde ya es Cloudflare. Falta la alerta. |
 | I.11 | Pico de venta → cola y reserva, acotadas al evento | PARCIAL | `modulos/ticketera/compras.ts:18,66-104`; `src/nucleo/db/config.ts:20-28` | Hay reserva. No hay cola. El pool de 40 conexiones es global. |
 | I.12 | Nodo caído en un evento → lista descargada | DISTINTO | `modulos/ticketera/puerta.ts:1-5` | |
-| I.13 | Corrupción → restaurar priorizando órdenes y entradas | FALTA | | |
-| I.14 | Monitoreo y alertas | FALTA | `Dockerfile` | |
+| I.13 | Corrupción → restaurar priorizando órdenes y entradas | PARCIAL | | **3.ª vuelta:** C2: `restaurar.sh` probado contra la base de pruebas; falta la restauración de verdad. |
+| I.14 | Monitoreo y alertas | PARCIAL | `Dockerfile` | **3.ª vuelta:** C2: `/api/salud` y latido del barrido; faltan los servicios (Better Stack, Healthchecks). |
 | I.15 | Un solo stack | OK | | |
 
 ### Multipaís (diferido)
@@ -413,7 +448,7 @@ O.1–O.14 FALTA (grep de `obra`, `sadaic`, `inpi`, `dnda` y `transcrip` sin res
 | X.3 | La ubicación solo preselecciona moneda y catálogo | FALTA (diferido) | Todo está en ARS (`src/nucleo/pagos/registro.ts:21`, `mercadopago.ts:107,217,272`) y en hora argentina fija (`src/nucleo/fechas.ts`). |
 | X.4 | Proveedores de Deoco, uno por región | PARCIAL | Los proveedores son globales; no tienen región. |
 | X.5 | Por país: proveedor, precio y plazo | PARCIAL | La oferta tiene precio y plazo, sin país. |
-| X.6 | País de destino en cada orden desde la fase 3 | PARCIAL | Sin columna (`modulos/tienda/esquema.prisma:172-216`). |
+| X.6 | País de destino en cada orden desde la fase 3 | OK | Sin columna (`modulos/tienda/esquema.prisma:172-216`). **3.ª vuelta:** C1.10: `pais` en el pedido y la orden. |
 | X.7 | Qué países primero | PENDIENTE | |
 | X.8 | Saldo insuficiente con dos órdenes → la segunda espera fondos | FALTA | Depende de B4. |
 
