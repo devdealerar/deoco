@@ -138,6 +138,9 @@ C4 (casos de borde del núcleo, 3.2 núcleo d6):
 - D6 ✅ Organizador de lanzamiento (`modulos/lanzamiento`): campaña → cronograma con dependencias y
   piezas por formato, mover la fecha, atrasados en el inicio, piezas no conformes, archivar; plantilla
   y medidas en el back office. `tests/lanzamiento.test.ts`, `tests/e2e/lanzamiento.e2e.ts`.
+- D7 ✅ Panel del manager (`modulos/manager`, portal): roster con alertas y ventas del mes, calendario
+  unificado, comparar, exportar agregados, acceso directo; nunca datos de fans. Invitaciones del
+  núcleo (el titular suma y saca solo). `tests/manager.test.ts`, `tests/e2e/manager.e2e.ts`.
 
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 

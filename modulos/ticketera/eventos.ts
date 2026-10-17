@@ -306,3 +306,15 @@ export async function proximasFechas(tenantId: string, params: Record<string, un
     agotado: e.tipos.length > 0 && e.tipos.every((t) => t.venta === "agotada"),
   }));
 }
+
+/**
+ * Consulta "ticketera.ventas" (para el manager: solo números, D7). `params.desde`/`hasta` ISO.
+ * Respuesta: { entradas, total (centavos), compras }.
+ */
+export async function ventasDelPeriodo(tenantId: string, params: Record<string, unknown>) {
+  const desde = new Date(String(params.desde ?? ""));
+  const hasta = new Date(String(params.hasta ?? ""));
+  if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime())) return { entradas: 0, total: 0, compras: 0 };
+  const r = await conTenant(tenantId, (tx) => tx.ticketeraCompra.aggregate({ where: { estado: "PAGADA", pagadaEn: { gte: desde, lt: hasta } }, _sum: { cantidad: true, total: true }, _count: { _all: true } }));
+  return { entradas: r._sum.cantidad ?? 0, total: r._sum.total ?? 0, compras: r._count._all };
+}

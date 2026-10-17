@@ -90,6 +90,7 @@ model Tenant {
   supresiones          SupresionDatos[]
   sesionesSoporte      SesionSoporte[]
   accesosFan           AccesoFan[]
+  invitaciones         Invitacion[]
 
   @@map("tenant")
 }
@@ -717,4 +718,23 @@ model AccesoFan {
 
   @@index([tenantId, email, creadoEn])
   @@map("acceso_fan")
+}
+
+/// Invitación a la banda (D7): el titular invita por email con un rol (nunca TITULAR); la persona
+/// acepta desde el selector con su cuenta de ese email. Vence a los 14 días.
+model Invitacion {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @db.Uuid
+  email       String
+  rol         String
+  invitadoPor String    @db.Uuid
+  creadoEn    DateTime  @default(now())
+  vence       DateTime
+  estado      String    @default("pendiente")
+  resueltaEn  DateTime?
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, estado])
+  @@index([email, estado])
+  @@map("invitacion")
 }

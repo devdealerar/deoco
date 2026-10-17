@@ -1,0 +1,14 @@
+// Módulo manager: el panel del representante con varios artistas (3.2, etapa 2; plan Sello). Una
+// cuenta externa por persona del sello (la da el staff); las bandas de su roster son las que lo
+// invitaron. Solo ve números agregados de cada banda: las bases de fans nunca se unifican.
+
+/// @global
+/// Un sello o representante (lo da de alta el staff al vender el plan Sello). Sus personas son
+/// cuentas externas del módulo con esta referencia.
+model ManagerSello {
+  id       String   @id @default(uuid()) @db.Uuid
+  nombre   String
+  creadoEn DateTime @default(now())
+
+  @@map("manager_sello")
+}

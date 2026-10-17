@@ -299,6 +299,16 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   inicio: un pendiente por campaña con cuántos); la dependencia se avisa, no bloquea. Pieza: cumple =
   misma proporción (1 %) y al menos la medida; si no, "no conforme", guardada igual. Cancelar archiva.
 
+## Manager y plan Sello (`modulos/manager`, D7)
+
+- Producto aparte: el staff da de alta el sello (`manager_sello`, global) y sus personas (cuentas
+  externas, `/admin/m/manager`). Portal `app.<raiz>/portal/manager`: roster, calendario, comparar,
+  exportar. El roster son las bandas donde la persona es parte (la invitaron desde Equipo); la banda
+  la saca y el acceso cesa al instante (nada de lo que hizo se borra).
+- Solo números agregados, por consultas de cada banda (`tienda.ventas`, `ticketera.ventas`,
+  `ticketera.proximas-fechas`, `lanzamiento.proximos`, `fans.resumen`): nunca datos de fans (3.2
+  manager d1). Exportar: CSV de agregados; los fans, cada banda desde su panel.
+
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 
 - Planes del 3.2 (`docs/planes.md`): DEMO y ESCENARIO a la venta (Escenario es el de la prueba),

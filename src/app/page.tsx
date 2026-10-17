@@ -6,6 +6,10 @@ import { usuarioActivo } from "@/nucleo/acceso/panel";
 import { yaCreoBanda } from "@/nucleo/autogestion";
 import { consultaDe, type SearchParamsNext } from "@/nucleo/modulos/consulta";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
+import { invitacionesPara } from "@/nucleo/acceso/invitaciones";
+import { registro } from "@/nucleo/modulos";
+import { Formulario } from "@/ui";
+import { responderInvitacionAccion } from "./invitacion-acciones";
 import { BotonSalir } from "./salir";
 import { metadataPublica, SuperficiePublica } from "./publico";
 
@@ -28,14 +32,28 @@ export default async function Inicio({ searchParams }: Props) {
 
   const usuarioId = await usuarioActivo();
   if (!usuarioId) redirect("/ingresar");
-  const [bandas, portales] = await Promise.all([bandasVisibles(usuarioId), portalesDe(usuarioId)]);
+  const [bandas, portales, invitaciones] = await Promise.all([bandasVisibles(usuarioId), portalesDe(usuarioId), invitacionesPara(usuarioId)]);
   // Una cuenta externa sin bandas (un proveedor) va directo a su portal.
-  if (bandas.length === 0 && portales.length === 1) redirect(portales[0].href);
+  if (bandas.length === 0 && portales.length === 1 && invitaciones.length === 0) redirect(portales[0].href);
   // Recién registrada (autogestión), sin nada todavía: a crear su banda.
-  if (bandas.length === 0 && portales.length === 0 && !(await yaCreoBanda(usuarioId))) redirect("/registro/banda");
+  if (bandas.length === 0 && portales.length === 0 && invitaciones.length === 0 && !(await yaCreoBanda(usuarioId))) redirect("/registro/banda");
 
   return (
     <main>
+      {invitaciones.length > 0 && (
+        <section data-invitaciones-recibidas>
+          <h2>Te invitaron</h2>
+          <ul>
+            {invitaciones.map((i) => (
+              <li key={i.id} data-invitacion={i.banda}>
+                {i.banda} · {registro().rol(i.rol)?.etiqueta ?? i.rol}
+                <Formulario accion={responderInvitacionAccion.bind(null, i.tenantId, i.id, true)} puedeEditar enLinea etiqueta="Aceptar" />
+                <Formulario accion={responderInvitacionAccion.bind(null, i.tenantId, i.id, false)} puedeEditar enLinea variante="secundario" etiqueta="Rechazar" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <h1>Tus bandas</h1>
       {bandas.length === 0 && portales.length === 0 && <p>Todavía no tenés bandas.</p>}
       <ul>

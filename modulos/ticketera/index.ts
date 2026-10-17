@@ -8,7 +8,7 @@ import { buscarDatosTicketera, suprimirDatosTicketera } from "./datos-personales
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { avisoDePago } from "./aviso";
 import { alPagarseCompra } from "./correos";
-import { proximasFechas } from "./eventos";
+import { proximasFechas, ventasDelPeriodo } from "./eventos";
 import { EventoPanel, EventosPanel } from "./panel/paginas";
 import { PuertaEvento, PuertaPanel } from "./panel/puerta";
 import { puertaAbiertaConBandaCerrada, puertaDeShowAbiertaConBandaCerrada } from "./puerta";
@@ -105,6 +105,8 @@ const ticketera: Modulo = {
     { nombre: "inicio", responder: inicioTicketera },
     // Para la base de fans: quién pagó una compra (lo pide el módulo fans al recibir compra.pagada).
     { nombre: "comprador", responder: compradorDeCompra },
+    // Para el manager (D7): cuánto se vendió en un período. Solo números.
+    { nombre: "ventas", responder: ventasDelPeriodo },
   ],
   // Tope de la cuenta (lo fija el plan): shows próximos publicados.
   limites: [

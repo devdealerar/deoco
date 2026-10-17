@@ -3,7 +3,7 @@
 // derivados de una plantilla que el staff edita desde el back office.
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { AdminLanzamiento } from "./admin/pantallas";
-import { inicioLanzamiento } from "./inicio";
+import { inicioLanzamiento, proximosLanzamientos } from "./inicio";
 import { CampaniaPanel, CampaniasPanel } from "./panel/paginas";
 import { conTenant } from "@/nucleo/db/con-tenant";
 
@@ -29,7 +29,11 @@ const lanzamiento: Modulo = {
     { etiqueta: "Lanzamientos", href: "/lanzamientos", permiso: VER, orden: 50 },
     { etiqueta: "Lanzamientos", href: "/", admin: true, orden: 50 },
   ],
-  consultas: [{ nombre: "inicio", responder: inicioLanzamiento }],
+  consultas: [
+    { nombre: "inicio", responder: inicioLanzamiento },
+    // Para el manager (D7): las campañas en curso (solo título, fecha y atrasados).
+    { nombre: "proximos", responder: proximosLanzamientos },
+  ],
   mediciones: [{ clave: "lanzamiento.campanias", etiqueta: "Campañas de lanzamiento", medir: (t) => conTenant(t, (tx) => tx.lanzamientoCampania.count()) }],
 };
 

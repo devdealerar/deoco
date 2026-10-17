@@ -875,3 +875,17 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
     no existe en el núcleo: los archivos siguen accesibles desde la campaña archivada.
   - **Inicio**: un pendiente por campaña con cuántos atrasados (el inicio corta en 8 por bloque: así
     no se pierde ninguno en silencio).
+- **Panel del manager y plan Sello (D7)**:
+  - **Cómo entra un manager a una banda**: por invitación del titular (núcleo nuevo: invitaciones por
+    email con un rol, 14 días, aceptadas desde el selector). La banda elige el rol (por defecto
+    gestor: todo menos la plata y el control de la cuenta). Así la banda decide y revoca sola (3.2
+    manager d2), sin pasar por el staff. Las invitaciones sirven para cualquier persona, no solo managers.
+  - **Portal aparte** (cuenta externa del módulo, la da el staff al vender Sello): el roster es lo
+    que el manager ve por ser parte de cada banda; el portal en sí no da acceso a ninguna banda.
+  - **Qué ve**: números agregados que cada módulo de la banda ofrece (ventas del mes, entradas,
+    shows, lanzamientos, cuántos fans y suscriptos) y los pendientes del inicio de cada banda. Nunca
+    quiénes. La exportación del roster es un CSV de esos números; los datos de fans requieren que la
+    banda los exporte desde su panel (3.2 manager d2).
+  - **Plan Sello**: sigue siendo un plan cerrado que asigna el staff a cada banda (precio por banda a
+    convenir). No armé el precio decreciente automático por cantidad de bandas: es plata y no está
+    definido (criterio: ante duda de plata, no cobrarle de más a la banda). A definir con el usuario.

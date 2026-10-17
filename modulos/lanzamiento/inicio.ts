@@ -27,3 +27,15 @@ export async function inicioLanzamiento(tenantId: string) {
     })),
   };
 }
+
+/**
+ * Consulta "lanzamiento.proximos" (para el manager, D7): las campañas en curso, con su fecha y
+ * cuántos hitos atrasados tienen. [{ titulo, fecha: ISO, atrasados }]
+ */
+export async function proximosLanzamientos(tenantId: string) {
+  const [lista, vencidos] = await Promise.all([
+    conTenant(tenantId, (tx) => tx.lanzamientoCampania.findMany({ where: { estado: "ACTIVA" }, orderBy: { fecha: "asc" }, take: 20 })),
+    atrasados(tenantId),
+  ]);
+  return lista.map((c) => ({ titulo: c.titulo, fecha: c.fecha.toISOString(), atrasados: vencidos.filter((h) => h.campaniaId === c.id).length }));
+}

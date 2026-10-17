@@ -72,6 +72,12 @@ const fans: Modulo = {
   ],
   // Para la tienda y la ticketera: si está, muestran la casilla (sin marcar) con este texto.
   consultas: [
+    // Para el manager (D7): cuántos, nunca quiénes (3.2 manager d1: las bases no se unifican).
+    {
+      nombre: "resumen",
+      responder: async (tenantId) =>
+        conTenant(tenantId, async (tx) => ({ contactos: await tx.fansContacto.count(), suscriptos: await tx.fansContacto.count({ where: { newsletter: "confirmado" } }) })),
+    },
     {
       nombre: "suscripcion",
       responder: async (tenantId) => ({

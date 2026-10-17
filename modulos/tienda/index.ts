@@ -4,7 +4,7 @@
 import { inicioTienda } from "./inicio";
 import { tiendaEnCurso } from "./en-curso";
 import { conciliarPedidos } from "./pagos";
-import { compradorDePedido } from "./pedidos";
+import { compradorDePedido, ventasDelPeriodo } from "./pedidos";
 import { PedidosDelFan, tieneTienda } from "./publico/area-fan";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { buscarDatosTienda, suprimirDatosTienda } from "./datos-personales";
@@ -121,6 +121,8 @@ const tienda: Modulo = {
     { nombre: "inicio", responder: inicioTienda },
     // Para la base de fans: quién pagó un pedido (lo pide el módulo fans al recibir pedido.pagado).
     { nombre: "comprador", responder: compradorDePedido },
+    // Para el manager (D7): cuánto se vendió en un período. Solo números.
+    { nombre: "ventas", responder: ventasDelPeriodo },
   ],
   // Un cambio de plan no la apaga con pedidos por pagar, en revisión o sin despachar.
   // Derechos del fan sobre sus datos (D2): lo que hay de una persona y cómo se anonimiza.

@@ -276,3 +276,17 @@ export async function compradorDePedido(tenantId: string, params: Record<string,
   if (!p?.pagadoEn) return null;
   return { clave: `tienda:${p.id}`, email: p.email, nombre: p.nombre, ciudad: p.ciudad, provincia: p.provincia, novedades: p.novedades, fecha: p.pagadoEn.toISOString() };
 }
+
+/**
+ * Consulta "tienda.ventas" (para el manager: solo números, D7). `params.desde`/`hasta` ISO.
+ * Respuesta: { pedidos, total (centavos) }: los pagados en el período (despachados incluidos).
+ */
+export async function ventasDelPeriodo(tenantId: string, params: Record<string, unknown>) {
+  const desde = new Date(String(params.desde ?? ""));
+  const hasta = new Date(String(params.hasta ?? ""));
+  if (Number.isNaN(desde.getTime()) || Number.isNaN(hasta.getTime())) return { pedidos: 0, total: 0 };
+  const r = await conTenant(tenantId, (tx) =>
+    tx.tiendaPedido.aggregate({ where: { pagadoEn: { gte: desde, lt: hasta }, estado: { in: ["PAGADO", "DESPACHADO"] } }, _sum: { total: true }, _count: { _all: true } }),
+  );
+  return { pedidos: r._count._all, total: r._sum.total ?? 0 };
+}
