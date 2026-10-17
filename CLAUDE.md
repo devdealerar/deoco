@@ -103,7 +103,9 @@ tenant de dos maneras y aplica las mismas reglas de estado (`src/nucleo/tenant/r
   `auditoria` (una fila cada 10 min, con la sesión).
 - Equipo (`/b/<slug>/equipo`, `src/nucleo/acceso/equipo.ts`): el titular saca gente, cambia roles y
   pasa la titularidad (él queda GESTOR; primero baja, después sube el otro); los demás dejan la banda.
-  Uno y solo un titular: lo impone la base (índice único + `banda_con_titular`, diferido). Sumar gente: el staff.
+  Uno y solo un titular: lo impone la base (índice único + `banda_con_titular`, diferido). Sumar gente: el
+  titular invita por email con un rol (nunca TITULAR; `src/nucleo/acceso/invitaciones.ts`, 14 días) y la
+  persona acepta desde el selector con su cuenta de ese email; también el staff desde `/admin`.
 - Formularios del panel de un módulo: `edicion: { permiso, ruta, sinPermiso, guardado? }` en el
   contrato (el registro lo valida al arrancar) + `accionesDelPanel(() => modulo, [errores])`
   (`src/nucleo/acceso/acciones.ts`). Todo permiso escrito en un módulo debe estar declarado (prueba).
