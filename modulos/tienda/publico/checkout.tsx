@@ -1,5 +1,6 @@
 "use client";
 
+import { enviarSinBorrar } from "@/nucleo/publico/sin-borrar";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 import { PROVINCIAS } from "../comun";
@@ -36,7 +37,7 @@ export function Checkout({ novedades }: { novedades?: string | null }) {
   const bloqueado = !estado || !estado.disponible || estado.problemas.length > 0;
 
   return (
-    <form action={confirmar} className="grid gap-8 lg:grid-cols-[1fr_22rem]" data-checkout>
+    <form action={confirmar} onSubmit={enviarSinBorrar(confirmar)} className="grid gap-8 lg:grid-cols-[1fr_22rem]" data-checkout>
       <input type="hidden" name="carrito" value={JSON.stringify(lineas.map(({ productoId, variante, cantidad }) => ({ productoId, variante, cantidad })))} />
       <div className="flex flex-col gap-6">
         <fieldset className="grid gap-4 sm:grid-cols-2">

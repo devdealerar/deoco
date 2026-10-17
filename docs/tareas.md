@@ -141,6 +141,10 @@ C4 (casos de borde del núcleo, 3.2 núcleo d6):
 - D7 ✅ Panel del manager (`modulos/manager`, portal): roster con alertas y ventas del mes, calendario
   unificado, comparar, exportar agregados, acceso directo; nunca datos de fans. Invitaciones del
   núcleo (el titular suma y saca solo). `tests/manager.test.ts`, `tests/e2e/manager.e2e.ts`.
+- D8 ✅ Tercera vuelta de las dos auditorías (maestro: FALTA 67 → 55; 3.2: 88 → 60). Arreglo de
+  paso: los formularios del sitio público (checkout, compra de entradas, datos personales, Mis
+  compras, novedades) ya no borran lo escrito cuando la acción devuelve un error (`enviarSinBorrar`).
+  Suites: unitarias 708/708; punta a punta 115, una intermitente bajo carga (compra de dominio, pasa sola).
 
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 

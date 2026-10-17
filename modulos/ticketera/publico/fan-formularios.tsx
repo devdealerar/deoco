@@ -1,5 +1,6 @@
 "use client";
 
+import { enviarSinBorrar } from "@/nucleo/publico/sin-borrar";
 import { useActionState, useEffect, useState } from "react";
 import { c } from "@/nucleo/publico/estilo";
 import type { EstadoFan } from "./acciones";
@@ -27,7 +28,7 @@ export function AccionFan({
     );
   }
   return (
-    <form action={enviar} className="flex flex-col gap-3" data-form-fan={prueba}>
+    <form action={enviar} onSubmit={enviarSinBorrar(enviar)} className="flex flex-col gap-3" data-form-fan={prueba}>
       {children}
       <div>
         <button type="submit" className={suave ? c.botonSuave : c.boton} disabled={pendiente}>

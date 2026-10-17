@@ -1,5 +1,6 @@
 "use client";
 
+import { enviarSinBorrar } from "@/nucleo/publico/sin-borrar";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { c } from "@/nucleo/publico/estilo";
@@ -16,7 +17,7 @@ export function PedirLink() {
     );
   }
   return (
-    <form action={accion} className="flex max-w-md flex-col gap-4" data-pedir-link>
+    <form action={accion} onSubmit={enviarSinBorrar(accion)} className="flex max-w-md flex-col gap-4" data-pedir-link>
       <label className="flex flex-col gap-1 text-sm font-bold">
         El email con el que compraste
         <input name="email" type="email" autoComplete="email" required defaultValue={estado.email} className={c.campo} />

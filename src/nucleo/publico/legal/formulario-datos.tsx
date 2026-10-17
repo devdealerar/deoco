@@ -1,5 +1,6 @@
 "use client";
 
+import { enviarSinBorrar } from "@/nucleo/publico/sin-borrar";
 import { useActionState, useEffect, useState } from "react";
 import { confirmarDatosAccion, type EstadoPedidoDatos, pedirDatosAccion } from "@/nucleo/legal/acciones";
 import { c } from "@/nucleo/publico/estilo";
@@ -22,7 +23,7 @@ export function FormularioDatos({ tipo }: { tipo?: "arrepentimiento" }) {
     );
   }
   return (
-    <form action={accion} className="flex max-w-xl flex-col gap-4" data-formulario-datos>
+    <form action={accion} onSubmit={enviarSinBorrar(accion)} className="flex max-w-xl flex-col gap-4" data-formulario-datos>
       {tipo ? (
         <input type="hidden" name="tipo" value={tipo} />
       ) : (

@@ -1,5 +1,6 @@
 "use client";
 
+import { enviarSinBorrar } from "@/nucleo/publico/sin-borrar";
 import { useActionState, useState } from "react";
 import { comprarAccion, type EstadoCompra } from "./acciones";
 import { c } from "@/nucleo/publico/estilo";
@@ -14,7 +15,7 @@ export function Comprar({ tipos, maximo, novedades }: { tipos: Tipo[]; maximo: n
   const tope = Math.min(maximo, tipos.find((t) => t.id === tipoId)?.disponibles ?? 0);
 
   return (
-    <form action={enviar} className="flex flex-col gap-6" data-comprar>
+    <form action={enviar} onSubmit={enviarSinBorrar(enviar)} className="flex flex-col gap-6" data-comprar>
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-2 text-lg font-black">Entrada</legend>
         {tipos.map((t) => (

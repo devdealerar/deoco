@@ -1,5 +1,6 @@
 "use client";
 
+import { enviarSinBorrar } from "@/nucleo/publico/sin-borrar";
 import { useActionState, useEffect, useState } from "react";
 import { c } from "@/nucleo/publico/estilo";
 import { suscribirseAccion, type EstadoSuscripcion } from "./acciones";
@@ -15,7 +16,7 @@ export function FormularioNovedades({ consentimiento }: { consentimiento: string
     );
   }
   return (
-    <form action={enviar} className="flex max-w-md flex-col gap-4" data-novedades>
+    <form action={enviar} onSubmit={enviarSinBorrar(enviar)} className="flex max-w-md flex-col gap-4" data-novedades>
       <label className="flex flex-col gap-1 text-sm font-bold">
         Email
         <input name="email" type="email" autoComplete="email" required defaultValue={estado.email} className={c.campo} />
