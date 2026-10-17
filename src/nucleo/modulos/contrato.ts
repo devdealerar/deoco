@@ -474,6 +474,12 @@ export type Modulo = {
     /** Su sección de los términos del sitio (p. ej. "Entradas"). */
     terminos?: { titulo: string; texto: string };
   };
+  /**
+   * Su parte del área del fan (/mis-compras, D5): el fan entra con un link a su mail y ve lo suyo
+   * de cada módulo. `tiene`: si hay algo de ese email (sin eso no sale el link). `componente`: la
+   * sección, para ese email ya verificado. Orden: menor primero.
+   */
+  areaDelFan?: { orden: number; tiene: (tenantId: string, email: string) => Promise<boolean>; componente: (props: { tenantId: string; email: string }) => ReactNode | Promise<ReactNode> };
   /** Lo que el staff tiene que mirar ya (p. ej. una devolución que no salió). Rápido: corre en cada página del back office. */
   alertasAdmin?: () => Promise<AlertaAdmin[]>;
 };

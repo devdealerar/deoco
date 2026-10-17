@@ -52,14 +52,15 @@ export type Decision =
   | { tipo: "no-encontrado" }; // 404
 
 /** Rutas del sitio público que son del núcleo (primer segmento). Las demás son de módulos. */
-export const RUTAS_NUCLEO_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal", "/registro", "/encargo", "/privacidad", "/terminos", "/datos-personales", "/arrepentimiento"];
+export const RUTAS_NUCLEO_PUBLICAS = ["/ingresar", "/api", "/b", "/archivos", "/admin", "/avisos", "/clave", "/descargas", "/portal", "/registro", "/encargo", "/privacidad", "/terminos", "/datos-personales", "/arrepentimiento", "/mis-compras"];
 
 /**
  * Las páginas legales del sitio de la banda (D2): abiertas en TODOS los estados, también con el
  * sitio suspendido o la banda archivada. Los plazos de la ley (acceso, borrado, arrepentimiento)
- * no se suspenden por la cuota impaga de la banda.
+ * no se suspenden por la cuota impaga de la banda. Y "Mis compras" (D5): lo que el fan ya pagó
+ * (sus entradas, su pedido) no se le esconde por la cuota de la banda.
  */
-export const RUTAS_LEGALES_PUBLICAS = ["/privacidad", "/terminos", "/datos-personales", "/arrepentimiento"];
+export const RUTAS_LEGALES_PUBLICAS = ["/privacidad", "/terminos", "/datos-personales", "/arrepentimiento", "/mis-compras"];
 
 /** En el sitio público de una banda: "modulo" si la ruta es de un módulo (la home también), "legal" si es legal, null si es del núcleo. */
 export function rutaPublicaDeModulo(pathname: string): "modulo" | "legal" | null {

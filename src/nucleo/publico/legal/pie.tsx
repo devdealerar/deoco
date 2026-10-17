@@ -27,6 +27,11 @@ export async function CapaLegal({ conVentas }: { conVentas: boolean }) {
             Tus datos personales
           </Link>
           {conVentas && (
+            <Link href="/mis-compras" className="underline" data-mis-compras>
+              Mis compras
+            </Link>
+          )}
+          {conVentas && (
             <Link href="/arrepentimiento" className="underline" data-boton-arrepentimiento>
               Botón de arrepentimiento
             </Link>

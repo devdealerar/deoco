@@ -5,7 +5,7 @@ import { mensajeParaElPublico } from "@/nucleo/publico/errores";
 import { origenDelPedido } from "@/nucleo/publico/origen";
 import { tenantDelPedido } from "@/nucleo/tenant/contexto";
 import tienda from "../index";
-import { tieneAcceso } from "../acceso";
+import { tieneAcceso, tieneAccesoEnElSitio } from "../acceso";
 import { crearPedido, ErrorCompra, leerCarrito, revisarCarrito, type Revision } from "../pedidos";
 import { iniciarCobro } from "../pagos";
 import { ErrorPasarela, pasarelaLista } from "@/nucleo/pagos";
@@ -77,7 +77,7 @@ export async function confirmarAccion(_: EstadoCheckout, fd: FormData): Promise<
 /** Reintentar el pago de un pedido PENDIENTE (desde su página). */
 export async function pagarAccion(pedidoId: string): Promise<{ redireccion?: string; error?: string }> {
   const tenantId = await banda();
-  if (!(await tieneAcceso(tenantId, pedidoId, await accesoRecordado(`pedido-${pedidoId}`)))) {
+  if (!(await tieneAccesoEnElSitio(tenantId, pedidoId, await accesoRecordado(`pedido-${pedidoId}`)))) {
     return { error: "Para pagar este pedido, abrí el link que te mandamos por mail." };
   }
   try {

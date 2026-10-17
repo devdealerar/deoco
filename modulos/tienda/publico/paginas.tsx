@@ -3,7 +3,7 @@ import Link from "next/link";
 import { accesoRecordado } from "@/nucleo/publico/acceso";
 import { CanjearLink } from "@/nucleo/publico/canjear-link";
 import { AvisoDeDatos } from "@/nucleo/publico/legal/pie";
-import { tieneAcceso } from "../acceso";
+import { tieneAccesoEnElSitio } from "../acceso";
 import { canjearPedidoAccion } from "./acciones";
 import { cache } from "react";
 import { notFound } from "next/navigation";
@@ -163,7 +163,7 @@ export async function PedidoPublico({ tenantId, params, consulta }: PropsRutaPub
   if (!UUID.test(params.id)) notFound();
   const pedido = await conTenant(tenantId, (tx) => tx.tiendaPedido.findUnique({ where: { id: params.id }, include: { items: true } }));
   if (!pedido) notFound();
-  const conAcceso = await tieneAcceso(tenantId, pedido.id, await accesoRecordado(`pedido-${pedido.id}`));
+  const conAcceso = await tieneAccesoEnElSitio(tenantId, pedido.id, await accesoRecordado(`pedido-${pedido.id}`));
   const resultado = consulta.get("resultado");
   const estado = estadoParaFan(pedido, resultado);
   const esperandoAcreditacion = pedido.estado === "PENDIENTE" && (resultado === "exito" || pedido.estadoCobro === "approved");

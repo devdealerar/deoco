@@ -12,7 +12,9 @@ import { proximasFechas } from "./eventos";
 import { EventoPanel, EventosPanel } from "./panel/paginas";
 import { PuertaEvento, PuertaPanel } from "./panel/puerta";
 import { puertaAbiertaConBandaCerrada, puertaDeShowAbiertaConBandaCerrada } from "./puerta";
-import { CompraPublica, EventoPublico, FechasPublicas, metadatosEvento } from "./publico/paginas";
+import { AceptarTransferenciaPublica, CompraPublica, ConfirmarTransferenciaPublica, EventoPublico, FechasPublicas, metadatosEvento } from "./publico/paginas";
+import { EntradasDelFan, tieneTicketera } from "./publico/area-fan";
+import { vencerTransferencias } from "./transferencias";
 import { LIMITE_ENTRADAS, LIMITE_SHOWS, ajustarShowsPublicados, contarEntradasDelMes, contarShowsPublicados } from "./eventos";
 
 const VER = "ticketera.eventos.ver";
@@ -42,7 +44,13 @@ const ticketera: Modulo = {
   },
   enCurso: ticketeraEnCurso,
   // Conciliación: las compras sin pago se le preguntan a la pasarela (los avisos se pierden).
-  tareasPeriodicas: [{ nombre: "conciliar-compras", cadaSegundos: 120, correr: conciliarCompras }],
+  tareasPeriodicas: [
+    { nombre: "conciliar-compras", cadaSegundos: 120, correr: conciliarCompras },
+    // Las transferencias sin aceptar a tiempo vencen (la entrada nunca cambió).
+    { nombre: "vencer-transferencias", cadaSegundos: 300, correr: vencerTransferencias },
+  ],
+  // Área del fan (D5): sus entradas con el QR, transferir y reenviar.
+  areaDelFan: { orden: 10, tiene: tieneTicketera, componente: EntradasDelFan },
   // Uso de la banda (se ve en /admin).
   mediciones: [
     { clave: "ticketera.shows", etiqueta: "Shows", medir: (t) => conTenant(t, (tx) => tx.ticketeraEvento.count()) },
@@ -67,6 +75,9 @@ const ticketera: Modulo = {
     { ruta: "/fechas/[id]", componente: EventoPublico, metadatos: metadatosEvento },
     // Las entradas del fan siguen a la vista con la banda cerrada: la puerta sigue validando.
     { ruta: "/fechas/compra/[id]", componente: CompraPublica, metadatos: () => ({ titulo: "Tus entradas" }), conBandaCerrada: async () => true },
+    // Transferir una entrada (D5): los links de los mails. También con la banda cerrada.
+    { ruta: "/fechas/transferencia/confirmar", componente: ConfirmarTransferenciaPublica, metadatos: () => ({ titulo: "Transferir una entrada" }), conBandaCerrada: async () => true },
+    { ruta: "/fechas/transferencia/aceptar", componente: AceptarTransferenciaPublica, metadatos: () => ({ titulo: "Tu entrada" }), conBandaCerrada: async () => true },
   ],
   navegacion: [
     { etiqueta: "Entradas", href: "/entradas", permiso: VER, orden: 25 },

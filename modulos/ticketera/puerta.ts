@@ -6,11 +6,13 @@
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { desdeAhora, esUuid } from "./eventos";
 import { firmaValida, LARGO_FIRMADO, LARGO_VIEJO } from "./firma";
+import { fueTransferida } from "./transferencias";
 
 export type ResultadoValidacion =
   | { resultado: "valida"; nombre: string; documento: string; tipo: string }
   | { resultado: "ya-validada"; nombre: string; tipo: string; validadaEn: string }
   | { resultado: "otro-show"; show: string }
+  | { resultado: "transferida" }
   | { resultado: "invalida" };
 
 export const normalizarCodigo = (crudo: string) => crudo.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -35,6 +37,8 @@ export async function validarEntrada(
       where: { tenantId_codigo: { tenantId, codigo } },
       include: { tipo: { select: { nombre: true } }, evento: { select: { nombre: true, fecha: true } }, compra: { select: { estado: true } } },
     });
+    // El QR de una entrada que se transfirió (D5): ya no vale; la persona nueva tiene otro.
+    if (!e && (await fueTransferida(tx, codigo))) return { resultado: "transferida" };
     // Una entrada de una compra devuelta (o contracargada) no deja entrar.
     if (!e || e.compra.estado !== "PAGADA" || e.anuladaEn) return { resultado: "invalida" };
     if (e.eventoId !== eventoId) return { resultado: "otro-show", show: e.evento.nombre };

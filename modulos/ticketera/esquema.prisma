@@ -150,8 +150,44 @@ model TicketeraEntrada {
   validadaEn      DateTime?
   validadaPor     String?         @db.Uuid
   validadaIntento String?
+  /// A quién se le transfirió (D5): su email. Null = de quien compró.
+  emailTitular    String?
+  transferencias  TicketeraTransferencia[]
 
+  @@unique([tenantId, id])
   @@unique([tenantId, codigo])
   @@index([tenantId, eventoId])
   @@map("ticketera_entrada")
+}
+
+/// Transferencia de una entrada (D5; documento maestro "Mis compras"): quien la tiene la pide, la
+/// confirma desde su mail y quien la recibe la acepta desde el suyo. Al aceptarse, el QR anterior
+/// deja de valer y la entrada tiene un código nuevo. Si nadie acepta, vence y la entrada queda
+/// como estaba (nunca se tocó).
+/// Estados: por-confirmar → por-aceptar → aceptada | vencida | cancelada.
+model TicketeraTransferencia {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @db.Uuid
+  entradaId       String           @db.Uuid
+  entrada         TicketeraEntrada @relation(fields: [tenantId, entradaId], references: [tenantId, id], onDelete: Cascade)
+  deEmail         String
+  aEmail          String
+  aNombre         String
+  aDocumento      String
+  estado          String           @default("por-confirmar")
+  /// Links (después de "#"): el de quien la da y el de quien la recibe. Solo hashes y cifrados.
+  confirmarHash   String?
+  confirmarCifrado Bytes?
+  aceptarHash     String?
+  aceptarCifrado  Bytes?
+  vence           DateTime
+  /// El código que dejó de valer (la puerta lo reconoce como "transferida").
+  codigoAnterior  String?
+  creadoEn        DateTime         @default(now())
+  resueltaEn      DateTime?
+
+  @@index([tenantId, entradaId])
+  @@index([tenantId, estado, vence])
+  @@index([tenantId, codigoAnterior])
+  @@map("ticketera_transferencia")
 }

@@ -1,12 +1,14 @@
 // compra.pagada → mail al comprador con un QR por entrada (imágenes embebidas, cid:) y el link
 // para volver a verlas. Una vez por compra (clave única).
-import { contextoDeToken, tokenParaEnlace } from "@/nucleo/publico/token";
+import { contextoDeToken, nuevoTokenDeAcceso, tokenParaEnlace } from "@/nucleo/publico/token";
+import { esEmail } from "@/nucleo/correo/direccion";
+import { ErrorTicketera } from "./eventos";
 import QRCode from "qrcode";
 import { enviarCorreo, escaparHtml as h } from "@/nucleo/correo";
 import { conTenant } from "@/nucleo/db/con-tenant";
 import { origenDeBanda } from "@/nucleo/publico/origen";
 import type { Evento } from "@/nucleo/modulos/contrato";
-import { FECHA_LARGA } from "@/nucleo/fechas";
+import { diaArgentino, FECHA_LARGA } from "@/nucleo/fechas";
 import { formatearCodigo } from "./firma";
 import ticketera from "./index";
 
@@ -17,13 +19,52 @@ const estilo = "font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;c
 
 export async function alPagarseCompra(evento: Evento) {
   const { compraId } = evento.payload as { compraId: string };
-  const datos = await conTenant(evento.tenantId, async (tx) => {
-    const c = await tx.ticketeraCompra.findUnique({ where: { id: compraId }, include: { evento: true, tipo: true, entradas: { orderBy: { nombre: "asc" } } } });
-    const banda = await tx.tenant.findUniqueOrThrow({ where: { id: evento.tenantId }, select: { nombre: true } });
-    const sitio = await origenDeBanda(evento.tenantId, { tx });
+  await mandarEntradas(evento.tenantId, compraId, `compra:${compraId}:entradas`);
+}
+
+/** Reenvíos por compra y día (el fan no lo recibió): el mismo mail, las mismas entradas, sin duplicar nada. */
+export const REENVIOS_POR_DIA = 3;
+
+/** Vuelve a mandar el mail de las entradas que siguen siendo de quien compró. */
+export async function reenviarEntradas(tenantId: string, compraId: string, ahora = new Date()): Promise<boolean> {
+  const dia = diaArgentino(ahora);
+  const hechos = await conTenant(tenantId, (tx) => tx.correo.count({ where: { claveUnica: { startsWith: `compra:${compraId}:reenvio:${dia}:` } } }));
+  if (hechos >= REENVIOS_POR_DIA) return false;
+  return mandarEntradas(tenantId, compraId, `compra:${compraId}:reenvio:${dia}:${hechos + 1}`);
+}
+
+/**
+ * El fan escribió mal su email (3.2 público d1): solo la banda lo corrige, después de verificar el
+ * comprobante de pago. El link de acceso viejo deja de servir (lo tiene quien recibió el mail
+ * equivocado) y las entradas salen al email nuevo. Queda en la actividad con el comprobante.
+ */
+export async function corregirEmailDeCompra(tenantId: string, compraId: string, emailNuevo: string, comprobante: string, usuarioId: string): Promise<void> {
+  const email = emailNuevo.trim().toLowerCase();
+  if (!esEmail(email)) throw new ErrorTicketera("Revisá el email nuevo.");
+  if (comprobante.trim().length < 4) throw new ErrorTicketera("Anotá el comprobante de pago que verificaste (número de operación).");
+  await conTenant(tenantId, async (tx) => {
+    const c = await tx.ticketeraCompra.findUnique({ where: { id: compraId } });
+    if (!c || c.estado !== "PAGADA") throw new ErrorTicketera("Solo se corrige el email de una compra pagada.");
+    const acceso = nuevoTokenDeAcceso(contextoDeToken(tenantId, "ticketera", c.id), 16);
+    await tx.ticketeraCompra.update({ where: { id: c.id }, data: { email, tokenHash: acceso.hash, tokenCifrado: acceso.cifrado } });
+    await tx.auditoria.create({ data: { usuarioId, tenantId, accion: "ticketera.email_corregido", detalle: { compraId: c.id, de: c.email, a: email, comprobante: comprobante.trim().slice(0, 100) } } });
+  });
+  const n = await conTenant(tenantId, (tx) => tx.correo.count({ where: { claveUnica: { startsWith: `compra:${compraId}:correccion:` } } }));
+  await mandarEntradas(tenantId, compraId, `compra:${compraId}:correccion:${n + 1}`);
+}
+
+/** El mail con un QR por entrada (las transferidas a otra persona y las anuladas, no). */
+async function mandarEntradas(tenantId: string, compraId: string, unica: string): Promise<boolean> {
+  const datos = await conTenant(tenantId, async (tx) => {
+    const c = await tx.ticketeraCompra.findUnique({
+      where: { id: compraId },
+      include: { evento: true, tipo: true, entradas: { where: { emailTitular: null, anuladaEn: null }, orderBy: { nombre: "asc" } } },
+    });
+    const banda = await tx.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: { nombre: true } });
+    const sitio = await origenDeBanda(tenantId, { tx });
     return c && { c, banda, sitio };
   });
-  if (!datos || datos.c.estado !== "PAGADA") return;
+  if (!datos || datos.c.estado !== "PAGADA" || !datos.c.entradas.length) return false;
   const { c, banda, sitio } = datos;
   // El token va después de "#": el navegador nunca lo manda a un servidor (ni en Referer ni en logs).
   const token = tokenParaEnlace(c.tokenCifrado, contextoDeToken(c.tenantId, "ticketera", c.id));
@@ -60,10 +101,6 @@ ${url ? `<p>Si perdés este mail, tus entradas están siempre en <a href="${h(ur
     "",
     `¿Alguna consulta? Respondé este mail: le llega a ${banda.nombre}.`,
   ].join("\n");
-  await enviarCorreo(
-    ticketera,
-    evento.tenantId,
-    { para: c.email, asunto: `Tus entradas · ${c.evento.nombre} · ${banda.nombre}`, html, texto, adjuntos },
-    { unica: `compra:${c.id}:entradas` },
-  );
+  await enviarCorreo(ticketera, tenantId, { para: c.email, asunto: `Tus entradas · ${c.evento.nombre} · ${banda.nombre}`, html, texto, adjuntos }, { unica });
+  return true;
 }

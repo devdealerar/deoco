@@ -57,7 +57,7 @@ export const hashIp = (tenantId: string, ip: string) => createHash("sha256").upd
  */
 export const cierreDeVenta = (tipo: { ventaHasta: Date | null }, evento: { fecha: Date }) =>
   tipo.ventaHasta && tipo.ventaHasta < evento.fecha ? tipo.ventaHasta : evento.fecha;
-const DOCUMENTO = /^[0-9A-Za-z.\- ]{5,20}$/;
+export const DOCUMENTO = /^[0-9A-Za-z.\- ]{5,20}$/;
 
 export type Asistente = { nombre: string; documento: string };
 export type DatosCompra = { tipoId: string; cantidad: number; nombre: string; email: string; asistentes: Asistente[]; documento?: string; novedades?: boolean };
@@ -340,6 +340,19 @@ export async function compraConToken(tenantId: string, id: string, token: string
     tx.ticketeraCompra.findUnique({ where: { id }, include: { evento: true, tipo: true, entradas: { orderBy: { nombre: "asc" } } } }),
   );
   return c && tokenCoincide(token, c.tokenHash) ? c : null;
+}
+
+/**
+ * La compra para su página en el sitio: con el token (cookie o link del mail) o con la sesión del
+ * área del fan (D5) del mismo email de la compra.
+ */
+export async function compraEnElSitio(tenantId: string, id: string, token: string | null, emailFan: string | null) {
+  const conToken = await compraConToken(tenantId, id, token);
+  if (conToken || !emailFan || !esUuid(id)) return conToken;
+  const c = await conTenant(tenantId, (tx) =>
+    tx.ticketeraCompra.findUnique({ where: { id }, include: { evento: true, tipo: true, entradas: { orderBy: { nombre: "asc" } } } }),
+  );
+  return c && c.email.toLowerCase() === emailFan ? c : null;
 }
 
 // ---------- Conciliación (los avisos se pierden) ----------

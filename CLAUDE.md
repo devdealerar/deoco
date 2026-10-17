@@ -276,6 +276,20 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
   `enviarCorreo` acepta `cabeceras` SOLO para List-Unsubscribe.
 - Suprimidos (`estaSuprimido`) no vuelven a la base; `datosPersonales` anonimiza el contacto.
 
+## Área del fan (`/mis-compras`, D5)
+
+- Núcleo (`src/nucleo/publico/fan.ts`, tabla `acceso_fan`): link de un solo uso al mail (30 min,
+  solo si el email tiene algo; pedir otro invalida el anterior; freno de 2 min) → sesión del sitio
+  de la banda (cookie `deoco_fan`, 30 días). `emailDelFan(tenantId)`. Abierta en todo estado.
+- Contrato: `areaDelFan: { orden, tiene, componente }` (tienda: pedidos; ticketera: entradas con QR).
+  Las páginas privadas de los módulos también abren con la sesión del fan del mismo email.
+- Transferir una entrada (`modulos/ticketera/transferencias.ts`): pide quien la tiene → confirma
+  desde su mail → acepta quien la recibe → código nuevo (el QR viejo en la puerta: "transferida");
+  sin aceptar a las 72 h o al empezar el show, vence (la entrada nunca cambió). Una abierta por
+  entrada (índice parcial). `emailTitular` en la entrada.
+- Reenviar el mail de las entradas (mismas entradas, 3 por día) y corregir el email de una compra
+  (solo la banda, con el comprobante; rota el link de acceso).
+
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 
 - Planes del 3.2 (`docs/planes.md`): DEMO y ESCENARIO a la venta (Escenario es el de la prueba),

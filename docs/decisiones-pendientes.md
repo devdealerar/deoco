@@ -847,3 +847,15 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
     cupo protege la entrega de todas las bandas que salen desde Deoco.
   - **Exportar la base**: va completa (con la prueba del consentimiento) en "Exportar mis datos";
     no hay un CSV aparte en la pantalla de fans (el panel no tiene descargas por módulo todavía).
+- **Área del fan (D5)**: sin cuenta. El link sale solo si el email tiene compras en esa banda (a quien
+  pide se le responde lo mismo: no se revela quién compró). Link de 30 minutos y un solo uso; la
+  sesión dura 30 días en ese navegador y solo vale en ese sitio. Mis compras queda abierta aunque la
+  banda esté suspendida o archivada (lo pagado no se esconde).
+  - **Transferencia**: dos confirmaciones por mail (la de quien da, contra una sesión robada; la de
+    quien recibe). Vence a las 72 h o al empezar el show. El recibido queda a nombre y documento
+    nuevos (nominadas). La puerta reconoce el QR viejo como "transferida". No se cobra nada ni se
+    revende por Deoco (td3: la plata no pasa por Deoco).
+  - **Reenviar**: 3 por compra y por día (no hay duplicados: son las mismas entradas).
+  - **Email mal escrito**: lo corrige la banda desde el show (con el número del comprobante, queda
+    en la actividad); el link anterior deja de servir. La tienda todavía no tiene esta corrección
+    (su mail de confirmación no lleva nada que se use para entrar: el pedido se ve desde Mis compras).

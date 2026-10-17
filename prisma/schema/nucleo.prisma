@@ -89,6 +89,7 @@ model Tenant {
   pedidosDatos         PedidoDatos[]
   supresiones          SupresionDatos[]
   sesionesSoporte      SesionSoporte[]
+  accesosFan           AccesoFan[]
 
   @@map("tenant")
 }
@@ -697,4 +698,23 @@ model SesionSoporte {
 
   @@index([tenantId, staffId, venceEn])
   @@map("sesion_soporte")
+}
+
+/// Área del fan (D5): link de un solo uso a su mail (30 min) y, al abrirlo, una sesión del sitio
+/// de la banda (30 días). Solo hashes.
+model AccesoFan {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @db.Uuid
+  email       String
+  linkHash    String?   @unique
+  linkVence   DateTime
+  linkUsadoEn DateTime?
+  sesionHash  String?   @unique
+  sesionVence DateTime?
+  cerradaEn   DateTime?
+  creadoEn    DateTime  @default(now())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, email, creadoEn])
+  @@map("acceso_fan")
 }

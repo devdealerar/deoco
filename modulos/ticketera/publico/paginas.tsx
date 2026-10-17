@@ -7,13 +7,15 @@ import { pasarelaLista } from "@/nucleo/pagos";
 import { accesoRecordado } from "@/nucleo/publico/acceso";
 import { CanjearLink } from "@/nucleo/publico/canjear-link";
 import { AvisoDeDatos } from "@/nucleo/publico/legal/pie";
-import { compraConToken, estadoDeCompra, frenosDe } from "../compras";
+import { compraEnElSitio, estadoDeCompra, frenosDe } from "../compras";
 import { qrSvg } from "../correos";
 import { formatearPesos } from "@/nucleo/dinero";
 import { FECHA_LARGA } from "@/nucleo/fechas";
 import { desdeAhora, eventoPublicado, eventos } from "../eventos";
 import ticketera from "../index";
-import { canjearEntradasAccion } from "./acciones";
+import { aceptarTransferenciaAccion, canjearEntradasAccion, confirmarTransferenciaAccion, reenviarAccion } from "./acciones";
+import { AccionFan, CanjeTransferencia } from "./fan-formularios";
+import { emailDelFan } from "@/nucleo/publico/fan";
 import { Comprar } from "./comprar";
 import { formatearCodigo } from "../firma";
 import { c } from "@/nucleo/publico/estilo";
@@ -141,12 +143,13 @@ export async function metadatosEvento({ tenantId, params }: PropsRutaPublica): P
  */
 export async function CompraPublica({ tenantId, params, consulta }: PropsRutaPublica) {
   const token = await accesoRecordado(`entradas-${params.id}`);
-  const compra = token ? await compraConToken(tenantId, params.id, token) : null;
+  const compra = await compraEnElSitio(tenantId, params.id, token, await emailDelFan(tenantId));
   if (!compra) return <CompraSinAcceso tenantId={tenantId} id={params.id} resultado={consulta.get("resultado")} />;
   const resultado = consulta.get("resultado");
   const esperando = compra.estado === "RESERVADA" && (resultado === "exito" || compra.estadoCobro === "approved" || resultado === "pendiente");
-  // Anuladas (pago devuelto) no se muestran: no dejan entrar.
-  const qrs = await Promise.all(compra.entradas.filter((e) => !e.anuladaEn).map(async (e) => ({ ...e, svg: await qrSvg(e.codigo) })));
+  // Anuladas (pago devuelto) no se muestran: no dejan entrar. Las transferidas, sin su QR.
+  const qrs = await Promise.all(compra.entradas.filter((e) => !e.anuladaEn && !e.emailTitular).map(async (e) => ({ ...e, svg: await qrSvg(e.codigo) })));
+  const transferidas = compra.entradas.filter((e) => !e.anuladaEn && e.emailTitular);
   return (
     <Pagina titulo="Tus entradas">
       <div className="flex flex-col gap-1">
@@ -190,6 +193,50 @@ export async function CompraPublica({ tenantId, params, consulta }: PropsRutaPub
           ))}
         </ul>
       )}
+      {transferidas.length > 0 && (
+        <ul className={`text-sm ${c.suave}`} data-transferidas>
+          {transferidas.map((e) => (
+            <li key={e.id}>Una entrada se transfirió a {e.nombre}: su QR lo tiene esa persona.</li>
+          ))}
+        </ul>
+      )}
+      {compra.estado === "PAGADA" && qrs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span className={c.suave}>¿No te llegó el mail?</span>
+          <AccionFan accion={reenviarAccion.bind(null, compra.id)} etiqueta="Reenviármelo" suave prueba="reenviar" />
+          <Link href="/mis-compras" className="underline">
+            Transferir una entrada
+          </Link>
+        </div>
+      )}
+    </Pagina>
+  );
+}
+
+/** /fechas/transferencia/confirmar#<token>: quien da la entrada confirma desde su mail. */
+export function ConfirmarTransferenciaPublica(_: PropsRutaPublica) {
+  return (
+    <Pagina titulo="Transferir una entrada">
+      <CanjeTransferencia
+        canjear={confirmarTransferenciaAccion}
+        prueba="confirmar"
+        bien="Listo: le mandamos un mail a la otra persona para que la acepte. Hasta que la acepte, la entrada sigue siendo tuya."
+        mal="Este link ya no sirve (se usó, se canceló o venció)."
+      />
+    </Pagina>
+  );
+}
+
+/** /fechas/transferencia/aceptar#<token>: quien la recibe la acepta y le llega con su QR. */
+export function AceptarTransferenciaPublica(_: PropsRutaPublica) {
+  return (
+    <Pagina titulo="Tu entrada">
+      <CanjeTransferencia
+        canjear={aceptarTransferenciaAccion}
+        prueba="aceptar"
+        bien="¡Es tuya! Te mandamos la entrada con su QR por mail. También la tenés en Mis compras, al pie del sitio."
+        mal="Este link ya no sirve: la transferencia venció, se canceló o la entrada cambió. La entrada sigue con quien te la mandó."
+      />
     </Pagina>
   );
 }

@@ -18,6 +18,7 @@ import {
   borrarEventoAccion,
   borrarTipoAccion,
   crearEventoAccion,
+  corregirEmailAccion,
   crearTipoAccion,
   guardarFrenosAccion,
   publicarAccion,
@@ -224,6 +225,7 @@ export async function EventoPanel({ tenantId, slug, params }: PropsRutaPanel) {
           { id: "quien", etiqueta: "Compró" },
           { id: "tipo", etiqueta: "Entradas" },
           { id: "total", etiqueta: "Total" },
+          { id: "email", etiqueta: "" },
         ]}
         filas={compras.map((c) => ({
           id: c.id,
@@ -240,6 +242,19 @@ export async function EventoPanel({ tenantId, slug, params }: PropsRutaPanel) {
             <span key="m" className="tabular-nums">
               {formatearPesos(c.total)}
             </span>,
+            c.estado === "PAGADA" && editar ? (
+              <details key="e" className="text-sm" data-corregir-email={c.id}>
+                <summary className="cursor-pointer text-tertiary underline">Corregir el email</summary>
+                <div className="mt-2 w-72">
+                  <Formulario accion={corregirEmailAccion.bind(null, slug, c.id)} puedeEditar etiqueta="Corregir y reenviar">
+                    <Campo name="email" type="email" etiqueta="Email correcto" required />
+                    <Campo name="comprobante" etiqueta="Comprobante que verificaste" ayuda="El número de operación del pago." required />
+                  </Formulario>
+                </div>
+              </details>
+            ) : (
+              <span key="e" />
+            ),
           ],
         }))}
       />

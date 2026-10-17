@@ -227,6 +227,8 @@ function Resultado({ estado, siguiente }: { estado: Extract<Estado, { tipo: "res
       );
     case "otro-show":
       return caja("bg-warning-solid", "OTRO SHOW", <div className="text-lg">Es una entrada para «{r.show}».</div>);
+    case "transferida":
+      return caja("bg-error-solid", "TRANSFERIDA", <div className="text-lg">Ese QR ya no vale: la entrada se transfirió y la persona nueva tiene otro.</div>);
     default:
       return caja("bg-error-solid", "NO VÁLIDA", <div className="text-lg">Ese código no es una entrada de este show.</div>);
   }

@@ -132,6 +132,9 @@ C4 (casos de borde del núcleo, 3.2 núcleo d6):
   sitio y desde la compra (casilla sin marcar), base con crecimiento, geografía y repetición, envíos
   con cupo por reputación, baja en un clic (List-Unsubscribe), aperturas y bajas por envío.
   `tests/fans.test.ts`, `tests/e2e/fans.e2e.ts`.
+- D5 ✅ Área del fan (`/mis-compras`): link de un solo uso, sesión por sitio, pedidos y entradas con
+  QR (`areaDelFan` en el contrato), transferir con doble confirmación (el QR viejo deja de valer),
+  reenviar sin duplicar, corregir el email desde el panel. `tests/area-fan.test.ts`, `tests/e2e/area-fan.e2e.ts`.
 
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 

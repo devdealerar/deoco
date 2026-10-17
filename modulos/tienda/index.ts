@@ -5,6 +5,7 @@ import { inicioTienda } from "./inicio";
 import { tiendaEnCurso } from "./en-curso";
 import { conciliarPedidos } from "./pagos";
 import { compradorDePedido } from "./pedidos";
+import { PedidosDelFan, tieneTienda } from "./publico/area-fan";
 import type { Modulo } from "@/nucleo/modulos/contrato";
 import { buscarDatosTienda, suprimirDatosTienda } from "./datos-personales";
 import { conTenant } from "@/nucleo/db/con-tenant";
@@ -123,6 +124,8 @@ const tienda: Modulo = {
   ],
   // Un cambio de plan no la apaga con pedidos por pagar, en revisión o sin despachar.
   // Derechos del fan sobre sus datos (D2): lo que hay de una persona y cómo se anonimiza.
+  // Área del fan (D5): sus pedidos en /mis-compras.
+  areaDelFan: { orden: 20, tiene: tieneTienda, componente: PedidosDelFan },
   datosPersonales: {
     buscar: buscarDatosTienda,
     suprimir: suprimirDatosTienda,

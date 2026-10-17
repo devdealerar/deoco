@@ -5,6 +5,7 @@ import { accionesDelPanel } from "@/nucleo/acceso/acciones";
 import { ErrorLimite } from "@/nucleo/cuenta";
 import { accesoPanel, puedeEnPedido } from "@/nucleo/acceso/panel";
 import ticketera from "../index";
+import { corregirEmailDeCompra } from "../correos";
 import type { EstadoFormulario } from "@/ui";
 import { archivo, ErrorFormulario, obligatorio, texto } from "@/ui/servidor";
 import { leerPesos } from "@/nucleo/dinero";
@@ -131,6 +132,14 @@ export async function borrarTipoAccion(slug: string, tipoId: string, _: EstadoFo
   return conEdicion(slug, async ({ tenantId }) => {
     await borrarTipo(tenantId, tipoId);
     return "Tipo borrado.";
+  });
+}
+
+/** El fan escribió mal su email: la banda lo corrige con el comprobante verificado (3.2 público d1). */
+export async function corregirEmailAccion(slug: string, compraId: string, _: EstadoFormulario, fd: FormData) {
+  return conEdicion(slug, async ({ tenantId, usuarioId }) => {
+    await corregirEmailDeCompra(tenantId, compraId, texto(fd, "email", 200), texto(fd, "comprobante", 100), usuarioId);
+    return "Email corregido: las entradas salieron al email nuevo y el link viejo dejó de servir.";
   });
 }
 
