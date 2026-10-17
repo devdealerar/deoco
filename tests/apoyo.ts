@@ -16,6 +16,9 @@ const SEMILLA_COMERCIAL = [
   ...(readFileSync("prisma/migrations/20261125120001_comercial_topes_32/migration.sql", "utf8").match(/UPDATE "comercial_plan"[^;]+;/g) ?? []),
   ...(readFileSync("prisma/migrations/20261125130000_comercial_complementos/migration.sql", "utf8").match(/INSERT INTO "comercial_complemento"[^;]+;/g) ?? []),
   ...(readFileSync("prisma/migrations/20261127130000_comercial_planes_fans/migration.sql", "utf8").match(/UPDATE "comercial_plan"[^;]+;/g) ?? []),
+  ...(readFileSync("prisma/migrations/20261129100001_comercial_planes_lanzamiento/migration.sql", "utf8").match(/UPDATE "comercial_plan"[^;]+;/g) ?? []),
+  // La plantilla de lanzamientos y sus medidas (globales, de arranque).
+  ...(readFileSync("prisma/migrations/20261129100000_lanzamiento/migration.sql", "utf8").match(/INSERT INTO "lanzamiento_[a-z_]+"[\s\S]+?\);$/gm) ?? []), // (las descripciones llevan ";")
 ];
 
 /** Vacía todas las tablas (núcleo y módulos), menos la de migraciones, y vuelve a sembrar los planes. */
@@ -28,7 +31,7 @@ export async function limpiar() {
 
 /** Planes y plazos como los deja la migración (las pruebas los cambian). */
 export async function sembrarComercial() {
-  await dueno.$executeRawUnsafe(`TRUNCATE "comercial_plan", "comercial_config", "comercial_complemento"`);
+  await dueno.$executeRawUnsafe(`TRUNCATE "comercial_plan", "comercial_config", "comercial_complemento", "lanzamiento_tarea_base", "lanzamiento_formato"`);
   for (const sql of SEMILLA_COMERCIAL) await dueno.$executeRawUnsafe(sql);
 }
 

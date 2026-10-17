@@ -290,6 +290,15 @@ Origin Pulls; vuelta atrás en `docs/despliegue.md`); el estado es el que inform
 - Reenviar el mail de las entradas (mismas entradas, 3 por día) y corregir el email de una compra
   (solo la banda, con el comprobante; rota el link de acceso).
 
+## Lanzamientos (`modulos/lanzamiento`, D6)
+
+- Interno del panel (sin rutas públicas). Campaña (`lanzamiento_campania`) → hitos (copias de la
+  plantilla global `lanzamiento_tarea_base`: `dias` desde la fecha y `dependeDe`) y piezas (copias de
+  `lanzamiento_formato`: plataforma, pieza, ancho×alto). Plantilla y medidas: staff, `/admin/m/lanzamiento`.
+- Mover la fecha corre todos los hitos lo mismo; atrasado = vencido sin hacer (se muestra, y va al
+  inicio: un pendiente por campaña con cuántos); la dependencia se avisa, no bloquea. Pieza: cumple =
+  misma proporción (1 %) y al menos la medida; si no, "no conforme", guardada igual. Cancelar archiva.
+
 ## Planes y cuota (`modulos/comercial`, gestor de cuenta)
 
 - Planes del 3.2 (`docs/planes.md`): DEMO y ESCENARIO a la venta (Escenario es el de la prueba),

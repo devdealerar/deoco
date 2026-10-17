@@ -859,3 +859,19 @@ que no le cobra de más a la banda; ante duda de privacidad, lo que guarda menos
   - **Email mal escrito**: lo corrige la banda desde el show (con el número del comprobante, queda
     en la actividad); el link anterior deja de servir. La tienda todavía no tiene esta corrección
     (su mail de confirmación no lleva nada que se use para entrar: el pedido se ve desde Mis compras).
+- **Organizador de lanzamiento (D6)**: módulo `lanzamiento`, en todos los planes.
+  - **Plantilla**: 21 tareas de un single típico, de 60 días antes a 30 después (la distribuidora a
+    35 días, el pitch editorial a 28: Spotify pide al menos 7). El staff las edita; rigen para las
+    campañas nuevas (las armadas no cambian: son copias).
+  - **Medidas** (3.2 c2 las dejó pendientes): puse las recomendadas hoy por cada plataforma (tapa
+    3000×3000, Instagram 1080×1350 / 1080×1080 / 1080×1920, YouTube 1280×720 y 2560×1440, Facebook
+    1640×856 y 1920×1005, X 1500×500, Bandcamp 1400×1400, prensa 3000×2000 y 2000×3000). A confirmar;
+    se cambian desde el back office.
+  - **"Cumple la medida"**: misma proporción (1 % de margen) y al menos el tamaño pedido (más grande
+    lo achica la plataforma sin perder). Exacta sería rechazar casi todo.
+  - **Dependencias**: se muestran ("después de…, faltan 2"), no impiden marcar hecho (la banda puede
+    haber hecho algo antes; 3.2: "no se bloquea la campaña").
+  - **Cancelada**: se archiva (lista aparte), sin borrar hitos, piezas ni archivos. "La biblioteca"
+    no existe en el núcleo: los archivos siguen accesibles desde la campaña archivada.
+  - **Inicio**: un pendiente por campaña con cuántos atrasados (el inicio corta en 8 por bloque: así
+    no se pierde ninguno en silencio).

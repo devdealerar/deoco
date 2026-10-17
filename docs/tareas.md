@@ -135,6 +135,9 @@ C4 (casos de borde del núcleo, 3.2 núcleo d6):
 - D5 ✅ Área del fan (`/mis-compras`): link de un solo uso, sesión por sitio, pedidos y entradas con
   QR (`areaDelFan` en el contrato), transferir con doble confirmación (el QR viejo deja de valer),
   reenviar sin duplicar, corregir el email desde el panel. `tests/area-fan.test.ts`, `tests/e2e/area-fan.e2e.ts`.
+- D6 ✅ Organizador de lanzamiento (`modulos/lanzamiento`): campaña → cronograma con dependencias y
+  piezas por formato, mover la fecha, atrasados en el inicio, piezas no conformes, archivar; plantilla
+  y medidas en el back office. `tests/lanzamiento.test.ts`, `tests/e2e/lanzamiento.e2e.ts`.
 
 ## D · Dominios de las bandas (diseño aprobado pendiente; sin código todavía)
 

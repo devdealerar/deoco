@@ -1,0 +1,108 @@
+// Módulo lanzamiento: el organizador de lanzamientos (3.2, etapa 2). Herramienta interna del
+// panel, sin nada en el sitio. Una campaña por lanzamiento; el sistema arma el cronograma (hitos con
+// dependencias, a una distancia fija de la fecha) y la lista de piezas gráficas por formato. Lo que
+// se deriva (tareas y medidas) lo edita el staff desde el back office, sin tocar código.
+
+/// @global
+/// Tarea de la plantilla: a cuántos días de la fecha de lanzamiento (negativo = antes) y de qué
+/// otras depende. Cambiarla no toca las campañas ya armadas.
+model LanzamientoTareaBase {
+  clave         String   @id
+  titulo        String
+  descripcion   String   @default("")
+  /// Días desde la fecha de lanzamiento (-45 = 45 días antes; 7 = una semana después).
+  dias          Int
+  /// Claves de las tareas que van antes.
+  dependeDe     String[] @default([])
+  orden         Int      @default(0)
+  activa        Boolean  @default(true)
+  actualizadoEn DateTime @default(now()) @updatedAt
+
+  @@map("lanzamiento_tarea_base")
+}
+
+/// @global
+/// Pieza gráfica que pide una plataforma, con su medida en píxeles. Las medidas cambian: las
+/// actualiza el staff (3.2 lanzamiento d1).
+model LanzamientoFormato {
+  id            String   @id
+  plataforma    String
+  pieza         String
+  ancho         Int
+  alto          Int
+  notas         String   @default("")
+  orden         Int      @default(0)
+  activo        Boolean  @default(true)
+  actualizadoEn DateTime @default(now()) @updatedAt
+
+  @@map("lanzamiento_formato")
+}
+
+/// Una campaña por lanzamiento. ACTIVA → TERMINADA | CANCELADA (se archiva sin borrar nada).
+model LanzamientoCampania {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  titulo      String
+  /// "single" | "ep" | "album" | "video" | "otro".
+  tipo        String    @default("single")
+  /// El día del lanzamiento (00:00 de Argentina).
+  fecha       DateTime
+  estado      String    @default("ACTIVA")
+  creadoPor   String?   @db.Uuid
+  canceladaEn DateTime?
+  creadoEn    DateTime  @default(now())
+
+  hitos  LanzamientoHito[]
+  piezas LanzamientoPieza[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, estado])
+  @@map("lanzamiento_campania")
+}
+
+/// Un hito del cronograma: copia de la plantilla al armar la campaña. Vence a `dias` de la fecha:
+/// si la fecha se mueve, se mueven todos (las distancias quedan).
+model LanzamientoHito {
+  id          String              @id @default(uuid()) @db.Uuid
+  tenantId    String              @db.Uuid
+  campaniaId  String              @db.Uuid
+  campania    LanzamientoCampania @relation(fields: [tenantId, campaniaId], references: [tenantId, id], onDelete: Cascade)
+  clave       String
+  titulo      String
+  descripcion String              @default("")
+  dias        Int
+  dependeDe   String[]            @default([])
+  vence       DateTime
+  orden       Int                 @default(0)
+  hechoEn     DateTime?
+  hechoPor    String?             @db.Uuid
+
+  @@unique([tenantId, campaniaId, clave])
+  @@index([tenantId, vence])
+  @@map("lanzamiento_hito")
+}
+
+/// Una pieza a entregar (copia del formato al armar la campaña). Subida: su archivo y si cumple la
+/// medida. Una que no cumple se acepta igual, marcada "no conforme" (no bloquea la campaña).
+model LanzamientoPieza {
+  id         String              @id @default(uuid()) @db.Uuid
+  tenantId   String              @db.Uuid
+  campaniaId String              @db.Uuid
+  campania   LanzamientoCampania @relation(fields: [tenantId, campaniaId], references: [tenantId, id], onDelete: Cascade)
+  formatoId  String
+  plataforma String
+  pieza      String
+  ancho      Int
+  alto       Int
+  orden      Int                 @default(0)
+  archivoId  String?             @db.Uuid
+  archivoNombre String?
+  /// Medida real de lo que se subió, y si cumple.
+  anchoReal  Int?
+  altoReal   Int?
+  conforme   Boolean?
+  subidaEn   DateTime?
+
+  @@unique([tenantId, campaniaId, formatoId])
+  @@map("lanzamiento_pieza")
+}
